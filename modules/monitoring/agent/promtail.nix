@@ -61,7 +61,7 @@
                   stages = [
                     {
                       regex = {
-                        expression = ''(?P<sdr_err>device not found)|(?P<upstream_err>connect.*fail)'';
+                        expression = "(?P<sdr_err>device not found)|(?P<upstream_err>connect.*fail)";
                       };
                     }
                     {
