@@ -155,13 +155,13 @@ in
             }
             {
               key = "<leader>zz";
-              action.__raw = ''function() Snacks.lazygit() end'';
+              action.__raw = "function() Snacks.lazygit() end";
               options.desc = "Open LazyGit";
             }
 
             {
               key = "<leader>-";
-              action.__raw = ''function() Snacks.picker.explorer() end'';
+              action.__raw = "function() Snacks.picker.explorer() end";
               options.desc = "Toggle Snacks Explorer";
             }
 

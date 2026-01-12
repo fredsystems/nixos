@@ -565,17 +565,17 @@
 
           "/dozzle/" = {
             proxyPass = "http://192.168.31.20:9999";
-            extraConfig = ''proxy_redirect / /dozzle/;'';
+            extraConfig = "proxy_redirect / /dozzle/;";
           };
 
           "/tar1090/" = {
             proxyPass = "http://192.168.31.20:8080/";
-            extraConfig = ''proxy_redirect / /tar1090/;'';
+            extraConfig = "proxy_redirect / /tar1090/;";
           };
 
           "/dump978/" = {
             proxyPass = "http://192.168.31.20:8083/";
-            extraConfig = ''proxy_redirect / /dump978/;'';
+            extraConfig = "proxy_redirect / /dump978/;";
           };
 
           "/graphs/" = {
@@ -592,7 +592,7 @@
 
           "/piaware/" = {
             proxyPass = "http://192.168.31.20:8084/";
-            extraConfig = ''proxy_redirect / /piaware/;'';
+            extraConfig = "proxy_redirect / /piaware/;";
           };
 
           "/planefinder/" = {
@@ -605,7 +605,7 @@
 
           "/acarshub/" = {
             proxyPass = "http://192.168.31.20:8085/";
-            extraConfig = ''proxy_redirect / /acarshub/;'';
+            extraConfig = "proxy_redirect / /acarshub/;";
           };
         };
       };
