@@ -14,6 +14,7 @@ alias co="rustup update"
 alias gc="gcverify"
 alias gcn="gcnoverify"
 alias gp="gppush"
+alias gum="git-sync-main"
 
 alias ng="nvim ${GITHUB_DIR}"
 alias ngf="nvim ${GITHUB_DIR}/freminal"

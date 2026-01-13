@@ -39,6 +39,43 @@ gitsig() {
     git log --show-signature -"${num_commits}"
 }
 
+git-sync-main() {
+    set -euo pipefail
+
+    # Get current branch
+    local current
+    current="$(git symbolic-ref --short HEAD 2>/dev/null)" || {
+        echo "Not on a branch (detached HEAD)" >&2
+        return 1
+    }
+
+    if [[ "$current" == "main" ]]; then
+        echo "Already on main — nothing to sync." >&2
+        return 0
+    fi
+
+    # Make sure working tree is clean
+    if ! git diff --quiet || ! git diff --cached --quiet; then
+        echo "Working tree not clean — commit or stash first." >&2
+        return 1
+    fi
+
+    echo "Fetching origin..."
+    git fetch origin
+
+    echo "Merging origin/main → $current"
+    git merge --no-ff origin/main || {
+        echo
+        echo "Merge conflict. Resolve, then:"
+        echo "  git commit"
+        echo "or abort with:"
+        echo "  git merge --abort"
+        return 1
+    }
+
+    echo "✔ $current is now up to date with main"
+}
+
 updatenix() {
     local nixos_dir="${GITHUB_DIR}/nixos"
     local pushed=false
