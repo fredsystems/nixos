@@ -64,7 +64,7 @@ git-sync-main() {
     git fetch origin
 
     echo "Merging origin/main → $current"
-    git merge --no-ff origin/main || {
+    git merge --no-ff origin/main -S || {
         echo
         echo "Merge conflict. Resolve, then:"
         echo "  git commit"
