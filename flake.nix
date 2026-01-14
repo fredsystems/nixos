@@ -12,7 +12,9 @@
     };
 
     apple-fonts = {
-      url = "github:Lyndeno/apple-fonts.nix";
+      # FIXME: Go back to upstream when https://github.com/Lyndeno/apple-fonts.nix/pull/25 is merged
+      #url = "github:Lyndeno/apple-fonts.nix";
+      url = "github:fredclausen/apple-fonts.nix";
     };
 
     home-manager = {
