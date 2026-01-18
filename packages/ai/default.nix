@@ -17,9 +17,11 @@ in
 
   imports = [
     ./lammacpp
+    ./opencode
   ];
 
   config = mkIf cfg.enable {
     ai.local-llm.enable = true;
+    ai.opencode.enable = true;
   };
 }
