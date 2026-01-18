@@ -60,6 +60,7 @@ in
     ../../packages/desktop/wezterm
     ../../packages/desktop/zed
     ../../packages/desktop/yubikey
+    ../../packages/ai
   ];
 
   desktop = {
