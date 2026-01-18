@@ -16,7 +16,9 @@ in
     variables.EDITOR = "nvim";
   };
 
-  ai.enable = true;
+  ai = {
+    opencode.enable = true;
+  };
 
   system = {
     defaults = {
