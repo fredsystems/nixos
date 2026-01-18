@@ -340,6 +340,7 @@ in
             markdownlint.settings = {
               MD013 = false;
               MD033 = false;
+              MD060 = false;
             };
           };
         };
