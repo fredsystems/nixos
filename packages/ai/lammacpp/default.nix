@@ -29,7 +29,7 @@ in
 
     webuiPort = mkOption {
       type = types.port;
-      default = 8080;
+      default = 8888;
       description = "Port for Open WebUI";
     };
 
@@ -78,7 +78,7 @@ in
       requires = [ "ollama.service" ];
 
       serviceConfig = {
-        ExecStart = "${pkgs.open-webui}/bin/open-webui serve";
+        ExecStart = "${pkgs.open-webui}/bin/open-webui serve --host ${cfg.host} --port ${toString cfg.webuiPort}";
 
         Restart = "always";
         RestartSec = 3;
