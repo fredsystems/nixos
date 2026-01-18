@@ -17,7 +17,6 @@ in
   };
 
   ai = {
-    local-llm.enable = false;
     opencode.enable = true;
   };
 
@@ -63,7 +62,7 @@ in
     ../../packages/desktop/wezterm
     ../../packages/desktop/zed
     ../../packages/desktop/yubikey
-    ../../packages/ai
+    ../../packages/ai/opencode
   ];
 
   desktop = {
