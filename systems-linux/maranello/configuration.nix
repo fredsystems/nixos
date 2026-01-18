@@ -27,6 +27,7 @@
   };
   deployment.role = "desktop";
   sops_secrets.enable_secrets.enable = true;
+  hardware.graphics.enable = true;
 
   boot = {
     kernelPackages = pkgs.linuxKernel.packages.linux_6_18;

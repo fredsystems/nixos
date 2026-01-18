@@ -113,7 +113,7 @@ in
     ########################################
     # System requirements
     ########################################
-    hardware.graphics.enable = true;
+    #hardware.graphics.enable = true;
 
     environment.systemPackages = [
       cfg.ollamaPackage
