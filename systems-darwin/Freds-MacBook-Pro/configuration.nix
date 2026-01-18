@@ -16,6 +16,8 @@ in
     variables.EDITOR = "nvim";
   };
 
+  ai.enable = true;
+
   system = {
     defaults = {
       dock = {
