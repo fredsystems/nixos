@@ -17,6 +17,7 @@ in
   };
 
   ai = {
+    local-llm = false;
     opencode.enable = true;
   };
 
