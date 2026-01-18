@@ -1,6 +1,5 @@
 {
   config,
-  pkgs,
   stateVersion,
   ...
 }:
@@ -26,7 +25,7 @@
 
   networking.hostName = "acarshub";
 
-  environment.systemPackages = with pkgs; [ ];
+  #environment.systemPackages = with pkgs; [ ];
 
   system.stateVersion = stateVersion;
 

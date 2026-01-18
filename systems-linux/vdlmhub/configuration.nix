@@ -1,6 +1,5 @@
 {
   config,
-  pkgs,
   stateVersion,
   ...
 }:
@@ -31,7 +30,7 @@
 
   networking.hostName = "vdlmhub";
 
-  environment.systemPackages = with pkgs; [ ];
+  #environment.systemPackages = with pkgs; [ ];
 
   system.stateVersion = stateVersion;
 

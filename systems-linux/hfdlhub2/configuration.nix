@@ -31,7 +31,7 @@ in
 
   networking.hostName = "hfdlhub2";
 
-  environment.systemPackages = with pkgs; [ ];
+  #environment.systemPackages = with pkgs; [ ];
 
   system.stateVersion = stateVersion;
 

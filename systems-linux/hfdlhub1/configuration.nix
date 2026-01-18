@@ -1,6 +1,5 @@
 {
   config,
-  pkgs,
   stateVersion,
   ...
 }:
@@ -26,7 +25,7 @@
 
   networking.hostName = "hfdlhub1";
 
-  environment.systemPackages = with pkgs; [ ];
+  #environment.systemPackages = with pkgs; [ ];
 
   system.stateVersion = stateVersion;
 

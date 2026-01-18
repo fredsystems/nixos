@@ -36,7 +36,7 @@
 
   networking.hostName = "fredhub";
 
-  environment.systemPackages = with pkgs; [ ];
+  #environment.systemPackages = with pkgs; [ ];
 
   system.stateVersion = stateVersion;
 

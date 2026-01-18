@@ -3,8 +3,15 @@
   pkgs,
   user,
   stateVersion,
+  lib,
   ...
 }:
+let
+  monitors = import ./monitors.nix;
+  hyprMonitors = import ../../modules/monitors/hyprland.nix {
+    inherit lib monitors;
+  };
+in
 {
   imports = [
     ./hardware-configuration.nix
@@ -55,14 +62,9 @@
   hardware.i2c.enable = true;
   users.users.${user}.extraGroups = [ "i2c" ];
 
-  environment.systemPackages = with pkgs; [ ];
+  #environment.systemPackages = with pkgs; [ ];
 
   system.stateVersion = stateVersion;
-
-  systemd.tmpfiles.rules = [
-    "d /var/lib/gdm/.config 0755 gdm gdm -"
-    "f /var/lib/gdm/.config/monitors.xml 0644 gdm gdm - ${./monitors.xml}"
-  ];
 
   security.pam.services = {
     polkit-1.u2fAuth = true;
@@ -88,25 +90,7 @@
   system.activationScripts.sddm-hyprland-config = ''
     mkdir -p /var/lib/sddm/.config/hypr
     cat <<EOF > /var/lib/sddm/.config/hypr/hyprland.conf
-    # monitor=name,res,offset,scale
-
-    # HDMI-A-1 at top left
-    monitor=HDMI-A-1, 2560x1440@144.01, 0x0, 1
-
-    # DP-2 below HDMI-A-1
-    monitor=DP-2, 2560x1440@143.97, 0x1440, 1
-
-    # DP-1 (Primary) to the right of DP-2
-    monitor=DP-3, 2560x1440@143.97, 2560x1440, 1
-
-    # DP-1 at top right
-    monitor=DP-1, highrr, 0x-1440, 1
-
-    ecosystem {
-      no_update_news = true
-      no_donation_nag = true
-    }
-
+    ${lib.concatStringsSep "\n" (map (m: "monitor=${m}") hyprMonitors)}
     EOF
     chown -R sddm:sddm /var/lib/sddm/.config
   '';

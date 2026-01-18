@@ -1,10 +1,18 @@
 {
   user,
   inputs,
+  lib,
   ...
 }:
 let
   username = user;
+  monitors = import ./monitors.nix;
+  hyprMonitors = import ../../modules/monitors/hyprland.nix {
+    inherit lib monitors;
+  };
+  niriOutputs = import ../../modules/monitors/niri.nix {
+    inherit monitors;
+  };
 in
 {
   # Host-specific Home Manager config for maranello
@@ -14,9 +22,6 @@ in
     ../../modules/ansible/ansible.nix
     ../../modules/nas-home.nix
   ];
-
-  # Per-user monitors.xml in $HOME
-  home.file.".config/monitors.xml".text = builtins.readFile ./monitors.xml;
 
   nas = {
     enable = true;
@@ -145,69 +150,12 @@ in
     };
 
     niri.settings = {
-      outputs = {
-        "DP-3" = {
-          scale = 1.0;
-          mode = {
-            width = 2560;
-            height = 1440;
-            refresh = 144.0;
-          };
-          position = {
-            x = 0;
-            y = 0;
-          };
-        };
-
-        "DP-2" = {
-          scale = 1.0;
-          mode = {
-            width = 2560;
-            height = 1440;
-            refresh = 144.0;
-          };
-          position = {
-            x = -2560;
-            y = 0;
-          };
-        };
-
-        "HDMI-A-1" = {
-          scale = 1.0;
-          mode = {
-            width = 2560;
-            height = 1440;
-            refresh = 60.0;
-          };
-          position = {
-            x = -2560;
-            y = -1440;
-          };
-        };
-
-        "DP-1" = {
-          scale = 1.0;
-          mode = {
-            width = 2560;
-            height = 1440;
-            refresh = 144.0;
-          };
-          position = {
-            x = 0;
-            y = -1440;
-          };
-        };
-      };
+      outputs = niriOutputs;
     };
   };
 
   wayland.windowManager.hyprland.settings = {
-    monitor = [
-      "DP-1, highrr, 0x-1440, 1"
-      "DP-3, highrr, 0x0, 1"
-      "DP-2, highrr, -2560x0, 1"
-      "HDMI-A-1, highrr, -2560x-1440, 1"
-    ];
+    monitor = hyprMonitors;
 
     workspace = [
       "1, monitor:DP-3"
