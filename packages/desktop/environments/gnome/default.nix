@@ -106,11 +106,11 @@ in
         };
 
         theme = {
-          name = "Catppuccin-GTK-Purple-Dark";
+          name = "Catppuccin-GTK-Mauve-Dark";
           # + optionalString (cfg.gtk.size == "compact") "-Compact"
           # + optionalString (flavorTweak != "") (mkSuffix flavorTweak);
           package = pkgs.magnetic-catppuccin-gtk.override {
-            accent = [ "purple" ];
+            accent = [ "mauve" ];
             shade = "dark";
             # inherit (cfg.gtk) size;
             # tweaks = cfg.gtk.tweaks ++ optional (flavorTweak != "") flavorTweak;
@@ -213,7 +213,7 @@ in
         };
 
         "org/gnome/shell/extensions/user-theme" = {
-          name = "Catppuccin-GTK-Purple-Dark";
+          name = "Catppuccin-GTK-Mauve-Dark";
         };
 
         "org/gnome/shell/extensions/arcmenu" = {

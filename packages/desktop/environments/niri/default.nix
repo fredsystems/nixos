@@ -103,7 +103,7 @@ in
                 "sh"
                 "-c"
                 "gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark' && \
-                 gsettings set org.gnome.desktop.interface gtk-theme 'Catppuccin-GTK-Purple-Dark'"
+                 gsettings set org.gnome.desktop.interface gtk-theme 'Catppuccin-GTK-Mauve-Dark'"
               ];
             }
 
