@@ -318,6 +318,14 @@ in
               set-column-width = "100%";
             };
 
+            "Mod+MouseForward".action = {
+              focus-column-right = { };
+            };
+
+            "Mod+MouseBack".action = {
+              focus-column-left = { };
+            };
+
             # --- Move focus (Hypr: movefocus) ---
             "Mod+Shift+Left".action = {
               focus-column-left = { };

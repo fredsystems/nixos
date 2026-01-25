@@ -325,6 +325,9 @@ in
             "$mainMod, mouse_up, workspace, e-1"
             "$mainMod, mouse_down, workspace, e-1"
             "$mainMod, mouse_up, workspace, e+1"
+
+            ", mouse:275, workspace, e-1" # Back button
+            ", mouse:276, workspace, e+1" # Forward button
           ];
 
           binde = [
