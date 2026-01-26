@@ -319,11 +319,11 @@ in
             };
 
             "Mod+MouseForward".action = {
-              focus-column-right = { };
+              focus-column-left = { };
             };
 
             "Mod+MouseBack".action = {
-              focus-column-left = { };
+              focus-column-right = { };
             };
 
             # --- Move focus (Hypr: movefocus) ---
