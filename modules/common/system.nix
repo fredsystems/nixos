@@ -20,10 +20,21 @@ in
     ++ lib.optional isLinux ./linux-catpuccin.nix;
 
   nix = {
-    settings.experimental-features = [
-      "nix-command"
-      "flakes"
-    ];
+    settings = {
+      substituters = [
+        "http://192.168.31.14:8080/fred"
+        "https://cache.nixos.org"
+      ];
+
+      trusted-public-keys = [
+        "fred:JjyhvRSvKfkk8r4HS0mS5r5I7dT4GociEFbrR9OgBZ0="
+      ];
+
+      experimental-features = [
+        "nix-command"
+        "flakes"
+      ];
+    };
 
     gc = {
       automatic = true;
