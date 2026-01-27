@@ -22,7 +22,7 @@ in
   nix = {
     settings = {
       substituters = [
-        "http://192.168.31.14:8080"
+        "http://192.168.31.14:8080/fred"
         "https://cache.nixos.org"
       ];
 
