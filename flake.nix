@@ -67,6 +67,10 @@
       url = "github:orangci/walls-catppuccin-mocha";
       flake = false;
     };
+
+    # attic = {
+    #   url = "github:zhaofengli/attic";
+    # };
   };
 
   outputs =
@@ -81,6 +85,7 @@
       niri,
       darwin,
       walls-catppuccin,
+      #attic,
       ...
     }:
 
@@ -164,7 +169,11 @@
 
                 users.${user} = {
                   # shared HM baseline
-                  imports = [ ./modules/common/home.nix ] ++ hmModules;
+                  imports = [
+                    ./modules/common/home.nix
+                    ./modules/attic/attic_client.nix
+                  ]
+                  ++ hmModules;
                 };
 
                 extraSpecialArgs = {
@@ -289,6 +298,7 @@
           hostName = "fredhub";
           stateVersion = "25.11";
           hmModules = [ ];
+          #extraModules = [ attic.nixosModules.atticd ];
         };
 
         acarshub = self.lib.mkSystem {
