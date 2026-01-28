@@ -308,7 +308,7 @@
       ###############################################################
       {
         name = "fr24";
-        image = "ghcr.io/sdr-enthusiasts/docker-flightradar24:trixie-latest-build-4";
+        image = "ghcr.io/sdr-enthusiasts/docker-flightradar24:trixie-latest-build-5";
 
         restart = "always";
         tty = true;
