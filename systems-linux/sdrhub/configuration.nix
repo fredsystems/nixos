@@ -515,7 +515,7 @@
       ###############################################################
       {
         name = "acars_router";
-        image = "ghcr.io/sdr-enthusiasts/acars_router:trixie-latest-build-4";
+        image = "ghcr.io/sdr-enthusiasts/acars_router:trixie-latest-build-5";
 
         restart = "always";
         tty = true;
