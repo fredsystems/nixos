@@ -357,7 +357,7 @@
       ###############################################################
       {
         name = "planefinder";
-        image = "ghcr.io/sdr-enthusiasts/docker-planefinder:trixie-latest-build-4";
+        image = "ghcr.io/sdr-enthusiasts/docker-planefinder:trixie-latest-build-5";
 
         restart = "always";
         tty = true;
