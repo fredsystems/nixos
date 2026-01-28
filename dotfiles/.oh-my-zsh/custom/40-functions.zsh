@@ -77,18 +77,41 @@ git-sync-main() {
 }
 
 pushcache() {
-    HM_PATH=$(readlink -f ~/.local/state/nix/profiles/home-manager)
+    set -euo pipefail
+
+    USER=fred
+
+    # Detect Home Manager root (newer HM first)
+    if [ -e "$HOME/.local/state/home-manager/gcroots/current-home" ]; then
+        HM_ROOT="$HOME/.local/state/home-manager/gcroots/current-home"
+    elif [ -e "$HOME/.local/state/nix/profiles/home-manager" ]; then
+        HM_ROOT="$HOME/.local/state/nix/profiles/home-manager"
+    else
+        echo "❌ Could not find Home Manager GC root"
+        exit 1
+    fi
+
+    HM_PATH=$(readlink -f "$HM_ROOT")
+
+    USER_PROFILE=$(readlink -f /etc/profiles/per-user/${USER})
 
     echo "Pushing home-manager cache to attic..."
-    attic push fred "$HM_PATH" --ignore-upstream-cache-filter -j "$(nproc)"
+    echo "  HM root: $HM_ROOT"
+    attic push fred "$HM_PATH" \
+        --ignore-upstream-cache-filter \
+        -j "$(nproc)"
 
     echo
-    echo "Pushing per users cache to attic..."
-    attic push fred /etc/profiles/per-user/fred --ignore-upstream-cache-filter -j "$(nproc)"
+    echo "Pushing per-user cache to attic..."
+    attic push fred "$USER_PROFILE" \
+        --ignore-upstream-cache-filter \
+        -j "$(nproc)"
 
     echo
     echo "Pushing current-system cache to attic..."
-    attic push fred /run/current-system --ignore-upstream-cache-filter -j "$(nproc)"
+    attic push fred /run/current-system \
+        --ignore-upstream-cache-filter \
+        -j "$(nproc)"
 }
 
 updatenix() {
