@@ -16,6 +16,7 @@
   # attic login local http://localhost:8080 <token above>
   # attic cache create fred
   # attic cache configure --retention-period "30 days" fred
+  # attic cache configure fred --public
 
   sops.secrets = {
     "atticd_env" = { };

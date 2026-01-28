@@ -76,6 +76,10 @@ git-sync-main() {
     echo "✔ $current is now up to date with main"
 }
 
+pushcache() {
+    attic push fred /run/current-system --ignore-upstream-cache-filter
+}
+
 updatenix() {
     local nixos_dir="${GITHUB_DIR}/nixos"
     local pushed=false
@@ -113,9 +117,13 @@ updatenix() {
                 versions=$(echo "$line" | sed 's/.*(//;s/)//')
                 printf "  \033[1;36m%-15s\033[0m %s\n" "$component" "$versions"
             done </run/reboot-required
-
-            echo
         fi
+
+        echo
+        echo "╔═════════════════════════════════════════════════════════════════════════╗"
+        echo "║ 🚨🚨🚨 Don't forget to run pc if this build was not built on CI! 🚨🚨🚨 ║"
+        echo "╚═════════════════════════════════════════════════════════════════════════╝"
+        echo
 
         pkill -RTMIN+8 waybar 2>/dev/null || true
     fi
