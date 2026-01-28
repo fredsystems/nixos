@@ -332,7 +332,7 @@
       ###############################################################
       {
         name = "piaware";
-        image = "ghcr.io/sdr-enthusiasts/docker-piaware:latest-build-643";
+        image = "ghcr.io/sdr-enthusiasts/docker-piaware:trixie-latest-build-7";
 
         hostname = "piaware";
         restart = "always";
