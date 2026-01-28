@@ -76,6 +76,10 @@ git-sync-main() {
     echo "✔ $current is now up to date with main"
 }
 
+pushcache() {
+    attic push fred /run/current-system --ignore-upstream-cache-filter
+}
+
 updatenix() {
     local nixos_dir="${GITHUB_DIR}/nixos"
     local pushed=false
