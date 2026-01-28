@@ -208,7 +208,7 @@
       ###############################################################
       {
         name = "ultrafeeder";
-        image = "ghcr.io/sdr-enthusiasts/docker-adsb-ultrafeeder:telegraf-build-840";
+        image = "ghcr.io/sdr-enthusiasts/docker-adsb-ultrafeeder:trixie-telegraf-build-3";
 
         hostname = "ultrafeeder";
         restart = "always";
