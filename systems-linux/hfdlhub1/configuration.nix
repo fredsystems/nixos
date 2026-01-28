@@ -108,7 +108,7 @@
       ###############################################################
       {
         name = "dumphfdl-1";
-        image = "ghcr.io/sdr-enthusiasts/docker-dumphfdl:trixie-latest-build-4";
+        image = "ghcr.io/sdr-enthusiasts/docker-dumphfdl:trixie-latest-build-5";
 
         tty = true;
         restart = "always";
@@ -141,7 +141,7 @@
       ###############################################################
       {
         name = "dumphfdl-2";
-        image = "ghcr.io/sdr-enthusiasts/docker-dumphfdl:trixie-latest-build-4";
+        image = "ghcr.io/sdr-enthusiasts/docker-dumphfdl:trixie-latest-build-5";
 
         tty = true;
         restart = "always";
@@ -178,7 +178,7 @@
       ###############################################################
       {
         name = "dumphfdl-3";
-        image = "ghcr.io/sdr-enthusiasts/docker-dumphfdl:trixie-latest-build-4";
+        image = "ghcr.io/sdr-enthusiasts/docker-dumphfdl:trixie-latest-build-5";
 
         tty = true;
         restart = "always";
