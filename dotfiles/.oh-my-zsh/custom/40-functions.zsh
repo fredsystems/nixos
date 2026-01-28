@@ -77,7 +77,18 @@ git-sync-main() {
 }
 
 pushcache() {
-    attic push fred /run/current-system --ignore-upstream-cache-filter
+    HM_PATH=$(readlink -f ~/.local/state/nix/profiles/home-manager)
+
+    echo "Pushing home-manager cache to attic..."
+    attic push fred "$HM_PATH" --ignore-upstream-cache-filter -j "$(nproc)"
+
+    echo
+    echo "Pushing per users cache to attic..."
+    attic push fred /etc/profiles/per-user/fred --ignore-upstream-cache-filter -j "$(nproc)"
+
+    echo
+    echo "Pushing current-system cache to attic..."
+    attic push fred /run/current-system --ignore-upstream-cache-filter -j "$(nproc)"
 }
 
 updatenix() {
