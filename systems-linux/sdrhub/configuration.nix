@@ -486,7 +486,7 @@
       ###############################################################
       {
         name = "acarshub";
-        image = "ghcr.io/sdr-enthusiasts/docker-acarshub:trixie-latest-build-12";
+        image = "ghcr.io/sdr-enthusiasts/docker-acarshub:trixie-latest-build-14";
 
         restart = "always";
         tty = true;
