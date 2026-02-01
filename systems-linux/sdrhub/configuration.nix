@@ -427,7 +427,7 @@
       ###############################################################
       {
         name = "rbfeeder";
-        image = "ghcr.io/sdr-enthusiasts/docker-airnavradar:latest-build-857";
+        image = "ghcr.io/sdr-enthusiasts/docker-airnavradar:latest-build-859";
 
         restart = "always";
         tty = false;
