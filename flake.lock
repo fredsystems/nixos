@@ -72,11 +72,11 @@
         "nixpkgs": "nixpkgs_3"
       },
       "locked": {
-        "lastModified": 1764173295,
-        "narHash": "sha256-Jh4VtPcK2Ov+RTcV9FtyQRsxiJmXFQGfqX6jjM7/mgc=",
+        "lastModified": 1769774308,
+        "narHash": "sha256-8Ve6VdUpcYbl8bS5oyDwVnnNobyPxdPmUHGgSDyOazQ=",
         "owner": "Aylur",
         "repo": "astal",
-        "rev": "7d1fac8a4b2a14954843a978d2ddde86168c75ef",
+        "rev": "eb235f8813bdea2a4a38ac228f2efc4e2a8a90af",
         "type": "github"
       },
       "original": {
@@ -311,11 +311,11 @@
         "precommit": "precommit_2"
       },
       "locked": {
-        "lastModified": 1768932969,
-        "narHash": "sha256-b4oa1sI3D7QPVb9KwYC0QRhrQZE/dL9nYHZ81m2hUCg=",
+        "lastModified": 1769909226,
+        "narHash": "sha256-dJvo/DYXxdWgnXGc5+9rHPKOcgtjc/LFNTTKSlUiqrU=",
         "owner": "FredSystems",
         "repo": "fred-bar",
-        "rev": "b16a67d52b988fba0a44147b0ea5a7778c7eaee6",
+        "rev": "ecdbf60a8cb0ad296cbed3019e50d1954ee1fc85",
         "type": "github"
       },
       "original": {
@@ -894,11 +894,11 @@
         "rust-overlay": "rust-overlay_2"
       },
       "locked": {
-        "lastModified": 1768445089,
-        "narHash": "sha256-Ccv2yzg8vunBdT0zYwV9KBvo1tWl/g4QlTeA7+ey8rI=",
+        "lastModified": 1769735596,
+        "narHash": "sha256-8O3Jx4j1Su4/GeBUM3SkTLHFj6gHaM3VcI1ehzsxuLw=",
         "owner": "FredSystems",
         "repo": "pre-commit-checks",
-        "rev": "64e37c35f690c8b223bc89652b293bc0e4e0e42b",
+        "rev": "35d608b0b5c979c0b8e2ed2c72c86a2363663dde",
         "type": "github"
       },
       "original": {
