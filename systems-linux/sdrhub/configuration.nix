@@ -183,7 +183,7 @@
       ###############################################################
       {
         name = "airspy_adsb";
-        image = "ghcr.io/sdr-enthusiasts/airspy_adsb:trixie-latest-build-5";
+        image = "ghcr.io/sdr-enthusiasts/airspy_adsb:latest-build-294";
 
         hostname = "airspy_adsb";
         restart = "always";
@@ -208,7 +208,7 @@
       ###############################################################
       {
         name = "ultrafeeder";
-        image = "ghcr.io/sdr-enthusiasts/docker-adsb-ultrafeeder:trixie-telegraf-build-3";
+        image = "ghcr.io/sdr-enthusiasts/docker-adsb-ultrafeeder:telegraf-build-884";
 
         hostname = "ultrafeeder";
         restart = "always";
@@ -253,7 +253,7 @@
       ###############################################################
       {
         name = "dump978";
-        image = "ghcr.io/sdr-enthusiasts/docker-dump978:trixie-telegraf-build-5";
+        image = "ghcr.io/sdr-enthusiasts/docker-dump978:telegraf-build-780";
 
         hostname = "dump978";
         restart = "always";
@@ -288,7 +288,7 @@
       ###############################################################
       {
         name = "adsbhub";
-        image = "ghcr.io/sdr-enthusiasts/docker-adsbhub:trixie-latest-build-5";
+        image = "ghcr.io/sdr-enthusiasts/docker-adsbhub:latest-build-510";
 
         restart = "always";
         tty = true;
@@ -332,7 +332,7 @@
       ###############################################################
       {
         name = "piaware";
-        image = "ghcr.io/sdr-enthusiasts/docker-piaware:trixie-latest-build-7";
+        image = "ghcr.io/sdr-enthusiasts/docker-piaware:latest-build-645";
 
         hostname = "piaware";
         restart = "always";
@@ -357,7 +357,7 @@
       ###############################################################
       {
         name = "planefinder";
-        image = "ghcr.io/sdr-enthusiasts/docker-planefinder:trixie-latest-build-5";
+        image = "ghcr.io/sdr-enthusiasts/docker-planefinder:latest-build-521";
 
         restart = "always";
         tty = true;
@@ -401,7 +401,7 @@
       ###############################################################
       {
         name = "radarvirtuel";
-        image = "ghcr.io/sdr-enthusiasts/docker-radarvirtuel:trixie-latest-build-5";
+        image = "ghcr.io/sdr-enthusiasts/docker-radarvirtuel:latest-build-772";
 
         hostname = "radarvirtuel";
         restart = "always";
@@ -427,7 +427,7 @@
       ###############################################################
       {
         name = "rbfeeder";
-        image = "ghcr.io/sdr-enthusiasts/docker-airnavradar:trixie-latest-build-1";
+        image = "ghcr.io/sdr-enthusiasts/docker-airnavradar:latest-build-857";
 
         restart = "always";
         tty = false;
@@ -452,7 +452,7 @@
       ###############################################################
       {
         name = "opensky";
-        image = "ghcr.io/sdr-enthusiasts/docker-opensky-network:trixie-latest-build-5";
+        image = "ghcr.io/sdr-enthusiasts/docker-opensky-network:latest-build-816";
 
         restart = "always";
         tty = true;
@@ -472,7 +472,7 @@
       ###############################################################
       {
         name = "sdrmap";
-        image = "ghcr.io/sdr-enthusiasts/docker-sdrmap:trixie-latest-build-6";
+        image = "ghcr.io/sdr-enthusiasts/docker-sdrmap:latest-build-74";
 
         restart = "always";
 
@@ -486,7 +486,7 @@
       ###############################################################
       {
         name = "acarshub";
-        image = "ghcr.io/sdr-enthusiasts/docker-acarshub:trixie-latest-build-28";
+        image = "ghcr.io/sdr-enthusiasts/docker-acarshub:latest-build-1474";
 
         restart = "always";
         tty = true;
@@ -515,7 +515,7 @@
       ###############################################################
       {
         name = "acars_router";
-        image = "ghcr.io/sdr-enthusiasts/acars_router:trixie-latest-build-5";
+        image = "ghcr.io/sdr-enthusiasts/acars_router:latest-build-564";
 
         restart = "always";
         tty = true;
