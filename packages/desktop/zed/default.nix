@@ -89,6 +89,7 @@ in
           "markdownlint"
           "git-firefly"
           "xml"
+          "just"
         ];
         mutableUserSettings = false;
         userSettings = {
