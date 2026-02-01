@@ -100,7 +100,7 @@
       ###############################################################
       {
         name = "dumpvdl2-1";
-        image = "ghcr.io/sdr-enthusiasts/docker-dumpvdl2:trixie-latest-build-7";
+        image = "ghcr.io/sdr-enthusiasts/docker-dumpvdl2:latest-build-409";
 
         tty = true;
         restart = "always";
@@ -128,7 +128,7 @@
       ###############################################################
       {
         name = "dumpvdl2-2";
-        image = "ghcr.io/sdr-enthusiasts/docker-dumpvdl2:trixie-latest-build-7";
+        image = "ghcr.io/sdr-enthusiasts/docker-dumpvdl2:latest-build-409";
 
         tty = true;
         restart = "always";
@@ -156,7 +156,7 @@
       ###############################################################
       {
         name = "dumpvdl2-3";
-        image = "ghcr.io/sdr-enthusiasts/docker-dumpvdl2:trixie-latest-build-7";
+        image = "ghcr.io/sdr-enthusiasts/docker-dumpvdl2:latest-build-409";
 
         tty = true;
         restart = "always";
@@ -184,7 +184,7 @@
       ###############################################################
       {
         name = "dumpvdl2-4";
-        image = "ghcr.io/sdr-enthusiasts/docker-dumpvdl2:trixie-latest-build-7";
+        image = "ghcr.io/sdr-enthusiasts/docker-dumpvdl2:latest-build-409";
 
         tty = true;
         restart = "always";

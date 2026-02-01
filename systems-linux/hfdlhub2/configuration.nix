@@ -118,7 +118,7 @@ in
       ###############################################################
       {
         name = "hfdlobserver";
-        image = "ghcr.io/sdr-enthusiasts/docker-hfdlobserver:trixie-latest-build-3";
+        image = "ghcr.io/sdr-enthusiasts/docker-hfdlobserver:latest-build-16";
 
         environmentFiles = [
           config.sops.secrets."docker/hfdlhub2.env".path
