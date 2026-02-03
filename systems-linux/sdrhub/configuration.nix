@@ -511,6 +511,35 @@
       }
 
       ###############################################################
+      # ACARSHUB va4 (ACARS/VHFM/VDLM ingestion + UI)
+      ###############################################################
+      {
+        name = "acarshubv4";
+        image = "ghcr.io/sdr-enthusiasts/docker-acarshub:v4-latest-build-7";
+
+        restart = "always";
+        tty = true;
+
+        ports = [
+          "8085:80"
+        ];
+
+        environmentFiles = [
+          config.sops.secrets."docker/sdrhub/acarshub.env".path
+        ];
+
+        volumes = [
+          "/opt/adsb/data/acarshubv4:/run/acars"
+        ];
+
+        tmpfs = [
+          "/database:exec,size=64M"
+          "/run:exec,size=64M"
+          "/var/log"
+        ];
+      }
+
+      ###############################################################
       # ACARS ROUTER (ACARS + VDLM2 + HFDL consolidation)
       ###############################################################
       {
