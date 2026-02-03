@@ -521,7 +521,7 @@
         tty = true;
 
         ports = [
-          "8085:80"
+          "8086:80"
         ];
 
         environmentFiles = [
