@@ -653,7 +653,6 @@
               proxy_http_version 1.1;
               proxy_set_header Upgrade $http_upgrade;
               proxy_set_header Connection $connection_upgrade;
-              proxy_set_header Host $http_host;
 
               # Send correct Host header (backend's address, not proxy's)
               proxy_set_header Host 192.168.31.20:8086;
