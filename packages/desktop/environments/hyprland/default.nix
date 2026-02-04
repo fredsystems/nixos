@@ -262,7 +262,7 @@ in
             scroll_event_delay = 0;
           };
 
-          windowrulev2 = "bordercolor rgb(ff5555),xwayland:1";
+          # windowrulev2 = "bordercolor rgb(ff5555),xwayland:1";
           # check if window is xwayland
 
           bind = [
