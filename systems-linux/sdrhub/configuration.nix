@@ -35,7 +35,9 @@
   ###########################################
   networking = {
     firewall = {
-      allowedTCPPorts = [ 80 ];
+      allowedTCPPorts = [
+        80
+      ];
       allowedUDPPorts = [ 53 ];
     };
   };
@@ -515,7 +517,7 @@
       ###############################################################
       {
         name = "acarshubv4";
-        image = "ghcr.io/sdr-enthusiasts/docker-acarshub:v4-latest-build-9";
+        image = "ghcr.io/sdr-enthusiasts/docker-acarshub:v4-latest-build-10";
 
         restart = "always";
         tty = true;
@@ -635,6 +637,11 @@
           "/acarshub/" = {
             proxyPass = "http://192.168.31.20:8085/";
             extraConfig = "proxy_redirect / /acarshub/;";
+          };
+
+          "/acarshub-test/" = {
+            proxyPass = "http://192.168.31.20:8086/";
+            extraConfig = "proxy_redirect / /acarshub-test/;";
           };
         };
       };

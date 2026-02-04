@@ -36,9 +36,6 @@ in
   sops_secrets.enable_secrets.enable = true;
   hardware.graphics.enable = true;
 
-  # for local testing
-  networking.firewall.allowedTCPPorts = [ 3000 ];
-
   boot = {
     kernelPackages = pkgs.linuxKernel.packages.linux_6_18;
 
@@ -59,8 +56,6 @@ in
   services.udev.extraRules = ''
     ACTION=="add", SUBSYSTEM=="usb", TEST=="power/control", ATTR{power/control}="on"
   '';
-
-  networking.hostName = "maranello";
 
   hardware.i2c.enable = true;
   users.users.${user}.extraGroups = [ "i2c" ];
@@ -180,46 +175,51 @@ in
     ];
   };
 
-  networking.networkmanager = {
-    enable = true;
+  networking = {
+    firewall.allowedTCPPorts = [ 3000 ];
+    hostName = "maranello";
 
-    ensureProfiles = {
-      environmentFiles = [
-        config.sops.secrets."wifi.env".path
-      ];
+    networkmanager = {
+      enable = true;
 
-      profiles = {
-        "Home" = {
-          connection.id = "Home";
-          connection.type = "wifi";
+      ensureProfiles = {
+        environmentFiles = [
+          config.sops.secrets."wifi.env".path
+        ];
 
-          wifi.ssid = "$home_ssid";
+        profiles = {
+          "Home" = {
+            connection.id = "Home";
+            connection.type = "wifi";
 
-          wifi-security = {
-            key-mgmt = "wpa-psk";
-            psk = "$home_psk";
+            wifi.ssid = "$home_ssid";
+
+            wifi-security = {
+              key-mgmt = "wpa-psk";
+              psk = "$home_psk";
+            };
           };
-        };
 
-        "Work" = {
-          connection.id = "Work";
-          connection.type = "wifi";
+          "Work" = {
+            connection.id = "Work";
+            connection.type = "wifi";
 
-          wifi.ssid = "$work_ssid";
+            wifi.ssid = "$work_ssid";
 
-          wifi-security = {
+            wifi-security = {
+            };
           };
-        };
 
-        "Parents" = {
-          connection.id = "Parents";
-          connection.type = "wifi";
+          "Parents" = {
+            connection.id = "Parents";
+            connection.type = "wifi";
 
-          wifi.ssid = "$parents_ssid";
+            wifi.ssid = "$parents_ssid";
 
-          wifi-security = {
-            key-mgmt = "wpa-psk";
-            psk = "$parents_psk";
+            wifi-security = {
+              key-mgmt = "wpa-psk";
+              psk = "$parents_psk";
+            };
           };
         };
       };
