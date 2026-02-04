@@ -647,10 +647,8 @@
           };
 
           "/acarshub-test/" = {
-            proxyPass = "http://192.168.31.20:8086/";
+            proxyPass = "http://192.168.31.20:8086/acarshub-test/";
             extraConfig = ''
-              proxy_redirect / /acarshub-test/;
-
               # WebSocket support
               proxy_http_version 1.1;
               proxy_set_header Upgrade $http_upgrade;
