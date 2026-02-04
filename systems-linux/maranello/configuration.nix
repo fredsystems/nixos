@@ -36,6 +36,9 @@ in
   sops_secrets.enable_secrets.enable = true;
   hardware.graphics.enable = true;
 
+  # for local testing
+  networking.firewall.allowedTCPPorts = [ 3000 ];
+
   boot = {
     kernelPackages = pkgs.linuxKernel.packages.linux_6_18;
 
