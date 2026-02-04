@@ -649,9 +649,6 @@
           "/acarshub-test/" = {
             proxyPass = "http://192.168.31.20:8086/";
             extraConfig = ''
-              # Strip /acarshub-test/ prefix when forwarding to backend
-              rewrite ^/acarshub-test/(.*)$ /$1 break;
-
               # WebSocket support
               proxy_http_version 1.1;
               proxy_set_header Upgrade $http_upgrade;
