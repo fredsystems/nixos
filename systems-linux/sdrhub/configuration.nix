@@ -517,7 +517,7 @@
       ###############################################################
       {
         name = "acarshubv4";
-        image = "ghcr.io/sdr-enthusiasts/docker-acarshub:v4-latest-build-10";
+        image = "ghcr.io/sdr-enthusiasts/docker-acarshub:v4-latest-build-13";
 
         restart = "always";
         tty = true;
@@ -586,6 +586,13 @@
       recommendedOptimisation = true;
       recommendedProxySettings = true;
 
+      appendHttpConfig = ''
+        map $http_upgrade $connection_upgrade {
+          default upgrade;
+          "" close;
+        }
+      '';
+
       virtualHosts.localhost = {
         root = ./html;
 
@@ -641,7 +648,20 @@
 
           "/acarshub-test/" = {
             proxyPass = "http://192.168.31.20:8086/";
-            extraConfig = "proxy_redirect / /acarshub-test/;";
+            extraConfig = ''
+              proxy_redirect / /acarshub-test/;
+
+              # WebSocket support
+              proxy_http_version 1.1;
+              proxy_set_header Upgrade $http_upgrade;
+              proxy_set_header Connection $connection_upgrade;
+
+              # Preserve original host/path info
+              proxy_set_header Host $host;
+              proxy_set_header X-Real-IP $remote_addr;
+              proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+              proxy_set_header X-Forwarded-Proto $scheme;
+            '';
           };
         };
       };
