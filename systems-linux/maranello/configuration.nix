@@ -60,7 +60,9 @@ in
   hardware.i2c.enable = true;
   users.users.${user}.extraGroups = [ "i2c" ];
 
-  #environment.systemPackages = with pkgs; [ ];
+  environment.systemPackages = with pkgs; [
+    solaar
+  ];
 
   system.stateVersion = stateVersion;
 
