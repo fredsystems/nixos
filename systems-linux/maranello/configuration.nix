@@ -53,15 +53,10 @@ in
     ];
   };
 
-  services.udev.extraRules = ''
-    ACTION=="add", SUBSYSTEM=="usb", TEST=="power/control", ATTR{power/control}="on"
-  '';
-
   hardware.i2c.enable = true;
   users.users.${user}.extraGroups = [ "i2c" ];
 
   environment.systemPackages = with pkgs; [
-    solaar
   ];
 
   system.stateVersion = stateVersion;
@@ -72,17 +67,37 @@ in
     hyprpolkitagent.u2fAuth = true;
   };
 
-  services.displayManager.sddm = {
-    enable = true;
-    wayland = {
-      enable = true;
+  services = {
+    solaar = {
+      enable = true; # Enable the service
+      package = pkgs.solaar; # The package to use
+      window = "hide"; # Show the window on startup (show, *hide*, only [window only])
+      batteryIcons = "regular"; # Which battery icons to use (*regular*, symbolic, solaar)
+      extraArgs = ""; # Extra arguments to pass to solaar on startup
     };
 
-    settings = {
-      Wayland = {
-        EnableHiDPI = true;
+    udev = {
+      packages = with pkgs; [
+        solaar
+      ];
 
-        CompositorCommand = "${pkgs.hyprland}/bin/start-hyprland";
+      extraRules = ''
+        ACTION=="add", SUBSYSTEM=="usb", TEST=="power/control", ATTR{power/control}="on"
+      '';
+    };
+
+    displayManager.sddm = {
+      enable = true;
+      wayland = {
+        enable = true;
+      };
+
+      settings = {
+        Wayland = {
+          EnableHiDPI = true;
+
+          CompositorCommand = "${pkgs.hyprland}/bin/start-hyprland";
+        };
       };
     };
   };

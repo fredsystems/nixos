@@ -61,6 +61,13 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    solaar = {
+      url = "https://flakehub.com/f/Svenum/Solaar-Flake/*.tar.gz"; # For latest stable version
+      #url = "https://flakehub.com/f/Svenum/Solaar-Flake/0.1.7.tar.gz"; # uncomment line for solaar version 1.1.19
+      #url = "github:Svenum/Solaar-Flake/main"; # Uncomment line for latest unstable version
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     # wallpapers
 
     walls-catppuccin = {
@@ -85,6 +92,7 @@
       niri,
       darwin,
       walls-catppuccin,
+      solaar,
       #attic,
       ...
     }:
@@ -282,11 +290,17 @@
           hmModules = [
             ./systems-linux/daytona/home.nix
           ];
+          extraModules = [
+            solaar.nixosModules.default
+          ];
         };
 
         maranello = self.lib.mkSystem {
           hostName = "maranello";
           hmModules = [ ./systems-linux/maranello/home.nix ];
+          extraModules = [
+            solaar.nixosModules.default
+          ];
         };
 
         sdrhub = self.lib.mkSystem {
