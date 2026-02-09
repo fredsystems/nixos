@@ -517,7 +517,7 @@
       ###############################################################
       {
         name = "acarshubv4";
-        image = "ghcr.io/sdr-enthusiasts/docker-acarshub:v4-latest-build-14";
+        image = "ghcr.io/sdr-enthusiasts/docker-acarshub:v4-latest-build-16";
 
         restart = "always";
         tty = true;
