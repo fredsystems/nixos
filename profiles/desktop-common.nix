@@ -23,19 +23,19 @@
     # Always enable for desktop profile
     {
       desktop = {
-        enable = true;
+        enable = lib.mkDefault true;
         enable_extra = lib.mkDefault true;
       };
 
       nas = {
-        enable = true;
-        mounts = config.shared.nasMounts.standard;
+        enable = lib.mkDefault true;
+        mounts = lib.mkDefault config.shared.nasMounts.standard;
       };
 
-      shared.enableStandardWifi = true;
+      shared.enableStandardWifi = lib.mkDefault true;
 
-      hardware.i2c.enable = true;
-      users.users.${user}.extraGroups = [ "i2c" ];
+      hardware.i2c.enable = lib.mkDefault true;
+      users.users.${user}.extraGroups = lib.mkDefault [ "i2c" ];
 
       # Standard email secrets for desktops
       sops.secrets = {
@@ -62,18 +62,18 @@
         };
       };
 
-      deployment.role = "desktop";
-      sops_secrets.enable_secrets.enable = true;
+      deployment.role = lib.mkDefault "desktop";
+      sops_secrets.enable_secrets.enable = lib.mkDefault true;
     }
 
     # Conditional: Solaar
     (lib.mkIf config.profile.desktop.enableSolaar {
       services.solaar = {
-        enable = true;
-        package = pkgs.solaar;
-        window = "hide";
-        batteryIcons = "regular";
-        extraArgs = "";
+        enable = lib.mkDefault true;
+        package = lib.mkDefault pkgs.solaar;
+        window = lib.mkDefault "hide";
+        batteryIcons = lib.mkDefault "regular";
+        extraArgs = lib.mkDefault "";
       };
       services.udev.packages = with pkgs; [ solaar ];
     })
@@ -81,9 +81,9 @@
     # Conditional: U2F
     (lib.mkIf config.profile.desktop.enableU2F {
       security.pam.services = {
-        polkit-1.u2fAuth = true;
-        polkit-gnome-authentication-agent-1.u2fAuth = true;
-        hyprpolkitagent.u2fAuth = true;
+        polkit-1.u2fAuth = lib.mkDefault true;
+        polkit-gnome-authentication-agent-1.u2fAuth = lib.mkDefault true;
+        hyprpolkitagent.u2fAuth = lib.mkDefault true;
       };
     })
   ];

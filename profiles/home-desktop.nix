@@ -2,6 +2,7 @@
   user,
   config,
   inputs,
+  lib,
   ...
 }:
 let
@@ -18,16 +19,16 @@ in
   ];
 
   # Enable common desktop services
-  programs.ansible.enable = true;
+  programs.ansible.enable = lib.mkDefault true;
 
   programs.sync-compose = {
-    enable = true;
-    user = username;
-    hosts = config.shared.syncHosts;
+    enable = lib.mkDefault true;
+    user = lib.mkDefault username;
+    hosts = lib.mkDefault config.shared.syncHosts;
   };
 
   nas = {
-    enable = true;
-    mounts = config.shared.nasMounts.standard;
+    enable = lib.mkDefault true;
+    mounts = lib.mkDefault config.shared.nasMounts.standard;
   };
 }

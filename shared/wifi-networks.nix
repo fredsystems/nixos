@@ -37,10 +37,10 @@
 
   config = lib.mkIf config.shared.enableStandardWifi {
     networking.networkmanager = {
-      enable = true;
+      enable = lib.mkDefault true;
       ensureProfiles = {
-        environmentFiles = [ config.sops.secrets."wifi.env".path ];
-        profiles = config.shared.wifiProfiles;
+        environmentFiles = lib.mkDefault [ config.sops.secrets."wifi.env".path ];
+        profiles = lib.mkDefault config.shared.wifiProfiles;
       };
     };
   };

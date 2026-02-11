@@ -1,4 +1,4 @@
-{ ... }:
+{ lib, ... }:
 {
   imports = [
     ../modules/adsb-docker-units.nix
@@ -9,23 +9,23 @@
 
   # Server profile defaults
   desktop = {
-    enable = false;
-    enable_extra = false;
-    enable_games = false;
-    enable_streaming = false;
+    enable = lib.mkDefault false;
+    enable_extra = lib.mkDefault false;
+    enable_games = lib.mkDefault false;
+    enable_streaming = lib.mkDefault false;
   };
 
-  deployment.role = "monitoring-agent";
-  sops_secrets.enable_secrets.enable = true;
+  deployment.role = lib.mkDefault "monitoring-agent";
+  sops_secrets.enable_secrets.enable = lib.mkDefault true;
 
   # Standard activation script for ADSB systems
   system.activationScripts.adsbDockerCompose = {
-    text = ''
+    text = lib.mkDefault ''
       install -d -m0755 -o fred -g users /opt/adsb
     '';
-    deps = [ ];
+    deps = lib.mkDefault [ ];
   };
 
   # Standard secrets
-  sops.secrets."github-token" = { };
+  sops.secrets."github-token" = lib.mkDefault { };
 }
