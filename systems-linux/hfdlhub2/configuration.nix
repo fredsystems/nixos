@@ -12,37 +12,20 @@ in
 {
   imports = [
     ./hardware-configuration.nix
-    ../../modules/secrets/sops.nix
-    ../../modules/adsb-docker-units.nix
-    ../../modules/monitoring/agent
+    ../../profiles/adsb-hub.nix
   ];
 
-  # Server profile
-  desktop = {
-    enable = false;
-    enable_extra = false;
-    enable_games = false;
-    enable_streaming = false;
-  };
-
-  deployment.role = "monitoring-agent";
-
-  sops_secrets.enable_secrets.enable = true;
-
   networking.hostName = "hfdlhub2";
-
-  #environment.systemPackages = with pkgs; [ ];
 
   system.stateVersion = stateVersion;
 
   sops.secrets = {
-    "github-token" = { };
-
     "docker/hfdlhub2.env" = {
       format = "yaml";
     };
   };
 
+  # Override the default activation script to include hfdlobserver setup
   system.activationScripts.adsbDockerCompose = {
     text = ''
       # Ensure directory exists (does not touch contents if already there)
@@ -57,40 +40,6 @@ in
   };
 
   services = {
-    github-runners = {
-      # runner-1 = {
-      #   enable = true;
-      #   url = "https://github.com/FredSystems/nixos";
-      #   name = "nixos-hfdlhub2-runner-1";
-      #   tokenFile = config.sops.secrets."github-token".path;
-      #   ephemeral = true;
-      # };
-
-      # runner-2 = {
-      #   enable = true;
-      #   url = "https://github.com/FredSystems/nixos";
-      #   name = "nixos-hfdlhub2-runner-2";
-      #   tokenFile = config.sops.secrets."github-token".path;
-      #   ephemeral = true;
-      # };
-
-      # runner-3 = {
-      #   enable = true;
-      #   url = "https://github.com/FredSystems/nixos";
-      #   name = "nixos-hfdlhub2-runner-3";
-      #   tokenFile = config.sops.secrets."github-token".path;
-      # ephemeral = true;
-      # };
-
-      # runner-4 = {
-      #   enable = true;
-      #   url = "https://github.com/FredSystems/nixos";
-      #   name = "nixos-hfdlhub2-runner-4";
-      #   tokenFile = config.sops.secrets."github-token".path;
-      # ephemeral = true;
-      # };
-    };
-
     adsb.containers = [
       ###############################################################
       # DOZZLE AGENT

@@ -7,19 +7,12 @@
 {
   imports = [
     ./hardware-configuration.nix
-    ../../modules/secrets/sops.nix
-    ../../modules/monitoring/agent
-    ../../modules/github-runners.nix
+    ../../profiles/adsb-hub.nix
     ../../modules/attic/attic_server.nix
   ];
 
-  # Server profile
-  desktop = {
-    enable = false;
-    enable_extra = false;
-    enable_games = false;
-    enable_streaming = false;
-  };
+  # Override desktop profile from adsb-hub since we have additional services
+  desktop.enable = false;
 
   ai.local-llm = {
     enable = true;
@@ -31,20 +24,9 @@
     enable = true;
   };
 
-  deployment.role = "monitoring-agent";
-
-  sops_secrets.enable_secrets.enable = true;
-
   networking.hostName = "fredhub";
 
-  # environment.systemPackages = with pkgs; [
-  # ];
-
   system.stateVersion = stateVersion;
-
-  sops.secrets = {
-    "github-token" = { };
-  };
 
   ci.githubRunners = {
     enable = true;

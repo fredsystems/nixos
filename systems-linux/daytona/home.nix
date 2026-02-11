@@ -1,22 +1,14 @@
 {
-  user,
   config,
-  inputs,
   ...
 }:
-let
-  username = user;
-in
 {
   # ------------------------------
   # Host-specific Home Manager overrides for Daytona
   # ------------------------------
 
   imports = [
-    inputs.fredbar.homeManagerModules.fredbar
-    ../../modules/sync-compose.nix
-    ../../modules/ansible/ansible.nix
-    ../../modules/nas-home.nix
+    ../../profiles/home-desktop.nix
   ];
 
   systemd.user.services.mute-led-watcher = {
@@ -41,160 +33,34 @@ in
     };
   };
 
-  nas = {
-    enable = true;
+  # Daytona-specific Home Manager settings
+  programs.niri.settings = {
+    outputs = {
+      "eDP-1" = {
+        scale = 1.0;
 
-    mounts = [
-      {
-        path = "/mnt/nas/fred";
-        host = "192.168.31.16";
-        share = "/volume1/Fred Share";
-        type = "nfs";
-        gvfsName = "Fred Share";
-      }
-
-      {
-        path = "/mnt/nas/discord";
-        host = "192.168.31.16";
-        share = "/volume1/discord";
-        type = "nfs";
-        gvfsName = "Discord";
-      }
-
-      {
-        path = "/mnt/nas/dropbox";
-        host = "192.168.31.16";
-        share = "/volume1/Dropbox";
-        type = "nfs";
-        gvfsName = "Dropbox";
-      }
-
-      {
-        path = "/mnt/nas/media";
-        host = "192.168.31.16";
-        share = "/volume1/Media";
-        type = "nfs";
-        gvfsName = "Media";
-      }
-
-      {
-        path = "/mnt/nas/prometheus";
-        host = "192.168.31.16";
-        share = "/volume1/Prometheus";
-        type = "nfs";
-        gvfsName = "Prometheus";
-      }
-    ];
-  };
-
-  programs = {
-    ansible.enable = true;
-
-    sync-compose = {
-      enable = true;
-      user = username; # comes from flake.nix
-
-      hosts = [
-        # SDR Hub
-        {
-          name = "sdrhub";
-          ip = "192.168.31.20";
-          directory = "sdrhub";
-          remotePath = "/opt/adsb";
-          port = "22";
-          legacyScp = false;
-        }
-
-        # HFDL Hub 1
-        {
-          name = "hfdlhub-1";
-          ip = "192.168.31.19";
-          directory = "hfdlhub-1";
-          remotePath = "/opt/adsb";
-          port = "22";
-          legacyScp = false;
-        }
-
-        # HFDL Hub 2
-        {
-          name = "hfdlhub-2";
-          ip = "192.168.31.17";
-          directory = "hfdlhub-2";
-          remotePath = "/opt/adsb";
-          port = "22";
-          legacyScp = false;
-        }
-
-        # ACARS Hub
-        {
-          name = "acarshub";
-          ip = "192.168.31.24";
-          directory = "acarshub";
-          remotePath = "/opt/adsb";
-          port = "22";
-          legacyScp = false;
-        }
-
-        # VDL Hub
-        {
-          name = "vdlmhub";
-          ip = "192.168.31.23";
-          directory = "vdlmhub";
-          remotePath = "/opt/adsb";
-          port = "22";
-          legacyScp = false;
-        }
-
-        # VPS (fredclausen.com)
-        {
-          name = "vps";
-          ip = "fredclausen.com";
-          directory = "vps";
-          remotePath = "/home/${user}";
-          port = "22";
-          legacyScp = false;
-        }
-
-        # Brandon (special port + legacy scp)
-        {
-          name = "brandon";
-          ip = "73.242.200.187";
-          directory = "brandon";
-          remotePath = "/opt/adsb";
-          port = "3222";
-          legacyScp = true;
-        }
-      ];
-    };
-
-    niri.settings = {
-      outputs = {
-        "eDP-1" = {
-          scale = 1.0;
-
-          mode = {
-            width = 1920;
-            height = 1200;
-            refresh = 60.0;
-          };
+        mode = {
+          width = 1920;
+          height = 1200;
+          refresh = 60.0;
         };
       };
+    };
 
-      binds = {
-        "XF86MonBrightnessUp".action = {
-          spawn = [
-            "~/.config/hyprextra/scripts/backlight.sh"
-            "64764"
-            "--inc"
-          ];
-        };
-        "XF86MonBrightnessDown".action = {
-          spawn = [
-            "~/.config/hyprextra/scripts/backlight.sh"
-            "64764"
-            "--dec"
-          ];
-        };
+    binds = {
+      "XF86MonBrightnessUp".action = {
+        spawn = [
+          "~/.config/hyprextra/scripts/backlight.sh"
+          "64764"
+          "--inc"
+        ];
+      };
+      "XF86MonBrightnessDown".action = {
+        spawn = [
+          "~/.config/hyprextra/scripts/backlight.sh"
+          "64764"
+          "--dec"
+        ];
       };
     };
   };

@@ -1,6 +1,5 @@
 {
   config,
-  pkgs,
   stateVersion,
   ...
 }:
@@ -26,9 +25,6 @@
   sops_secrets.enable_secrets.enable = true;
 
   networking.hostName = "sdrhub";
-
-  environment.systemPackages = with pkgs; [
-  ];
 
   ###########################################
   # Firewall
