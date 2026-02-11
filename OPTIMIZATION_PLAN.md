@@ -2,9 +2,19 @@
 
 This document outlines remaining optimization opportunities for the NixOS configuration. These optimizations build upon the initial refactoring that created `shared/` and `profiles/` directories.
 
-## Status: Planning Phase ⏳
+## Status: Phase 2 Complete ✅
 
-**Do not implement these changes yet.** This is a planning document to guide future improvements.
+### Phase 1 (Foundation) - COMPLETED
+
+- ✅ lib.mkDefault additions
+- ✅ Hardware profiles
+
+### Phase 2 (Advanced Features) - COMPLETED
+
+- ✅ GitHub runners enhancement
+- ✅ nixosModules output
+
+This document now serves as a reference for the completed optimizations.
 
 ---
 
@@ -521,10 +531,17 @@ See individual module files for options and configuration examples.
 1. **lib.mkDefault additions** - Low risk, high benefit
 2. **Hardware profiles** - Moderate effort, good organization improvement
 
-### Phase 2: Advanced Features (After Phase 1)
+### Phase 2: Advanced Features (After Phase 1) - ✅ COMPLETED
 
-1. **GitHub runners enhancement** - Improves specific use case
-2. **nixosModules output** - Enables external use
+1. **GitHub runners enhancement** - ✅ COMPLETED
+   - Added `runnerCount` option for auto-generating numbered runners
+   - Simplified fredhub configuration from 20+ lines to 3 lines
+   - Maintains support for custom runners alongside auto-generated ones
+2. **nixosModules output** - ✅ COMPLETED
+   - Exported 14+ reusable nixosModules
+   - Exported 2 homeModules
+   - Created comprehensive MODULES.md documentation
+   - Updated main README with usage examples
 
 ---
 
@@ -586,5 +603,5 @@ If issues arise:
 
 ---
 
-**Last Updated:** 2024-02-11
-**Status:** Planning Phase - Do Not Implement Yet
+**Last Updated:** 2025-01-XX
+**Status:** Phase 2 Complete - All Major Optimizations Implemented

@@ -17,6 +17,10 @@ It is designed primarily for my own systems, but it can serve as a
 **reference or starting point** if you are building your own flake-based
 NixOS setup.
 
+**NEW**: This flake now exports reusable `nixosModules` and `homeModules`
+that can be used in other flakes. See [MODULES.md](./MODULES.md) for
+documentation on using these modules in your own configurations.
+
 ## Systems Included
 
 The main entry point is [`flake.nix`](./flake.nix).
@@ -100,6 +104,38 @@ Each system's `configuration.nix` supports these options:
 | `desktop.enable_extra`     | Installs "extra" packages (some may fail on aarch64 VM) | `false` |
 | `desktop.enable_games`     | Installs Steam and related gaming packages              | `false` |
 | `desktop.enable_streaming` | Installs OBS and streaming-related packages             | `false` |
+
+## Using Exported Modules
+
+This flake exports reusable NixOS and Home Manager modules. To use them in your own flake:
+
+```nix
+{
+  inputs = {
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+    fredsystems.url = "github:FredSystems/nixos";
+  };
+
+  outputs = { nixpkgs, fredsystems, ... }: {
+    nixosConfigurations.myhost = nixpkgs.lib.nixosSystem {
+      modules = [
+        fredsystems.nixosModules.github-runners
+        fredsystems.nixosModules.hardware-graphics
+        ./configuration.nix
+      ];
+    };
+  };
+}
+```
+
+Available modules include:
+
+- **Profiles**: `desktop-common`, `adsb-hub`
+- **Hardware**: `hardware-graphics`, `hardware-i2c`, `hardware-fingerprint`, etc.
+- **Services**: `github-runners` (self-hosted GitHub Actions runners)
+- **Shared**: `nas-mounts`, `wifi-networks`, `sync-hosts`
+
+See [MODULES.md](./MODULES.md) for complete documentation.
 
 ## Caveats
 

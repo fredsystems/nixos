@@ -139,6 +139,56 @@
         }
       );
 
+      ##########################################################################
+      ## Exported Modules (for use in other flakes)                          ##
+      ##########################################################################
+
+      nixosModules = {
+        # Profiles
+        desktop-common = import ./profiles/desktop-common.nix;
+        adsb-hub = import ./profiles/adsb-hub.nix;
+
+        # Hardware profiles (as a bundle)
+        hardware-profiles = import ./hardware-profiles;
+
+        # Individual hardware modules
+        hardware-i2c = import ./hardware-profiles/i2c.nix;
+        hardware-graphics = import ./hardware-profiles/graphics.nix;
+        hardware-fingerprint = import ./hardware-profiles/fingerprint.nix;
+        hardware-u2f = import ./hardware-profiles/u2f.nix;
+        hardware-rtl-sdr = import ./hardware-profiles/rtl-sdr.nix;
+        hardware-logitech = import ./hardware-profiles/logitech.nix;
+
+        # Shared modules
+        nas-mounts = import ./shared/nas-mounts.nix;
+        wifi-networks = import ./shared/wifi-networks.nix;
+        sync-hosts = import ./shared/sync-hosts.nix;
+
+        # Service modules
+        github-runners = import ./modules/github-runners.nix;
+
+        # Default: all common modules
+        default = {
+          imports = [
+            ./profiles/desktop-common.nix
+            ./profiles/adsb-hub.nix
+            ./hardware-profiles
+            ./shared/nas-mounts.nix
+            ./shared/wifi-networks.nix
+            ./shared/sync-hosts.nix
+            ./modules/github-runners.nix
+          ];
+        };
+      };
+
+      homeModules = {
+        # Home-manager desktop profile
+        home-desktop = import ./profiles/home-desktop.nix;
+
+        # Default
+        default = import ./profiles/home-desktop.nix;
+      };
+
       lib.mkSystem =
         {
           hostName,
