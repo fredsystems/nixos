@@ -42,6 +42,7 @@ in
           config.term = "wezterm"
           config.color_scheme = "${t.theme}"
           config.window_background_opacity = ${toString t.opacity}
+          config.hide_tab_bar_if_only_one_tab = true
 
           -- macOS/Linux keybindings
           local act = wezterm.action
