@@ -10,10 +10,12 @@
     ../../profiles/desktop-common.nix
   ];
 
-  # Profile-specific settings
-  profile.desktop = {
-    enableSolaar = true;
-    enableU2F = true;
+  # Hardware profile settings
+  hardware-profile = {
+    graphics.enable = true;
+    graphics.enable32Bit = true;
+    fingerprint.enable = true;
+    logitech.enable = true;
   };
 
   # extra options
@@ -27,11 +29,6 @@
 
   desktop.enable_games = false;
 
-  hardware.graphics = {
-    enable = true;
-    enable32Bit = true;
-  };
-
   boot.kernelPackages = pkgs.linuxKernel.packages.linux_testing;
 
   networking = {
@@ -39,17 +36,17 @@
     networkmanager.wifi.scanRandMacAddress = false;
   };
 
-  security.pam.services = {
-    login.fprintAuth = false;
-    polkit-1.fprintAuth = true;
-    polkit-gnome-authentication-agent-1.fprintAuth = true;
-    hyprpolkitagent.fprintAuth = true;
-  };
-
   services = {
-    udev.packages = with pkgs; [
-      solaar
-    ];
+    # Solaar configuration (requires solaar module from flake)
+    solaar = {
+      enable = true;
+      package = pkgs.solaar;
+      window = "hide";
+      batteryIcons = "regular";
+      extraArgs = "";
+    };
+
+    udev.packages = with pkgs; [ solaar ];
 
     logind = {
       settings = {
@@ -59,12 +56,10 @@
         };
       };
     };
+  };
 
-    fprintd = {
-      enable = true;
-      tod.enable = true;
-      tod.driver = pkgs.libfprint-2-tod1-goodix;
-    };
+  security.pam.services = {
+    login.fprintAuth = false;
   };
 
   powerManagement.enable = true;

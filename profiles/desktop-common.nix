@@ -1,13 +1,13 @@
 {
   config,
   lib,
-  pkgs,
   user,
   ...
 }:
 
 {
   imports = [
+    ../hardware-profiles
     ../modules/nas-system.nix
     ../modules/secrets/sops.nix
     ../shared/nas-mounts.nix
@@ -15,8 +15,7 @@
   ];
 
   options.profile.desktop = {
-    enableSolaar = lib.mkEnableOption "Solaar Logitech device support";
-    enableU2F = lib.mkEnableOption "U2F authentication";
+    # Hardware profile options are now in hardware-profiles/*
   };
 
   config = lib.mkMerge [
@@ -34,8 +33,9 @@
 
       shared.enableStandardWifi = lib.mkDefault true;
 
-      hardware.i2c.enable = lib.mkDefault true;
-      users.users.${user}.extraGroups = lib.mkDefault [ "i2c" ];
+      # Enable hardware profiles for desktop systems
+      hardware-profile.i2c.enable = lib.mkDefault true;
+      hardware-profile.u2f.enable = lib.mkDefault true;
 
       # Standard email secrets for desktops
       sops.secrets = {
@@ -65,26 +65,5 @@
       deployment.role = lib.mkDefault "desktop";
       sops_secrets.enable_secrets.enable = lib.mkDefault true;
     }
-
-    # Conditional: Solaar
-    (lib.mkIf config.profile.desktop.enableSolaar {
-      services.solaar = {
-        enable = lib.mkDefault true;
-        package = lib.mkDefault pkgs.solaar;
-        window = lib.mkDefault "hide";
-        batteryIcons = lib.mkDefault "regular";
-        extraArgs = lib.mkDefault "";
-      };
-      services.udev.packages = with pkgs; [ solaar ];
-    })
-
-    # Conditional: U2F
-    (lib.mkIf config.profile.desktop.enableU2F {
-      security.pam.services = {
-        polkit-1.u2fAuth = lib.mkDefault true;
-        polkit-gnome-authentication-agent-1.u2fAuth = lib.mkDefault true;
-        hyprpolkitagent.u2fAuth = lib.mkDefault true;
-      };
-    })
   ];
 }

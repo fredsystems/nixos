@@ -17,10 +17,10 @@ in
     ../../profiles/desktop-common.nix
   ];
 
-  # Profile-specific settings
-  profile.desktop = {
-    enableSolaar = true;
-    enableU2F = true;
+  # Hardware profile settings
+  hardware-profile = {
+    graphics.enable = true;
+    logitech.enable = true;
   };
 
   # extra options
@@ -29,7 +29,6 @@ in
     enable_games = true;
     enable_streaming = true;
   };
-  hardware.graphics.enable = true;
 
   boot = {
     kernelPackages = pkgs.linuxKernel.packages.linux_6_18;
@@ -51,15 +50,16 @@ in
   system.stateVersion = stateVersion;
 
   services = {
-    udev = {
-      packages = with pkgs; [
-        solaar
-      ];
-
-      extraRules = ''
-        ACTION=="add", SUBSYSTEM=="usb", TEST=="power/control", ATTR{power/control}="on"
-      '';
+    # Solaar configuration (requires solaar module from flake)
+    solaar = {
+      enable = true;
+      package = pkgs.solaar;
+      window = "hide";
+      batteryIcons = "regular";
+      extraArgs = "";
     };
+
+    udev.packages = with pkgs; [ solaar ];
 
     displayManager.sddm = {
       enable = true;

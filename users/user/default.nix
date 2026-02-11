@@ -9,11 +9,13 @@ let
   full_name = verbose_name;
 in
 {
-  config = {
-    hardware.rtl-sdr.enable = true;
-    boot.kernelParams = [ "modprobe.blacklist=dvb_usb_rtl28xxu" ]; # blacklist this module
+  imports = [
+    ../../hardware-profiles
+  ];
 
-    services.udev.packages = [ pkgs.rtl-sdr ]; # (there might be other packages that require udev here too)
+  config = {
+    # Enable RTL-SDR hardware profile
+    hardware-profile.rtl-sdr.enable = true;
 
     users.users.${username} = {
       linger = true;
@@ -23,7 +25,6 @@ in
         "networkmanager"
         "wheel"
         "docker"
-        "plugdev"
         "wireshark"
       ];
 
