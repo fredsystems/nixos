@@ -270,7 +270,7 @@ in
             "$mainMod, E, exec, $email"
             "$mainMod, T, exec, $terminal"
             "$mainMod SHIFT, T, exec, $terminal start -- bash"
-            "$mainMod, A, exec, nautilus"
+            "$mainMod, A, exec, wezterm start --class yazi -- yazi"
             "$mainMod, S, exec, ~/.config/hyprextra/scripts/idleinhibit.sh"
             "ALT, SPACE, exec, vicinae toggle"
             "$mainMod, C, killactive"
