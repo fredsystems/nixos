@@ -32,27 +32,6 @@
     enable = true;
     repo = "FredSystems/nixos";
     defaultTokenFile = config.sops.secrets."github-token".path;
-
-    runners = {
-      runner-1 = {
-        url = "https://github.com/FredSystems/nixos";
-        tokenFile = config.sops.secrets."github-token".path;
-      };
-
-      runner-2 = {
-        url = "https://github.com/FredSystems/nixos";
-        tokenFile = config.sops.secrets."github-token".path;
-      };
-
-      runner-3 = {
-        url = "https://github.com/FredSystems/nixos";
-        tokenFile = config.sops.secrets."github-token".path;
-      };
-
-      runner-4 = {
-        url = "https://github.com/FredSystems/nixos";
-        tokenFile = config.sops.secrets."github-token".path;
-      };
-    };
+    runnerCount = 4; # Auto-generates runner-1 through runner-4
   };
 }
