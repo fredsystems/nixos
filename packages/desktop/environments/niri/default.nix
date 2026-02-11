@@ -67,6 +67,8 @@ in
     };
 
     home-manager.users.${username} = {
+      imports = [ ../modules/xdg-mime-common.nix ];
+
       home.packages = with pkgs; [
         networkmanagerapplet
       ];
@@ -528,26 +530,6 @@ in
                 "--dec"
               ];
             };
-          };
-        };
-      };
-
-      xdg = {
-        mimeApps = {
-          associations.added = {
-            "text/html" = [ "firefox.desktop" ];
-            "x-scheme-handler/http" = [ "firefox.desktop" ];
-            "x-scheme-handler/https" = [ "firefox.desktop" ];
-            "x-scheme-handler/about" = [ "firefox.desktop" ];
-            "x-scheme-handler/unknown" = [ "firefox.desktop" ];
-          };
-
-          defaultApplications = {
-            "text/html" = [ "firefox.desktop" ];
-            "x-scheme-handler/http" = [ "firefox.desktop" ];
-            "x-scheme-handler/https" = [ "firefox.desktop" ];
-            "x-scheme-handler/about" = [ "firefox.desktop" ];
-            "x-scheme-handler/unknown" = [ "firefox.desktop" ];
           };
         };
       };
