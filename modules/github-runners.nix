@@ -82,6 +82,12 @@ in
       description = "Default GitHub token file path.";
     };
 
+    runnerCount = mkOption {
+      type = types.int;
+      default = 0;
+      description = "Number of auto-generated runners (runner-1, runner-2, etc.). Set to 0 to disable auto-generation.";
+    };
+
     runners = mkOption {
       type = types.attrsOf (
         types.submodule {
@@ -126,30 +132,69 @@ in
     ];
 
     # Generate services.github-runners entries
-    services.github-runners = listToAttrs (
-      map (r: {
-        name = r.id;
-        inherit (r) value;
-      }) runnersList
-    );
+    services.github-runners = mkMerge [
+      # Auto-generated runners based on runnerCount
+      (listToAttrs (
+        genList (i: {
+          name = "runner-${toString (i + 1)}";
+          value = {
+            enable = true;
+            url = "https://github.com/${cfg.repo}";
+            name = "nixos-${hostname}-runner-${toString (i + 1)}";
+            tokenFile = cfg.defaultTokenFile;
+            ephemeral = true;
+          };
+        }) cfg.runnerCount
+      ))
+
+      # Custom runners from the runners attrset
+      (listToAttrs (
+        map (r: {
+          name = r.id;
+          inherit (r) value;
+        }) runnersList
+      ))
+    ];
 
     # Inject cleanup logic into systemd units (CORRECT UNIT NAMES)
-    systemd.services = foldl' (
-      acc: r:
+    systemd.services =
       let
-        svcName = "github-runner-${r.id}";
-        runnerName = r.value.name;
+        # Auto-generated runner services
+        autoRunnerServices = listToAttrs (
+          genList (i: {
+            name = "github-runner-runner-${toString (i + 1)}";
+            value = {
+              serviceConfig = {
+                ExecStartPre = lib.mkBefore [
+                  "+${cleanupRunner}/bin/github-runner-cleanup nixos-${hostname}-runner-${toString (i + 1)} ${cfg.defaultTokenFile} ${cfg.repo}"
+                ];
+              };
+            };
+          }) cfg.runnerCount
+        );
+
+        # Custom runner services
+        customRunnerServices = foldl' (
+          acc: r:
+          let
+            svcName = "github-runner-${r.id}";
+            runnerName = r.value.name;
+          in
+          acc
+          // {
+            ${svcName} = {
+              serviceConfig = {
+                ExecStartPre = lib.mkBefore [
+                  "+${cleanupRunner}/bin/github-runner-cleanup ${runnerName} ${r.value.tokenFile} ${cfg.repo}"
+                ];
+              };
+            };
+          }
+        ) { } runnersList;
       in
-      acc
-      // {
-        ${svcName} = {
-          serviceConfig = {
-            ExecStartPre = lib.mkBefore [
-              "+${cleanupRunner}/bin/github-runner-cleanup ${runnerName} ${r.value.tokenFile} ${cfg.repo}"
-            ];
-          };
-        };
-      }
-    ) { } runnersList;
+      mkMerge [
+        autoRunnerServices
+        customRunnerServices
+      ];
   };
 }

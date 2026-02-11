@@ -6,62 +6,18 @@
 {
   imports = [
     ./hardware-configuration.nix
-    ../../modules/secrets/sops.nix
-    ../../modules/adsb-docker-units.nix
-    ../../modules/monitoring/agent
-    ../../modules/github-runners.nix
+    ../../profiles/adsb-hub.nix
   ];
-
-  # Server profile
-  desktop = {
-    enable = false;
-    enable_extra = false;
-    enable_games = false;
-    enable_streaming = false;
-  };
-  deployment.role = "monitoring-agent";
-
-  sops_secrets.enable_secrets.enable = true;
 
   networking.hostName = "acarshub";
 
-  #environment.systemPackages = with pkgs; [ ];
-
   system.stateVersion = stateVersion;
 
-  system.activationScripts.adsbDockerCompose = {
-    text = ''
-      # Ensure directory exists (does not touch contents if already there)
-      install -d -m0755 -o fred -g users /opt/adsb
-    '';
-    deps = [ ];
-  };
-
   sops.secrets = {
-    "github-token" = { };
-
     "docker/acarshub.env" = {
       format = "yaml";
     };
   };
-
-  # ci.githubRunners = {
-  #   enable = true;
-  #   repo = "FredSystems/nixos";
-  #   defaultTokenFile = config.sops.secrets."github-token".path;
-
-  #   runners = {
-  #     runner-1 = {
-  #       url = "https://github.com/FredSystems/nixos";
-  #       tokenFile = config.sops.secrets."github-token".path;
-  #     };
-
-  #     runner-2 = {
-  #       url = "https://github.com/FredSystems/nixos";
-  #       tokenFile = config.sops.secrets."github-token".path;
-  #     };
-  #   };
-  # };
 
   services = {
     adsb.containers = [

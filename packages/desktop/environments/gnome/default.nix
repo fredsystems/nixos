@@ -95,6 +95,8 @@ in
     };
 
     home-manager.users.${username} = {
+      imports = [ ../modules/xdg-mime-common.nix ];
+
       gtk = {
         enable = true;
         gtk3.extraConfig = {
@@ -121,44 +123,6 @@ in
       # catppuccin.gtk.enable = true;
       # catppuccin.gtk.gnomeShellTheme = true;
       catppuccin.gtk.icon.enable = true;
-
-      xdg = {
-        mimeApps = {
-          associations.added = {
-            "image/bmp" = [ "org.gnome.gThumb.desktop" ];
-            "image/jpeg" = [ "org.gnome.gThumb.desktop" ];
-            "image/gif" = [ "org.gnome.gThumb.desktop" ];
-            "image/png" = [ "org.gnome.gThumb.desktop" ];
-            "image/tiff" = [ "org.gnome.gThumb.desktop" ];
-            "image/x-bmp" = [ "org.gnome.gThumb.desktop" ];
-            "image/x-ico" = [ "org.gnome.gThumb.desktop" ];
-            "image/x-png" = [ "org.gnome.gThumb.desktop" ];
-            "image/x-pcx" = [ "org.gnome.gThumb.desktop" ];
-            "image/x-tga" = [ "org.gnome.gThumb.desktop" ];
-            "image/xpm" = [ "org.gnome.gThumb.desktop" ];
-            "image/svg+xml" = [ "org.gnome.gThumb.desktop" ];
-            "image/webp" = [ "org.gnome.gThumb.desktop" ];
-            "image/jxl" = [ "org.gnome.gThumb.desktop" ];
-          };
-
-          defaultApplications = {
-            "image/bmp" = [ "org.gnome.gThumb.desktop" ];
-            "image/jpeg" = [ "org.gnome.gThumb.desktop" ];
-            "image/gif" = [ "org.gnome.gThumb.desktop" ];
-            "image/png" = [ "org.gnome.gThumb.desktop" ];
-            "image/tiff" = [ "org.gnome.gThumb.desktop" ];
-            "image/x-bmp" = [ "org.gnome.gThumb.desktop" ];
-            "image/x-ico" = [ "org.gnome.gThumb.desktop" ];
-            "image/x-png" = [ "org.gnome.gThumb.desktop" ];
-            "image/x-pcx" = [ "org.gnome.gThumb.desktop" ];
-            "image/x-tga" = [ "org.gnome.gThumb.desktop" ];
-            "image/xpm" = [ "org.gnome.gThumb.desktop" ];
-            "image/svg+xml" = [ "org.gnome.gThumb.desktop" ];
-            "image/webp" = [ "org.gnome.gThumb.desktop" ];
-            "image/jxl" = [ "org.gnome.gThumb.desktop" ];
-          };
-        };
-      };
 
       dconf.settings = {
         # ...
