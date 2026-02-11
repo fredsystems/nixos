@@ -28,7 +28,10 @@
     };
   };
 
-  boot.kernelModules = [ "kvm-amd" ];
+  boot.kernelModules = [
+    "kvm-amd"
+    "mt7925e"
+  ];
   boot.extraModulePackages = [ ];
 
   fileSystems."/" = {
