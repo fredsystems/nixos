@@ -70,7 +70,7 @@
       ###############################################################
       {
         name = "dozzle-agent";
-        image = "amir20/dozzle:v9.0.3";
+        image = "amir20/dozzle:v10.0.0";
         exec = "agent";
 
         environmentFiles = [
