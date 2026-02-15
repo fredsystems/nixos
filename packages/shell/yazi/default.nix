@@ -26,6 +26,8 @@ in
 
       programs.yazi = {
         enable = true;
+        # FIXME: Remove when all versions of our systems are 26.05 or later
+        shellWrapperName = "y";
       };
 
       catppuccin.yazi.enable = true;
