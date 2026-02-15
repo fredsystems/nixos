@@ -545,7 +545,7 @@
         tty = true;
 
         environmentFiles = [
-          config.sops.secrets."docker/sdrhub/acar2pos.env".path
+          config.sops.secrets."docker/sdrhub/acars2pos.env".path
         ];
 
         tmpfs = [
