@@ -537,6 +537,24 @@
         ];
       }
 
+      {
+        name = "acars2pos";
+        image = "ghcr.io/fredclausen/docker-acars2pos:latest-build-4";
+
+        restart = "always";
+        tty = true;
+
+        environmentFiles = [
+          config.sops.secrets."docker/sdrhub/acar2pos.env".path
+        ];
+
+        tmpfs = [
+          "/database:exec,size=64M"
+          "/run:exec,size=64M"
+          "/var/log"
+        ];
+      }
+
       ###############################################################
       # ACARS ROUTER (ACARS + VDLM2 + HFDL consolidation)
       ###############################################################
@@ -727,6 +745,10 @@
     };
 
     "docker/sdrhub/acars_router.env" = {
+      format = "yaml";
+    };
+
+    "docker/sdrhub/acar2pos.env" = {
       format = "yaml";
     };
   };
