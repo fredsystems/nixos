@@ -748,7 +748,7 @@
       format = "yaml";
     };
 
-    "docker/sdrhub/acar2pos.env" = {
+    "docker/sdrhub/acars2pos.env" = {
       format = "yaml";
     };
   };
