@@ -5,13 +5,13 @@
 let
   pname = "cider3";
   extrapname = "cider";
-  version = "3.0.0";
+  version = "3.1.8";
 
   src = pkgs.fetchurl {
     # don't worry cider guys, the file is not normally there
     # I enable it when a system I maintain needs it
-    url = "https://fredclausen.com/cider-v3.0.0-linux-x64.AppImage";
-    sha256 = "bOaAOGPoCa9UxnE/gfmG3K0Xl2C8Qk42KL6oH8t8s2Y=";
+    url = "https://fredclausen.com/cider-v3.1.8-linux-x64.AppImage";
+    sha256 = "sha256-s1CMYAfDULaEyO0jZguA2bA7D7ogqRR4v/LkMD+luKw=";
   };
   appImageContents = pkgs.appimageTools.extract {
     inherit version src;
