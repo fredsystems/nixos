@@ -90,6 +90,7 @@ in
           "git-firefly"
           "xml"
           "just"
+          "sql"
         ];
         mutableUserSettings = false;
         userSettings = {
