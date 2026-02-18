@@ -513,7 +513,7 @@
       ###############################################################
       {
         name = "acarshubv4";
-        image = "ghcr.io/sdr-enthusiasts/docker-acarshub:v4-latest-build-35";
+        image = "ghcr.io/sdr-enthusiasts/docker-acarshub:v4-bleeding-edge-build-38";
 
         restart = "always";
         tty = true;
@@ -657,7 +657,11 @@
 
           "/acarshub/" = {
             proxyPass = "http://192.168.31.20:8085/";
-            extraConfig = "proxy_redirect / /acarshub/;";
+            extraConfig = ''
+              proxy_http_version 1.1;
+              proxy_set_header Upgrade $http_upgrade;
+              proxy_set_header Connection $connection_upgrade;
+            '';
           };
 
           "/acarshub-test/" = {
