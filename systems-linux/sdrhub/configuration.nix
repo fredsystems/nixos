@@ -539,7 +539,7 @@
 
       {
         name = "acars2pos";
-        image = "ghcr.io/fredclausen/docker-acars2pos:latest-build-4";
+        image = "ghcr.io/rpatel3001/docker-acars2pos:latest-build-30";
 
         restart = "always";
         tty = true;

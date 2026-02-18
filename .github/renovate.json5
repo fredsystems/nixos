@@ -66,6 +66,13 @@
     {
       matchDatasources: ["docker"],
       versioning: "regex:^(trixie-)?latest-build-(?<major>\\d+)?$",
+      matchPackageNames: ["ghcr.io/rpatel3001/{/,}**"],
+      pinDigests: false,
+      automerge: false,
+    },
+    {
+      matchDatasources: ["docker"],
+      versioning: "regex:^(trixie-)?latest-build-(?<major>\\d+)?$",
       matchPackageNames: ["ghcr.io/plane-watch/{/,}**"],
       pinDigests: false,
       automerge: false,
