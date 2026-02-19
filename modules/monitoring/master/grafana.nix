@@ -63,6 +63,8 @@
         security = {
           admin_user = "admin";
           admin_password = "$__file{/run/secrets/monitoring/grafana_pw}";
+
+          secret_key = "SW2YcwTIb9zpOOhoPsMm"; # default from pre 26.05. Why we removed it I'll never know.
         };
       };
 
