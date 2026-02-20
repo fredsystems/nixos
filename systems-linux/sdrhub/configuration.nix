@@ -379,7 +379,7 @@
       ###############################################################
       {
         name = "planewatch";
-        image = "ghcr.io/plane-watch/docker-plane-watch:latest-build-210";
+        image = "ghcr.io/plane-watch/docker-plane-watch:v0.0.6";
 
         restart = "always";
         tty = true;
