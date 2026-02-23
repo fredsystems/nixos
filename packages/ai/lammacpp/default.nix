@@ -29,7 +29,7 @@ in
 
     webuiPort = mkOption {
       type = types.port;
-      default = 8888;
+      default = 8889;
       description = "Port for Open WebUI";
     };
 
