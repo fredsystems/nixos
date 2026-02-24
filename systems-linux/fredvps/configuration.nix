@@ -1,5 +1,6 @@
 {
   pkgs,
+  lib,
   stateVersion,
   ...
 }:
@@ -8,6 +9,12 @@
     ./hardware-configuration.nix
     ../../profiles/adsb-hub.nix
   ];
+
+  # The common packages module unconditionally enables systemd-boot and
+  # networkmanager; override both since this VPS uses GRUB + systemd-networkd.
+  boot.loader.systemd-boot.enable = lib.mkForce false;
+  boot.loader.efi.canTouchEfiVariables = lib.mkForce false;
+  networking.networkmanager.enable = lib.mkForce false;
 
   networking.hostName = "fredvps";
 
