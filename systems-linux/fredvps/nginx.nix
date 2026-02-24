@@ -13,6 +13,16 @@ let
   #   locations    - nginx location blocks (attrset passed directly to virtualHosts)
   domains = [
     {
+      domain = "acarshub.app";
+      extraDomains = [ "www.acarshub.app" ];
+      locations = {
+        "/" = {
+          proxyPass = "http://127.0.0.1:8085/";
+        };
+      };
+    }
+
+    {
       domain = "fredclausen.com";
       extraDomains = [ "www.fredclausen.com" ];
       locations = {
@@ -142,16 +152,27 @@ in
     recommendedProxySettings = true;
     recommendedTlsSettings = true;
 
-    virtualHosts = lib.listToAttrs (
-      map (d: {
-        name = d.domain;
-        value = {
+    virtualHosts =
+      lib.listToAttrs (
+        map (d: {
+          name = d.domain;
+          value = {
+            forceSSL = true;
+            serverAliases = d.extraDomains;
+            useACMEHost = d.domain;
+            inherit (d) locations;
+          };
+        }) domains
+      )
+      // {
+        # Redirect-only vhosts — no bind zone or ACME cert needed, just a
+        # permanent redirect to the canonical domain.
+        "acarshub.com" = {
           forceSSL = true;
-          serverAliases = d.extraDomains;
-          useACMEHost = d.domain;
-          inherit (d) locations;
+          enableACME = true;
+          serverAliases = [ "www.acarshub.com" ];
+          globalRedirect = "acarshub.app";
         };
-      }) domains
-    );
+      };
   };
 }
