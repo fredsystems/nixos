@@ -361,7 +361,12 @@
           hostName = "fredhub";
           stateVersion = "25.11";
           hmModules = [ ];
-          #extraModules = [ attic.nixosModules.atticd ];
+        };
+
+        fredvps = self.lib.mkSystem {
+          hostName = "fredvps";
+          stateVersion = "25.05";
+          hmModules = [ ];
         };
 
         acarshub = self.lib.mkSystem {
