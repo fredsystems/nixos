@@ -26,11 +26,11 @@
 
   systemd.services.dns-rfc2136-conf = {
     requiredBy = [
-      "acme-example.com.service"
+      "acme-fredclausen.com.service"
       "bind.service"
     ];
     before = [
-      "acme-example.com.service"
+      "acme-fredclausen.com.service"
       "bind.service"
     ];
     unitConfig = {
