@@ -12,14 +12,14 @@
     acceptTerms = true;
     defaults.email = "clausen.fred@me.com";
 
-    certs = {
-      "fredclausen.com" = {
-        group = config.services.nginx.group;
-        extraDomainNames = [
-          "www.fredclausen.com"
-        ];
-      };
-    };
+    # certs = {
+    #   "fredclausen.com" = {
+    #     group = config.services.nginx.group;
+    #     extraDomainNames = [
+    #       "www.fredclausen.com"
+    #     ];
+    #   };
+    # };
   };
 
   services.nginx = {
