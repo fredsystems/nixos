@@ -47,10 +47,13 @@ in
   # impureEnvVars, meaning it inherits GOPROXY from the Nix daemon's environment.
   # proxy.golang.org redirects Go module downloads to a GCS bucket
   # (proxy-golang-org-prod) which is geo-restricted ("not available in your
-  # location") on this local network. Routing through goproxy.io bypasses GCS
-  # entirely. The VPS is unaffected because datacenter IPs aren't restricted.
+  # location") on this local network.
+  # goproxy.cn has its own storage for most modules but falls back to
+  # proxy.golang.org (GCS) for uncached entries, which also fails.
+  # mirrors.aliyun.com/goproxy/ is backed by Alibaba Cloud OSS (not GCS)
+  # and confirmed to serve all required modules directly.
   systemd.services.nix-daemon.environment = lib.optionalAttrs isLinux {
-    GOPROXY = "https://goproxy.io,direct";
+    GOPROXY = "https://mirrors.aliyun.com/goproxy/";
     GONOSUMDB = "*";
   };
 }

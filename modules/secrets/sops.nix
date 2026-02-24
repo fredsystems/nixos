@@ -34,6 +34,29 @@ in
     ];
 
     sops = {
+      package = lib.mkIf isLinux (
+        (pkgs.callPackage inputs.sops-nix { }).sops-install-secrets.overrideAttrs (old: {
+          # Only change the go-modules FOD (fixed-output derivation) environment.
+          # Do NOT set env.GOPROXY / env.GONOSUMDB here: overrideAttrs does a
+          # shallow merge, so writing env.X = "..." replaces the entire `env`
+          # attr and drops GOFLAGS = "-mod=vendor -trimpath" from the original
+          # package — causing the binary to embed the Go store path and fail
+          # Nix's disallowedReferences check.
+          # The configurePhase already exports GOPROXY=off for the main build
+          # (it uses the vendor directory), so those vars are not needed here.
+          passthru = (old.passthru or { }) // {
+            overrideModAttrs = _: _: {
+              GOPROXY = "https://mirrors.aliyun.com/goproxy/";
+              GONOSUMDB = "*";
+              preBuild = ''
+                export GOPROXY=https://mirrors.aliyun.com/goproxy/
+                export GONOSUMDB="*"
+              '';
+            };
+          };
+        })
+      );
+
       defaultSopsFile = ./secrets.yaml;
       defaultSopsFormat = "yaml";
       age.keyFile = "${homeDir}/.config/sops/age/keys.txt";
