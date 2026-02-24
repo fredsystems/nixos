@@ -3,12 +3,13 @@
   pkgs,
   config,
   user,
+  extraUsers ? [ ],
   ...
 }:
 with lib;
 let
   cfg = config.desktop.appimage;
-  username = user;
+  allUsers = [ user ] ++ extraUsers;
 in
 {
   options.desktop.appimage = {
@@ -20,11 +21,11 @@ in
   };
 
   config = mkIf cfg.enable {
-    users.users.${username} = {
+    users.users = lib.genAttrs allUsers (_: {
       packages = with pkgs; [
         appimage-run
       ];
-    };
+    });
 
     boot.binfmt.registrations.appimage = {
       wrapInterpreterInShell = false;

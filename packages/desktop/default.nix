@@ -2,12 +2,14 @@
   lib,
   config,
   user,
+  extraUsers ? [ ],
   ...
 }:
 with lib;
 let
   cfg = config.desktop;
   username = user;
+  allUsers = [ username ] ++ extraUsers;
 in
 {
   options.desktop = {
@@ -104,8 +106,8 @@ in
       trezor.enable = if cfg.enable_extra then true else false;
     };
 
-    home-manager.users.${username} = {
+    home-manager.users = lib.genAttrs allUsers (_: {
       catppuccin.cursors.enable = true;
-    };
+    });
   };
 }

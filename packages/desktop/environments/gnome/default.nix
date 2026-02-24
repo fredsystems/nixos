@@ -4,11 +4,12 @@
   config,
   hmlib,
   user,
+  extraUsers ? [ ],
   ...
 }:
 with lib;
 let
-  username = user;
+  allUsers = [ user ] ++ extraUsers;
   cfg = config.desktop.environments.gnome;
 in
 {
@@ -94,7 +95,7 @@ in
       };
     };
 
-    home-manager.users.${username} = {
+    home-manager.users = lib.genAttrs allUsers (_: {
       imports = [ ../modules/xdg-mime-common.nix ];
 
       gtk = {
@@ -307,6 +308,6 @@ in
           temperature-unit = "centigrade";
         };
       };
-    };
+    });
   };
 }

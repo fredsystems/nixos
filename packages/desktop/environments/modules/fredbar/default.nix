@@ -2,11 +2,12 @@
   lib,
   config,
   user,
+  extraUsers ? [ ],
   ...
 }:
 with lib;
 let
-  username = user;
+  allUsers = [ user ] ++ extraUsers;
   cfg = config.desktop.environments.modules.fredbar;
 in
 {
@@ -18,7 +19,7 @@ in
   };
 
   config = mkIf cfg.enable {
-    home-manager.users.${username} = {
+    home-manager.users = lib.genAttrs allUsers (_: {
       services.swaync.enable = lib.mkForce false;
 
       programs.fredbar = {
@@ -32,6 +33,6 @@ in
         username = config.sops.secrets."email/icloud/address".path;
         port = 5090;
       };
-    };
+    });
   };
 }

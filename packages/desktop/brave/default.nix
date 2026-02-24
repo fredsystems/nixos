@@ -3,12 +3,13 @@
   pkgs,
   config,
   user,
+  extraUsers ? [ ],
   ...
 }:
 with lib;
 let
   cfg = config.desktop.brave;
-  username = user;
+  allUsers = [ user ] ++ extraUsers;
 in
 {
   options.desktop.brave = {
@@ -19,18 +20,18 @@ in
   };
 
   config = mkIf cfg.enable {
-    users.users.${username} = {
+    users.users = lib.genAttrs allUsers (_: {
       packages = with pkgs; [
         brave
       ];
-    };
+    });
 
-    home-manager.users.${username} = {
+    home-manager.users = lib.genAttrs allUsers (_: {
       programs.brave = {
         enable = true;
       };
 
       catppuccin.brave.enable = true;
-    };
+    });
   };
 }

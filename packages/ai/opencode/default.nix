@@ -2,11 +2,13 @@
   lib,
   config,
   user,
+  extraUsers ? [ ],
   ...
 }:
 with lib;
 let
   cfg = config.ai.opencode;
+  allUsers = [ user ] ++ extraUsers;
 in
 {
   options.ai.opencode = {
@@ -14,12 +16,12 @@ in
   };
 
   config = mkIf cfg.enable {
-    home-manager.users.${user} = {
+    home-manager.users = lib.genAttrs allUsers (_: {
       programs.opencode = {
         enable = true;
       };
 
       catppuccin.opencode.enable = true;
-    };
+    });
   };
 }

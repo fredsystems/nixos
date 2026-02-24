@@ -1,10 +1,15 @@
-{ user, ... }:
+{
+  user,
+  extraUsers ? [ ],
+  lib,
+  ...
+}:
 let
-  username = user;
+  allUsers = [ user ] ++ extraUsers;
 in
 {
   config = {
-    home-manager.users.${username} = {
+    home-manager.users = lib.genAttrs allUsers (_: {
 
       programs.tmux = {
         enable = true;
@@ -132,6 +137,6 @@ in
 
         '';
       };
-    };
+    });
   };
 }

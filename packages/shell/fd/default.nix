@@ -1,14 +1,17 @@
 {
   pkgs,
   user,
+  extraUsers ? [ ],
+  lib,
   ...
 }:
 let
   username = user;
+  allUsers = [ username ] ++ extraUsers;
 in
 {
   config = {
-    home-manager.users.${username} = {
+    home-manager.users = lib.genAttrs allUsers (_: {
       home.packages = with pkgs; [
         fd
       ];
@@ -16,6 +19,6 @@ in
       programs.fd = {
         enable = true;
       };
-    };
+    });
   };
 }

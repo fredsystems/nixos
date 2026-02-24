@@ -195,12 +195,14 @@
           extraModules ? [ ],
           stateVersion ? "24.11",
           system ? "x86_64-linux",
+          extraUsers ? [ ],
         }:
         nixpkgs.lib.nixosSystem {
           specialArgs = {
             inherit
               inputs
               user
+              extraUsers
               verbose_name
               github_email
               github_signing_key
@@ -366,6 +368,7 @@
         fredvps = self.lib.mkSystem {
           hostName = "fredvps";
           stateVersion = "25.05";
+          extraUsers = [ "nik" ];
           hmModules = [ ];
           extraModules = [
             {

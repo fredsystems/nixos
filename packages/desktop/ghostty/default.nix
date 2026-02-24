@@ -3,12 +3,13 @@
   pkgs,
   config,
   user,
+  extraUsers ? [ ],
   system,
   ...
 }:
 
 let
-  username = user;
+  allUsers = [ user ] ++ extraUsers;
   cfg = config.desktop.ghostty;
   t = config.terminal;
   isDarwin = lib.hasSuffix "darwin" system;
@@ -22,7 +23,7 @@ in
   };
 
   config = lib.mkIf cfg.enable {
-    home-manager.users.${username} = {
+    home-manager.users = lib.genAttrs allUsers (_: {
       home.packages = [ pkgs.ghostty ];
 
       programs.ghostty = {
@@ -36,6 +37,6 @@ in
       };
 
       catppuccin.ghostty.enable = true;
-    };
+    });
   };
 }

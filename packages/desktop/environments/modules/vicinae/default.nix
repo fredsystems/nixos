@@ -2,11 +2,12 @@
   lib,
   config,
   user,
+  extraUsers ? [ ],
   ...
 }:
 with lib;
 let
-  username = user;
+  allUsers = [ user ] ++ extraUsers;
   cfg = config.desktop.environments.modules.vicinae;
 in
 {
@@ -18,7 +19,7 @@ in
   };
 
   config = mkIf cfg.enable {
-    home-manager.users.${username} = {
+    home-manager.users = lib.genAttrs allUsers (_: {
       programs.vicinae = {
         enable = true;
         systemd = {
@@ -26,6 +27,6 @@ in
         };
       };
       catppuccin.vicinae.enable = true;
-    };
+    });
   };
 }

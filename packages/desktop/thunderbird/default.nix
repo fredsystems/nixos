@@ -2,12 +2,13 @@
   lib,
   config,
   user,
+  extraUsers ? [ ],
   pkgs,
   ...
 }:
 
 let
-  username = user;
+  allUsers = [ user ] ++ extraUsers;
   cfg = config.desktop.thunderbird;
 
   tbSignatures = {
@@ -37,7 +38,7 @@ in
   };
 
   config = lib.mkIf cfg.enable {
-    home-manager.users.${username} = {
+    home-manager.users = lib.genAttrs allUsers (_: {
       programs.thunderbird = {
         enable = true;
 
@@ -284,6 +285,6 @@ in
           '';
         };
       };
-    };
+    });
   };
 }

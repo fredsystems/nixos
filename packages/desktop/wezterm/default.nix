@@ -2,12 +2,13 @@
   lib,
   config,
   user,
+  extraUsers ? [ ],
   system,
   ...
 }:
 
 let
-  username = user;
+  allUsers = [ user ] ++ extraUsers;
   cfg = config.desktop.wezterm;
 
   # Pull shared settings from terminal/common.nix
@@ -24,7 +25,7 @@ in
   imports = [ ../../../modules/terminal/common.nix ] ++ lib.optional isLinux ./linux-xdg.nix;
 
   config = lib.mkIf cfg.enable {
-    home-manager.users.${username} = {
+    home-manager.users = lib.genAttrs allUsers (_: {
       programs.wezterm = {
         enable = true;
 
@@ -67,6 +68,6 @@ in
       # Catppuccin theme integration
       catppuccin.wezterm.enable = true;
       catppuccin.wezterm.apply = true;
-    };
+    });
   };
 }

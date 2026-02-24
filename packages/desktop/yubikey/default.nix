@@ -3,13 +3,14 @@
   pkgs,
   config,
   user,
+  extraUsers ? [ ],
   system,
   ...
 }:
 with lib;
 let
   cfg = config.desktop.yubikey;
-  username = user;
+  allUsers = [ user ] ++ extraUsers;
   isDarwin = lib.hasSuffix "darwin" system;
   isLinux = !isDarwin;
 in
@@ -24,24 +25,7 @@ in
   imports = lib.optional isLinux ./linux.nix ++ lib.optional isDarwin ./mac.nix;
 
   config = mkIf cfg.enable {
-    # security = {
-    # pam.services = {
-    #   # login = {
-    #   #   u2fAuth = true;
-    #   # };
-    #   sudo.u2fAuth = true;
-    #   swaylock.u2fAuth = true;
-    # };
-
-    # pam.yubico = {
-    #   enable = true;
-    #   debug = true;
-    #   mode = "challenge-response";
-    #   id = [ "13380413" ];
-    # };
-    # };
-
-    home-manager.users.${username} = {
+    home-manager.users = lib.genAttrs allUsers (_: {
       services.yubikey-agent.enable = true;
 
       programs.gpg = {
@@ -54,15 +38,15 @@ in
           disable-ccid = true;
         };
       };
-    };
+    });
 
-    users.users.${username} = {
+    users.users = lib.genAttrs allUsers (_: {
       packages = with pkgs; [
         yubikey-manager
         pam_u2f
         yubioath-flutter
         yubico-piv-tool
       ];
-    };
+    });
   };
 }

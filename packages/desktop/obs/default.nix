@@ -3,11 +3,12 @@
   pkgs,
   config,
   user,
+  extraUsers ? [ ],
   ...
 }:
 with lib;
 let
-  username = user;
+  allUsers = [ user ] ++ extraUsers;
   cfg = config.desktop.obs;
 in
 {
@@ -26,21 +27,21 @@ in
       ];
     };
 
-    users.users.${username} = {
+    users.users = lib.genAttrs allUsers (_: {
       packages = with pkgs; [
         obs-studio
         obs-studio-plugins.wlrobs
         obs-studio-plugins.obs-vkcapture
         streamcontroller
       ];
-    };
+    });
 
-    home-manager.users.${username} = {
+    home-manager.users = lib.genAttrs allUsers (_: {
       programs.obs-studio = {
         enable = true;
       };
 
       catppuccin.obs.enable = true;
-    };
+    });
   };
 }

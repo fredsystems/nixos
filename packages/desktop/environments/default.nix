@@ -4,11 +4,13 @@
   pkgs,
   catppuccinWallpapers,
   user,
+  extraUsers ? [ ],
   ...
 }:
 with lib;
 let
   cfg = config.desktop.environments;
+  allUsers = [ user ] ++ extraUsers;
 in
 {
   options.desktop.environments = {
@@ -116,8 +118,8 @@ in
       gnome.enable = true;
     };
 
-    home-manager.users.${user} = {
+    home-manager.users = lib.genAttrs allUsers (_: {
       home.file."Pictures/Background".source = "${catppuccinWallpapers}/share/backgrounds";
-    };
+    });
   };
 }

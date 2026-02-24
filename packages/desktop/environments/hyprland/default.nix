@@ -3,11 +3,12 @@
   pkgs,
   config,
   user,
+  extraUsers ? [ ],
   ...
 }:
 with lib;
 let
-  username = user;
+  allUsers = [ user ] ++ extraUsers;
   cfg = config.desktop.environments.hyprland;
 in
 {
@@ -37,7 +38,7 @@ in
       };
     };
 
-    users.users.${username} = {
+    users.users = lib.genAttrs allUsers (_: {
       packages = with pkgs; [
         hyprpolkitagent
 
@@ -59,7 +60,7 @@ in
         udisks
         libappindicator-gtk3
       ];
-    };
+    });
 
     # systemd = {
     #   user.services.polkit-agent-helper-1 = {
@@ -90,7 +91,7 @@ in
       xwayland.enable = true;
     };
 
-    home-manager.users.${username} = {
+    home-manager.users = lib.genAttrs allUsers (_: {
       imports = [ ../modules/xdg-mime-common.nix ];
 
       home.packages = with pkgs; [
@@ -364,6 +365,6 @@ in
         };
       };
 
-    };
+    });
   };
 }

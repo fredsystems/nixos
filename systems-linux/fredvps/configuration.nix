@@ -37,26 +37,6 @@
     kernelPackages = pkgs.linuxPackages_latest;
   };
 
-  # Secondary user — mirrors the groups and packages that users/user/default.nix
-  # gives fred, but declared locally since mkSystem only wires up one system user.
-  users.users.nik = {
-    linger = true;
-    isNormalUser = true;
-    description = "Nik";
-    extraGroups = [
-      "networkmanager"
-      "wheel"
-      "docker"
-      "wireshark"
-    ];
-    packages = with pkgs; [
-      gh
-      stow
-      rtl-sdr-librtlsdr
-      rrdtool
-    ];
-  };
-
   system.stateVersion = stateVersion;
 
   networking = {

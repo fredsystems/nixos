@@ -2,19 +2,23 @@
   lib,
   pkgs,
   user,
+  extraUsers ? [ ],
   ...
 }:
 let
-  username = user;
-  homeDir =
-    if pkgs.stdenv.isDarwin then
-      "/Users/${username}/.oh-my-zsh/custom"
-    else
-      "/home/${username}/.oh-my-zsh/custom";
+  allUsers = [ user ] ++ extraUsers;
 in
 {
   config = {
-    home-manager.users.${username} =
+    home-manager.users = lib.genAttrs allUsers (
+      uname:
+      let
+        homeDir =
+          if pkgs.stdenv.isDarwin then
+            "/Users/${uname}/.oh-my-zsh/custom"
+          else
+            "/home/${uname}/.oh-my-zsh/custom";
+      in
       { config, ... }:
       {
 
@@ -71,6 +75,7 @@ in
 
         # Install your custom Zsh module files
         home.file.".oh-my-zsh/custom".source = ../../../dotfiles/.oh-my-zsh/custom;
-      };
+      }
+    );
   };
 }

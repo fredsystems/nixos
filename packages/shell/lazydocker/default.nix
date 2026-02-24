@@ -1,24 +1,28 @@
-{ user, ... }:
+{
+  user,
+  extraUsers ? [ ],
+  pkgs,
+  lib,
+  ...
+}:
 let
-  username = user;
+  allUsers = [ user ] ++ extraUsers;
 in
 {
   config = {
-    home-manager.users.${username} =
-      { pkgs, ... }:
-      {
-        home.packages = with pkgs; [
-          lazydocker
-        ];
+    home-manager.users = lib.genAttrs allUsers (_: {
+      home.packages = with pkgs; [
+        lazydocker
+      ];
 
-        programs.lazydocker = {
-          enable = true;
-          settings = {
-            gui = {
-              nerdFontsVersion = "3";
-            };
+      programs.lazydocker = {
+        enable = true;
+        settings = {
+          gui = {
+            nerdFontsVersion = "3";
           };
         };
       };
+    });
   };
 }

@@ -3,11 +3,12 @@
   pkgs,
   config,
   user,
+  extraUsers ? [ ],
   ...
 }:
 
 let
-  username = user;
+  allUsers = [ user ] ++ extraUsers;
   cfg = config.desktop.alacritty;
 
   # Pull from the shared terminal module
@@ -23,7 +24,7 @@ in
   imports = [ ../../../modules/terminal/common.nix ];
 
   config = lib.mkIf cfg.enable {
-    home-manager.users.${username} = {
+    home-manager.users = lib.genAttrs allUsers (_: {
       home.packages = [ pkgs.alacritty ];
 
       programs.alacritty = {
@@ -59,6 +60,6 @@ in
 
       # Catppuccin still allowed to inject its theme overrides
       catppuccin.alacritty.enable = true;
-    };
+    });
   };
 }

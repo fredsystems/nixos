@@ -1,10 +1,12 @@
 {
   pkgs,
   user,
+  extraUsers ? [ ],
+  lib,
   ...
 }:
 let
-  username = user;
+  allUsers = [ user ] ++ extraUsers;
 in
 {
   config = {
@@ -12,11 +14,11 @@ in
       pkgs.btop
     ];
 
-    home-manager.users.${username} = {
+    home-manager.users = lib.genAttrs allUsers (_: {
       programs.btop = {
         enable = true;
       };
       catppuccin.btop.enable = true;
-    };
+    });
   };
 }

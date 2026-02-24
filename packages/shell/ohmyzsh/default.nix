@@ -1,14 +1,16 @@
 {
   pkgs,
   user,
+  extraUsers ? [ ],
+  lib,
   ...
 }:
 let
-  username = user;
+  allUsers = [ user ] ++ extraUsers;
 in
 {
   config = {
-    home-manager.users.${username} = {
+    home-manager.users = lib.genAttrs allUsers (_: {
       home.packages = with pkgs; [
         oh-my-zsh
         zoxide
@@ -30,6 +32,6 @@ in
           "zoxide"
         ];
       };
-    };
+    });
   };
 }

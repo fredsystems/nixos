@@ -1,6 +1,11 @@
-{ user, ... }:
+{
+  user,
+  extraUsers ? [ ],
+  lib,
+  ...
+}:
 let
-  username = user;
+  allUsers = [ user ] ++ extraUsers;
 in
 {
   imports = [
@@ -25,7 +30,7 @@ in
     ./zsh
   ];
 
-  home-manager.users.${username} = {
+  home-manager.users = lib.genAttrs allUsers (_: {
     home.file.".config/scripts/" = {
       source = ../../dotfiles/.config/scripts;
       recursive = true;
@@ -34,5 +39,5 @@ in
     home.file.".markdownlint-cli2.yaml" = {
       source = ../../dotfiles/.markdownlint-cli2.yaml;
     };
-  };
+  });
 }

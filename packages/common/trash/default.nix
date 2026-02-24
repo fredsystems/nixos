@@ -1,10 +1,12 @@
 {
   pkgs,
   user,
+  extraUsers ? [ ],
+  lib,
   ...
 }:
 let
-  username = user;
+  allUsers = [ user ] ++ extraUsers;
 in
 {
   config = {
@@ -13,7 +15,7 @@ in
       pkgs.gtrash
     ];
 
-    home-manager.users.${username} = {
+    home-manager.users = lib.genAttrs allUsers (_: {
       systemd.user = {
         services = {
           autotrash = {
@@ -39,6 +41,6 @@ in
           };
         };
       };
-    };
+    });
   };
 }

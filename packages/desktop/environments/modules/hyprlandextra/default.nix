@@ -2,12 +2,13 @@
   lib,
   config,
   user,
+  extraUsers ? [ ],
   pkgs,
   ...
 }:
 with lib;
 let
-  username = user;
+  allUsers = [ user ] ++ extraUsers;
   cfg = config.desktop.environments.modules.hyprlandextra;
 in
 {
@@ -19,7 +20,7 @@ in
   };
 
   config = mkIf cfg.enable {
-    home-manager.users.${username} = {
+    home-manager.users = lib.genAttrs allUsers (_: {
       systemd.user.services.caffeine-inhibit = {
         Unit = {
           Description = "Caffeine idle inhibitor";
@@ -41,6 +42,6 @@ in
         source = ./hyprextra;
         recursive = true;
       };
-    };
+    });
   };
 }

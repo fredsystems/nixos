@@ -1,15 +1,18 @@
 {
   pkgs,
   user,
+  extraUsers ? [ ],
+  lib,
   ...
 }:
 
 let
   username = user;
+  allUsers = [ username ] ++ extraUsers;
 in
 {
   config = {
-    home-manager.users.${username} = {
+    home-manager.users = lib.genAttrs allUsers (_: {
 
       # Install bat
       home.packages = [ pkgs.bat ];
@@ -25,6 +28,6 @@ in
 
       # Theme
       catppuccin.bat.enable = true;
-    };
+    });
   };
 }

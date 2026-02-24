@@ -3,11 +3,12 @@
   pkgs,
   config,
   user,
+  extraUsers ? [ ],
   ...
 }:
 with lib;
 let
-  username = user;
+  allUsers = [ user ] ++ extraUsers;
   cfg = config.desktop.environments.niri;
 in
 {
@@ -19,7 +20,7 @@ in
   };
 
   config = mkIf cfg.enable {
-    users.users.${username} = {
+    users.users = lib.genAttrs allUsers (_: {
       packages = with pkgs; [
         hyprpolkitagent
 
@@ -41,7 +42,7 @@ in
         udisks
         libappindicator-gtk3
       ];
-    };
+    });
 
     programs.niri = {
       enable = true;
@@ -66,8 +67,10 @@ in
       };
     };
 
-    home-manager.users.${username} = {
-      imports = [ ../modules/xdg-mime-common.nix ];
+    home-manager.users = lib.genAttrs allUsers (
+      uname:
+      {
+        imports = [ ../modules/xdg-mime-common.nix ];
 
       home.packages = with pkgs; [
         networkmanagerapplet
@@ -280,7 +283,7 @@ in
             # Lock / sleep
             "Mod+L".action = {
               spawn = [
-                "/home/${username}/.config/hyprextra/scripts/pauseandsleep.sh"
+                "/home/${uname}/.config/hyprextra/scripts/pauseandsleep.sh"
               ];
             };
 
@@ -533,6 +536,7 @@ in
           };
         };
       };
-    };
+    }
+    );
   };
 }

@@ -3,10 +3,7 @@
 # relying on the global specialArgs (user / verbose_name / github_email)
 # which belong to fred.
 {
-  pkgs,
-  lib,
   inputs,
-  system,
   ...
 }:
 let
@@ -14,18 +11,6 @@ let
   homeDir = "/home/${username}";
   nikVerboseName = "Nik";
   nikGithubEmail = "nik@placeholder.example"; # TODO: replace with real email (github: shake-py)
-
-  isDarwin = lib.hasSuffix "darwin" system;
-  isLinux = !isDarwin;
-
-  # Same yubikey map as fred — shared hardware
-  yubikeyMap = {
-    "13380413" = "~/.ssh/id_ed25519_sk.pub";
-    "35681557" = "~/.ssh/id_ed25519_sk_github.pub";
-  };
-  yubikeyMapText = lib.concatStringsSep "\n" (
-    lib.mapAttrsToList (serial: key: "${serial} ${key}") yubikeyMap
-  );
 in
 {
   # users/homemanager/default.nix gives us: home.stateVersion + linux-xdg.nix
@@ -34,66 +19,46 @@ in
     ../../users/homemanager/default.nix
     inputs.catppuccin.homeModules.catppuccin
     inputs.nixvim.homeModules.nixvim
-  ]
-  ++ lib.optional isLinux inputs.niri.homeModules.niri;
+  ];
 
-  catppuccin = {
-    enable = true;
-    flavor = "mocha";
-    accent = "lavender";
-  };
+  home.username = username;
+  home.homeDirectory = homeDir;
 
-  home = {
-    inherit username;
-    homeDirectory = homeDir;
+  # Mirrors modules/common/home.nix — gitconfig fully generated
+  home.file.".gitconfig".text = ''
+    [filter "lfs"]
+        required = true
+        clean = git-lfs clean -- %f
+        smudge = git-lfs smudge -- %f
+        process = git-lfs filter-process
 
-    # Mirrors the packages added by modules/common/linux-common.nix for fred
-    packages = with pkgs; [
-      zoxide
-      oh-my-zsh
-    ];
+    [user]
+        name = ${nikVerboseName}
+        email = ${nikGithubEmail}
 
-    # Mirrors modules/common/home.nix — gitconfig fully generated
-    file.".gitconfig".text = ''
-      [filter "lfs"]
-          required = true
-          clean = git-lfs clean -- %f
-          smudge = git-lfs smudge -- %f
-          process = git-lfs filter-process
+    [commit]
+        gpgsign = false
 
-      [user]
-          name = ${nikVerboseName}
-          email = ${nikGithubEmail}
+    [gpg]
+        program = /run/current-system/sw/bin/gpg
+        format = ssh
 
-      [commit]
-          gpgsign = false
+    [core]
+        pager = delta
 
-      [gpg]
-          program = /run/current-system/sw/bin/gpg
-          format = ssh
+    [interactive]
+        diffFilter = delta --color-only
 
-      [core]
-          pager = delta
+    [delta]
+        navigate = true
+        side-by-side = true
 
-      [interactive]
-          diffFilter = delta --color-only
+    [merge]
+        conflictstyle = diff3
 
-      [delta]
-          navigate = true
-          side-by-side = true
-
-      [merge]
-          conflictstyle = diff3
-
-      [diff]
-          colorMoved = default
-      [include]
-          path = ~/.config/git/signing.conf
-    '';
-
-    # Mirrors modules/common/home.nix
-    file.".config/git/yubikey-map" = {
-      text = yubikeyMapText + "\n";
-    };
-  };
+    [diff]
+        colorMoved = default
+    [include]
+        path = ~/.config/git/signing.conf
+  '';
 }

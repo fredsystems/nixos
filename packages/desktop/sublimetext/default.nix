@@ -3,11 +3,12 @@
   pkgs,
   config,
   user,
+  extraUsers ? [ ],
   ...
 }:
 with lib;
 let
-  username = user;
+  allUsers = [ user ] ++ extraUsers;
   cfg = config.desktop.sublimetext;
 in
 {
@@ -19,24 +20,26 @@ in
   };
 
   config = mkIf cfg.enable {
-    users.users.${username} = {
+    users.users = lib.genAttrs allUsers (_: {
       packages = with pkgs; [
         sublime4
       ];
-    };
+    });
 
-    home-manager.users.${username}.xdg = {
-      mimeApps = {
-        associations.added = {
-          "text/plain" = [ "sublime_text.desktop" ];
-          "application/x-zerosize" = [ "sublime_text.desktop" ];
-        };
+    home-manager.users = lib.genAttrs allUsers (_: {
+      xdg = {
+        mimeApps = {
+          associations.added = {
+            "text/plain" = [ "sublime_text.desktop" ];
+            "application/x-zerosize" = [ "sublime_text.desktop" ];
+          };
 
-        defaultApplications = {
-          "text/plain" = [ "sublime_text.desktop" ];
-          "application/x-zerosize" = [ "sublime_text.desktop" ];
+          defaultApplications = {
+            "text/plain" = [ "sublime_text.desktop" ];
+            "application/x-zerosize" = [ "sublime_text.desktop" ];
+          };
         };
       };
-    };
+    });
   };
 }

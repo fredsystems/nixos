@@ -3,11 +3,12 @@
   pkgs,
   config,
   user,
+  extraUsers ? [ ],
   ...
 }:
 with lib;
 let
-  username = user;
+  allUsers = [ user ] ++ extraUsers;
   cfg = config.desktop.music;
   cider2 = import ./cider.nix {
     inherit pkgs;
@@ -23,10 +24,10 @@ in
   };
 
   config = mkIf cfg.enable {
-    users.users.${username} = {
+    users.users = lib.genAttrs allUsers (_: {
       packages = with pkgs; [
         cider2
       ];
-    };
+    });
   };
 }
