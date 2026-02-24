@@ -30,10 +30,10 @@
 
           "/cider-v3.1.8-linux-x64.AppImage" = {
             alias = "/home/fred/cider-v3.1.8-linux-x64.AppImage";
-            extraConfig = ''
-              add_header Content-Type application/octet-stream;
-              add_header Content-Disposition "attachment; filename=cider-v3.1.8-linux-x64.AppImage";
-            '';
+            # extraConfig = ''
+            #   add_header Content-Type application/octet-stream;
+            #   add_header Content-Disposition "attachment; filename=cider-v3.1.8-linux-x64.AppImage";
+            # '';
           };
 
           "/acarshub/" = {
