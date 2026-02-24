@@ -17,8 +17,8 @@
   # only the public cache until Tailscale is set up.
   nix.settings.substituters = lib.mkForce [ "https://cache.nixos.org" ];
 
-  # The common packages module unconditionally enables systemd-boot; override
-  # since this VPS uses GRUB (BIOS boot, no EFI).
+  # The common packages module unconditionally enables systemd-boot and
+  # networkmanager; override both since this VPS uses GRUB + systemd-networkd.
   boot = {
     # Boot - GRUB on /dev/sda (VPS, BIOS boot, no EFI)
     loader = {
@@ -57,29 +57,27 @@
 
   system.stateVersion = stateVersion;
 
-  # Networking - NetworkManager with IPv4 DHCP and static IPv6.
-  # useDHCP = false lets NM own all interfaces; DHCP is handled by the
-  # profile's ipv4.method = "auto".
   networking = {
     hostName = "fredvps";
+    useNetworkd = true;
     useDHCP = false;
+    networkmanager.enable = lib.mkForce false;
+  };
 
-    networkmanager.ensureProfiles.profiles."wan" = {
-      connection = {
-        id = "wan";
-        type = "ethernet";
-        "interface-name" = "enp1s0";
-        autoconnect = "true";
+  systemd.network = {
+    enable = true;
+    networks."10-wan" = {
+      matchConfig.Name = "enp1s0";
+      networkConfig = {
+        DHCP = "ipv4";
+        IPv6AcceptRA = false;
       };
-      ipv4 = {
-        method = "auto";
-      };
-      ipv6 = {
-        method = "manual";
-        address1 = "2a01:4ff:f0:2bab::/64";
-        gateway = "fe80::1";
-        "ip6-privacy" = "0";
-      };
+      address = [
+        "2a01:4ff:f0:2bab::/64"
+      ];
+      routes = [
+        { routeConfig.Gateway = "fe80::1"; }
+      ];
     };
   };
 }
