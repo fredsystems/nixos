@@ -8,6 +8,7 @@
   imports = [
     ./hardware-configuration.nix
     ../../profiles/adsb-hub.nix
+    ./nginx.nix
   ];
 
   # Not on the LAN - exclude from the monitoring agent mesh until Tailscale is set up.
