@@ -106,7 +106,9 @@
       format = "yaml";
     };
 
-    "github_api" = { };
+    "github_api" = {
+      mode = "0444";
+    };
   };
 
   services = {
