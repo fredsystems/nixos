@@ -367,6 +367,16 @@
           hostName = "fredvps";
           stateVersion = "25.05";
           hmModules = [ ];
+          extraModules = [
+            {
+              home-manager.users.nik = {
+                imports = [
+                  ./systems-linux/fredvps/nik-home.nix
+                  ./modules/attic/attic_client.nix
+                ];
+              };
+            }
+          ];
         };
 
         acarshub = self.lib.mkSystem {
