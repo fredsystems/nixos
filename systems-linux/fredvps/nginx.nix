@@ -1,4 +1,8 @@
 {
+  config,
+  ...
+}:
+{
   networking.firewall.allowedTCPPorts = [
     80
     443
@@ -7,6 +11,15 @@
   security.acme = {
     acceptTerms = true;
     defaults.email = "clausen.fred@me.com";
+
+    certs = {
+      "fredclausen.com" = {
+        group = config.services.nginx.group;
+        extraDomainNames = [
+          "www.fredclausen.com"
+        ];
+      };
+    };
   };
 
   services.nginx = {
@@ -17,12 +30,15 @@
     recommendedTlsSettings = true;
 
     virtualHosts."fredclausen.com" = {
-      enableACME = true;
       forceSSL = true;
       serverAliases = [ "www.fredclausen.com" ];
 
       locations."/" = {
         return = "200 'Coming soon'";
+
+        useACMEHost = "fredclausen.com";
+        locations."/.well-known/".root = "/var/lib/acme/acme-challenge/";
+
         extraConfig = "add_header Content-Type text/plain;";
       };
     };
