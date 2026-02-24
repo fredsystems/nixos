@@ -8,10 +8,10 @@
   lockFileMaintenance: {
     enabled: true,
     automerge: true,
-    schedule: ["* */4 * * *"],
+    schedule: ["* 12 * * 0"],
   },
   timezone: "Etc/UTC",
-  schedule: ["* */4 * * *"],
+  schedule: ["* 12 * * 0"],
   enabledManagers: ["custom.regex", "nix", "github-actions"],
   prConcurrentLimit: 0,
   prHourlyLimit: 0,

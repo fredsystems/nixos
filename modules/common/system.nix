@@ -42,4 +42,15 @@ in
     };
     optimise.automatic = true;
   };
+
+  # The goModules fixed-output derivation in nixpkgs includes "GOPROXY" in
+  # impureEnvVars, meaning it inherits GOPROXY from the Nix daemon's environment.
+  # proxy.golang.org redirects Go module downloads to a GCS bucket
+  # (proxy-golang-org-prod) which is geo-restricted ("not available in your
+  # location") on this local network. Routing through goproxy.io bypasses GCS
+  # entirely. The VPS is unaffected because datacenter IPs aren't restricted.
+  systemd.services.nix-daemon.environment = lib.optionalAttrs isLinux {
+    GOPROXY = "https://goproxy.io,direct";
+    GONOSUMDB = "*";
+  };
 }
