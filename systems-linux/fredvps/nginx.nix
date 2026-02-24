@@ -32,14 +32,13 @@
     virtualHosts."fredclausen.com" = {
       forceSSL = true;
       serverAliases = [ "www.fredclausen.com" ];
+      useACMEHost = "fredclausen.com";
 
       locations = {
         "/.well-known/".root = "/var/lib/acme/acme-challenge/";
 
         "/" = {
           return = "200 'Coming soon'";
-
-          useACMEHost = "fredclausen.com";
           extraConfig = "add_header Content-Type text/plain;";
         };
       };
