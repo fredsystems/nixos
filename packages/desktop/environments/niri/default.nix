@@ -67,10 +67,8 @@ in
       };
     };
 
-    home-manager.users = lib.genAttrs allUsers (
-      uname:
-      {
-        imports = [ ../modules/xdg-mime-common.nix ];
+    home-manager.users = lib.genAttrs allUsers (uname: {
+      imports = [ ../modules/xdg-mime-common.nix ];
 
       home.packages = with pkgs; [
         networkmanagerapplet
@@ -536,7 +534,6 @@ in
           };
         };
       };
-    }
-    );
+    });
   };
 }

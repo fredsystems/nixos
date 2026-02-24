@@ -8,7 +8,6 @@
 }:
 with lib;
 let
-  username = user;
   allUsers = [ user ] ++ extraUsers;
   cfg = config.desktop.ledger;
 in
