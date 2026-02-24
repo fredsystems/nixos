@@ -33,7 +33,7 @@
       forceSSL = true;
       serverAliases = [ "www.fredclausen.com" ];
       enableACME = true;
-      useACMEHost = "fredclausen.com";
+      # useACMEHost = "fredclausen.com";
 
       locations = {
         "/.well-known/".root = "/var/lib/acme/acme-challenge/";
