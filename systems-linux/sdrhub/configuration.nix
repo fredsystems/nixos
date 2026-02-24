@@ -179,27 +179,27 @@
       ###############################################################
       # AIRSPY ADS-B RECEIVER
       ###############################################################
-      {
-        name = "airspy_adsb";
-        image = "ghcr.io/sdr-enthusiasts/airspy_adsb:latest-build-294";
+      # {
+      #   name = "airspy_adsb";
+      #   image = "ghcr.io/sdr-enthusiasts/airspy_adsb:latest-build-294";
 
-        hostname = "airspy_adsb";
-        restart = "always";
-        tty = false;
+      #   hostname = "airspy_adsb";
+      #   restart = "always";
+      #   tty = false;
 
-        environmentFiles = [
-          config.sops.secrets."docker/sdrhub/airspy_adsb.env".path
-        ];
+      #   environmentFiles = [
+      #     config.sops.secrets."docker/sdrhub/airspy_adsb.env".path
+      #   ];
 
-        deviceCgroupRules = [
-          "c 189:* rwm"
-        ];
+      #   deviceCgroupRules = [
+      #     "c 189:* rwm"
+      #   ];
 
-        volumes = [
-          "/dev:/dev"
-          "/opt/adsb/data/airspy_adsb:/run/airspy_adsb"
-        ];
-      }
+      #   volumes = [
+      #     "/dev:/dev"
+      #     "/opt/adsb/data/airspy_adsb:/run/airspy_adsb"
+      #   ];
+      # }
 
       ###############################################################
       # ULTRAFEEDER (readsb) — central ADS-B decoder
