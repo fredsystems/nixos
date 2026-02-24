@@ -106,9 +106,7 @@
       format = "yaml";
     };
 
-    "github_api" = {
-      path = "/opt/adsb/imageapi/data/sdre-e-updater.2024-02-05.private-key.pem";
-    };
+    "github_api" = { };
   };
 
   services = {
@@ -137,6 +135,7 @@
 
         volumes = [
           "/opt/adsb/imageapi/data:/opt/api"
+          "${config.sops.secrets.github_api.path}:/opt/api/sdre-e-updater.2024-02-05.private-key.pem:ro"
         ];
 
         ports = [ "3001:3000" ];
