@@ -106,7 +106,7 @@
       format = "yaml";
     };
 
-    "github-api" = {
+    "github_api" = {
       path = "/opt/adsb/imageapi/data/sdre-e-updater.2024-02-05.private-key.pem";
     };
   };
