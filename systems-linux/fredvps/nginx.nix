@@ -70,6 +70,31 @@ let
   domainNames = map (d: d.domain) domains;
 in
 {
+  # Seed any missing bind zone files before bind starts.
+  # bind expects the file to already exist — it won't create it.
+  # The serial is set to the epoch so any real update will supersede it.
+  system.activationScripts.bindZoneFiles = {
+    deps = [ ];
+    text = lib.concatMapStrings (d: ''
+            if [ ! -f /var/db/bind/${d.domain} ]; then
+              mkdir -p /var/db/bind
+              cat > /var/db/bind/${d.domain} << EOF
+      \$TTL 60
+      @ IN SOA ns1.${d.domain}. admin.${d.domain}. (
+          1          ; serial
+          3600       ; refresh
+          900        ; retry
+          604800     ; expire
+          60 )       ; minimum TTL
+
+      @ IN NS ns1.${d.domain}.
+      EOF
+              chown named:named /var/db/bind/${d.domain}
+              chmod 640 /var/db/bind/${d.domain}
+            fi
+    '') domains;
+  };
+
   networking.firewall.allowedTCPPorts = [
     80
     443
