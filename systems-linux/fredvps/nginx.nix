@@ -20,6 +20,10 @@ let
           return = "200 'Coming soon'";
           extraConfig = "add_header Content-Type text/plain;";
         };
+
+        "/imageapi" = {
+          proxyPass = "http://5.161.253.151:3001";
+        };
       };
     }
   ];
