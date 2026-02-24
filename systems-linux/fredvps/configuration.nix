@@ -87,6 +87,8 @@
     text = ''
       # Ensure directory exists (does not touch contents if already there)
       install -d -m0755 -o fred -g users /opt/adsb
+      install -d -m0755 -o fred -g users /opt/adsb/imageapi
+      install -d m0755 -o fred -g users /opt/adsb/imageapi/data/
     '';
     deps = [ ];
   };
@@ -102,6 +104,10 @@
 
     "docker/fredvps/acarshub.env" = {
       format = "yaml";
+    };
+
+    "github-api" = {
+      path = "/opt/adsb/imageapi/data/sdre-e-updater.2024-02-05.private-key.pem";
     };
   };
 
