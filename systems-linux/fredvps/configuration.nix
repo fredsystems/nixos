@@ -115,7 +115,7 @@
         image = "ghcr.io/sdr-enthusiasts/sdre-image-api:latest-build-5";
 
         volumes = [
-          "/opt/adsb/image-api/data:/opt/api"
+          "/opt/adsb/imageapi/data:/opt/api"
         ];
 
         ports = [ "3001:3000" ];
