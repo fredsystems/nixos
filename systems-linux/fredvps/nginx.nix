@@ -21,8 +21,13 @@ let
           extraConfig = "add_header Content-Type text/plain;";
         };
 
-        "/imageapi" = {
-          proxyPass = "http://5.161.253.151:3001";
+        "/imageapi/" = {
+          proxyPass = "http://127.0.0.1:3001/";
+          proxyWebsockets = true;
+          extraConfig = ''
+            proxy_redirect / /imageapi/;
+            proxy_set_header X-Forwarded-Prefix /imageapi;
+          '';
         };
       };
     }
