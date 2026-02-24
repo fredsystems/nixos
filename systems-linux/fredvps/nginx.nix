@@ -32,6 +32,7 @@
     virtualHosts."fredclausen.com" = {
       forceSSL = true;
       serverAliases = [ "www.fredclausen.com" ];
+      enableACME = true;
       useACMEHost = "fredclausen.com";
 
       locations = {
