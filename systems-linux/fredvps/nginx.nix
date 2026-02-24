@@ -33,13 +33,15 @@
       forceSSL = true;
       serverAliases = [ "www.fredclausen.com" ];
 
-      locations."/" = {
-        return = "200 'Coming soon'";
+      locations = {
+        "/.well-known/".root = "/var/lib/acme/acme-challenge/";
 
-        useACMEHost = "fredclausen.com";
-        locations."/.well-known/".root = "/var/lib/acme/acme-challenge/";
+        "/" = {
+          return = "200 'Coming soon'";
 
-        extraConfig = "add_header Content-Type text/plain;";
+          useACMEHost = "fredclausen.com";
+          extraConfig = "add_header Content-Type text/plain;";
+        };
       };
     };
   };
