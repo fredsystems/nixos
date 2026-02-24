@@ -15,6 +15,14 @@
     os = "nixos";
   };
 
+  fredvps = {
+    ip = "fredclausen.com";
+    dir = "fredhub";
+    docker_path = "/opt/adsb";
+    slow_start = false;
+    os = "nixos";
+  };
+
   hfdlhub1 = {
     ip = "192.168.31.19";
     dir = "hfdlhub-1";
@@ -45,14 +53,6 @@
     docker_path = "/opt/adsb";
     slow_start = false;
     os = "nixos";
-  };
-
-  vps = {
-    ip = "fredclausen.com";
-    dir = "vps";
-    docker_path = "/home/fred"; # VPS is different
-    slow_start = false;
-    os = "ubuntu";
   };
 
   brandon = {
