@@ -121,7 +121,7 @@ in
           forceSSL = true;
           serverAliases = d.extraDomains;
           useACMEHost = d.domain;
-          locations = d.locations;
+          inherit (d) locations;
         };
       }) domains
     );

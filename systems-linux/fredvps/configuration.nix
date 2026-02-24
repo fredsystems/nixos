@@ -81,4 +81,45 @@
       ];
     };
   };
+
+  system.activationScripts.adsbDockerCompose = {
+    text = ''
+      # Ensure directory exists (does not touch contents if already there)
+      install -d -m0755 -o fred -g users /opt/adsb
+    '';
+    deps = [ ];
+  };
+
+  services = {
+    adsb.containers = [
+      ###############################################################
+      # DOZZLE AGENT
+      ###############################################################
+      {
+        name = "dozzle-agent";
+        image = "amir20/dozzle:v10.0.4";
+        exec = "agent";
+
+        volumes = [
+          "/var/run/docker.sock:/var/run/docker.sock:ro"
+        ];
+
+        ports = [ "7007:7007" ];
+      }
+
+      ###############################################################
+      # IMAGE API
+      ###############################################################
+      {
+        name = "imageapi";
+        image = "ghcr.io/sdr-enthusiasts/sdre-image-api:latest-build-5";
+
+        volumes = [
+          "/opt/adsb/image-api/data:/opt/api"
+        ];
+
+        ports = [ "3001:3000" ];
+      }
+    ];
+  };
 }
