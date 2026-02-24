@@ -21,12 +21,34 @@ let
           extraConfig = "add_header Content-Type text/plain;";
         };
 
+        "/acarshub/" = {
+          proxyPass = "http://127.0.0.1:8085/";
+          proxyWebsockets = true;
+
+          extraConfig = ''
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection $connection_upgrade;
+            proxy_redirect / /acarshub/;
+            proxy_set_header X-Forwarded-Prefix /acarshub;
+          '';
+        };
+
         "/imageapi/" = {
           proxyPass = "http://127.0.0.1:3001/";
           proxyWebsockets = true;
           extraConfig = ''
             proxy_redirect / /imageapi/;
             proxy_set_header X-Forwarded-Prefix /imageapi;
+          '';
+        };
+
+        "/tar1090/" = {
+          proxyPass = "http://127.0.0.1:8081/";
+
+          extraConfig = ''
+            proxy_redirect / /tar1090/;
+            proxy_set_header X-Forwarded-Prefix /tar1090;
           '';
         };
       };

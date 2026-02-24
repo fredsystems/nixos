@@ -2,6 +2,7 @@
   pkgs,
   lib,
   stateVersion,
+  config,
   ...
 }:
 {
@@ -90,6 +91,20 @@
     deps = [ ];
   };
 
+  sops.secrets = {
+    "docker/fredvps/tar1090.env" = {
+      format = "yaml";
+    };
+
+    "docker/fredvps/acars_router.env" = {
+      format = "yaml";
+    };
+
+    "docker/fredvps/acarshub.env" = {
+      format = "yaml";
+    };
+  };
+
   services = {
     adsb.containers = [
       ###############################################################
@@ -119,6 +134,78 @@
         ];
 
         ports = [ "3001:3000" ];
+      }
+
+      ###############################################################
+      # tar1090
+      ###############################################################
+      {
+        name = "tar1090";
+        image = "ghcr.io/sdr-enthusiasts/docker-tar1090:latest-build-1414";
+
+        environmentFiles = [
+          config.sops.secrets."docker/fredvps/tar1090.env".path
+        ];
+
+        volumes = [
+          "/opt/adsb/tar1090/heatmap:/var/globe_history"
+          "/opt/adsb/tar1090/timelapse:/var/timelapse1090"
+          "/opt/adsb/tar1090/graphs_1090:/var/lib/collectd"
+          "/proc/diskstats:/proc/diskstats:ro"
+        ];
+
+        ports = [
+          "8081:80"
+          "30002:30002"
+          "30003:30003"
+          "30004:30004"
+          "30047:30047"
+          "30005:30005"
+          "12000:12000"
+        ];
+      }
+
+      ###############################################################
+      # acars_router
+      ###############################################################
+      {
+        name = "acars_router";
+        image = "ghcr.io/sdr-enthusiasts/acars_router:latest-build-565";
+
+        environmentFiles = [
+          config.sops.secrets."docker/fredvps/acars_router.env".path
+        ];
+
+        ports = [
+          "5556:5556"
+          "5555:5555"
+          "5550:5550"
+          "15550:15550"
+          "15555:15555"
+          "15556:15556"
+          "35556:35556"
+        ];
+      }
+
+      ###############################################################
+      # ACARS Hub
+      ###############################################################
+      {
+        name = "acarshub";
+        image = "ghcr.io/sdr-enthusiasts/docker-acarshub:v4-latest-build-46";
+
+        environmentFiles = [
+          config.sops.secrets."docker/fredvps/acarshub.env".path
+        ];
+
+        volumes = [
+          "/opt/adsb/acarshub:/run/acars"
+        ];
+
+        ports = [
+          "8085:80"
+          "8888:8888"
+        ];
       }
     ];
   };
