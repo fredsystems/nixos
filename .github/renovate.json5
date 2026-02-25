@@ -47,9 +47,9 @@
     },
     {
       matchDatasources: ["docker"],
-      versioning: "regex:^latest-build-(?<major>\\d+)$",
+      versioning: "regex:^(telegraf|v\\d+-latest|latest)-build-(?<major>\\d+)$",
       matchPackageNames: [
-        "/^ghcr\\.io/sdr-enthusiasts/(docker-tar1090|sdre-image-api|docker-hfdlobserver|docker-adsb-ultrafeeder|docker-piaware|docker-airnavradar)$/",
+        "/^ghcr\\.io/sdr-enthusiasts/.+$/",
       ],
       pinDigests: false,
       automerge: true,
