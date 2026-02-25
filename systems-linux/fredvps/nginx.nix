@@ -33,7 +33,7 @@
           };
 
           "/cider-v3.1.8-linux-x64.AppImage" = {
-            root = "/home/fred";
+            root = "/var/www";
             # extraConfig = ''
             #   add_header Content-Type application/octet-stream;
             #   add_header Content-Disposition "attachment; filename=cider-v3.1.8-linux-x64.AppImage";
