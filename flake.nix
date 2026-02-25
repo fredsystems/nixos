@@ -73,10 +73,6 @@
       url = "github:orangci/walls-catppuccin-mocha";
       flake = false;
     };
-
-    # attic = {
-    #   url = "github:zhaofengli/attic";
-    # };
   };
 
   outputs =
@@ -92,7 +88,6 @@
       darwin,
       walls-catppuccin,
       solaar,
-      #attic,
       ...
     }:
 
