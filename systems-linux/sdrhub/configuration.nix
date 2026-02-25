@@ -509,7 +509,7 @@
       }
 
       ###############################################################
-      # ACARSHUB va4 (ACARS/VHFM/VDLM ingestion + UI)
+      # ACARSHUB v4 (ACARS/VHFM/VDLM ingestion + UI)
       ###############################################################
       {
         name = "acarshubv4";
