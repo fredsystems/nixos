@@ -9,6 +9,10 @@
     defaults.email = "clausen.fred@me.com";
   };
 
+  systemd.tmpfiles.rules = [
+    "d /var/www 0755 root root -"
+  ];
+
   services.nginx = {
     enable = true;
     recommendedGzipSettings = true;
