@@ -21,6 +21,25 @@
   # LAN services (Attic, Loki, etc.) are reachable without config changes.
   services.tailscale.extraUpFlags = [ "--accept-routes" ];
 
+  services.openssh.ports = [ 2269 ];
+
+  services.fail2ban = {
+    enable = true;
+    maxretry = 5;
+    bantime = "1h";
+    bantime-increment = {
+      enable = true;
+      multiplier = "2";
+      maxtime = "168h";
+    };
+    jails.sshd.settings = {
+      enabled = true;
+      port = "2269";
+      filter = "sshd";
+      maxretry = 3;
+    };
+  };
+
   # The common packages module unconditionally enables systemd-boot and
   # networkmanager; override both since this VPS uses GRUB + systemd-networkd.
   boot = {
@@ -46,6 +65,7 @@
     useNetworkd = true;
     useDHCP = false;
     networkmanager.enable = lib.mkForce false;
+    firewall.allowedTCPPorts = [ 2269 ];
   };
 
   systemd.network = {

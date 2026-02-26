@@ -17,6 +17,7 @@
 
   fredvps = {
     ip = "fredclausen.com";
+    port = 2269;
     dir = "fredhub";
     docker_path = "/opt/adsb";
     slow_start = false;
