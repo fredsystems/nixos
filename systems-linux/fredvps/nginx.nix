@@ -28,8 +28,7 @@
 
         locations = {
           "/" = {
-            return = "200 'Coming soon'";
-            extraConfig = "add_header Content-Type text/plain;";
+            proxyPass = "http://127.0.0.1:4200/";
           };
 
           "/cider-v3.1.8-linux-x64.AppImage" = {
