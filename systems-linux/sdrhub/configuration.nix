@@ -145,6 +145,7 @@
           "@@||tailscale.io^"
           "@@||controlplane.tailscale.com^"
           "@@||log.tailscale.io^"
+          "@@||tailc21fc7.ts.net^"
         ];
 
         filters =
