@@ -29,7 +29,7 @@
     bantime = "1h";
     bantime-increment = {
       enable = true;
-      multiplier = "2";
+      multipliers = "2";
       maxtime = "168h";
     };
     jails.sshd.settings = {
