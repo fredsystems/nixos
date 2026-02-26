@@ -17,6 +17,10 @@
   # Run `tailscale status` after first deploy to confirm the assigned name.
   deployment.scrapeAddress = "fredvps.fredclausen.github.ts.net";
 
+  # Accept subnet routes advertised by sdrhub (192.168.31.0/24) so that
+  # LAN services (Attic, Loki, etc.) are reachable without config changes.
+  services.tailscale.extraUpFlags = [ "--accept-routes" ];
+
   # The common packages module unconditionally enables systemd-boot and
   # networkmanager; override both since this VPS uses GRUB + systemd-networkd.
   boot = {
