@@ -2,6 +2,7 @@
   lib,
   pkgs,
   agentNodes,
+  agentScrapeMap,
   user,
   ...
 }:
@@ -199,7 +200,7 @@ in
           job_name = "node";
           static_configs =
             (map (h: {
-              targets = [ "${h}.local:9100" ];
+              targets = [ "${agentScrapeMap.${h}}:9100" ];
               labels = {
                 hostname = h;
                 role = "agent";
@@ -222,7 +223,7 @@ in
           job_name = "cadvisor";
           static_configs =
             (map (h: {
-              targets = [ "${h}.local:4567" ];
+              targets = [ "${agentScrapeMap.${h}}:4567" ];
               labels = {
                 hostname = h;
                 role = "agent";

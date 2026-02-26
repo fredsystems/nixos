@@ -10,6 +10,7 @@
     ../../modules/adsb-docker-units.nix
     ../../modules/monitoring/master
     ../../modules/monitoring/agent
+    ../../modules/tailscale
   ];
 
   # Server profile (no desktop components)
@@ -25,6 +26,18 @@
   sops_secrets.enable_secrets.enable = true;
 
   networking.hostName = "sdrhub";
+
+  # Advertise the LAN subnet over Tailscale so that fredvps can reach
+  # LAN-only services (Attic at 192.168.31.14, Loki at 192.168.31.20, etc.)
+  # without any changes to those configs.
+  # NOTE: after deploying, approve the advertised route in the Tailscale admin
+  # console under Machines -> sdrhub -> Edit route settings.
+  services.tailscale.extraUpFlags = [ "--advertise-routes=192.168.31.0/24" ];
+
+  boot.kernel.sysctl = {
+    "net.ipv4.ip_forward" = 1;
+    "net.ipv6.conf.all.forwarding" = 1;
+  };
 
   ###########################################
   # Firewall

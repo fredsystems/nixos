@@ -104,6 +104,20 @@
       # Turn each node name into actual DNS/IP scrape targets
       agentTargets = map (name: "${name}.local") agentNodes;
 
+      # Map of hostname -> scrape address for Prometheus.
+      # Uses deployment.scrapeAddress when set (e.g. a Tailscale MagicDNS name),
+      # otherwise falls back to <hostname>.local for LAN nodes.
+      agentScrapeMap = builtins.listToAttrs (
+        map (name: {
+          inherit name;
+          value =
+            let
+              addr = self.nixosConfigurations.${name}.config.deployment.scrapeAddress;
+            in
+            if addr != null then addr else "${name}.local";
+        }) agentNodes
+      );
+
       supportedSystems = [
         "x86_64-linux"
         "aarch64-darwin"
@@ -204,6 +218,7 @@
               stateVersion
               agentNodes
               agentTargets
+              agentScrapeMap
               ;
 
             catppuccinWallpapers = self.packages.${system}.catppuccin-wallpapers;

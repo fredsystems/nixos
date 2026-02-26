@@ -9,15 +9,13 @@
   imports = [
     ./hardware-configuration.nix
     ../../profiles/adsb-hub.nix
+    ../../modules/tailscale
     ./nginx.nix
   ];
 
-  # Not on the LAN - exclude from the monitoring agent mesh until Tailscale is set up.
-  deployment.role = "standalone";
-
-  # The local Attic cache (192.168.31.14) is unreachable from the VPS — use
-  # only the public cache until Tailscale is set up.
-  nix.settings.substituters = lib.mkForce [ "https://cache.nixos.org" ];
+  # Tailscale MagicDNS name — fill in your tailnet name, e.g. "fredvps.tail1234.ts.net"
+  # Run `tailscale status` after first deploy to confirm the assigned name.
+  deployment.scrapeAddress = "fredvps.fredclausen.github.ts.net";
 
   # The common packages module unconditionally enables systemd-boot and
   # networkmanager; override both since this VPS uses GRUB + systemd-networkd.
