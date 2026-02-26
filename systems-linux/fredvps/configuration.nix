@@ -15,7 +15,7 @@
 
   # Tailscale MagicDNS name — fill in your tailnet name, e.g. "fredvps.tail1234.ts.net"
   # Run `tailscale status` after first deploy to confirm the assigned name.
-  deployment.scrapeAddress = "fredvps.fredclausen.github.ts.net";
+  deployment.scrapeAddress = "fredvps.tailc21fc7.ts.net";
 
   # Accept subnet routes advertised by sdrhub (192.168.31.0/24) so that
   # LAN services (Attic, Loki, etc.) are reachable without config changes.
