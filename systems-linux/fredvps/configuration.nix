@@ -85,6 +85,10 @@
       format = "yaml";
     };
 
+    "docker/fredvps/fredsite.env" = {
+      format = "yaml";
+    };
+
     "github_api" = {
       mode = "0444";
     };
@@ -115,6 +119,19 @@
     };
 
     adsb.containers = [
+      ###############################################################
+      # Fred Site
+      ###############################################################
+      {
+        name = "fredsite";
+        image = "ghcr.io/fredsystems/fred-site:latest-build-4";
+
+        environmentFiles = [
+          config.sops.secrets."docker/fredvps/fredsite.env".path
+        ];
+
+        ports = [ "4200:80" ];
+      }
       ###############################################################
       # DOZZLE AGENT
       ###############################################################
