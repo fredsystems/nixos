@@ -48,7 +48,7 @@
       ###############################################################
       {
         name = "dumphfdl-1";
-        image = "ghcr.io/sdr-enthusiasts/docker-dumphfdl:latest-build-180";
+        image = "ghcr.io/sdr-enthusiasts/docker-dumphfdl:latest-build-182";
 
         tty = true;
         restart = "always";
@@ -81,7 +81,7 @@
       ###############################################################
       {
         name = "dumphfdl-2";
-        image = "ghcr.io/sdr-enthusiasts/docker-dumphfdl:latest-build-180";
+        image = "ghcr.io/sdr-enthusiasts/docker-dumphfdl:latest-build-182";
 
         tty = true;
         restart = "always";
@@ -118,7 +118,7 @@
       ###############################################################
       {
         name = "dumphfdl-3";
-        image = "ghcr.io/sdr-enthusiasts/docker-dumphfdl:latest-build-180";
+        image = "ghcr.io/sdr-enthusiasts/docker-dumphfdl:latest-build-182";
 
         tty = true;
         restart = "always";
