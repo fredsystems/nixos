@@ -48,9 +48,7 @@
     {
       matchDatasources: ["docker"],
       versioning: "regex:^(telegraf|v\\d+-latest|latest)-build-(?<major>\\d+)$",
-      matchPackageNames: [
-        "/^ghcr\\.io/sdr-enthusiasts/.+$/",
-      ],
+      matchPackageNames: ["/^ghcr\\.io/sdr-enthusiasts/.+$/"],
       pinDigests: false,
       automerge: true,
     },
