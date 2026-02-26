@@ -17,29 +17,6 @@
   # Run `tailscale status` after first deploy to confirm the assigned name.
   deployment.scrapeAddress = "fredvps.tailc21fc7.ts.net";
 
-  # Accept subnet routes advertised by sdrhub (192.168.31.0/24) so that
-  # LAN services (Attic, Loki, etc.) are reachable without config changes.
-  services.tailscale.extraUpFlags = [ "--accept-routes" ];
-
-  services.openssh.ports = [ 2269 ];
-
-  services.fail2ban = {
-    enable = true;
-    maxretry = 5;
-    bantime = "1h";
-    bantime-increment = {
-      enable = true;
-      multipliers = "2";
-      maxtime = "168h";
-    };
-    jails.sshd.settings = {
-      enabled = true;
-      port = "2269";
-      filter = "sshd";
-      maxretry = 3;
-    };
-  };
-
   # The common packages module unconditionally enables systemd-boot and
   # networkmanager; override both since this VPS uses GRUB + systemd-networkd.
   boot = {
@@ -114,6 +91,29 @@
   };
 
   services = {
+    openssh.ports = [ 2269 ];
+
+    # Accept subnet routes advertised by sdrhub (192.168.31.0/24) so that
+    # LAN services (Attic, Loki, etc.) are reachable without config changes.
+    tailscale.extraUpFlags = [ "--accept-routes" ];
+
+    fail2ban = {
+      enable = true;
+      maxretry = 5;
+      bantime = "1h";
+      bantime-increment = {
+        enable = true;
+        multipliers = "2";
+        maxtime = "168h";
+      };
+      jails.sshd.settings = {
+        enabled = true;
+        port = "2269";
+        filter = "sshd";
+        maxretry = 3;
+      };
+    };
+
     adsb.containers = [
       ###############################################################
       # DOZZLE AGENT
@@ -201,7 +201,7 @@
       ###############################################################
       {
         name = "acarshub";
-        image = "ghcr.io/sdr-enthusiasts/docker-acarshub:latest-build-1482";
+        image = "ghcr.io/sdr-enthusiasts/docker-acarshub:latest-build-1484";
 
         environmentFiles = [
           config.sops.secrets."docker/fredvps/acarshub.env".path
