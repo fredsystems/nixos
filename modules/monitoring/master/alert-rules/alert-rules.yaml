@@ -30,14 +30,25 @@ groups:
 
       - alert: NodeDiskLow
         expr: |
-          (node_filesystem_avail_bytes{mountpoint="/",fstype!~"tmpfs|overlay"}
-           / node_filesystem_size_bytes{mountpoint="/",fstype!~"tmpfs|overlay"}) < 0.10
+          (node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs|devtmpfs|ramfs|autofs"}
+           / node_filesystem_size_bytes{fstype!~"tmpfs|overlay|squashfs|devtmpfs|ramfs|autofs"}) < 0.10
         for: 10m
         labels:
           severity: critical
         annotations:
-          summary: "Disk almost full on {{ $labels.hostname }}"
-          description: "Root filesystem <10% available."
+          summary: "Disk almost full on {{ $labels.hostname }} ({{ $labels.mountpoint }})"
+          description: "Filesystem {{ $labels.mountpoint }} on {{ $labels.hostname }} has less than 10% space available."
+
+      - alert: NodeDiskWarning
+        expr: |
+          (node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs|devtmpfs|ramfs|autofs"}
+           / node_filesystem_size_bytes{fstype!~"tmpfs|overlay|squashfs|devtmpfs|ramfs|autofs"}) < 0.20
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Disk filling up on {{ $labels.hostname }} ({{ $labels.mountpoint }})"
+          description: "Filesystem {{ $labels.mountpoint }} on {{ $labels.hostname }} has less than 20% space available."
 
   - name: systemd-alerts
     rules:
@@ -51,13 +62,22 @@ groups:
           description: "The unit {{ $labels.name }} has been in a failed state for >2 minutes."
 
       - alert: SystemdUnitFlapping
-        expr: changes(node_systemd_unit_state{state="active", name!~"docker-.*"}[10m]) > 3
+        expr: changes(node_systemd_unit_state{state="active", name!~"docker-.*|github-runner-runner-.*"}[10m]) > 3
         for: 5m
         labels:
           severity: warning
         annotations:
           summary: "Systemd unit {{ $labels.name }} is flapping"
           description: "The unit {{ $labels.name }} changed state more than 3 times in the last 10 minutes."
+
+      - alert: GithubRunnerCrashLoop
+        expr: changes(node_systemd_unit_state{state="active", name=~"github-runner-runner-.*"}[5m]) > 6
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "GitHub runner {{ $labels.name }} appears to be crash-looping"
+          description: "The unit {{ $labels.name }} cycled state more than 6 times in 5 minutes — this is too rapid to be normal CI job cycling."
 
   - name: container-alerts
     rules:

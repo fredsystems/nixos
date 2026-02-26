@@ -2,13 +2,13 @@ groups:
   - name: system-alerts
     rules:
       - alert: NixOSNotOnMain
-        expr: nixos_branch == 1
+        expr: nixos_branch{host!~"daytona|maranello"} == 0
         for: 6h
         labels:
           severity: warning
         annotations:
           summary: "NixOS repo not on main branch"
-          description: "The NixOS configuration is not checked out on main for more than 6 hours."
+          description: "The NixOS configuration on {{ $labels.host }} is not checked out on main for more than 6 hours."
 
       - alert: NixOSNeedsReboot
         expr: nixos_needs_reboot == 1
@@ -26,4 +26,22 @@ groups:
           severity: warning
         annotations:
           summary: "NixOS checkout is behind GitHub main"
-          description: "Host {{ $labels.host }} is {{ $labels.host }} commits behind GitHub main."
+          description: "Host {{ $labels.host }} is behind GitHub main."
+
+      - alert: AdGuardHomeDown
+        expr: node_systemd_unit_state{state="active", name="adguardhome.service", hostname="sdrhub"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "AdGuard Home is DOWN on {{ $labels.hostname }}"
+          description: "AdGuard Home DNS service has been inactive for more than 1 minute. LAN DNS resolution is likely broken."
+
+      - alert: AtticServerDown
+        expr: node_systemd_unit_state{state="active", name="atticd.service", hostname="fredhub"} == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Attic Nix cache server is DOWN on fredhub"
+          description: "The Attic binary cache server has been inactive for 5+ minutes. NixOS builds will fall back to cache.nixos.org and be significantly slower."

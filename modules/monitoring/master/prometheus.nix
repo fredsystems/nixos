@@ -157,6 +157,7 @@ in
         ./alert-rules/alert-rules.yaml
         ./alert-rules/docker-rules.yaml
         ./alert-rules/system-alerts.yaml
+        ./alert-rules/sdr-alerts.yaml
       ];
 
       scrapeConfigs = [
@@ -303,7 +304,26 @@ in
 
           route = {
             receiver = "ntfy";
+            group_by = [
+              "alertname"
+              "hostname"
+            ];
+            group_wait = "30s";
+            group_interval = "5m";
+            repeat_interval = "4h";
           };
+
+          inhibit_rules = [
+            {
+              # When a node is completely down, suppress all the downstream alerts
+              # it would otherwise generate (unit failures, container restarts, etc.)
+              source_matchers = [ "alertname = \"NodeDown\"" ];
+              target_matchers = [
+                "alertname =~ \"SystemdUnitFailed|SystemdUnitFlapping|GithubRunnerCrashLoop|ContainerRestarting|ContainerOOM|DockerUnitFlapping|SDRServiceFailure|FeederUpstreamFailure|UltrafeederNoAircraft|UltrafeederNotReceiving|AdGuardHomeDown|AtticServerDown\""
+              ];
+              equal = [ "hostname" ];
+            }
+          ];
 
           receivers = [
             {

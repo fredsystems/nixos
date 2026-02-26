@@ -1,0 +1,20 @@
+groups:
+  - name: sdr-alerts
+    rules:
+      - alert: UltrafeederNoAircraft
+        expr: readsb_stats_aircraft_with_pos{job="ultrafeeder"} == 0
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Ultrafeeder tracking no aircraft on {{ $labels.hostname }}"
+          description: "No aircraft with position have been tracked for 30 minutes. Possible SDR hardware failure, antenna issue, or decoder problem."
+
+      - alert: UltrafeederNotReceiving
+        expr: readsb_stats_messages{job="ultrafeeder"} == 0
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Ultrafeeder receiving no RF messages on {{ $labels.hostname }}"
+          description: "readsb has processed zero messages for 15 minutes. The SDR hardware is likely disconnected, crashed, or the decoder has stopped."
