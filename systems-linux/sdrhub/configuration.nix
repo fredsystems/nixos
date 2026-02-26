@@ -120,6 +120,10 @@
           "@@||fonts.gstatic.com^$important"
           "@@||analysis.chess.com^"
           "@@||stunnel.org^"
+          "@@||tailscale.com^"
+          "@@||tailscale.io^"
+          "@@||controlplane.tailscale.com^"
+          "@@||log.tailscale.io^"
         ];
 
         filters =
