@@ -58,7 +58,7 @@
         "2a01:4ff:f0:2bab::/64"
       ];
       routes = [
-        { routeConfig.Gateway = "fe80::1"; }
+        { Gateway = "fe80::1"; }
       ];
     };
   };
