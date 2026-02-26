@@ -47,7 +47,7 @@
       ###############################################################
       {
         name = "acarsdec-1";
-        image = "ghcr.io/sdr-enthusiasts/docker-acarsdec:latest-build-480";
+        image = "ghcr.io/sdr-enthusiasts/docker-acarsdec:latest-build-482";
 
         tty = true;
         restart = "always";
@@ -84,7 +84,7 @@
       ###############################################################
       {
         name = "acarsdec-2";
-        image = "ghcr.io/sdr-enthusiasts/docker-acarsdec:latest-build-480";
+        image = "ghcr.io/sdr-enthusiasts/docker-acarsdec:latest-build-482";
 
         tty = true;
         restart = "always";
@@ -121,7 +121,7 @@
       ###############################################################
       {
         name = "acarsdec-3";
-        image = "ghcr.io/sdr-enthusiasts/docker-acarsdec:latest-build-480";
+        image = "ghcr.io/sdr-enthusiasts/docker-acarsdec:latest-build-482";
 
         tty = true;
         restart = "always";
