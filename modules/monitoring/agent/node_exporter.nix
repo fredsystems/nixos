@@ -8,8 +8,21 @@
           Type = "oneshot";
           ExecStart = pkgs.writeShellScript "nixos-branch-metric.sh" ''
             GIT=${pkgs.git}/bin/git
+            REPO_DIR="/home/fred/GitHub/nixos"
 
-            branch=$($GIT -C /home/fred/GitHub/nixos rev-parse --abbrev-ref HEAD)
+            # If the repo doesn't exist on this node, emit no metric at all
+            # (appliance nodes like SDR hubs don't have a local checkout)
+            if [ ! -d "$REPO_DIR/.git" ]; then
+              rm -f /var/lib/node_exporter/textfiles/nixos_branch.prom
+              exit 0
+            fi
+
+            # Allow root to read a repo owned by fred
+            export GIT_CONFIG_COUNT=1
+            export GIT_CONFIG_KEY_0=safe.directory
+            export GIT_CONFIG_VALUE_0="$REPO_DIR"
+
+            branch=$($GIT -C "$REPO_DIR" rev-parse --abbrev-ref HEAD)
 
             if [ "$branch" = "main" ]; then
               value=1
