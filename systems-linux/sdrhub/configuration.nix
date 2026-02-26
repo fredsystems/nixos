@@ -560,7 +560,7 @@
       ###############################################################
       {
         name = "acars_router";
-        image = "ghcr.io/sdr-enthusiasts/acars_router:latest-build-564";
+        image = "ghcr.io/sdr-enthusiasts/acars_router:latest-build-566";
 
         restart = "always";
         tty = true;
