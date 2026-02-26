@@ -109,15 +109,6 @@ in
     };
   };
 
-  environment.etc = {
-    "prometheus/alert-rules.yaml" = {
-      source = ./alert-rules/alert-rules.yaml;
-      user = "prometheus";
-      group = "prometheus";
-      mode = "0444";
-    };
-  };
-
   networking.firewall.allowedTCPPorts = [
     9090 # Prometheus
     9093 # Alertmanager

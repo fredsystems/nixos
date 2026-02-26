@@ -1,5 +1,5 @@
 groups:
-  - name: system-alerts
+  - name: nixos-alerts
     rules:
       - alert: NixOSNotOnMain
         expr: nixos_branch{host!~"daytona|maranello"} == 0
