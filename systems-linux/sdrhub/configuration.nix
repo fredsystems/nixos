@@ -77,6 +77,14 @@
         };
 
         forward-zone = [
+          # Tailscale MagicDNS — must be listed before the catch-all "." zone
+          # so Unbound routes tailnet queries to Tailscale's resolver (100.100.100.100)
+          # rather than Quad9, which has no knowledge of private MagicDNS names.
+          {
+            name = "tailc21fc7.ts.net";
+            forward-addr = [ "100.100.100.100" ];
+            forward-tls-upstream = false;
+          }
           {
             name = ".";
             forward-addr = [
