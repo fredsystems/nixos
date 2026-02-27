@@ -329,11 +329,11 @@
         "precommit": "precommit_2"
       },
       "locked": {
-        "lastModified": 1770840788,
-        "narHash": "sha256-Cyb4LmQHOOodmBOHiZPCjqMziWAxu0NXVE53E5AYeNs=",
+        "lastModified": 1772156622,
+        "narHash": "sha256-sNsxktq7bx4e+H5SMf1WSD6pBpT85163rTd0DYZBYn0=",
         "owner": "FredSystems",
         "repo": "fred-bar",
-        "rev": "5d30dc71a849447fe229e86c2c3c4b48d7031755",
+        "rev": "7424815fb2540bb4cb08203c425890cb5e1005ea",
         "type": "github"
       },
       "original": {
@@ -912,11 +912,11 @@
         "rust-overlay": "rust-overlay_2"
       },
       "locked": {
-        "lastModified": 1769735596,
-        "narHash": "sha256-8O3Jx4j1Su4/GeBUM3SkTLHFj6gHaM3VcI1ehzsxuLw=",
+        "lastModified": 1771300465,
+        "narHash": "sha256-UmrIj2Xp2bQnBcnX8wvOUp/kiGzK9+tHWmSCfehAR8E=",
         "owner": "FredSystems",
         "repo": "pre-commit-checks",
-        "rev": "35d608b0b5c979c0b8e2ed2c72c86a2363663dde",
+        "rev": "29bf6efa2446eaecfb9a49fddf1799995439f136",
         "type": "github"
       },
       "original": {
