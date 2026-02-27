@@ -124,7 +124,7 @@
       ###############################################################
       {
         name = "fredsite";
-        image = "ghcr.io/fredsystems/fred-site:latest-build-4";
+        image = "ghcr.io/fredsystems/fred-site:latest-build-7";
 
         environmentFiles = [
           config.sops.secrets."docker/fredvps/fredsite.env".path
