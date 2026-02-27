@@ -21,6 +21,86 @@
     recommendedTlsSettings = true;
 
     virtualHosts = {
+      "onemorefoot.com" = {
+        forceSSL = true;
+        enableACME = true;
+        serverAliases = [ "www.onemorefoot.com" ];
+
+        globalRedirect = "fredclausen.com";
+      };
+
+      "atcfreq.com" = {
+        forceSSL = true;
+        enableACME = true;
+        serverAliases = [ "www.atcfreq.com" ];
+
+        globalRedirect = "fredclausen.com";
+      };
+
+      "epicspam.com" = {
+        forceSSL = true;
+        enableACME = true;
+        serverAliases = [ "www.epicspam.com" ];
+
+        globalRedirect = "fredclausen.com";
+      };
+
+      "politicalpileon.com" = {
+        forceSSL = true;
+        enableACME = true;
+        serverAliases = [ "www.politicalpileon.com" ];
+
+        globalRedirect = "fredclausen.com";
+      };
+
+      "therightradio.com" = {
+        forceSSL = true;
+        enableACME = true;
+        serverAliases = [ "www.therightradio.com" ];
+
+        globalRedirect = "fredclausen.com";
+      };
+
+      "sdrdockerconfig.com" = {
+        forceSSL = true;
+        enableACME = true;
+        serverAliases = [ "www.sdrdockerconfig.com" ];
+
+        globalRedirect = "fredclausen.com";
+      };
+
+      "adsb-pi.com" = {
+        forceSSL = true;
+        enableACME = true;
+        serverAliases = [ "www.adsb-pi.com" ];
+
+        globalRedirect = "fredclausen.com";
+      };
+
+      "freminal.com" = {
+        forceSSL = true;
+        enableACME = true;
+        serverAliases = [ "www.freminal.com" ];
+
+        globalRedirect = "fredclausen.com";
+      };
+
+      "sdr-e.org" = {
+        forceSSL = true;
+        enableACME = true;
+        serverAliases = [ "www.sdr-e.org" ];
+
+        globalRedirect = "github.com/sdr-enthusiasts";
+      };
+
+      "sdr-enthusiasts.org" = {
+        forceSSL = true;
+        enableACME = true;
+        serverAliases = [ "www.sdr-enthusiasts.org" ];
+
+        globalRedirect = "github.com/sdr-enthusiasts";
+      };
+
       "fredclausen.com" = {
         forceSSL = true;
         enableACME = true;
