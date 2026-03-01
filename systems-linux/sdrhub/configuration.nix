@@ -160,7 +160,7 @@
       ###############################################################
       {
         name = "dozzle";
-        image = "amir20/dozzle:v10.0.6";
+        image = "amir20/dozzle:v10.0.6@sha256:4815df572d135ce24c14ec3c150e482c98693bc5cc20291693b582baab8eb0bf";
 
         restart = "always";
 
@@ -181,7 +181,7 @@
       ###############################################################
       {
         name = "dozzle-agent";
-        image = "amir20/dozzle:v10.0.6";
+        image = "amir20/dozzle:v10.0.6@sha256:4815df572d135ce24c14ec3c150e482c98693bc5cc20291693b582baab8eb0bf";
         exec = "agent";
 
         volumes = [
@@ -199,7 +199,7 @@
       ###############################################################
       # {
       #   name = "airspy_adsb";
-      #   image = "ghcr.io/sdr-enthusiasts/airspy_adsb:latest-build-296";
+      #   image = "ghcr.io/sdr-enthusiasts/airspy_adsb:latest-build-296@sha256:a408d85a2aab9ae5e0b788ce8266282efbf904cd9ef966f4772b64b40b846c84";
 
       #   hostname = "airspy_adsb";
       #   restart = "always";
@@ -224,7 +224,7 @@
       ###############################################################
       {
         name = "ultrafeeder";
-        image = "ghcr.io/sdr-enthusiasts/docker-adsb-ultrafeeder:latest-build-898";
+        image = "ghcr.io/sdr-enthusiasts/docker-adsb-ultrafeeder:latest-build-898@sha256:1d8574e69ebda0ebe472721c368c876534ad32a4ae1f17fa9b35bfe430dd37d1";
 
         hostname = "ultrafeeder";
         restart = "always";
@@ -269,7 +269,7 @@
       ###############################################################
       {
         name = "dump978";
-        image = "ghcr.io/sdr-enthusiasts/docker-dump978:telegraf-build-782";
+        image = "ghcr.io/sdr-enthusiasts/docker-dump978:telegraf-build-782@sha256:5bc0aef120d5e9d0c13619512deb60530f6b060cfa308002a35cdef104418887";
 
         hostname = "dump978";
         restart = "always";
@@ -304,7 +304,7 @@
       ###############################################################
       {
         name = "adsbhub";
-        image = "ghcr.io/sdr-enthusiasts/docker-adsbhub:latest-build-512";
+        image = "ghcr.io/sdr-enthusiasts/docker-adsbhub:latest-build-512@sha256:60d83859a97b67d3eaaea4072a09f48f222083e85b32218b3d5ee6ea66220039";
 
         restart = "always";
         tty = true;
@@ -324,7 +324,7 @@
       ###############################################################
       {
         name = "fr24";
-        image = "ghcr.io/sdr-enthusiasts/docker-flightradar24:latest-build-839";
+        image = "ghcr.io/sdr-enthusiasts/docker-flightradar24:latest-build-839@sha256:615b825d330c232dd998db2dd2a867b01ff01415f94204141a46d37c0bf4a019";
 
         restart = "always";
         tty = true;
@@ -348,7 +348,7 @@
       ###############################################################
       {
         name = "piaware";
-        image = "ghcr.io/sdr-enthusiasts/docker-piaware:latest-build-647";
+        image = "ghcr.io/sdr-enthusiasts/docker-piaware:latest-build-647@sha256:302f5a0687714b5811331226e3e2b1d90f033e48f89173ca58f9fe7101df410f";
 
         hostname = "piaware";
         restart = "always";
@@ -373,7 +373,7 @@
       ###############################################################
       {
         name = "planefinder";
-        image = "ghcr.io/sdr-enthusiasts/docker-planefinder:latest-build-523";
+        image = "ghcr.io/sdr-enthusiasts/docker-planefinder:latest-build-523@sha256:333c481ab77496fae1e70d98361ed8ea7dcd1696afbffadcd451781d9c33e445";
 
         restart = "always";
         tty = true;
@@ -397,7 +397,7 @@
       ###############################################################
       {
         name = "planewatch";
-        image = "ghcr.io/plane-watch/docker-plane-watch:v0.0.6";
+        image = "ghcr.io/plane-watch/docker-plane-watch:v0.0.6@sha256:a7e4e13af03852900624f1a6bd193d697ae3c9d684bfeb3b817dcc680db2656f";
 
         restart = "always";
         tty = true;
@@ -417,7 +417,7 @@
       ###############################################################
       {
         name = "radarvirtuel";
-        image = "ghcr.io/sdr-enthusiasts/docker-radarvirtuel:latest-build-779";
+        image = "ghcr.io/sdr-enthusiasts/docker-radarvirtuel:latest-build-779@sha256:931359687697a632cb30f6097db8f25f87dd5510cc3382e148907d2e244902c2";
 
         hostname = "radarvirtuel";
         restart = "always";
@@ -443,7 +443,7 @@
       ###############################################################
       {
         name = "rbfeeder";
-        image = "ghcr.io/sdr-enthusiasts/docker-airnavradar:latest-build-864";
+        image = "ghcr.io/sdr-enthusiasts/docker-airnavradar:latest-build-864@sha256:40624368a19076f766986247151bb880db819fd15a6af6b41c238be34339b0d0";
 
         restart = "always";
         tty = false;
@@ -468,7 +468,7 @@
       ###############################################################
       {
         name = "opensky";
-        image = "ghcr.io/sdr-enthusiasts/docker-opensky-network:latest-build-818";
+        image = "ghcr.io/sdr-enthusiasts/docker-opensky-network:latest-build-818@sha256:278aa4aa66e2cdbb66209b64c3b91d66d5b9ab95da14ecd8a931a410f93b7ba6";
 
         restart = "always";
         tty = true;
@@ -488,7 +488,7 @@
       ###############################################################
       {
         name = "sdrmap";
-        image = "ghcr.io/sdr-enthusiasts/docker-sdrmap:latest-build-81";
+        image = "ghcr.io/sdr-enthusiasts/docker-sdrmap:latest-build-81@sha256:d856414354803b7aa3760a7a8a8a990c3452016ecd6ace91beb7510bc9f135d0";
 
         restart = "always";
 
@@ -502,7 +502,7 @@
       ###############################################################
       {
         name = "acarshub";
-        image = "ghcr.io/sdr-enthusiasts/docker-acarshub:latest-build-1485";
+        image = "ghcr.io/sdr-enthusiasts/docker-acarshub:latest-build-1485@sha256:e4f17c90959e3adf4c184384a1b4e199da978d07f654152fc45ab8ace5646bbc";
 
         restart = "always";
         tty = true;
@@ -531,7 +531,7 @@
       ###############################################################
       {
         name = "acarshubv4";
-        image = "ghcr.io/sdr-enthusiasts/docker-acarshub:v4-latest-build-60";
+        image = "ghcr.io/sdr-enthusiasts/docker-acarshub:v4-latest-build-60@sha256:8cb01bc98605c037a37fac81f740adbe5a3e418b8f25746e8d5711da642549ca";
 
         restart = "always";
         tty = true;
@@ -557,7 +557,7 @@
 
       {
         name = "acars2pos";
-        image = "ghcr.io/rpatel3001/docker-acars2pos:latest-build-30";
+        image = "ghcr.io/rpatel3001/docker-acars2pos:latest-build-30@sha256:3cbf55fa2b1d5fd8ba307404bbbc0a491dcfc9b5fd15e7b196e3d4e6dbd2a85f";
 
         restart = "always";
         tty = true;
@@ -578,7 +578,7 @@
       ###############################################################
       {
         name = "acars_router";
-        image = "ghcr.io/sdr-enthusiasts/acars_router:latest-build-566";
+        image = "ghcr.io/sdr-enthusiasts/acars_router:latest-build-566@sha256:72f0b8fabd34b42969f11135cdf295a253d42cd3cb4e2b7c23299eb7a71093ef";
 
         restart = "always";
         tty = true;

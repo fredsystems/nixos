@@ -26,7 +26,7 @@
       ###############################################################
       {
         name = "dozzle-agent";
-        image = "amir20/dozzle:v10.0.6";
+        image = "amir20/dozzle:v10.0.6@sha256:4815df572d135ce24c14ec3c150e482c98693bc5cc20291693b582baab8eb0bf";
         exec = "agent";
 
         environmentFiles = [
@@ -47,7 +47,7 @@
       ###############################################################
       {
         name = "acarsdec-1";
-        image = "ghcr.io/sdr-enthusiasts/docker-acarsdec:latest-build-482";
+        image = "ghcr.io/sdr-enthusiasts/docker-acarsdec:latest-build-482@sha256:8f392c436afe17034bc2a7a558ce086886336fadb80a0139128b04f7a7ee7c87";
 
         tty = true;
         restart = "always";
@@ -84,7 +84,7 @@
       ###############################################################
       {
         name = "acarsdec-2";
-        image = "ghcr.io/sdr-enthusiasts/docker-acarsdec:latest-build-482";
+        image = "ghcr.io/sdr-enthusiasts/docker-acarsdec:latest-build-482@sha256:8f392c436afe17034bc2a7a558ce086886336fadb80a0139128b04f7a7ee7c87";
 
         tty = true;
         restart = "always";
@@ -121,7 +121,7 @@
       ###############################################################
       {
         name = "acarsdec-3";
-        image = "ghcr.io/sdr-enthusiasts/docker-acarsdec:latest-build-482";
+        image = "ghcr.io/sdr-enthusiasts/docker-acarsdec:latest-build-482@sha256:8f392c436afe17034bc2a7a558ce086886336fadb80a0139128b04f7a7ee7c87";
 
         tty = true;
         restart = "always";
