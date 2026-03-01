@@ -108,6 +108,13 @@
           edns_client_subnet = {
             enabled = true;
           };
+        };
+
+        filtering = {
+          protection_enabled = true;
+          filtering_enabled = true;
+          parental_enabled = false;
+          safe_search.enabled = false;
 
           rewrites = [
             {
@@ -139,13 +146,6 @@
               answer = "192.168.31.23";
             }
           ];
-        };
-
-        filtering = {
-          protection_enabled = true;
-          filtering_enabled = true;
-          parental_enabled = false;
-          safe_search.enabled = false;
         };
 
         user_rules = [
