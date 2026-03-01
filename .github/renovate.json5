@@ -55,6 +55,13 @@
     {
       matchDatasources: ["docker"],
       versioning: "regex:^(trixie-)?latest-build-(?<major>\\d+)?$",
+      matchPackageNames: ["ghcr.io/fredsystems/{/,}**"],
+      pinDigests: false,
+      automerge: true,
+    },
+    {
+      matchDatasources: ["docker"],
+      versioning: "regex:^(trixie-)?latest-build-(?<major>\\d+)?$",
       matchPackageNames: ["ghcr.io/rpatel3001/{/,}**"],
       pinDigests: false,
       automerge: true,
