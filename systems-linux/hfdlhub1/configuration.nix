@@ -33,7 +33,7 @@
       ###############################################################
       {
         name = "dozzle-agent";
-        image = "amir20/dozzle:v10.0.6";
+        image = "amir20/dozzle:v10.0.6@sha256:4815df572d135ce24c14ec3c150e482c98693bc5cc20291693b582baab8eb0bf";
         exec = "agent";
 
         volumes = [
@@ -48,7 +48,7 @@
       ###############################################################
       {
         name = "dumphfdl-1";
-        image = "ghcr.io/sdr-enthusiasts/docker-dumphfdl:latest-build-182";
+        image = "ghcr.io/sdr-enthusiasts/docker-dumphfdl:latest-build-182@sha256:42f81492918f80bf8e9c50dc710804d5914263bd13911cb1af2f1aefd9da669d";
 
         tty = true;
         restart = "always";
@@ -81,7 +81,7 @@
       ###############################################################
       {
         name = "dumphfdl-2";
-        image = "ghcr.io/sdr-enthusiasts/docker-dumphfdl:latest-build-182";
+        image = "ghcr.io/sdr-enthusiasts/docker-dumphfdl:latest-build-182@sha256:42f81492918f80bf8e9c50dc710804d5914263bd13911cb1af2f1aefd9da669d";
 
         tty = true;
         restart = "always";
@@ -118,7 +118,7 @@
       ###############################################################
       {
         name = "dumphfdl-3";
-        image = "ghcr.io/sdr-enthusiasts/docker-dumphfdl:latest-build-182";
+        image = "ghcr.io/sdr-enthusiasts/docker-dumphfdl:latest-build-182@sha256:42f81492918f80bf8e9c50dc710804d5914263bd13911cb1af2f1aefd9da669d";
 
         tty = true;
         restart = "always";

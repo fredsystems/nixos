@@ -46,7 +46,7 @@ in
       ###############################################################
       {
         name = "dozzle-agent";
-        image = "amir20/dozzle:v10.0.6";
+        image = "amir20/dozzle:v10.0.6@sha256:4815df572d135ce24c14ec3c150e482c98693bc5cc20291693b582baab8eb0bf";
         exec = "agent";
 
         environmentFiles = [
@@ -67,7 +67,7 @@ in
       ###############################################################
       {
         name = "hfdlobserver";
-        image = "ghcr.io/sdr-enthusiasts/docker-hfdlobserver:latest-build-18";
+        image = "ghcr.io/sdr-enthusiasts/docker-hfdlobserver:latest-build-18@sha256:22d55177f789b1608881f440506bbbb8fd09eb19427a1662c4bffb6d41f247d8";
 
         environmentFiles = [
           config.sops.secrets."docker/hfdlhub2.env".path
