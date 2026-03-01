@@ -47,7 +47,7 @@
       ###############################################################
       {
         name = "acarsdec-1";
-        image = "ghcr.io/sdr-enthusiasts/docker-acarsdec:latest-build-482@sha256:8f392c436afe17034bc2a7a558ce086886336fadb80a0139128b04f7a7ee7c87";
+        image = "ghcr.io/sdr-enthusiasts/docker-acarsdec:latest-build-485@sha256:3338b4276379118bdc2c21df879b221e48031220931b14a27bac4aaf7c776a81";
 
         tty = true;
         restart = "always";
@@ -84,7 +84,7 @@
       ###############################################################
       {
         name = "acarsdec-2";
-        image = "ghcr.io/sdr-enthusiasts/docker-acarsdec:latest-build-482@sha256:8f392c436afe17034bc2a7a558ce086886336fadb80a0139128b04f7a7ee7c87";
+        image = "ghcr.io/sdr-enthusiasts/docker-acarsdec:latest-build-485@sha256:3338b4276379118bdc2c21df879b221e48031220931b14a27bac4aaf7c776a81";
 
         tty = true;
         restart = "always";
@@ -121,7 +121,7 @@
       ###############################################################
       {
         name = "acarsdec-3";
-        image = "ghcr.io/sdr-enthusiasts/docker-acarsdec:latest-build-482@sha256:8f392c436afe17034bc2a7a558ce086886336fadb80a0139128b04f7a7ee7c87";
+        image = "ghcr.io/sdr-enthusiasts/docker-acarsdec:latest-build-485@sha256:3338b4276379118bdc2c21df879b221e48031220931b14a27bac4aaf7c776a81";
 
         tty = true;
         restart = "always";
