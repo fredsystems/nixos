@@ -496,7 +496,7 @@
       ###############################################################
       {
         name = "sdrmap";
-        image = "ghcr.io/sdr-enthusiasts/docker-sdrmap:latest-build-79";
+        image = "ghcr.io/sdr-enthusiasts/docker-sdrmap:latest-build-81";
 
         restart = "always";
 
