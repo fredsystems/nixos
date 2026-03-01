@@ -48,7 +48,7 @@
       ###############################################################
       {
         name = "dumphfdl-1";
-        image = "ghcr.io/sdr-enthusiasts/docker-dumphfdl:latest-build-182@sha256:42f81492918f80bf8e9c50dc710804d5914263bd13911cb1af2f1aefd9da669d";
+        image = "ghcr.io/sdr-enthusiasts/docker-dumphfdl:latest-build-185@sha256:db3c7ae033fb6e94b787e7fa134361b60b9bab7273db11faf1a977f3803c397f";
 
         tty = true;
         restart = "always";
@@ -81,7 +81,7 @@
       ###############################################################
       {
         name = "dumphfdl-2";
-        image = "ghcr.io/sdr-enthusiasts/docker-dumphfdl:latest-build-182@sha256:42f81492918f80bf8e9c50dc710804d5914263bd13911cb1af2f1aefd9da669d";
+        image = "ghcr.io/sdr-enthusiasts/docker-dumphfdl:latest-build-185@sha256:db3c7ae033fb6e94b787e7fa134361b60b9bab7273db11faf1a977f3803c397f";
 
         tty = true;
         restart = "always";
@@ -118,7 +118,7 @@
       ###############################################################
       {
         name = "dumphfdl-3";
-        image = "ghcr.io/sdr-enthusiasts/docker-dumphfdl:latest-build-182@sha256:42f81492918f80bf8e9c50dc710804d5914263bd13911cb1af2f1aefd9da669d";
+        image = "ghcr.io/sdr-enthusiasts/docker-dumphfdl:latest-build-185@sha256:db3c7ae033fb6e94b787e7fa134361b60b9bab7273db11faf1a977f3803c397f";
 
         tty = true;
         restart = "always";
