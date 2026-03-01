@@ -28,6 +28,7 @@
       matchStrings: [
         'image = "v?(?<depName>.*?):(?<currentValue>.*?)(?:@(?<currentDigest>sha256:[a-f0-9]+))?";',
       ],
+      autoReplaceStringTemplate: 'image = "{{{depName}}}:{{{newValue}}}{{#if newDigest}}@{{{newDigest}}}{{/if}}";',
       datasourceTemplate: "docker",
       depTypeTemplate: "container",
       depNameTemplate: "{{depName}}",

@@ -92,6 +92,7 @@ in
           "xml"
           "just"
           "sql"
+          "log"
         ];
         mutableUserSettings = false;
         userSettings = {
