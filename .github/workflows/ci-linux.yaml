@@ -84,6 +84,7 @@ jobs:
               - 'hardware-profiles/**'
               - 'firmware.nix'
               - '.github/**'
+              - '!.github/renovate.json5'
             # Changes isolated to desktop packages — servers are unaffected.
             desktop_global:
               - 'packages/desktop/**'
