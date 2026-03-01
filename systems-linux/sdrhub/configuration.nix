@@ -417,7 +417,7 @@
       ###############################################################
       {
         name = "radarvirtuel";
-        image = "ghcr.io/sdr-enthusiasts/docker-radarvirtuel:latest-build-779@sha256:931359687697a632cb30f6097db8f25f87dd5510cc3382e148907d2e244902c2";
+        image = "ghcr.io/sdr-enthusiasts/docker-radarvirtuel:latest-build-780@sha256:f91d03a4eb5f7b0d4615007df20841fe5c302db14ccd8dd40146862d1c7f53f0";
 
         hostname = "radarvirtuel";
         restart = "always";
