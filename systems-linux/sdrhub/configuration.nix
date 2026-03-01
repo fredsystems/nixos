@@ -117,6 +117,37 @@
           safe_search.enabled = false;
         };
 
+        rewrites = [
+          {
+            domain = "sdrhub.lan";
+            answer = "192.168.31.20";
+          }
+          {
+            domain = "acarshub.lan";
+            answer = "192.168.31.24";
+          }
+          {
+            domain = "fredhub.lan";
+            answer = "192.168.31.14";
+          }
+          {
+            domain = "fredvps.lan";
+            answer = "5.161.253.151";
+          }
+          {
+            domain = "hfdlhub1.lan";
+            answer = "192.168.31.17";
+          }
+          {
+            domain = "hfdlhub2.lan";
+            answer = "192.168.31.19";
+          }
+          {
+            domain = "vdlmhub.lan";
+            answer = "192.168.31.23";
+          }
+        ];
+
         user_rules = [
           "@@||mask.icloud.com^"
           "@@||mask-h2.icloud.com^"
