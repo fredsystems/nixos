@@ -118,30 +118,37 @@
 
           rewrites = [
             {
+              enabled = true;
               domain = "sdrhub.lan";
               answer = "192.168.31.20";
             }
             {
+              enabled = true;
               domain = "acarshub.lan";
               answer = "192.168.31.24";
             }
             {
+              enabled = true;
               domain = "fredhub.lan";
               answer = "192.168.31.14";
             }
             {
+              enabled = true;
               domain = "fredvps.lan";
               answer = "5.161.253.151";
             }
             {
+              enabled = true;
               domain = "hfdlhub1.lan";
               answer = "192.168.31.17";
             }
             {
+              enabled = true;
               domain = "hfdlhub2.lan";
               answer = "192.168.31.19";
             }
             {
+              enabled = true;
               domain = "vdlmhub.lan";
               answer = "192.168.31.23";
             }
