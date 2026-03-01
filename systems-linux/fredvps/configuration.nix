@@ -1,5 +1,4 @@
 {
-  pkgs,
   lib,
   stateVersion,
   config,
@@ -30,9 +29,6 @@
         useOSProber = false;
       };
     };
-
-    # Use latest kernel
-    kernelPackages = pkgs.linuxPackages_latest;
   };
 
   system.stateVersion = stateVersion;

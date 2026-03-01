@@ -4,6 +4,7 @@
   system,
   verbose_name,
   github_email,
+  catppuccinInput ? inputs.catppuccin,
   ...
 }:
 
@@ -26,7 +27,7 @@ in
   ##########################################################################
   imports = [
     ../../users/homemanager/default.nix
-    inputs.catppuccin.homeModules.catppuccin
+    catppuccinInput.homeModules.catppuccin
     inputs.nixvim.homeModules.nixvim
   ]
   ++ lib.optional isLinux inputs.niri.homeModules.niri

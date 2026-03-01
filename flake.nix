@@ -6,9 +6,23 @@
       url = "github:nixos/nixpkgs/nixos-unstable";
     };
 
+    nixpkgs-stable = {
+      url = "github:nixos/nixpkgs/nixos-25.11";
+    };
+
+    home-manager-stable = {
+      url = "github:nix-community/home-manager/release-25.11";
+      inputs.nixpkgs.follows = "nixpkgs-stable";
+    };
+
     catppuccin = {
       url = "github:catppuccin/nix";
       inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+    catppuccin-stable = {
+      url = "github:catppuccin/nix/release-25.11";
+      inputs.nixpkgs.follows = "nixpkgs-stable";
     };
 
     apple-fonts = {
@@ -45,6 +59,11 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    sops-nix-stable = {
+      url = "github:Mic92/sops-nix";
+      inputs.nixpkgs.follows = "nixpkgs-stable";
+    };
+
     nixos-needsreboot = {
       url = "github:fredclausen/nixos-needsreboot";
     };
@@ -77,8 +96,12 @@
     inputs@{
       self,
       nixpkgs,
+      nixpkgs-stable,
       home-manager,
+      home-manager-stable,
       catppuccin,
+      catppuccin-stable,
+      sops-nix-stable,
       apple-fonts,
       precommit-base,
       nixvim,
@@ -249,8 +272,17 @@
           stateVersion ? "24.11",
           system ? "x86_64-linux",
           extraUsers ? [ ],
+          # Override these four to put a host on a different nixpkgs channel.
+          # Defaults to nixos-unstable + matching home-manager/catppuccin/sops-nix branches.
+          pkgsInput ? nixpkgs,
+          hmInput ? home-manager,
+          catppuccinInput ? catppuccin,
+          sopsNixInput ? inputs.sops-nix,
+          # Set to true for desktop systems — gates the desktop package tree.
+          # Desktop systems are always on unstable; servers may be on stable.
+          isDesktop ? false,
         }:
-        nixpkgs.lib.nixosSystem {
+        pkgsInput.lib.nixosSystem {
           specialArgs = {
             inherit
               inputs
@@ -265,6 +297,9 @@
               agentNodes
               agentTargets
               agentScrapeMap
+              isDesktop
+              catppuccinInput
+              sopsNixInput
               ;
 
             catppuccinWallpapers = self.packages.${system}.catppuccin-wallpapers;
@@ -274,9 +309,11 @@
             ./modules/deployment-meta.nix
             ./systems-linux/${hostName}/configuration.nix
             ./modules/common/system.nix
-            # TODO: Remove once nixpkgs PR #494721 lands in nixos-unstable
+            # TODO: Remove once nixpkgs PR #494721 lands in nixos-unstable.
+            # The overlay is a no-op on stable (the bug never existed there),
+            # so it is safe to apply unconditionally across all channels.
             { nixpkgs.overlays = [ libreofficeNotoFixOverlay ]; }
-            home-manager.nixosModules.home-manager
+            hmInput.nixosModules.home-manager
             {
               home-manager = {
                 useGlobalPkgs = true;
@@ -301,6 +338,7 @@
                     github_email
                     github_signing_key
                     catppuccin
+                    catppuccinInput
                     apple-fonts
                     nixvim
                     niri
@@ -394,6 +432,7 @@
       nixosConfigurations = {
         Daytona = self.lib.mkSystem {
           hostName = "daytona";
+          isDesktop = true;
           hmModules = [
             ./systems-linux/daytona/home.nix
           ];
@@ -404,6 +443,7 @@
 
         maranello = self.lib.mkSystem {
           hostName = "maranello";
+          isDesktop = true;
           hmModules = [ ./systems-linux/maranello/home.nix ];
           extraModules = [
             solaar.nixosModules.default
@@ -413,12 +453,20 @@
         sdrhub = self.lib.mkSystem {
           hostName = "sdrhub";
           hmModules = [ ];
+          pkgsInput = nixpkgs-stable;
+          hmInput = home-manager-stable;
+          catppuccinInput = catppuccin-stable;
+          sopsNixInput = sops-nix-stable;
         };
 
         fredhub = self.lib.mkSystem {
           hostName = "fredhub";
           stateVersion = "25.11";
           hmModules = [ ];
+          pkgsInput = nixpkgs-stable;
+          hmInput = home-manager-stable;
+          catppuccinInput = catppuccin-stable;
+          sopsNixInput = sops-nix-stable;
         };
 
         fredvps = self.lib.mkSystem {
@@ -426,6 +474,10 @@
           stateVersion = "25.05";
           extraUsers = [ "nik" ];
           hmModules = [ ];
+          pkgsInput = nixpkgs-stable;
+          hmInput = home-manager-stable;
+          catppuccinInput = catppuccin-stable;
+          sopsNixInput = sops-nix-stable;
           extraModules = [
             {
               home-manager.users.nik = {
@@ -441,21 +493,37 @@
         acarshub = self.lib.mkSystem {
           hostName = "acarshub";
           hmModules = [ ];
+          pkgsInput = nixpkgs-stable;
+          hmInput = home-manager-stable;
+          catppuccinInput = catppuccin-stable;
+          sopsNixInput = sops-nix-stable;
         };
 
         vdlmhub = self.lib.mkSystem {
           hostName = "vdlmhub";
           hmModules = [ ];
+          pkgsInput = nixpkgs-stable;
+          hmInput = home-manager-stable;
+          catppuccinInput = catppuccin-stable;
+          sopsNixInput = sops-nix-stable;
         };
 
         hfdlhub1 = self.lib.mkSystem {
           hostName = "hfdlhub1";
           hmModules = [ ];
+          pkgsInput = nixpkgs-stable;
+          hmInput = home-manager-stable;
+          catppuccinInput = catppuccin-stable;
+          sopsNixInput = sops-nix-stable;
         };
 
         hfdlhub2 = self.lib.mkSystem {
           hostName = "hfdlhub2";
           hmModules = [ ];
+          pkgsInput = nixpkgs-stable;
+          hmInput = home-manager-stable;
+          catppuccinInput = catppuccin-stable;
+          sopsNixInput = sops-nix-stable;
         };
       };
 

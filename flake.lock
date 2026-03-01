@@ -105,6 +105,27 @@
         "type": "github"
       }
     },
+    "catppuccin-stable": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs-stable"
+        ]
+      },
+      "locked": {
+        "lastModified": 1768256610,
+        "narHash": "sha256-IyL6nZo242nDLoLQVwkqAZXp8FO5kBfjL6Fuh+gZO10=",
+        "owner": "catppuccin",
+        "repo": "nix",
+        "rev": "0734ad8c91342df34f1a1e5c183d053d70ba87c7",
+        "type": "github"
+      },
+      "original": {
+        "owner": "catppuccin",
+        "ref": "release-25.11",
+        "repo": "nix",
+        "type": "github"
+      }
+    },
     "darwin": {
       "inputs": {
         "nixpkgs": [
@@ -567,6 +588,27 @@
         "type": "github"
       }
     },
+    "home-manager-stable": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs-stable"
+        ]
+      },
+      "locked": {
+        "lastModified": 1772380125,
+        "narHash": "sha256-8C+y46xA9bxcchj9GeDPJaRUDApaA3sy2fhJr1bTbUw=",
+        "owner": "nix-community",
+        "repo": "home-manager",
+        "rev": "a07a44a839eb036e950bf397d9b782916f8dcab3",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nix-community",
+        "ref": "release-25.11",
+        "repo": "home-manager",
+        "type": "github"
+      }
+    },
     "niri": {
       "inputs": {
         "niri-stable": "niri-stable",
@@ -672,6 +714,22 @@
       },
       "original": {
         "owner": "NixOS",
+        "ref": "nixos-25.11",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
+    "nixpkgs-stable_2": {
+      "locked": {
+        "lastModified": 1772047000,
+        "narHash": "sha256-7DaQVv4R97cii/Qdfy4tmDZMB2xxtyIvNGSwXBBhSmo=",
+        "owner": "nixos",
+        "repo": "nixpkgs",
+        "rev": "1267bb4920d0fc06ea916734c11b0bf004bbe17e",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nixos",
         "ref": "nixos-25.11",
         "repo": "nixpkgs",
         "type": "github"
@@ -929,17 +987,21 @@
       "inputs": {
         "apple-fonts": "apple-fonts",
         "catppuccin": "catppuccin",
+        "catppuccin-stable": "catppuccin-stable",
         "darwin": "darwin",
         "flake-utils": "flake-utils",
         "fredbar": "fredbar",
         "home-manager": "home-manager",
+        "home-manager-stable": "home-manager-stable",
         "niri": "niri",
         "nixos-needsreboot": "nixos-needsreboot",
         "nixpkgs": "nixpkgs_8",
+        "nixpkgs-stable": "nixpkgs-stable_2",
         "nixvim": "nixvim",
         "precommit-base": "precommit-base",
         "solaar": "solaar",
         "sops-nix": "sops-nix",
+        "sops-nix-stable": "sops-nix-stable",
         "walls-catppuccin": "walls-catppuccin"
       }
     },
@@ -1107,6 +1169,26 @@
       "inputs": {
         "nixpkgs": [
           "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1772340640,
+        "narHash": "sha256-1nq7+Kt5IUBD8Hu3nptVPbMf+22rNJoHT0t9L1X+GKA=",
+        "owner": "Mic92",
+        "repo": "sops-nix",
+        "rev": "dec4d8eac700dcd2fe3c020857d3ee220ec147f1",
+        "type": "github"
+      },
+      "original": {
+        "owner": "Mic92",
+        "repo": "sops-nix",
+        "type": "github"
+      }
+    },
+    "sops-nix-stable": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs-stable"
         ]
       },
       "locked": {

@@ -13,14 +13,6 @@
     ../../modules/tailscale
   ];
 
-  # Server profile (no desktop components)
-  desktop = {
-    enable = false;
-    enable_extra = false;
-    enable_games = false;
-    enable_streaming = false;
-  };
-
   deployment.role = "monitoring-master";
 
   sops_secrets.enable_secrets.enable = true;

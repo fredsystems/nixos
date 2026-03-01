@@ -11,9 +11,6 @@
     ../../modules/attic/attic_server.nix
   ];
 
-  # Override desktop profile from adsb-hub since we have additional services
-  desktop.enable = false;
-
   ai.local-llm = {
     enable = true;
     ollamaPackage = pkgs.ollama;

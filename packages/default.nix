@@ -1,11 +1,16 @@
 {
+  lib,
+  isDesktop ? false,
+  ...
+}:
+{
   imports = [
     ./ai
     ./common
-    ./desktop
     ./media
     ./shell
-  ];
+  ]
+  ++ lib.optional isDesktop ./desktop;
 
   config = {
     services.xserver.xkb = {
