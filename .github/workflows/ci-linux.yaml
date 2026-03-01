@@ -58,6 +58,40 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
+      # Detect which top-level paths changed.
+      # On non-PR events (merge_group, workflow_dispatch) this step is
+      # skipped and we fall back to building every system below.
+      - name: Detect changed paths
+        id: filter
+        if: github.event_name == 'pull_request'
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        with:
+          # Return a JSON array of every file that matched the `machine`
+          # filter so we can extract individual machine names later.
+          list-files: json
+          filters: |
+            # Any path that is shared across machines forces a full rebuild.
+            global:
+              - 'flake.nix'
+              - 'flake.lock'
+              - 'modules/**'
+              - 'profiles/**'
+              - 'shared/**'
+              - 'users/**'
+              - 'dotfiles/**'
+              - 'packages/**'
+              - '!packages/desktop/**'
+              - 'hardware-profiles/**'
+              - 'firmware.nix'
+              - '.github/**'
+            # Changes isolated to desktop packages — servers are unaffected.
+            desktop_global:
+              - 'packages/desktop/**'
+            # Machine-specific paths — we parse the dir names out of
+            # `machine_files` when `global` is false.
+            machine:
+              - 'systems-linux/**'
+
       - name: Install Nix
         uses: DeterminateSystems/nix-installer-action@c5a866b6ab867e88becbed4467b93592bce69f8a # v21
 
@@ -77,22 +111,89 @@ jobs:
 
           desktop_names=("Daytona" "maranello")
 
-          servers=()
-          desktops=()
+          all_servers=()
+          all_desktops=()
 
           for sys in $(jq -r '.[]' <<< "$all_systems"); do
             if [[ " ${desktop_names[*]} " == *" $sys "* ]]; then
-              desktops+=("$sys")
+              all_desktops+=("$sys")
             else
-              servers+=("$sys")
+              all_servers+=("$sys")
             fi
           done
 
-          servers_json=$(printf '%s\n' "${servers[@]}" | jq -R . | jq -cs .)
-          desktops_json=$(printf '%s\n' "${desktops[@]}" | jq -R . | jq -cs .)
+          # ------------------------------------------------------------------
+          # Decide which systems actually need to be built.
+          #
+          # Rules:
+          #   - workflow_dispatch or merge_group  → build everything (no PR
+          #     context to diff against, or the merge commit may compound
+          #     multiple PRs with different scopes)
+          #   - pull_request + global path changed → build everything
+          #   - pull_request + only systems-linux/** changed → build only the
+          #     machines whose directory appears in the diff
+          #   - pull_request + nothing relevant changed (e.g. only docs) →
+          #     empty matrix; build jobs are skipped automatically
+          # ------------------------------------------------------------------
 
+          event="${{ github.event_name }}"
+          global_changed="${{ steps.filter.outputs.global }}"
+          desktop_global_changed="${{ steps.filter.outputs.desktop_global }}"
+
+          if [ "$event" != "pull_request" ] || [ "$global_changed" = "true" ]; then
+            echo "Building ALL systems (event=$event, global_changed=$global_changed)"
+            filtered_servers=("${all_servers[@]}")
+            filtered_desktops=("${all_desktops[@]}")
+          else
+            echo "PR with no global changes — filtering to affected machines only"
+
+            # `steps.filter.outputs.machine_files` is a JSON array of every
+            # changed path that matched systems-linux/**.  Extract the second
+            # path segment (the machine dir name, always lowercase) from each.
+            machine_files='${{ steps.filter.outputs.machine_files }}'
+            changed_machines=$(echo "$machine_files" \
+              | jq -r '.[] | split("/")[1]' \
+              | sort -u)
+
+            echo "Changed machine dirs: $(echo "$changed_machines" | tr '\n' ' ')"
+
+            filtered_servers=()
+            filtered_desktops=()
+
+            for sys in "${all_servers[@]}"; do
+              # The nixosConfiguration attribute name may differ in case from
+              # the directory name (e.g. "Daytona" lives in systems-linux/daytona/).
+              sys_lower=$(echo "$sys" | tr '[:upper:]' '[:lower:]')
+              if echo "$changed_machines" | grep -qx "$sys_lower"; then
+                filtered_servers+=("$sys")
+              fi
+            done
+
+            # packages/desktop is isolated from server systems — a change there
+            # forces all desktops to rebuild but leaves the server list as-is.
+            if [ "$desktop_global_changed" = "true" ]; then
+              echo "Desktop-global change detected (packages/desktop/**) — building all desktops"
+              filtered_desktops=("${all_desktops[@]}")
+            else
+              for sys in "${all_desktops[@]}"; do
+                sys_lower=$(echo "$sys" | tr '[:upper:]' '[:lower:]')
+                if echo "$changed_machines" | grep -qx "$sys_lower"; then
+                  filtered_desktops+=("$sys")
+                fi
+              done
+            fi
+          fi
+
+          servers_json=$(printf '%s\n' "${filtered_servers[@]}" | jq -R . | jq -cs .)
+          desktops_json=$(printf '%s\n' "${filtered_desktops[@]}" | jq -R . | jq -cs .)
+
+          # printf with an empty array produces no output; jq -cs . on empty
+          # stdin returns "[]" which is exactly what we want for an empty matrix.
           echo "servers=$servers_json"   >> "$GITHUB_OUTPUT"
           echo "desktops=$desktops_json" >> "$GITHUB_OUTPUT"
+
+          echo "Servers to build:   $servers_json"
+          echo "Desktops to build:  $desktops_json"
 
   # =====================================================================
   # Build server systems
@@ -101,7 +202,7 @@ jobs:
     name: Build server systems
     runs-on: self-hosted
     needs: [skip-if-clean, find-systems]
-    if: ${{ needs.skip-if-clean.outputs.skip != 'true' }}
+    if: ${{ needs.skip-if-clean.outputs.skip != 'true' && needs.find-systems.outputs.servers != '[]' }}
     permissions:
       id-token: "write"
       contents: "read"
@@ -178,7 +279,7 @@ jobs:
     name: Build desktop systems
     runs-on: self-hosted
     needs: [skip-if-clean, find-systems]
-    if: ${{ needs.skip-if-clean.outputs.skip != 'true' }}
+    if: ${{ needs.skip-if-clean.outputs.skip != 'true' && needs.find-systems.outputs.desktops != '[]' }}
     permissions:
       id-token: "write"
       contents: "read"
@@ -268,6 +369,8 @@ jobs:
           echo "Servers result:   $SERVERS"
           echo "Desktops result:  $DESKTOPS"
 
+          # A result of "skipped" means the matrix was empty (no systems in
+          # scope for this PR) — that is a valid outcome, not a failure.
           if [ "$SERVERS" = "failure" ] || [ "$DESKTOPS" = "failure" ]; then
             echo "❌ One or more Linux builds failed."
             exit 1
@@ -278,5 +381,5 @@ jobs:
             exit 1
           fi
 
-          echo "All Linux systems built successfully."
+          echo "✅ All in-scope Linux systems built successfully (skipped systems were not affected by this PR)."
           exit 0
