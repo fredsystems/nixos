@@ -29,7 +29,7 @@
 
   desktop.enable_games = false;
 
-  boot.kernelPackages = pkgs.linuxKernel.packages.linux_testing;
+  boot.kernelPackages = pkgs.linuxPackages_latest;
 
   networking = {
     hostName = "Daytona";

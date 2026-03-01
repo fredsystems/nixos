@@ -31,7 +31,7 @@ in
   };
 
   boot = {
-    kernelPackages = pkgs.linuxKernel.packages.linux_6_18;
+    kernelPackages = pkgs.linuxPackages_latest;
 
     kernelParams = [
       "usbcore.autosuspend=-1"

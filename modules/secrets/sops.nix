@@ -5,6 +5,7 @@
   lib,
   system,
   user,
+  sopsNixInput ? inputs.sops-nix,
   ...
 }:
 with lib;
@@ -25,8 +26,8 @@ in
   };
 
   imports =
-    lib.optional isLinux inputs.sops-nix.nixosModules.sops
-    ++ lib.optional isDarwin inputs.sops-nix.darwinModules.sops;
+    lib.optional isLinux sopsNixInput.nixosModules.sops
+    ++ lib.optional isDarwin sopsNixInput.darwinModules.sops;
 
   config = mkIf cfg.enable {
     environment.systemPackages = [
@@ -35,7 +36,7 @@ in
 
     sops = {
       package = lib.mkIf isLinux (
-        (pkgs.callPackage inputs.sops-nix { }).sops-install-secrets.overrideAttrs (old: {
+        (pkgs.callPackage sopsNixInput { }).sops-install-secrets.overrideAttrs (old: {
           # Only change the go-modules FOD (fixed-output derivation) environment.
           # Do NOT set env.GOPROXY / env.GONOSUMDB here: overrideAttrs does a
           # shallow merge, so writing env.X = "..." replaces the entire `env`

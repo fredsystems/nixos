@@ -7,14 +7,6 @@
     ../modules/secrets/sops.nix
   ];
 
-  # Server profile defaults
-  desktop = {
-    enable = lib.mkDefault false;
-    enable_extra = lib.mkDefault false;
-    enable_games = lib.mkDefault false;
-    enable_streaming = lib.mkDefault false;
-  };
-
   deployment.role = lib.mkDefault "monitoring-agent";
   sops_secrets.enable_secrets.enable = lib.mkDefault true;
 
