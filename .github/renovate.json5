@@ -25,7 +25,9 @@
     {
       customType: "regex",
       managerFilePatterns: ["/systems-linux/(.*)/configuration\\.nix$/"],
-      matchStrings: ['image = "v?(?<depName>.*?):(?<currentValue>.*?)";'],
+      matchStrings: [
+        'image = "v?(?<depName>.*?):(?<currentValue>.*?)(?:@(?<currentDigest>sha256:[a-f0-9]+))?";',
+      ],
       datasourceTemplate: "docker",
       depTypeTemplate: "container",
       depNameTemplate: "{{depName}}",
@@ -42,41 +44,35 @@
     {
       matchCategories: ["docker"],
       enabled: true,
-      pinDigests: false,
       automerge: true,
     },
     {
       matchDatasources: ["docker"],
       versioning: "regex:^(telegraf|v\\d+-latest|latest)-build-(?<major>\\d+)$",
       matchPackageNames: ["/^ghcr\\.io/sdr-enthusiasts/.+$/"],
-      pinDigests: false,
       automerge: true,
     },
     {
       matchDatasources: ["docker"],
       versioning: "regex:^(trixie-)?latest-build-(?<major>\\d+)?$",
       matchPackageNames: ["ghcr.io/fredsystems/{/,}**"],
-      pinDigests: false,
       automerge: true,
     },
     {
       matchDatasources: ["docker"],
       versioning: "regex:^(trixie-)?latest-build-(?<major>\\d+)?$",
       matchPackageNames: ["ghcr.io/rpatel3001/{/,}**"],
-      pinDigests: false,
       automerge: true,
     },
     {
       matchDatasources: ["docker"],
       versioning: "regex:^(trixie-)?latest-build-(?<major>\\d+)?$",
       matchPackageNames: ["ghcr.io/plane-watch/{/,}**"],
-      pinDigests: false,
       automerge: true,
     },
     {
       matchDatasources: ["docker"],
       matchPackageNames: ["amir20/dozzle"],
-      pinDigests: false,
       automerge: true,
     },
   ],
