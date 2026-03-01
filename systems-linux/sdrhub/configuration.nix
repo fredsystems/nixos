@@ -304,7 +304,7 @@
       ###############################################################
       {
         name = "adsbhub";
-        image = "ghcr.io/sdr-enthusiasts/docker-adsbhub:latest-build-512@sha256:60d83859a97b67d3eaaea4072a09f48f222083e85b32218b3d5ee6ea66220039";
+        image = "ghcr.io/sdr-enthusiasts/docker-adsbhub:latest-build-515@sha256:713023dec9ce43d99f4b5c9235aa308c9978694e37a074e6bdfed124c93d4c6f";
 
         restart = "always";
         tty = true;
