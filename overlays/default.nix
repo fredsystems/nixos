@@ -4,17 +4,16 @@
 # imported directly by flake/lib/mk-system.nix and
 # flake/lib/mk-darwin-system.nix via nixpkgs.overlays.
 #
-# To add overlays, create a new file next to this one and merge it in here,
-# e.g.:
+# To add overlays, create a new file next to this one and add it here as
+# a callPackage entry, e.g.:
 #
-#   final: prev:
-#   (import ./my-overlay.nix final prev)
-#   // (import ./another-overlay.nix final prev)
+#   my-package = final.callPackage ./my-package.nix { };
 #
-# Each overlay file should follow the standard nixpkgs overlay convention:
+# Each standalone overlay file should follow the callPackage convention:
 #
-#   final: prev: {
-#     somePackage = prev.somePackage.override { ... };
-#   }
+#   { someDep, anotherDep, ... }:
+#   derivation ...
 
-_: _: { }
+final: _: {
+  cider3 = final.callPackage ./cider.nix { };
+}

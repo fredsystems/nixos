@@ -111,7 +111,7 @@
             proxyPass = "http://127.0.0.1:4200/";
           };
 
-          "/cider-v3.1.8-linux-x64.AppImage" = {
+          "/cider-v4.0.0-linux-x64.AppImage" = {
             root = "/var/www";
             # extraConfig = ''
             #   add_header Content-Type application/octet-stream;
