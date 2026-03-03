@@ -14,15 +14,6 @@
     # Enable networking
     networking.networkmanager.enable = true;
 
-    nixpkgs.overlays = [
-      # deadnix: skip
-      (final: prev: {
-        nixos-needsreboot = prev.nixos-needsreboot.overrideAttrs {
-          vendorSha256 = "sha256-o4/q0t9GhPbZ+R4Rnxf202WMJcMNu4RftqHkS95YZJs=";
-        };
-      })
-    ];
-
     environment.systemPackages = with pkgs; [
       pass
       wget
