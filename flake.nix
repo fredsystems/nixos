@@ -84,6 +84,11 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    colmena = {
+      url = "github:zhaofengli/colmena";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     # wallpapers
 
     walls-catppuccin = {
@@ -109,6 +114,7 @@
       darwin,
       walls-catppuccin,
       solaar,
+      colmena,
       ...
     }:
 
@@ -192,8 +198,72 @@
         "aarch64-darwin"
       ];
       forAllSystems = nixpkgs.lib.genAttrs supportedSystems;
+
+      ##########################################################################
+      ## Server node definitions — single source of truth                    ##
+      ##                                                                      ##
+      ## Drives BOTH nixosConfigurations and the colmena topology.           ##
+      ## stateVersion, extraUsers, channel inputs, and deployment metadata   ##
+      ## all live here — one edit propagates everywhere.                     ##
+      ##                                                                      ##
+      ## To add a server:                                                     ##
+      ##   1. Create systems-linux/<name>/configuration.nix                  ##
+      ##   2. Add one entry below — everything else is derived.              ##
+      ##                                                                      ##
+      ## Per-entry fields (all optional — defaults shown):                   ##
+      ##   stateVersion         = "24.11"                                    ##
+      ##   extraUsers           = []                                         ##
+      ##   hmModules            = []                                         ##
+      ##   extraModules         = []                                         ##
+      ##   pkgsInput            = nixpkgs-stable                             ##
+      ##   hmInput              = home-manager-stable                        ##
+      ##   catppuccinInput      = catppuccin-stable                          ##
+      ##   sopsNixInput         = sops-nix-stable                            ##
+      ##   targetHost           = "<name>.local"  (colmena SSH target)       ##
+      ##   tags                 = []              (colmena node-specific tags)##
+      ##   allowLocalDeployment = false           (colmena)                  ##
+      ##########################################################################
+      serverNodes = {
+        fredhub = {
+          stateVersion = "25.11";
+          tags = [ "hub" ];
+          allowLocalDeployment = true;
+        };
+        fredvps = {
+          stateVersion = "25.05";
+          extraUsers = [ "nik" ];
+          extraModules = [
+            {
+              home-manager.users.nik = {
+                imports = [
+                  ./systems-linux/fredvps/nik-home.nix
+                ];
+              };
+            }
+          ];
+          targetHost = "fredclausen.com";
+          targetPort = 2269;
+          tags = [ "vps" ];
+        };
+        sdrhub = {
+          tags = [ "sdr" ];
+        };
+        acarshub = {
+          tags = [ "adsb" ];
+        };
+        vdlmhub = {
+          tags = [ "adsb" ];
+        };
+        hfdlhub1 = {
+          tags = [ "hfdl" ];
+        };
+        hfdlhub2 = {
+          tags = [ "hfdl" ];
+        };
+      };
     in
     {
+      colmenaHive = colmena.lib.makeHive self.outputs.colmena;
       packages = forAllSystems (
         system:
         let
@@ -282,8 +352,8 @@
           # Desktop systems are always on unstable; servers may be on stable.
           isDesktop ? false,
         }:
-        pkgsInput.lib.nixosSystem {
-          specialArgs = {
+        let
+          _specialArgs = {
             inherit
               inputs
               user
@@ -305,7 +375,27 @@
             catppuccinWallpapers = self.packages.${system}.catppuccin-wallpapers;
           };
 
-          modules = [
+          _modules = [
+            # Set nixpkgs.hostPlatform explicitly (the modern way to declare the
+            # target platform). This suppresses the Colmena-specific deprecation
+            # warning: "'system' has been renamed to/replaced by
+            # 'stdenv.hostPlatform.system'".
+            #
+            # Root cause: Colmena's eval.nix always calls eval-config.nix with
+            # `inherit (npkgs) system`, which in modern nixpkgs injects a module
+            # that sets `nixpkgs.system = lib.warn "..." system`. That lib.warn
+            # is a lazy thunk — it only fires when `nixpkgs.system` is evaluated.
+            # With `nixpkgs.hostPlatform` set here, nixpkgs uses hostPlatform as
+            # its source of truth and never evaluates nixpkgs.system → no warning.
+            #
+            # The regular nixos-rebuild path calls lib.nixosSystem without a
+            # `system` argument, so the warning module is never injected there.
+            (
+              { lib, ... }:
+              {
+                nixpkgs.hostPlatform = lib.mkDefault system;
+              }
+            )
             ./modules/deployment-meta.nix
             ./systems-linux/${hostName}/configuration.nix
             ./modules/common/system.nix
@@ -350,6 +440,19 @@
             }
           ]
           ++ extraModules;
+        in
+        pkgsInput.lib.nixosSystem {
+          specialArgs = _specialArgs;
+          modules = _modules;
+        }
+        # Attach raw modules + args so the `colmena` output below can reuse
+        # them without duplicating the entire module list.
+        // {
+          _colmena = {
+            nixpkgs = pkgsInput;
+            specialArgs = _specialArgs;
+            modules = _modules;
+          };
         };
 
       lib.mkDarwinSystem =
@@ -429,103 +532,143 @@
       ## System Definitions                                                  ##
       ##########################################################################
 
-      nixosConfigurations = {
-        Daytona = self.lib.mkSystem {
-          hostName = "daytona";
-          isDesktop = true;
-          hmModules = [
-            ./systems-linux/daytona/home.nix
-          ];
-          extraModules = [
-            solaar.nixosModules.default
-          ];
-        };
+      nixosConfigurations =
+        # ── Desktop machines — unstable channel, not colmena-managed ──────────
+        {
+          Daytona = self.lib.mkSystem {
+            hostName = "daytona";
+            isDesktop = true;
+            hmModules = [ ./systems-linux/daytona/home.nix ];
+            extraModules = [ solaar.nixosModules.default ];
+          };
 
-        maranello = self.lib.mkSystem {
-          hostName = "maranello";
-          isDesktop = true;
-          hmModules = [ ./systems-linux/maranello/home.nix ];
-          extraModules = [
-            solaar.nixosModules.default
-          ];
-        };
+          maranello = self.lib.mkSystem {
+            hostName = "maranello";
+            isDesktop = true;
+            hmModules = [ ./systems-linux/maranello/home.nix ];
+            extraModules = [ solaar.nixosModules.default ];
+          };
+        }
+        # ── Server machines — derived from serverNodes above ──────────────────
+        // builtins.mapAttrs (
+          name: node:
+          self.lib.mkSystem {
+            hostName = name;
+            stateVersion = node.stateVersion or "24.11";
+            extraUsers = node.extraUsers or [ ];
+            pkgsInput = node.pkgsInput or nixpkgs-stable;
+            hmInput = node.hmInput or home-manager-stable;
+            catppuccinInput = node.catppuccinInput or catppuccin-stable;
+            sopsNixInput = node.sopsNixInput or sops-nix-stable;
+            hmModules = node.hmModules or [ ];
+            extraModules = node.extraModules or [ ];
+          }
+        ) serverNodes;
 
-        sdrhub = self.lib.mkSystem {
-          hostName = "sdrhub";
-          hmModules = [ ];
-          pkgsInput = nixpkgs-stable;
-          hmInput = home-manager-stable;
-          catppuccinInput = catppuccin-stable;
-          sopsNixInput = sops-nix-stable;
-        };
+      ##########################################################################
+      ## Colmena — server-only deployment topology                           ##
+      ##                                                                      ##
+      ## Desktop machines (Daytona, maranello) and Darwin machines are       ##
+      ## intentionally excluded — manage those locally.                      ##
+      ##                                                                      ##
+      ## Usage:                                                               ##
+      ##   colmena apply                        # deploy all servers          ##
+      ##   colmena apply --on '@stable'         # deploy all stable servers   ##
+      ##   colmena apply --on fredhub           # deploy one server           ##
+      ##   colmena apply --on '@adsb'           # deploy by tag               ##
+      ##   colmena build                        # dry-run / build only        ##
+      ##########################################################################
 
-        fredhub = self.lib.mkSystem {
-          hostName = "fredhub";
-          stateVersion = "25.11";
-          hmModules = [ ];
-          pkgsInput = nixpkgs-stable;
-          hmInput = home-manager-stable;
-          catppuccinInput = catppuccin-stable;
-          sopsNixInput = sops-nix-stable;
-        };
-
-        fredvps = self.lib.mkSystem {
-          hostName = "fredvps";
-          stateVersion = "25.05";
-          extraUsers = [ "nik" ];
-          hmModules = [ ];
-          pkgsInput = nixpkgs-stable;
-          hmInput = home-manager-stable;
-          catppuccinInput = catppuccin-stable;
-          sopsNixInput = sops-nix-stable;
-          extraModules = [
+      colmena =
+        let
+          # All deployment metadata is read from serverNodes (defined at the top
+          # of the outer let block), which also drives nixosConfigurations.
+          # stateVersion, extraUsers, channel inputs — one place to change them.
+          mkNode =
+            name: node:
+            let
+              c = self.nixosConfigurations.${name}._colmena;
+            in
             {
-              home-manager.users.nik = {
-                imports = [
-                  ./systems-linux/fredvps/nik-home.nix
-                  ./modules/attic/attic_client.nix
-                ];
+              deployment = {
+                targetHost = node.targetHost or "${name}.local";
+                targetPort = node.targetPort or 22;
+                targetUser = "fred";
+                buildOnTarget = false;
+                allowLocalDeployment = node.allowLocalDeployment or false;
+                tags = [
+                  "server"
+                  "stable"
+                ]
+                ++ (node.tags or [ ]);
               };
-            }
-          ];
-        };
+              imports = c.modules;
+            };
+        in
+        # Merge static meta block with the per-node attrset produced by mapAttrs.
+        {
+          meta = {
+            # Fallback nixpkgs; individual nodes are pinned via nodeNixpkgs.
+            # Shadow the deprecated `pkgs.system` alias (warnAlias since 2025-10-28)
+            # so Colmena's `inherit (npkgs) system` in eval.nix doesn't fire the
+            # "'system' has been renamed to/replaced by 'stdenv.hostPlatform.system'"
+            # warning. Colmena always calls evalConfig { inherit (npkgs) system; ... }
+            # which forces npkgs.system — overriding it with the non-alias value
+            # pkgs.stdenv.hostPlatform.system avoids the lazy warn thunk entirely.
+            nixpkgs =
+              let
+                pkgs = import nixpkgs { system = "x86_64-linux"; };
+              in
+              pkgs // { inherit (pkgs.stdenv.hostPlatform) system; };
 
-        acarshub = self.lib.mkSystem {
-          hostName = "acarshub";
-          hmModules = [ ];
-          pkgsInput = nixpkgs-stable;
-          hmInput = home-manager-stable;
-          catppuccinInput = catppuccin-stable;
-          sopsNixInput = sops-nix-stable;
-        };
+            # Derived from each node's mkSystem pkgsInput — changing a node's
+            # channel in nixosConfigurations automatically propagates here.
+            # Same pkgs.system shadow as meta.nixpkgs above — see comment there.
+            nodeNixpkgs = builtins.mapAttrs (
+              name: _:
+              let
+                pkgs = import self.nixosConfigurations.${name}._colmena.nixpkgs { system = "x86_64-linux"; };
+              in
+              pkgs // { inherit (pkgs.stdenv.hostPlatform) system; }
+            ) serverNodes;
 
-        vdlmhub = self.lib.mkSystem {
-          hostName = "vdlmhub";
-          hmModules = [ ];
-          pkgsInput = nixpkgs-stable;
-          hmInput = home-manager-stable;
-          catppuccinInput = catppuccin-stable;
-          sopsNixInput = sops-nix-stable;
-        };
+            # Shared specialArgs passed to ALL nodes as true specialArgs
+            # (bypasses the NixOS option system — no infinite-recursion risk).
+            specialArgs = {
+              inherit
+                inputs
+                user
+                verbose_name
+                github_email
+                github_signing_key
+                hmlib
+                agentNodes
+                agentTargets
+                agentScrapeMap
+                ;
+              system = "x86_64-linux";
+              isDesktop = false;
+              # Defaults; overridden per-node in nodeSpecialArgs below.
+              stateVersion = "24.11";
+              extraUsers = [ ];
+              catppuccinInput = catppuccin-stable;
+              sopsNixInput = sops-nix-stable;
+              catppuccinWallpapers = self.packages."x86_64-linux".catppuccin-wallpapers;
+            };
 
-        hfdlhub1 = self.lib.mkSystem {
-          hostName = "hfdlhub1";
-          hmModules = [ ];
-          pkgsInput = nixpkgs-stable;
-          hmInput = home-manager-stable;
-          catppuccinInput = catppuccin-stable;
-          sopsNixInput = sops-nix-stable;
-        };
-
-        hfdlhub2 = self.lib.mkSystem {
-          hostName = "hfdlhub2";
-          hmModules = [ ];
-          pkgsInput = nixpkgs-stable;
-          hmInput = home-manager-stable;
-          catppuccinInput = catppuccin-stable;
-          sopsNixInput = sops-nix-stable;
-        };
-      };
+            # Per-node overrides derived from the servers table.
+            # Channel-sensitive args (catppuccinInput, sopsNixInput) are pulled
+            # from _colmena.specialArgs so they stay in sync with mkSystem
+            # automatically — no manual updates needed when changing channels.
+            nodeSpecialArgs = builtins.mapAttrs (_: node: {
+              stateVersion = node.stateVersion or "24.11";
+              extraUsers = node.extraUsers or [ ];
+              catppuccinInput = node.catppuccinInput or catppuccin-stable;
+              sopsNixInput = node.sopsNixInput or sops-nix-stable;
+            }) serverNodes;
+          };
+        }
+        // builtins.mapAttrs mkNode serverNodes;
 
       # https://github.com/NixOS/nix-installer
       # sudo -i nix upgrade-nix
@@ -575,6 +718,11 @@
               ++ (with pkgs; [
                 nodejs
                 nodePackages.typescript
+                # Colmena: multi-machine NixOS deployment tool.
+                # Use the binary from the colmena flake input so the CLI version
+                # matches the evaluator used by colmenaHive (not pkgs.colmena
+                # from nixpkgs, which is shadowed by the flake input attrset).
+                colmena.packages.${system}.colmena
               ]);
 
             shellHook = ''
