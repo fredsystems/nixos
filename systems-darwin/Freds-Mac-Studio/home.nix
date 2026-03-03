@@ -14,10 +14,7 @@ in
   imports = [
     ../../shared/sync-hosts.nix
     ../../modules/sync-compose.nix
-    ../../modules/ansible/ansible.nix
   ];
-
-  programs.ansible.enable = true;
 
   services.yubikey-agent.enable = true;
 
