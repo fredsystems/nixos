@@ -37,7 +37,7 @@
       ###############################################################
       {
         name = "dozzle-agent";
-        image = "amir20/dozzle:v10.0.6@sha256:4815df572d135ce24c14ec3c150e482c98693bc5cc20291693b582baab8eb0bf";
+        image = "amir20/dozzle:v10.0.7@sha256:d383abf0fee72a8037d6ec6474424e56d752a52208e0ed70f4805e9d86a77830";
         exec = "agent";
 
         volumes = [
