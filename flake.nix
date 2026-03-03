@@ -126,52 +126,6 @@
       github_signing_key = "~/.ssh/id_ed25519_sk.pub";
       hmlib = home-manager.lib;
 
-      # TODO: Remove once nixpkgs PR #494721 lands in nixos-unstable (commit b097075 on master).
-      # The notoSubset runCommand uses a broken shell glob for the "still" variant's font config.
-      # See: https://github.com/NixOS/nixpkgs/pull/494721
-      libreofficeNotoFixOverlay =
-        _: prev:
-        let
-          fixedFontsConf = prev.makeFontsConf {
-            fontDirectories = with prev; [
-              amiri
-              caladea
-              carlito
-              culmus
-              dejavu_fonts
-              rubik
-              liberation-sans-narrow
-              liberation_ttf_v2
-              libertine
-              linux-libertine-g
-              noto-fonts-lgc-plus
-              noto-fonts
-              noto-fonts-cjk-sans
-            ];
-          };
-          fixUnwrapped =
-            pkg:
-            pkg.overrideAttrs (old: {
-              env = (old.env or { }) // {
-                FONTCONFIG_FILE = fixedFontsConf;
-              };
-            });
-        in
-        {
-          libreoffice-qt = prev.libreoffice-qt.override {
-            unwrapped = fixUnwrapped prev.libreoffice-qt.unwrapped;
-          };
-          libreoffice-qt-still = prev.libreoffice-qt-still.override {
-            unwrapped = fixUnwrapped prev.libreoffice-qt-still.unwrapped;
-          };
-          libreoffice-still = prev.libreoffice-still.override {
-            unwrapped = fixUnwrapped prev.libreoffice-still.unwrapped;
-          };
-          libreoffice-fresh = prev.libreoffice-fresh.override {
-            unwrapped = fixUnwrapped prev.libreoffice-fresh.unwrapped;
-          };
-        };
-
       agentNodes = builtins.filter (
         name: self.nixosConfigurations.${name}.config.deployment.role == "monitoring-agent"
       ) (builtins.attrNames self.nixosConfigurations);
@@ -399,10 +353,7 @@
             ./modules/deployment-meta.nix
             ./systems-linux/${hostName}/configuration.nix
             ./modules/common/system.nix
-            # TODO: Remove once nixpkgs PR #494721 lands in nixos-unstable.
-            # The overlay is a no-op on stable (the bug never existed there),
-            # so it is safe to apply unconditionally across all channels.
-            { nixpkgs.overlays = [ libreofficeNotoFixOverlay ]; }
+
             hmInput.nixosModules.home-manager
             {
               home-manager = {
