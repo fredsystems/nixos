@@ -46,6 +46,9 @@ darwin.lib.darwinSystem {
   };
 
   modules = [
+    (_: {
+      nixpkgs.overlays = [ (import ./../../overlays/default.nix) ];
+    })
     ../../modules/deployment-meta.nix
     ../../modules/common/system.nix
     ../../systems-darwin/${hostName}/configuration.nix

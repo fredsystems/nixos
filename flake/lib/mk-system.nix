@@ -99,6 +99,7 @@ let
       { lib, ... }:
       {
         nixpkgs.hostPlatform = lib.mkDefault system;
+        nixpkgs.overlays = [ (import ./../../overlays/default.nix) ];
       }
     )
     ./../../modules/deployment-meta.nix

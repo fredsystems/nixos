@@ -24,14 +24,14 @@
   Daytona = self.lib.mkSystem {
     hostName = "daytona";
     isDesktop = true;
-    hmModules = [ ../systems-linux/daytona/home.nix ];
+    hmModules = [ ../../systems-linux/daytona/home.nix ];
     extraModules = [ solaar.nixosModules.default ];
   };
 
   maranello = self.lib.mkSystem {
     hostName = "maranello";
     isDesktop = true;
-    hmModules = [ ../systems-linux/maranello/home.nix ];
+    hmModules = [ ../../systems-linux/maranello/home.nix ];
     extraModules = [ solaar.nixosModules.default ];
   };
 }

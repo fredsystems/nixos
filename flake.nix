@@ -105,7 +105,6 @@
       catppuccin-stable,
       sops-nix-stable,
       apple-fonts,
-
       nixvim,
       niri,
       darwin,

@@ -1,15 +1,20 @@
 # Nixpkgs overlays applied to all systems.
 #
-# Add overlays here as additional files and import them below, e.g.:
+# This file is a standard nixpkgs overlay (final: prev: { ... }) and is
+# imported directly by flake/lib/mk-system.nix and
+# flake/lib/mk-darwin-system.nix via nixpkgs.overlays.
 #
-#   imports = [ ./my-overlay.nix ];
+# To add overlays, create a new file next to this one and merge it in here,
+# e.g.:
 #
-# Each overlay file should be a standard nixpkgs overlay:
+#   final: prev:
+#   (import ./my-overlay.nix final prev)
+#   // (import ./another-overlay.nix final prev)
+#
+# Each overlay file should follow the standard nixpkgs overlay convention:
 #
 #   final: prev: {
 #     somePackage = prev.somePackage.override { ... };
 #   }
-#
-# This file is imported by lib/mk-system.nix and lib/mk-darwin-system.nix.
 
 _: _: { }
