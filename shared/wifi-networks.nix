@@ -5,8 +5,10 @@
     type = lib.types.attrs;
     default = {
       "Home" = {
-        connection.id = "Home";
-        connection.type = "wifi";
+        connection = {
+          id = "Home";
+          type = "wifi";
+        };
         wifi.ssid = "$home_ssid";
         wifi-security = {
           key-mgmt = "wpa-psk";
@@ -14,14 +16,20 @@
         };
       };
       "Work" = {
-        connection.id = "Work";
-        connection.type = "wifi";
+        connection = {
+          id = "Work";
+          type = "wifi";
+          autoconnect = false;
+        };
         wifi.ssid = "$work_ssid";
         wifi-security = { };
       };
       "Parents" = {
-        connection.id = "Parents";
-        connection.type = "wifi";
+        connection = {
+          id = "Parents";
+          type = "wifi";
+          autoconnect = false;
+        };
         wifi.ssid = "$parents_ssid";
         wifi-security = {
           key-mgmt = "wpa-psk";
