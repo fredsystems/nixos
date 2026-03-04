@@ -11,8 +11,8 @@ in
 {
   imports = [
     inputs.fredbar.homeManagerModules.fredbar
-    ../shared/sync-hosts.nix
-    ../shared/nas-mounts.nix
+    ../modules/data/sync-hosts.nix
+    ../modules/data/nas-mounts.nix
     ../modules/sync-compose.nix
     ../modules/nas-home.nix
   ];

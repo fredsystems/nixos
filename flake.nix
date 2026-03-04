@@ -242,9 +242,9 @@
         hardware-logitech = import ./hardware-profiles/logitech.nix;
 
         # Shared modules
-        nas-mounts = import ./shared/nas-mounts.nix;
-        wifi-networks = import ./shared/wifi-networks.nix;
-        sync-hosts = import ./shared/sync-hosts.nix;
+        nas-mounts = import ./modules/data/nas-mounts.nix;
+        wifi-networks = import ./modules/data/wifi-networks.nix;
+        sync-hosts = import ./modules/data/sync-hosts.nix;
 
         # Service modules
         github-runners = import ./modules/github-runners.nix;
@@ -255,9 +255,9 @@
             ./profiles/desktop-common.nix
             ./profiles/adsb-hub.nix
             ./hardware-profiles
-            ./shared/nas-mounts.nix
-            ./shared/wifi-networks.nix
-            ./shared/sync-hosts.nix
+            ./modules/data/nas-mounts.nix
+            ./modules/data/wifi-networks.nix
+            ./modules/data/sync-hosts.nix
             ./modules/github-runners.nix
           ];
         };

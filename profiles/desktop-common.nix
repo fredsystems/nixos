@@ -10,8 +10,8 @@
     ../hardware-profiles
     ../modules/nas-system.nix
     ../modules/secrets/sops.nix
-    ../shared/nas-mounts.nix
-    ../shared/wifi-networks.nix
+    ../modules/data/nas-mounts.nix
+    ../modules/data/wifi-networks.nix
   ];
 
   options.profile.desktop = {

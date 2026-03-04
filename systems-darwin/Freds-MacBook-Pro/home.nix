@@ -12,7 +12,7 @@ in
   # ------------------------------
 
   imports = [
-    ../../shared/sync-hosts.nix
+    ../../modules/data/sync-hosts.nix
     ../../modules/sync-compose.nix
   ];
 
