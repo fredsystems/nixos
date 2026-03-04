@@ -464,8 +464,11 @@
       },
       "transformations": [
         {
-          "id": "merge",
-          "options": {}
+          "id": "joinByField",
+          "options": {
+            "byField": "host",
+            "mode": "outer"
+          }
         },
         {
           "id": "organize",
@@ -499,7 +502,7 @@
         {
           "refId": "build",
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "nixos_build_info",
+          "expr": "max by (host, short_sha) (nixos_build_info)",
           "instant": true,
           "legendFormat": "__auto",
           "format": "table"
@@ -507,7 +510,7 @@
         {
           "refId": "behind",
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "nixos_revision_behind",
+          "expr": "max by (host) (nixos_revision_behind)",
           "instant": true,
           "legendFormat": "__auto",
           "format": "table"
@@ -515,7 +518,7 @@
         {
           "refId": "lag",
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "nixos_revision_lag",
+          "expr": "max by (host) (nixos_revision_lag)",
           "instant": true,
           "legendFormat": "__auto",
           "format": "table"
@@ -523,7 +526,7 @@
         {
           "refId": "reboot",
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "nixos_needs_reboot",
+          "expr": "max by (host) (nixos_needs_reboot)",
           "instant": true,
           "legendFormat": "__auto",
           "format": "table"
@@ -531,7 +534,7 @@
         {
           "refId": "up",
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "up{job=\"node\"}",
+          "expr": "max by (host) (label_replace(up{job=\"node\"}, \"host\", \"$1\", \"hostname\", \"(.*)\"))",
           "instant": true,
           "legendFormat": "__auto",
           "format": "table"
