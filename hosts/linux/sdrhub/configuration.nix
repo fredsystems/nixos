@@ -540,7 +540,7 @@
       ###############################################################
       {
         name = "acarshub";
-        image = "ghcr.io/sdr-enthusiasts/docker-acarshub:latest-build-1486@sha256:df3f1ab2e3e157bce2461718e8a7ac5b062a221d574fb851e3e245a963d166f2";
+        image = "ghcr.io/sdr-enthusiasts/docker-acarshub:latest-build-1487@sha256:933cbab287f625d2e5b57527f904eee66b609fef3cc6b54caa1c112ccbfa365d";
 
         restart = "always";
         tty = true;
@@ -569,7 +569,7 @@
       ###############################################################
       {
         name = "acarshubv4";
-        image = "ghcr.io/sdr-enthusiasts/docker-acarshub:v4-latest-build-63@sha256:8231593ee525cadfc8977056557746c1e65acf56e41ea121230ca58101898f7c";
+        image = "ghcr.io/sdr-enthusiasts/docker-acarshub:v4-latest-build-64@sha256:04a7ec2850aab8b196e99c8887b481a9f1852c832e5fee562ece905a19032271";
 
         restart = "always";
         tty = true;
