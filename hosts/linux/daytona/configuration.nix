@@ -7,7 +7,7 @@
 {
   imports = [
     ./hardware-configuration.nix
-    ../../profiles/desktop.nix
+    ../../../profiles/desktop.nix
   ];
 
   # Hardware profile settings

@@ -12,7 +12,7 @@ in
 {
   imports = [
     ./hardware-configuration.nix
-    ../../profiles/adsb-hub.nix
+    ../../../profiles/adsb-hub.nix
   ];
 
   networking.hostName = "hfdlhub2";

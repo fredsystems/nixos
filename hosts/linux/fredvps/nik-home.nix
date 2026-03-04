@@ -16,7 +16,7 @@ in
   # modules/base/home-base.nix gives us: home.stateVersion + xdg.nix
   # (xdg dirs, mimeApps, fontconfig) — no user-specific fields, safe to reuse.
   imports = [
-    ../../modules/base/home-base.nix
+    ../../../modules/base/home-base.nix
     inputs.catppuccin.homeModules.catppuccin
     inputs.nixvim.homeModules.nixvim
   ];

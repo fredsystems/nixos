@@ -52,17 +52,17 @@ in
 
   imports = [
     inputs.home-manager.darwinModules.default
-    ../../modules/secrets/sops.nix
-    ../../features/shell
-    ../../features/common/btop
-    ../../features/common/git
-    ../../features/desktop/alacritty
-    ../../features/desktop/githubdesktop
-    ../../features/desktop/ghostty
-    ../../features/desktop/wezterm
-    ../../features/desktop/zed
-    ../../features/desktop/yubikey
-    ../../features/ai/opencode
+    ../../../modules/secrets/sops.nix
+    ../../../features/shell
+    ../../../features/common/btop
+    ../../../features/common/git
+    ../../../features/desktop/alacritty
+    ../../../features/desktop/githubdesktop
+    ../../../features/desktop/ghostty
+    ../../../features/desktop/wezterm
+    ../../../features/desktop/zed
+    ../../../features/desktop/yubikey
+    ../../../features/ai/opencode
   ];
 
   desktop = {

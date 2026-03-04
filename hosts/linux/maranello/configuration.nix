@@ -7,14 +7,14 @@
 }:
 let
   monitors = import ./monitors.nix;
-  hyprMonitors = import ../../modules/compositors/hyprland.nix {
+  hyprMonitors = import ../../../modules/compositors/hyprland.nix {
     inherit lib monitors;
   };
 in
 {
   imports = [
     ./hardware-configuration.nix
-    ../../profiles/desktop.nix
+    ../../../profiles/desktop.nix
   ];
 
   # Hardware profile settings

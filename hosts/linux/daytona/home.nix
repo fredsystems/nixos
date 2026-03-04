@@ -8,7 +8,7 @@
   # ------------------------------
 
   imports = [
-    ../../home-profiles/desktop.nix
+    ../../../home-profiles/desktop.nix
   ];
 
   systemd.user.services.mute-led-watcher = {

@@ -4,17 +4,17 @@
 }:
 let
   monitors = import ./monitors.nix;
-  hyprMonitors = import ../../modules/compositors/hyprland.nix {
+  hyprMonitors = import ../../../modules/compositors/hyprland.nix {
     inherit lib monitors;
   };
-  niriOutputs = import ../../modules/compositors/niri.nix {
+  niriOutputs = import ../../../modules/compositors/niri.nix {
     inherit monitors;
   };
 in
 {
   # Host-specific Home Manager config for maranello
   imports = [
-    ../../home-profiles/desktop.nix
+    ../../../home-profiles/desktop.nix
   ];
 
   # Maranello-specific Home Manager settings
