@@ -87,7 +87,7 @@
                 url = "http://127.0.0.1:9090";
                 access = "proxy";
                 isDefault = true;
-                uid = "prometheus-main";
+                uid = "PBFA97CFB590B2093";
               }
 
               {
@@ -96,6 +96,7 @@
                 access = "proxy";
                 url = "http://localhost:5678";
                 isDefault = false;
+                uid = "P8E80F9AEF21F6940";
               }
             ];
           };
