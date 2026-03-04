@@ -4,7 +4,6 @@
   extraUsers ? [ ],
   verbose_name,
   github_email,
-  system,
   lib,
   ...
 }:
@@ -12,7 +11,7 @@ let
   allUsers = [ user ] ++ extraUsers;
   full_name = verbose_name;
   email = github_email;
-  isDarwin = lib.hasSuffix "darwin" system;
+  inherit (pkgs.stdenv.hostPlatform) isDarwin;
   isLinux = !isDarwin;
 in
 {

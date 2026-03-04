@@ -3,7 +3,7 @@
   config,
   user,
   extraUsers ? [ ],
-  system,
+  isDarwin,
   ...
 }:
 
@@ -14,7 +14,6 @@ let
   # Pull shared settings from terminal/common.nix
   t = config.terminal;
 
-  isDarwin = lib.hasSuffix "darwin" system;
   isLinux = !isDarwin;
 in
 {

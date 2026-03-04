@@ -4,7 +4,7 @@
   config,
   user,
   extraUsers ? [ ],
-  system,
+  isDarwin,
   ...
 }:
 
@@ -12,7 +12,6 @@ let
   allUsers = [ user ] ++ extraUsers;
   cfg = config.desktop.ghostty;
   t = config.terminal;
-  isDarwin = lib.hasSuffix "darwin" system;
   isLinux = !isDarwin;
 in
 {

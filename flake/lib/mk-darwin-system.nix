@@ -29,7 +29,9 @@
   stateVersion ? "25.05",
   system ? "aarch64-darwin",
 }:
-
+let
+  isDarwin = true;
+in
 darwin.lib.darwinSystem {
   specialArgs = {
     inherit
@@ -43,6 +45,8 @@ darwin.lib.darwinSystem {
       hmlib
       stateVersion
       ;
+
+    inherit isDarwin;
   };
 
   modules = [
@@ -73,7 +77,6 @@ darwin.lib.darwinSystem {
           inherit
             inputs
             self
-            system
             user
             verbose_name
             hmlib
@@ -82,6 +85,7 @@ darwin.lib.darwinSystem {
             catppuccin
             nixvim
             stateVersion
+            isDarwin
             ;
         };
       };

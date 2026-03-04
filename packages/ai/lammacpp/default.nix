@@ -2,13 +2,12 @@
   lib,
   pkgs,
   config,
-  system,
+  isDarwin,
   ...
 }:
 with lib;
 let
   cfg = config.ai.local-llm;
-  isDarwin = lib.hasSuffix "darwin" system;
   isLinux = !isDarwin;
 in
 {

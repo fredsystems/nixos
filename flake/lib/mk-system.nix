@@ -58,6 +58,8 @@
   isDesktop ? false,
 }:
 let
+  isDarwin = pkgsInput.lib.hasSuffix "darwin" system;
+
   _specialArgs = {
     inherit
       inputs
@@ -75,6 +77,7 @@ let
       isDesktop
       catppuccinInput
       sopsNixInput
+      isDarwin
       ;
 
     catppuccinWallpapers = self.packages.${system}.catppuccin-wallpapers;
@@ -131,7 +134,7 @@ let
             github_signing_key
             catppuccinInput
             stateVersion
-            system
+            isDarwin
             ;
           inherit (inputs)
             catppuccin

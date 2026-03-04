@@ -1,11 +1,10 @@
 {
   lib,
+  isDarwin,
   stateVersion,
-  system,
   ...
 }:
 let
-  isDarwin = lib.hasSuffix "darwin" system;
   isLinux = !isDarwin;
 in
 {

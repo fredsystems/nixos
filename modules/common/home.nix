@@ -1,7 +1,7 @@
 {
   lib,
+  isDarwin,
   inputs,
-  system,
   verbose_name,
   github_email,
   catppuccinInput ? inputs.catppuccin,
@@ -9,7 +9,6 @@
 }:
 
 let
-  isDarwin = lib.hasSuffix "darwin" system;
   isLinux = !isDarwin;
 
   yubikeyMap = {
@@ -51,9 +50,7 @@ in
         gpgsign = false
 
     [gpg]
-        program = ${
-          if isDarwin then "/run/current-system/sw/bin/gpg" else "/run/current-system/sw/bin/gpg"
-        }
+        program = /run/current-system/sw/bin/gpg
         format = ssh
 
     [core]

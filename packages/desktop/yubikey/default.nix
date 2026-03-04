@@ -4,14 +4,13 @@
   config,
   user,
   extraUsers ? [ ],
-  system,
+  isDarwin,
   ...
 }:
 with lib;
 let
   cfg = config.desktop.yubikey;
   allUsers = [ user ] ++ extraUsers;
-  isDarwin = lib.hasSuffix "darwin" system;
   isLinux = !isDarwin;
 in
 {

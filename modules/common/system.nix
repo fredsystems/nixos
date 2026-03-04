@@ -1,14 +1,13 @@
 {
   inputs,
   lib,
-  system,
+  isDarwin,
   isDesktop ? false,
   catppuccinInput ? inputs.catppuccin,
   ...
 }:
 
 let
-  isDarwin = lib.hasSuffix "darwin" system;
   isLinux = !isDarwin;
 in
 {
