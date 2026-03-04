@@ -481,7 +481,11 @@
             },
             "excludeByName": {
               "Time": true,
-              "sha": true
+              "sha": true,
+              "instance": true,
+              "job": true,
+              "role": true,
+              "exporter": true
             },
             "indexByName": {
               "Host": 0,

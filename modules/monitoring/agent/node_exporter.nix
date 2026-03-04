@@ -62,11 +62,17 @@
             mkdir -p /var/lib/node_exporter/textfiles
 
             if [[ "$SHA" != "dirty" && "$SHA" != "$LAST_SHA" ]]; then
-              date +%s > "$TS_FILE"
+              echo $(( $(date +%s) * 1000 )) > "$TS_FILE"
               echo "$SHA" > "$LAST_SHA_FILE"
             fi
 
             TS=$(cat "$TS_FILE" 2>/dev/null || echo "0")
+
+            # Migrate existing values that were written as seconds (< 1e12) to milliseconds
+            if [[ "$TS" -gt 0 && "$TS" -lt 1000000000000 ]]; then
+              TS=$(( TS * 1000 ))
+              echo "$TS" > "$TS_FILE"
+            fi
             SHORT_SHA=''${SHA:0:7}
 
             cat > /var/lib/node_exporter/textfiles/nixos_build_info.prom <<EOF
