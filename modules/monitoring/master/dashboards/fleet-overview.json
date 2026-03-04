@@ -32,7 +32,7 @@
       "title": "Nodes Up",
       "description": "Number of nodes currently reachable by Prometheus",
       "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": { "type": "prometheus", "uid": "prometheus-main" },
       "options": {
         "reduceOptions": {
           "calcs": ["lastNotNull"],
@@ -62,7 +62,7 @@
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "datasource": { "type": "prometheus", "uid": "prometheus-main" },
           "expr": "count(up{job=\"node\"} == 1)",
           "legendFormat": "Up",
           "instant": true
@@ -75,7 +75,7 @@
       "title": "Nodes Down",
       "description": "Number of nodes not reachable by Prometheus",
       "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": { "type": "prometheus", "uid": "prometheus-main" },
       "options": {
         "reduceOptions": {
           "calcs": ["lastNotNull"],
@@ -110,7 +110,7 @@
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "datasource": { "type": "prometheus", "uid": "prometheus-main" },
           "expr": "count(up{job=\"node\"} == 0) or vector(0)",
           "legendFormat": "Down",
           "instant": true
@@ -123,7 +123,7 @@
       "title": "Nodes Needing Reboot",
       "description": "Nodes with /run/reboot-required present",
       "gridPos": { "h": 4, "w": 4, "x": 8, "y": 1 },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": { "type": "prometheus", "uid": "prometheus-main" },
       "options": {
         "reduceOptions": {
           "calcs": ["lastNotNull"],
@@ -158,7 +158,7 @@
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "datasource": { "type": "prometheus", "uid": "prometheus-main" },
           "expr": "count(nixos_needs_reboot == 1) or vector(0)",
           "legendFormat": "Reboot Needed",
           "instant": true
@@ -171,7 +171,7 @@
       "title": "Nodes Behind Main",
       "description": "Nodes whose deployed commit is behind GitHub main",
       "gridPos": { "h": 4, "w": 4, "x": 12, "y": 1 },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": { "type": "prometheus", "uid": "prometheus-main" },
       "options": {
         "reduceOptions": {
           "calcs": ["lastNotNull"],
@@ -206,7 +206,7 @@
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "datasource": { "type": "prometheus", "uid": "prometheus-main" },
           "expr": "count(nixos_revision_behind == 1) or vector(0)",
           "legendFormat": "Behind",
           "instant": true
@@ -219,7 +219,7 @@
       "title": "Failed Systemd Units",
       "description": "Total count of failed systemd units across all nodes",
       "gridPos": { "h": 4, "w": 4, "x": 16, "y": 1 },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": { "type": "prometheus", "uid": "prometheus-main" },
       "options": {
         "reduceOptions": {
           "calcs": ["lastNotNull"],
@@ -254,7 +254,7 @@
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "datasource": { "type": "prometheus", "uid": "prometheus-main" },
           "expr": "count(node_systemd_unit_state{state=\"failed\"} == 1) or vector(0)",
           "legendFormat": "Failed Units",
           "instant": true
@@ -267,7 +267,7 @@
       "title": "Active Alerts",
       "description": "Number of currently firing Alertmanager alerts",
       "gridPos": { "h": 4, "w": 4, "x": 20, "y": 1 },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": { "type": "prometheus", "uid": "prometheus-main" },
       "options": {
         "reduceOptions": {
           "calcs": ["lastNotNull"],
@@ -302,7 +302,7 @@
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "datasource": { "type": "prometheus", "uid": "prometheus-main" },
           "expr": "count(ALERTS{alertstate=\"firing\"}) or vector(0)",
           "legendFormat": "Firing",
           "instant": true
@@ -322,7 +322,7 @@
       "title": "Node Deployment Status",
       "description": "Per-node: deployed SHA, deploy time, commits behind main, reboot needed, and node up status",
       "gridPos": { "h": 8, "w": 24, "x": 0, "y": 6 },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": { "type": "prometheus", "uid": "prometheus-main" },
       "options": {
         "showHeader": true,
         "sortBy": [{ "displayName": "Host", "desc": false }],
@@ -498,7 +498,7 @@
       "targets": [
         {
           "refId": "build",
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "datasource": { "type": "prometheus", "uid": "prometheus-main" },
           "expr": "nixos_build_info",
           "instant": true,
           "legendFormat": "__auto",
@@ -506,7 +506,7 @@
         },
         {
           "refId": "behind",
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "datasource": { "type": "prometheus", "uid": "prometheus-main" },
           "expr": "nixos_revision_behind",
           "instant": true,
           "legendFormat": "__auto",
@@ -514,7 +514,7 @@
         },
         {
           "refId": "lag",
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "datasource": { "type": "prometheus", "uid": "prometheus-main" },
           "expr": "nixos_revision_lag",
           "instant": true,
           "legendFormat": "__auto",
@@ -522,7 +522,7 @@
         },
         {
           "refId": "reboot",
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "datasource": { "type": "prometheus", "uid": "prometheus-main" },
           "expr": "nixos_needs_reboot",
           "instant": true,
           "legendFormat": "__auto",
@@ -530,7 +530,7 @@
         },
         {
           "refId": "up",
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "datasource": { "type": "prometheus", "uid": "prometheus-main" },
           "expr": "up{job=\"node\"}",
           "instant": true,
           "legendFormat": "__auto",
@@ -551,7 +551,7 @@
       "title": "Node Resource Summary",
       "description": "CPU, memory, disk, and load average per node",
       "gridPos": { "h": 8, "w": 24, "x": 0, "y": 15 },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": { "type": "prometheus", "uid": "prometheus-main" },
       "options": {
         "showHeader": true,
         "sortBy": [{ "displayName": "Host", "desc": false }],
@@ -722,7 +722,7 @@
       "targets": [
         {
           "refId": "cpu",
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "datasource": { "type": "prometheus", "uid": "prometheus-main" },
           "expr": "100 - (avg by (hostname) (irate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)",
           "instant": true,
           "format": "table",
@@ -730,7 +730,7 @@
         },
         {
           "refId": "mem",
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "datasource": { "type": "prometheus", "uid": "prometheus-main" },
           "expr": "(1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100",
           "instant": true,
           "format": "table",
@@ -738,7 +738,7 @@
         },
         {
           "refId": "disk",
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "datasource": { "type": "prometheus", "uid": "prometheus-main" },
           "expr": "(1 - (node_filesystem_avail_bytes{mountpoint=\"/\",fstype!~\"tmpfs|overlay\"} / node_filesystem_size_bytes{mountpoint=\"/\",fstype!~\"tmpfs|overlay\"})) * 100",
           "instant": true,
           "format": "table",
@@ -746,7 +746,7 @@
         },
         {
           "refId": "load",
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "datasource": { "type": "prometheus", "uid": "prometheus-main" },
           "expr": "node_load1",
           "instant": true,
           "format": "table",
@@ -754,7 +754,7 @@
         },
         {
           "refId": "uptime",
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "datasource": { "type": "prometheus", "uid": "prometheus-main" },
           "expr": "time() - node_boot_time_seconds",
           "instant": true,
           "format": "table",
@@ -775,7 +775,7 @@
       "title": "Currently Failed Units",
       "description": "All systemd units currently in a failed state across the fleet",
       "gridPos": { "h": 6, "w": 24, "x": 0, "y": 24 },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": { "type": "prometheus", "uid": "prometheus-main" },
       "options": {
         "showHeader": true,
         "cellHeight": "sm",
@@ -845,7 +845,7 @@
       "targets": [
         {
           "refId": "A",
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "datasource": { "type": "prometheus", "uid": "prometheus-main" },
           "expr": "node_systemd_unit_state{state=\"failed\"} == 1",
           "instant": true,
           "format": "table",
@@ -865,7 +865,7 @@
       "type": "timeseries",
       "title": "CPU Usage % — All Nodes",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 31 },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": { "type": "prometheus", "uid": "prometheus-main" },
       "options": {
         "tooltip": { "mode": "multi", "sort": "desc" },
         "legend": {
@@ -900,7 +900,7 @@
       "targets": [
         {
           "refId": "A",
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "datasource": { "type": "prometheus", "uid": "prometheus-main" },
           "expr": "100 - (avg by (hostname) (irate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)",
           "legendFormat": "{{hostname}}"
         }
@@ -911,7 +911,7 @@
       "type": "timeseries",
       "title": "Memory Usage % — All Nodes",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 31 },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": { "type": "prometheus", "uid": "prometheus-main" },
       "options": {
         "tooltip": { "mode": "multi", "sort": "desc" },
         "legend": {
@@ -946,7 +946,7 @@
       "targets": [
         {
           "refId": "A",
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "datasource": { "type": "prometheus", "uid": "prometheus-main" },
           "expr": "(1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100",
           "legendFormat": "{{hostname}}"
         }
@@ -957,7 +957,7 @@
       "type": "timeseries",
       "title": "Network Receive — All Nodes",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 39 },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": { "type": "prometheus", "uid": "prometheus-main" },
       "options": {
         "tooltip": { "mode": "multi", "sort": "desc" },
         "legend": {
@@ -983,7 +983,7 @@
       "targets": [
         {
           "refId": "A",
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "datasource": { "type": "prometheus", "uid": "prometheus-main" },
           "expr": "sum by (hostname) (irate(node_network_receive_bytes_total{device!~\"lo|docker.*|veth.*|br-.*\"}[5m]))",
           "legendFormat": "{{hostname}}"
         }
@@ -994,7 +994,7 @@
       "type": "timeseries",
       "title": "Network Transmit — All Nodes",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 39 },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": { "type": "prometheus", "uid": "prometheus-main" },
       "options": {
         "tooltip": { "mode": "multi", "sort": "desc" },
         "legend": {
@@ -1020,7 +1020,7 @@
       "targets": [
         {
           "refId": "A",
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "datasource": { "type": "prometheus", "uid": "prometheus-main" },
           "expr": "sum by (hostname) (irate(node_network_transmit_bytes_total{device!~\"lo|docker.*|veth.*|br-.*\"}[5m]))",
           "legendFormat": "{{hostname}}"
         }
@@ -1031,7 +1031,7 @@
       "type": "timeseries",
       "title": "System Load (1m) — All Nodes",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 47 },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": { "type": "prometheus", "uid": "prometheus-main" },
       "options": {
         "tooltip": { "mode": "multi", "sort": "desc" },
         "legend": {
@@ -1057,7 +1057,7 @@
       "targets": [
         {
           "refId": "A",
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "datasource": { "type": "prometheus", "uid": "prometheus-main" },
           "expr": "node_load1",
           "legendFormat": "{{hostname}}"
         }
@@ -1068,7 +1068,7 @@
       "type": "timeseries",
       "title": "Root Disk Usage % — All Nodes",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 47 },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": { "type": "prometheus", "uid": "prometheus-main" },
       "options": {
         "tooltip": { "mode": "multi", "sort": "desc" },
         "legend": {
@@ -1103,21 +1103,11 @@
       "targets": [
         {
           "refId": "A",
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "datasource": { "type": "prometheus", "uid": "prometheus-main" },
           "expr": "(1 - (node_filesystem_avail_bytes{mountpoint=\"/\",fstype!~\"tmpfs|overlay\"} / node_filesystem_size_bytes{mountpoint=\"/\",fstype!~\"tmpfs|overlay\"})) * 100",
           "legendFormat": "{{hostname}}"
         }
       ]
-    }
-  ],
-  "__inputs": [
-    {
-      "name": "DS_PROMETHEUS",
-      "label": "Prometheus",
-      "description": "",
-      "type": "datasource",
-      "pluginId": "prometheus",
-      "pluginName": "Prometheus"
     }
   ]
 }
