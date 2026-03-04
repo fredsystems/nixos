@@ -108,6 +108,20 @@ let
     ./../../modules/base/deployment-meta.nix
     ./../../hosts/linux/${hostName}/configuration.nix
     ./../../modules/base/system.nix
+    {
+      # Bake the git revision of the flake that built this system into a
+      # persistent file so node_exporter can compare it against GitHub main
+      # without needing a local git checkout on the node.
+      # self.rev is only set when the flake was built from a clean git tree;
+      # self.dirtyRev is set for dirty trees; fall back to "dirty" if neither.
+      system.activationScripts.configRevision = {
+        text = ''
+          mkdir -p /etc/nixos
+          echo "${self.rev or self.dirtyRev or "dirty"}" > /etc/nixos/configuration-revision
+        '';
+        deps = [ ];
+      };
+    }
     hmInput.nixosModules.home-manager
     {
       home-manager = {

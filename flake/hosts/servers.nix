@@ -35,7 +35,7 @@
       {
         home-manager.users.nik = {
           imports = [
-            ../hosts/linux/fredvps/nik-home.nix
+            ../../hosts/linux/fredvps/nik-home.nix
           ];
         };
       }
