@@ -49,15 +49,15 @@ in
   imports = [
     inputs.home-manager.darwinModules.default
     ../../modules/secrets/sops.nix
-    ../../packages/shell
-    ../../packages/common/btop
-    ../../packages/common/git
-    ../../packages/desktop/alacritty
-    ../../packages/desktop/githubdesktop
-    ../../packages/desktop/ghostty
-    ../../packages/desktop/wezterm
-    ../../packages/desktop/zed
-    ../../packages/desktop/yubikey
+    ../../features/shell
+    ../../features/common/btop
+    ../../features/common/git
+    ../../features/desktop/alacritty
+    ../../features/desktop/githubdesktop
+    ../../features/desktop/ghostty
+    ../../features/desktop/wezterm
+    ../../features/desktop/zed
+    ../../features/desktop/yubikey
   ];
 
   desktop = {
