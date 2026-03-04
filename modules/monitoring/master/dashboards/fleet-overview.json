@@ -1,0 +1,1123 @@
+{
+  "id": null,
+  "uid": "nixos-fleet-overview",
+  "title": "NixOS Fleet Overview",
+  "description": "At-a-glance health, build info, and resource status for all nodes",
+  "tags": ["nixos", "fleet", "overview"],
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "1m",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "templating": {
+    "list": []
+  },
+  "annotations": {
+    "list": []
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "Fleet Status",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Nodes Up",
+      "description": "Number of nodes currently reachable by Prometheus",
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          },
+          "mappings": [],
+          "unit": "none",
+          "color": { "mode": "thresholds" }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "count(up{job=\"node\"} == 1)",
+          "legendFormat": "Up",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Nodes Down",
+      "description": "Number of nodes not reachable by Prometheus",
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": { "0": { "text": "All OK", "color": "green" } }
+            }
+          ],
+          "unit": "none",
+          "color": { "mode": "thresholds" }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "count(up{job=\"node\"} == 0) or vector(0)",
+          "legendFormat": "Down",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Nodes Needing Reboot",
+      "description": "Nodes with /run/reboot-required present",
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 1 }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": { "0": { "text": "None", "color": "green" } }
+            }
+          ],
+          "unit": "none",
+          "color": { "mode": "thresholds" }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "count(nixos_needs_reboot == 1) or vector(0)",
+          "legendFormat": "Reboot Needed",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Nodes Behind Main",
+      "description": "Nodes whose deployed commit is behind GitHub main",
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": { "0": { "text": "All current", "color": "green" } }
+            }
+          ],
+          "unit": "none",
+          "color": { "mode": "thresholds" }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "count(nixos_revision_behind == 1) or vector(0)",
+          "legendFormat": "Behind",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Failed Systemd Units",
+      "description": "Total count of failed systemd units across all nodes",
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": { "0": { "text": "None", "color": "green" } }
+            }
+          ],
+          "unit": "none",
+          "color": { "mode": "thresholds" }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "count(node_systemd_unit_state{state=\"failed\"} == 1) or vector(0)",
+          "legendFormat": "Failed Units",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "stat",
+      "title": "Active Alerts",
+      "description": "Number of currently firing Alertmanager alerts",
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": { "0": { "text": "None", "color": "green" } }
+            }
+          ],
+          "unit": "none",
+          "color": { "mode": "thresholds" }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "count(ALERTS{alertstate=\"firing\"}) or vector(0)",
+          "legendFormat": "Firing",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "type": "row",
+      "title": "Per-Node Build & Deployment Info",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 }
+    },
+    {
+      "id": 11,
+      "type": "table",
+      "title": "Node Deployment Status",
+      "description": "Per-node: deployed SHA, deploy time, commits behind main, reboot needed, and node up status",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 6 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "options": {
+        "showHeader": true,
+        "sortBy": [{ "displayName": "Host", "desc": false }],
+        "cellHeight": "sm",
+        "footer": { "show": false }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "left",
+            "cellOptions": { "type": "auto" },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Up" },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "1": { "text": "UP", "color": "green", "index": 0 }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": { "text": "DOWN", "color": "red", "index": 1 }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": { "type": "color-background" }
+              },
+              { "id": "custom.width", "value": 80 }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Reboot Needed" },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": { "text": "No", "color": "green", "index": 0 }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "1": { "text": "YES", "color": "orange", "index": 1 }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": { "type": "color-background" }
+              },
+              { "id": "custom.width", "value": 120 }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Behind Main" },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": { "text": "Current", "color": "green", "index": 0 }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "1": { "text": "BEHIND", "color": "yellow", "index": 1 }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": { "type": "color-background" }
+              },
+              { "id": "custom.width", "value": 100 }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Commits Behind" },
+            "properties": [
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    { "color": "green", "value": null },
+                    { "color": "yellow", "value": 1 },
+                    { "color": "red", "value": 10 }
+                  ]
+                }
+              },
+              { "id": "custom.cellOptions", "value": { "type": "color-text" } },
+              { "id": "custom.width", "value": 120 }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Last Deployed" },
+            "properties": [
+              { "id": "unit", "value": "dateTimeFromNow" },
+              { "id": "custom.width", "value": 160 }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "SHA" },
+            "properties": [
+              { "id": "custom.width", "value": 80 },
+              { "id": "custom.monospace", "value": true }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Host" },
+            "properties": [{ "id": "custom.width", "value": 140 }]
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "host": "Host",
+              "short_sha": "SHA",
+              "Value #build": "Last Deployed",
+              "Value #behind": "Behind Main",
+              "Value #lag": "Commits Behind",
+              "Value #reboot": "Reboot Needed",
+              "Value #up": "Up"
+            },
+            "excludeByName": {
+              "Time": true,
+              "sha": true
+            },
+            "indexByName": {
+              "Host": 0,
+              "Up": 1,
+              "SHA": 2,
+              "Last Deployed": 3,
+              "Behind Main": 4,
+              "Commits Behind": 5,
+              "Reboot Needed": 6
+            }
+          }
+        }
+      ],
+      "targets": [
+        {
+          "refId": "build",
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "nixos_build_info",
+          "instant": true,
+          "legendFormat": "__auto",
+          "format": "table"
+        },
+        {
+          "refId": "behind",
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "nixos_revision_behind",
+          "instant": true,
+          "legendFormat": "__auto",
+          "format": "table"
+        },
+        {
+          "refId": "lag",
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "nixos_revision_lag",
+          "instant": true,
+          "legendFormat": "__auto",
+          "format": "table"
+        },
+        {
+          "refId": "reboot",
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "nixos_needs_reboot",
+          "instant": true,
+          "legendFormat": "__auto",
+          "format": "table"
+        },
+        {
+          "refId": "up",
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "up{job=\"node\"}",
+          "instant": true,
+          "legendFormat": "__auto",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": 20,
+      "type": "row",
+      "title": "Per-Node Resource Health",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 14 }
+    },
+    {
+      "id": 21,
+      "type": "table",
+      "title": "Node Resource Summary",
+      "description": "CPU, memory, disk, and load average per node",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 15 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "options": {
+        "showHeader": true,
+        "sortBy": [{ "displayName": "Host", "desc": false }],
+        "cellHeight": "sm",
+        "footer": { "show": false }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "left",
+            "cellOptions": { "type": "auto" },
+            "inspect": false
+          },
+          "unit": "percent",
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 70 },
+              { "color": "red", "value": 90 }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Host" },
+            "properties": [
+              { "id": "unit", "value": "string" },
+              { "id": "custom.width", "value": 140 },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [{ "color": "green", "value": null }]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "CPU %" },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": { "type": "color-background", "mode": "gradient" }
+              },
+              { "id": "custom.width", "value": 120 },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    { "color": "green", "value": null },
+                    { "color": "yellow", "value": 70 },
+                    { "color": "red", "value": 90 }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Memory %" },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": { "type": "color-background", "mode": "gradient" }
+              },
+              { "id": "custom.width", "value": 120 },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    { "color": "green", "value": null },
+                    { "color": "yellow", "value": 70 },
+                    { "color": "red", "value": 90 }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Root Disk %" },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": { "type": "color-background", "mode": "gradient" }
+              },
+              { "id": "custom.width", "value": 120 },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    { "color": "green", "value": null },
+                    { "color": "yellow", "value": 70 },
+                    { "color": "red", "value": 90 }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Load (1m)" },
+            "properties": [
+              { "id": "unit", "value": "short" },
+              { "id": "custom.width", "value": 100 },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    { "color": "green", "value": null },
+                    { "color": "yellow", "value": 4 },
+                    { "color": "red", "value": 8 }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Uptime" },
+            "properties": [
+              { "id": "unit", "value": "s" },
+              { "id": "custom.width", "value": 120 },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [{ "color": "green", "value": null }]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "transformations": [
+        { "id": "merge", "options": {} },
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "hostname": "Host",
+              "Value #cpu": "CPU %",
+              "Value #mem": "Memory %",
+              "Value #disk": "Root Disk %",
+              "Value #load": "Load (1m)",
+              "Value #uptime": "Uptime"
+            },
+            "excludeByName": {
+              "Time": true,
+              "instance": true,
+              "job": true,
+              "role": true,
+              "exporter": true
+            },
+            "indexByName": {
+              "Host": 0,
+              "CPU %": 1,
+              "Memory %": 2,
+              "Root Disk %": 3,
+              "Load (1m)": 4,
+              "Uptime": 5
+            }
+          }
+        }
+      ],
+      "targets": [
+        {
+          "refId": "cpu",
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "100 - (avg by (hostname) (irate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)",
+          "instant": true,
+          "format": "table",
+          "legendFormat": "__auto"
+        },
+        {
+          "refId": "mem",
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "(1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100",
+          "instant": true,
+          "format": "table",
+          "legendFormat": "__auto"
+        },
+        {
+          "refId": "disk",
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "(1 - (node_filesystem_avail_bytes{mountpoint=\"/\",fstype!~\"tmpfs|overlay\"} / node_filesystem_size_bytes{mountpoint=\"/\",fstype!~\"tmpfs|overlay\"})) * 100",
+          "instant": true,
+          "format": "table",
+          "legendFormat": "__auto"
+        },
+        {
+          "refId": "load",
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "node_load1",
+          "instant": true,
+          "format": "table",
+          "legendFormat": "__auto"
+        },
+        {
+          "refId": "uptime",
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "time() - node_boot_time_seconds",
+          "instant": true,
+          "format": "table",
+          "legendFormat": "__auto"
+        }
+      ]
+    },
+    {
+      "id": 30,
+      "type": "row",
+      "title": "Failed Systemd Units",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 23 }
+    },
+    {
+      "id": 31,
+      "type": "table",
+      "title": "Currently Failed Units",
+      "description": "All systemd units currently in a failed state across the fleet",
+      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 24 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": { "show": false }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "left",
+            "cellOptions": { "type": "auto" }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "red", "value": null }]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "hostname" },
+            "properties": [{ "id": "custom.width", "value": 160 }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "name" },
+            "properties": [{ "id": "custom.width", "value": 400 }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Value" },
+            "properties": [
+              { "id": "custom.width", "value": 80 },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": { "1": { "text": "FAILED", "color": "red" } }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": { "type": "color-background" }
+              }
+            ]
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "instance": true,
+              "job": true,
+              "state": true,
+              "role": true,
+              "exporter": true
+            },
+            "renameByName": {
+              "hostname": "Host",
+              "name": "Unit",
+              "Value": "State"
+            }
+          }
+        }
+      ],
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "node_systemd_unit_state{state=\"failed\"} == 1",
+          "instant": true,
+          "format": "table",
+          "legendFormat": "__auto"
+        }
+      ]
+    },
+    {
+      "id": 40,
+      "type": "row",
+      "title": "Resource Trends",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 30 }
+    },
+    {
+      "id": 41,
+      "type": "timeseries",
+      "title": "CPU Usage % — All Nodes",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 31 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "options": {
+        "tooltip": { "mode": "multi", "sort": "desc" },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 70 },
+              { "color": "red", "value": 90 }
+            ]
+          },
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "color": { "mode": "palette-classic" }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "100 - (avg by (hostname) (irate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)",
+          "legendFormat": "{{hostname}}"
+        }
+      ]
+    },
+    {
+      "id": 42,
+      "type": "timeseries",
+      "title": "Memory Usage % — All Nodes",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 31 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "options": {
+        "tooltip": { "mode": "multi", "sort": "desc" },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 70 },
+              { "color": "red", "value": 90 }
+            ]
+          },
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "color": { "mode": "palette-classic" }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "(1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100",
+          "legendFormat": "{{hostname}}"
+        }
+      ]
+    },
+    {
+      "id": 43,
+      "type": "timeseries",
+      "title": "Network Receive — All Nodes",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 39 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "options": {
+        "tooltip": { "mode": "multi", "sort": "desc" },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "min": 0,
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "color": { "mode": "palette-classic" }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "sum by (hostname) (irate(node_network_receive_bytes_total{device!~\"lo|docker.*|veth.*|br-.*\"}[5m]))",
+          "legendFormat": "{{hostname}}"
+        }
+      ]
+    },
+    {
+      "id": 44,
+      "type": "timeseries",
+      "title": "Network Transmit — All Nodes",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 39 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "options": {
+        "tooltip": { "mode": "multi", "sort": "desc" },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "min": 0,
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "color": { "mode": "palette-classic" }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "sum by (hostname) (irate(node_network_transmit_bytes_total{device!~\"lo|docker.*|veth.*|br-.*\"}[5m]))",
+          "legendFormat": "{{hostname}}"
+        }
+      ]
+    },
+    {
+      "id": 45,
+      "type": "timeseries",
+      "title": "System Load (1m) — All Nodes",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 47 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "options": {
+        "tooltip": { "mode": "multi", "sort": "desc" },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "color": { "mode": "palette-classic" }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "node_load1",
+          "legendFormat": "{{hostname}}"
+        }
+      ]
+    },
+    {
+      "id": 46,
+      "type": "timeseries",
+      "title": "Root Disk Usage % — All Nodes",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 47 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "options": {
+        "tooltip": { "mode": "multi", "sort": "desc" },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 70 },
+              { "color": "red", "value": 90 }
+            ]
+          },
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "color": { "mode": "palette-classic" }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "(1 - (node_filesystem_avail_bytes{mountpoint=\"/\",fstype!~\"tmpfs|overlay\"} / node_filesystem_size_bytes{mountpoint=\"/\",fstype!~\"tmpfs|overlay\"})) * 100",
+          "legendFormat": "{{hostname}}"
+        }
+      ]
+    }
+  ],
+  "__inputs": [
+    {
+      "name": "DS_PROMETHEUS",
+      "label": "Prometheus",
+      "description": "",
+      "type": "datasource",
+      "pluginId": "prometheus",
+      "pluginName": "Prometheus"
+    }
+  ]
+}

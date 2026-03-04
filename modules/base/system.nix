@@ -35,6 +35,12 @@ in
         "fred:JjyhvRSvKfkk8r4HS0mS5r5I7dT4GociEFbrR9OgBZ0="
       ];
 
+      trusted-users = [
+        "root"
+        "@wheel"
+        "fred"
+      ];
+
       experimental-features = [
         "nix-command"
         "flakes"

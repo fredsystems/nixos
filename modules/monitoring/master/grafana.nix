@@ -45,6 +45,13 @@
       group = "grafana";
       mode = "0444";
     };
+
+    "grafana/provisioning/dashboards/fleet/fleet-overview.json" = {
+      source = ./dashboards/fleet-overview.json;
+      user = "grafana";
+      group = "grafana";
+      mode = "0444";
+    };
   };
 
   services = {
@@ -134,6 +141,19 @@
 
                 options = {
                   path = "/etc/grafana/provisioning/dashboards/adsb";
+                };
+              }
+
+              {
+                name = "fleet";
+                orgId = 1;
+                folder = "Fleet";
+                type = "file";
+                disableDeletion = true;
+                updateIntervalSeconds = 60;
+
+                options = {
+                  path = "/etc/grafana/provisioning/dashboards/fleet";
                 };
               }
             ];

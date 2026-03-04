@@ -45,6 +45,39 @@
         };
       };
 
+      nixos-build-info-metric = {
+        description = "Emit NixOS build SHA and deploy timestamp metrics";
+        serviceConfig = {
+          Type = "oneshot";
+          ExecStart = pkgs.writeShellScript "nixos-build-info-metric.sh" ''
+            HOST="${config.networking.hostName}"
+            SHA=$(cat /etc/nixos/configuration-revision 2>/dev/null || echo "dirty")
+            TS_FILE="/var/lib/node_exporter/textfiles/nixos_build_timestamp.val"
+
+            # Only update the timestamp when the SHA changes (i.e. a new deploy happened).
+            # We persist the last-seen SHA alongside the timestamp so we can detect this.
+            LAST_SHA_FILE="/var/lib/node_exporter/textfiles/nixos_build_last_sha"
+            LAST_SHA=$(cat "$LAST_SHA_FILE" 2>/dev/null || echo "")
+
+            mkdir -p /var/lib/node_exporter/textfiles
+
+            if [[ "$SHA" != "dirty" && "$SHA" != "$LAST_SHA" ]]; then
+              date +%s > "$TS_FILE"
+              echo "$SHA" > "$LAST_SHA_FILE"
+            fi
+
+            TS=$(cat "$TS_FILE" 2>/dev/null || echo "0")
+            SHORT_SHA=''${SHA:0:7}
+
+            cat > /var/lib/node_exporter/textfiles/nixos_build_info.prom <<EOF
+            # HELP nixos_build_info NixOS build info: SHA label + deploy timestamp
+            # TYPE nixos_build_info gauge
+            nixos_build_info{host="$HOST", sha="$SHA", short_sha="$SHORT_SHA"} $TS
+            EOF
+          '';
+        };
+      };
+
       nixos-revision-metric = {
         description = "Emit NixOS upstream revision metrics";
         serviceConfig = {
@@ -124,6 +157,14 @@
         wantedBy = [ "timers.target" ];
         timerConfig = {
           OnCalendar = "*:0/10"; # run every 10 minutes
+        };
+      };
+
+      nixos-build-info-metric = {
+        wantedBy = [ "timers.target" ];
+        timerConfig = {
+          OnCalendar = "*:0/5"; # every 5 minutes — cheap, just reads a file
+          Persistent = true;
         };
       };
 
