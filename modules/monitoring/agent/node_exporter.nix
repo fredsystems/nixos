@@ -7,24 +7,13 @@
         serviceConfig = {
           Type = "oneshot";
           ExecStart = pkgs.writeShellScript "nixos-branch-metric.sh" ''
-            GIT=${pkgs.git}/bin/git
-            REPO_DIR="/home/fred/GitHub/nixos"
+            # For colmena-managed nodes there is no local git checkout.
+            # A clean build from a known commit written to
+            # /etc/nixos/configuration-revision is treated as "on main"
+            # (value=1). A dirty build or missing file emits 0.
+            REV=$(cat /etc/nixos/configuration-revision 2>/dev/null || echo "")
 
-            # If the repo doesn't exist on this node, emit no metric at all
-            # (appliance nodes like SDR hubs don't have a local checkout)
-            if [ ! -d "$REPO_DIR/.git" ]; then
-              rm -f /var/lib/node_exporter/textfiles/nixos_branch.prom
-              exit 0
-            fi
-
-            # Allow root to read a repo owned by fred
-            export GIT_CONFIG_COUNT=1
-            export GIT_CONFIG_KEY_0=safe.directory
-            export GIT_CONFIG_VALUE_0="$REPO_DIR"
-
-            branch=$($GIT -C "$REPO_DIR" rev-parse --abbrev-ref HEAD)
-
-            if [ "$branch" = "main" ]; then
+            if [[ -n "$REV" && "$REV" != "dirty" ]]; then
               value=1
             else
               value=0
@@ -56,6 +45,39 @@
         };
       };
 
+      nixos-build-info-metric = {
+        description = "Emit NixOS build SHA and deploy timestamp metrics";
+        serviceConfig = {
+          Type = "oneshot";
+          ExecStart = pkgs.writeShellScript "nixos-build-info-metric.sh" ''
+            HOST="${config.networking.hostName}"
+            SHA=$(cat /etc/nixos/configuration-revision 2>/dev/null || echo "dirty")
+            TS_FILE="/var/lib/node_exporter/textfiles/nixos_build_timestamp.val"
+
+            # Only update the timestamp when the SHA changes (i.e. a new deploy happened).
+            # We persist the last-seen SHA alongside the timestamp so we can detect this.
+            LAST_SHA_FILE="/var/lib/node_exporter/textfiles/nixos_build_last_sha"
+            LAST_SHA=$(cat "$LAST_SHA_FILE" 2>/dev/null || echo "")
+
+            mkdir -p /var/lib/node_exporter/textfiles
+
+            if [[ "$SHA" != "dirty" && "$SHA" != "$LAST_SHA" ]]; then
+              date +%s > "$TS_FILE"
+              echo "$SHA" > "$LAST_SHA_FILE"
+            fi
+
+            TS=$(cat "$TS_FILE" 2>/dev/null || echo "0")
+            SHORT_SHA=''${SHA:0:7}
+
+            cat > /var/lib/node_exporter/textfiles/nixos_build_info.prom <<EOF
+            # HELP nixos_build_info NixOS build info: SHA label + deploy timestamp
+            # TYPE nixos_build_info gauge
+            nixos_build_info{host="$HOST", sha="$SHA", short_sha="$SHORT_SHA"} $TS
+            EOF
+          '';
+        };
+      };
+
       nixos-revision-metric = {
         description = "Emit NixOS upstream revision metrics";
         serviceConfig = {
@@ -65,60 +87,56 @@
 
             CURL=${pkgs.curl}/bin/curl
             JQ=${pkgs.jq}/bin/jq
-            GIT=${pkgs.git}/bin/git
 
-            REPO_DIR="/home/fred/GitHub/nixos"
             OWNER="fredsystems"
             REPO="nixos"
             HOST="${config.networking.hostName}"
 
-            # --- Force Git to treat the repo as safe ---
-            export GIT_CONFIG_COUNT=1
-            export GIT_CONFIG_KEY_0=safe.directory
-            export GIT_CONFIG_VALUE_0="$REPO_DIR"
+            # --- Revision this system was actually built and activated from.
+            # Written persistently by the activationScript in mk-system.nix on
+            # every colmena apply, so it survives reboots and never requires a
+            # local git checkout on the node. ---
+            LOCAL=$(cat /etc/nixos/configuration-revision 2>/dev/null || echo "")
 
-            # --- Local commit (current checkout used for this system) ---
-            LOCAL=$($GIT -C "$REPO_DIR" rev-parse HEAD)
-
-            # --- Remote commit SHA from GitHub (main) ---
-            API_COMMIT="https://api.github.com/repos/$OWNER/$REPO/commits/main"
-            REMOTE=$($CURL -s "$API_COMMIT" | $JQ -r .sha)
-
-            if [[ "$REMOTE" = "null" || -z "$REMOTE" ]]; then
+            if [[ -z "$LOCAL" || "$LOCAL" = "dirty" ]]; then
+                # No recorded revision (pre-activation or dirty build) — emit
+                # zeroed metrics so the alert doesn't fire spuriously.
                 BEHIND=0
                 LAG=0
             else
-                # Compare REMOTE (base) ... LOCAL (head)
-                # ahead_by  = commits LOCAL has that REMOTE doesn't (local ahead)
-                # behind_by = commits REMOTE has that LOCAL doesn't (local behind)
-                API_COMPARE="https://api.github.com/repos/$OWNER/$REPO/compare/$REMOTE...$LOCAL"
-                COMPARE=$($CURL -s "$API_COMPARE")
+                # --- Remote commit SHA from GitHub (main) ---
+                API_COMMIT="https://api.github.com/repos/$OWNER/$REPO/commits/main"
+                REMOTE=$($CURL -s "$API_COMMIT" | $JQ -r .sha)
 
-                STATUS=$(echo "$COMPARE" | $JQ -r .status)
-                BEHIND_BY=$(echo "$COMPARE" | $JQ -r .behind_by)
-                AHEAD_BY=$(echo "$COMPARE" | $JQ -r .ahead_by)
+                if [[ "$REMOTE" = "null" || -z "$REMOTE" ]]; then
+                    # GitHub API unavailable — don't flip the alert
+                    BEHIND=0
+                    LAG=0
+                else
+                    # Compare LOCAL (base) ... REMOTE (head):
+                    # behind_by = commits REMOTE has that LOCAL doesn't
+                    #             i.e. how many commits the running system is behind main
+                    API_COMPARE="https://api.github.com/repos/$OWNER/$REPO/compare/$LOCAL...$REMOTE"
+                    COMPARE=$($CURL -s "$API_COMPARE")
 
-                # Default safe values
-                BEHIND=0
-                LAG=0
+                    BEHIND_BY=$(echo "$COMPARE" | $JQ -r .behind_by)
 
-                # If we actually got numbers, interpret them
-                if [[ "$BEHIND_BY" != "null" && "$BEHIND_BY" =~ ^[0-9]+$ ]]; then
-                    if [[ "$BEHIND_BY" -gt 0 ]]; then
-                        # Local is behind remote
-                        BEHIND=1
-                        LAG=$BEHIND_BY
-                    else
-                        # Not behind; could be identical or ahead
-                        BEHIND=0
-                        LAG=0
+                    # Default safe values
+                    BEHIND=0
+                    LAG=0
+
+                    if [[ "$BEHIND_BY" != "null" && "$BEHIND_BY" =~ ^[0-9]+$ ]]; then
+                        if [[ "$BEHIND_BY" -gt 0 ]]; then
+                            BEHIND=1
+                            LAG=$BEHIND_BY
+                        fi
                     fi
                 fi
             fi
 
             mkdir -p /var/lib/node_exporter/textfiles
 
-            cat <<EOF > /var/lib/node_exporter/textfiles/nixos_revision.prom
+            cat > /var/lib/node_exporter/textfiles/nixos_revision.prom <<EOF
             nixos_revision_behind{host="$HOST"} $BEHIND
             nixos_revision_lag{host="$HOST"} $LAG
             EOF
@@ -139,6 +157,14 @@
         wantedBy = [ "timers.target" ];
         timerConfig = {
           OnCalendar = "*:0/10"; # run every 10 minutes
+        };
+      };
+
+      nixos-build-info-metric = {
+        wantedBy = [ "timers.target" ];
+        timerConfig = {
+          OnCalendar = "*:0/5"; # every 5 minutes — cheap, just reads a file
+          Persistent = true;
         };
       };
 

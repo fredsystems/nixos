@@ -1,4 +1,5 @@
 
+REFACTOR_PLAN.md
 dotfiles/fred/.config/nvim/lazy-lock.json
 .direnv
 *.pre-commit-config.yaml

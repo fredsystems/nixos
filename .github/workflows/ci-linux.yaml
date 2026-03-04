@@ -76,22 +76,20 @@ jobs:
               - 'flake.lock'
               - 'modules/**'
               - 'profiles/**'
-              - 'shared/**'
-              - 'users/**'
+              - 'home-profiles/**'
+              - 'features/**'
+              - '!features/desktop/**'
               - 'dotfiles/**'
-              - 'packages/**'
-              - '!packages/desktop/**'
-              - 'hardware-profiles/**'
               - 'firmware.nix'
               - '.github/**'
               - '!.github/renovate.json5'
-            # Changes isolated to desktop packages — servers are unaffected.
+            # Changes isolated to desktop features — servers are unaffected.
             desktop_global:
-              - 'packages/desktop/**'
+              - 'features/desktop/**'
             # Machine-specific paths — we parse the dir names out of
             # `machine_files` when `global` is false.
             machine:
-              - 'systems-linux/**'
+              - 'hosts/linux/**'
 
       - name: Install Nix
         uses: DeterminateSystems/nix-installer-action@c5a866b6ab867e88becbed4467b93592bce69f8a # v21
@@ -149,11 +147,11 @@ jobs:
             echo "PR with no global changes — filtering to affected machines only"
 
             # `steps.filter.outputs.machine_files` is a JSON array of every
-            # changed path that matched systems-linux/**.  Extract the second
+            # changed path that matched hosts/linux/**.  Extract the third
             # path segment (the machine dir name, always lowercase) from each.
             machine_files='${{ steps.filter.outputs.machine_files }}'
             changed_machines=$(echo "$machine_files" \
-              | jq -r '.[] | split("/")[1]' \
+              | jq -r '.[] | split("/")[2]' \
               | sort -u)
 
             echo "Changed machine dirs: $(echo "$changed_machines" | tr '\n' ' ')"
@@ -163,17 +161,17 @@ jobs:
 
             for sys in "${all_servers[@]}"; do
               # The nixosConfiguration attribute name may differ in case from
-              # the directory name (e.g. "Daytona" lives in systems-linux/daytona/).
+              # the directory name (e.g. "Daytona" lives in hosts/linux/daytona/).
               sys_lower=$(echo "$sys" | tr '[:upper:]' '[:lower:]')
               if echo "$changed_machines" | grep -qx "$sys_lower"; then
                 filtered_servers+=("$sys")
               fi
             done
 
-            # packages/desktop is isolated from server systems — a change there
+            # features/desktop is isolated from server systems — a change there
             # forces all desktops to rebuild but leaves the server list as-is.
             if [ "$desktop_global_changed" = "true" ]; then
-              echo "Desktop-global change detected (packages/desktop/**) — building all desktops"
+              echo "Desktop-global change detected (features/desktop/**) — building all desktops"
               filtered_desktops=("${all_desktops[@]}")
             else
               for sys in "${all_desktops[@]}"; do

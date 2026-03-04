@@ -4,7 +4,6 @@
 
 # --- User paths and common dirs ---
 GITHUB_DIR="${HOME}/GitHub"
-ANSIBLE_DIR="${HOME}/.ansible"
 export PRE_COMMIT_COLOR="never"
 
 # OG cat function

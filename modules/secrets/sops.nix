@@ -3,7 +3,7 @@
   pkgs,
   inputs,
   lib,
-  system,
+  isDarwin,
   user,
   sopsNixInput ? inputs.sops-nix,
   ...
@@ -12,7 +12,6 @@ with lib;
 let
   cfg = config.sops_secrets.enable_secrets;
   username = user;
-  isDarwin = lib.hasSuffix "darwin" system;
   isLinux = !isDarwin;
 
   homeDir = if isDarwin then "/Users/${username}" else "/home/${username}";

@@ -27,7 +27,6 @@
 
     apple-fonts = {
       url = "github:Lyndeno/apple-fonts.nix";
-      #url = "github:fredclausen/apple-fonts.nix";
     };
 
     home-manager = {
@@ -41,7 +40,6 @@
 
     nixvim = {
       url = "github:nix-community/nixvim";
-      #inputs.nixpkgs.follows = "nixpkgs";
     };
 
     niri = {
@@ -74,13 +72,17 @@
     };
 
     fredbar = {
-      #url = "path:/home/fred/GitHub/fred-bar";
       url = "github:FredSystems/fred-bar";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
     solaar = {
       url = "github:Svenum/Solaar-Flake";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+    colmena = {
+      url = "github:zhaofengli/colmena";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -103,79 +105,57 @@
       catppuccin-stable,
       sops-nix-stable,
       apple-fonts,
-      precommit-base,
       nixvim,
       niri,
       darwin,
       walls-catppuccin,
       solaar,
+      colmena,
       ...
     }:
 
     let
-      # centralize username in one place
+      ##########################################################################
+      ## Identity                                                             ##
+      ##########################################################################
+
       user = "fred";
       verbose_name = "Fred Clausen";
       github_email = "43556888+fredclausen@users.noreply.github.com";
       github_signing_key = "~/.ssh/id_ed25519_sk.pub";
       hmlib = home-manager.lib;
 
-      # TODO: Remove once nixpkgs PR #494721 lands in nixos-unstable (commit b097075 on master).
-      # The notoSubset runCommand uses a broken shell glob for the "still" variant's font config.
-      # See: https://github.com/NixOS/nixpkgs/pull/494721
-      libreofficeNotoFixOverlay =
-        _: prev:
-        let
-          fixedFontsConf = prev.makeFontsConf {
-            fontDirectories = with prev; [
-              amiri
-              caladea
-              carlito
-              culmus
-              dejavu_fonts
-              rubik
-              liberation-sans-narrow
-              liberation_ttf_v2
-              libertine
-              linux-libertine-g
-              noto-fonts-lgc-plus
-              noto-fonts
-              noto-fonts-cjk-sans
-            ];
-          };
-          fixUnwrapped =
-            pkg:
-            pkg.overrideAttrs (old: {
-              env = (old.env or { }) // {
-                FONTCONFIG_FILE = fixedFontsConf;
-              };
-            });
-        in
-        {
-          libreoffice-qt = prev.libreoffice-qt.override {
-            unwrapped = fixUnwrapped prev.libreoffice-qt.unwrapped;
-          };
-          libreoffice-qt-still = prev.libreoffice-qt-still.override {
-            unwrapped = fixUnwrapped prev.libreoffice-qt-still.unwrapped;
-          };
-          libreoffice-still = prev.libreoffice-still.override {
-            unwrapped = fixUnwrapped prev.libreoffice-still.unwrapped;
-          };
-          libreoffice-fresh = prev.libreoffice-fresh.override {
-            unwrapped = fixUnwrapped prev.libreoffice-fresh.unwrapped;
-          };
-        };
+      ##########################################################################
+      ## Supported systems                                                    ##
+      ##########################################################################
+
+      supportedSystems = [
+        "x86_64-linux"
+        "aarch64-darwin"
+      ];
+      forAllSystems = nixpkgs.lib.genAttrs supportedSystems;
+
+      ##########################################################################
+      ## Server node table                                                    ##
+      ##                                                                      ##
+      ## Edit flake/hosts/servers.nix to add / change server machines.       ##
+      ##########################################################################
+
+      serverNodes = import ./flake/hosts/servers.nix;
+
+      ##########################################################################
+      ## Monitoring topology                                                  ##
+      ##                                                                      ##
+      ## Derived lazily from nixosConfigurations — resolved via the self      ##
+      ## fixed-point so the ordering of outputs does not matter.             ##
+      ##########################################################################
 
       agentNodes = builtins.filter (
         name: self.nixosConfigurations.${name}.config.deployment.role == "monitoring-agent"
       ) (builtins.attrNames self.nixosConfigurations);
 
-      # Turn each node name into actual DNS/IP scrape targets
       agentTargets = map (name: "${name}.local") agentNodes;
 
-      # Map of hostname -> scrape address for Prometheus.
-      # Uses deployment.scrapeAddress when set (e.g. a Tailscale MagicDNS name),
-      # otherwise falls back to <hostname>.local for LAN nodes.
       agentScrapeMap = builtins.listToAttrs (
         map (name: {
           inherit name;
@@ -187,402 +167,123 @@
         }) agentNodes
       );
 
-      supportedSystems = [
-        "x86_64-linux"
-        "aarch64-darwin"
-      ];
-      forAllSystems = nixpkgs.lib.genAttrs supportedSystems;
+      ##########################################################################
+      ## Shared arguments                                                     ##
+      ##                                                                      ##
+      ## Passed into every flake/* importer.  Files destructure what they    ##
+      ## need and ignore the rest via `...`.                                  ##
+      ##########################################################################
+
+      sharedArgs = {
+        inherit
+          inputs
+          self
+          user
+          verbose_name
+          github_email
+          github_signing_key
+          hmlib
+          serverNodes
+          agentNodes
+          agentTargets
+          agentScrapeMap
+          forAllSystems
+          # Channel inputs used as defaults for server nodes
+          nixpkgs-stable
+          home-manager-stable
+          catppuccin-stable
+          sops-nix-stable
+          # Flake inputs required by lib functions / modules
+          nixpkgs
+          home-manager
+          catppuccin
+          darwin
+          nixvim
+          niri
+          apple-fonts
+          solaar
+          colmena
+          walls-catppuccin
+          ;
+      };
     in
     {
-      packages = forAllSystems (
-        system:
-        let
-          pkgs = import nixpkgs { inherit system; };
-        in
-        {
-          catppuccin-wallpapers = pkgs.stdenvNoCC.mkDerivation {
-            pname = "catppuccin-wallpapers";
-            version = "git";
+      ##########################################################################
+      ## Library functions                                                    ##
+      ##########################################################################
 
-            src = walls-catppuccin;
+      lib = {
+        # Build a NixOS system.  Also exposes _colmena so the colmena output
+        # can reuse the same modules without duplication.
+        mkSystem = import ./flake/lib/mk-system.nix sharedArgs;
 
-            installPhase = ''
-              mkdir -p $out/share/backgrounds
-              cp -r . $out/share/backgrounds/
-            '';
-          };
-        }
-      );
+        # Build a nix-darwin system.
+        mkDarwinSystem = import ./flake/lib/mk-darwin-system.nix sharedArgs;
+      };
 
       ##########################################################################
-      ## Exported Modules (for use in other flakes)                          ##
+      ## Exported modules (for use in other flakes)                          ##
       ##########################################################################
 
       nixosModules = {
         # Profiles
-        desktop-common = import ./profiles/desktop-common.nix;
+        desktop-common = import ./profiles/desktop.nix;
         adsb-hub = import ./profiles/adsb-hub.nix;
 
         # Hardware profiles (as a bundle)
-        hardware-profiles = import ./hardware-profiles;
+        hardware-profiles = import ./modules/hardware;
 
         # Individual hardware modules
-        hardware-i2c = import ./hardware-profiles/i2c.nix;
-        hardware-graphics = import ./hardware-profiles/graphics.nix;
-        hardware-fingerprint = import ./hardware-profiles/fingerprint.nix;
-        hardware-u2f = import ./hardware-profiles/u2f.nix;
-        hardware-rtl-sdr = import ./hardware-profiles/rtl-sdr.nix;
-        hardware-logitech = import ./hardware-profiles/logitech.nix;
+        hardware-i2c = import ./modules/hardware/i2c.nix;
+        hardware-graphics = import ./modules/hardware/graphics.nix;
+        hardware-fingerprint = import ./modules/hardware/fingerprint.nix;
+        hardware-u2f = import ./modules/hardware/u2f.nix;
+        hardware-rtl-sdr = import ./modules/hardware/rtl-sdr.nix;
+        hardware-logitech = import ./modules/hardware/logitech.nix;
 
         # Shared modules
-        nas-mounts = import ./shared/nas-mounts.nix;
-        wifi-networks = import ./shared/wifi-networks.nix;
-        sync-hosts = import ./shared/sync-hosts.nix;
+        nas-mounts = import ./modules/data/nas-mounts.nix;
+        wifi-networks = import ./modules/data/wifi-networks.nix;
+        sync-hosts = import ./modules/data/sync-hosts.nix;
 
         # Service modules
-        github-runners = import ./modules/github-runners.nix;
+        github-runners = import ./modules/services/github-runners.nix;
 
         # Default: all common modules
         default = {
           imports = [
-            ./profiles/desktop-common.nix
+            ./profiles/desktop.nix
             ./profiles/adsb-hub.nix
-            ./hardware-profiles
-            ./shared/nas-mounts.nix
-            ./shared/wifi-networks.nix
-            ./shared/sync-hosts.nix
-            ./modules/github-runners.nix
+            ./modules/hardware
+            ./modules/data/nas-mounts.nix
+            ./modules/data/wifi-networks.nix
+            ./modules/data/sync-hosts.nix
+            ./modules/services/github-runners.nix
           ];
         };
       };
 
       homeModules = {
-        # Home-manager desktop profile
-        home-desktop = import ./profiles/home-desktop.nix;
-
-        # Default
-        default = import ./profiles/home-desktop.nix;
-      };
-
-      lib.mkSystem =
-        {
-          hostName,
-          hmModules ? [ ],
-          extraModules ? [ ],
-          stateVersion ? "24.11",
-          system ? "x86_64-linux",
-          extraUsers ? [ ],
-          # Override these four to put a host on a different nixpkgs channel.
-          # Defaults to nixos-unstable + matching home-manager/catppuccin/sops-nix branches.
-          pkgsInput ? nixpkgs,
-          hmInput ? home-manager,
-          catppuccinInput ? catppuccin,
-          sopsNixInput ? inputs.sops-nix,
-          # Set to true for desktop systems — gates the desktop package tree.
-          # Desktop systems are always on unstable; servers may be on stable.
-          isDesktop ? false,
-        }:
-        pkgsInput.lib.nixosSystem {
-          specialArgs = {
-            inherit
-              inputs
-              user
-              extraUsers
-              verbose_name
-              github_email
-              github_signing_key
-              hmlib
-              system
-              stateVersion
-              agentNodes
-              agentTargets
-              agentScrapeMap
-              isDesktop
-              catppuccinInput
-              sopsNixInput
-              ;
-
-            catppuccinWallpapers = self.packages.${system}.catppuccin-wallpapers;
-          };
-
-          modules = [
-            ./modules/deployment-meta.nix
-            ./systems-linux/${hostName}/configuration.nix
-            ./modules/common/system.nix
-            # TODO: Remove once nixpkgs PR #494721 lands in nixos-unstable.
-            # The overlay is a no-op on stable (the bug never existed there),
-            # so it is safe to apply unconditionally across all channels.
-            { nixpkgs.overlays = [ libreofficeNotoFixOverlay ]; }
-            hmInput.nixosModules.home-manager
-            {
-              home-manager = {
-                useGlobalPkgs = true;
-                useUserPackages = true;
-
-                users.${user} = {
-                  # shared HM baseline
-                  imports = [
-                    ./modules/common/home.nix
-                    ./modules/attic/attic_client.nix
-                  ]
-                  ++ hmModules;
-                };
-
-                extraSpecialArgs = {
-                  inherit
-                    inputs
-                    self
-                    user
-                    verbose_name
-                    hmlib
-                    github_email
-                    github_signing_key
-                    catppuccin
-                    catppuccinInput
-                    apple-fonts
-                    nixvim
-                    niri
-                    stateVersion
-                    system
-                    ;
-                };
-              };
-            }
-          ]
-          ++ extraModules;
-        };
-
-      lib.mkDarwinSystem =
-        {
-          hostName,
-          hmModules ? [ ],
-          extraModules ? [ ],
-          stateVersion ? "25.05",
-          system ? "aarch64-darwin",
-        }:
-        darwin.lib.darwinSystem {
-          specialArgs = {
-            inherit
-              inputs
-              system
-              user
-              verbose_name
-              github_email
-              github_signing_key
-              hmlib
-              stateVersion
-              ;
-          };
-
-          modules = [
-            ./modules/deployment-meta.nix
-            ./modules/common/system.nix
-            ./systems-darwin/${hostName}/configuration.nix
-            home-manager.darwinModules.home-manager
-
-            {
-              home-manager = {
-                useGlobalPkgs = true;
-                useUserPackages = true;
-
-                users.${user} = {
-                  imports = [ ./modules/common/home.nix ] ++ hmModules;
-
-                  catppuccin = {
-                    enable = true;
-                    flavor = "mocha";
-                    accent = "lavender";
-                  };
-                };
-
-                extraSpecialArgs = {
-                  inherit
-                    inputs
-                    self
-                    system
-                    user
-                    verbose_name
-                    hmlib
-                    github_email
-                    github_signing_key
-                    catppuccin
-                    nixvim
-                    stateVersion
-                    ;
-                };
-              };
-
-              # Darwin Nix settings
-              nix = {
-                optimise.automatic = true;
-                settings.experimental-features = [
-                  "nix-command"
-                  "flakes"
-                ];
-              };
-            }
-          ]
-          ++ extraModules;
-        };
-
-      ##########################################################################
-      ## System Definitions                                                  ##
-      ##########################################################################
-
-      nixosConfigurations = {
-        Daytona = self.lib.mkSystem {
-          hostName = "daytona";
-          isDesktop = true;
-          hmModules = [
-            ./systems-linux/daytona/home.nix
-          ];
-          extraModules = [
-            solaar.nixosModules.default
-          ];
-        };
-
-        maranello = self.lib.mkSystem {
-          hostName = "maranello";
-          isDesktop = true;
-          hmModules = [ ./systems-linux/maranello/home.nix ];
-          extraModules = [
-            solaar.nixosModules.default
-          ];
-        };
-
-        sdrhub = self.lib.mkSystem {
-          hostName = "sdrhub";
-          hmModules = [ ];
-          pkgsInput = nixpkgs-stable;
-          hmInput = home-manager-stable;
-          catppuccinInput = catppuccin-stable;
-          sopsNixInput = sops-nix-stable;
-        };
-
-        fredhub = self.lib.mkSystem {
-          hostName = "fredhub";
-          stateVersion = "25.11";
-          hmModules = [ ];
-          pkgsInput = nixpkgs-stable;
-          hmInput = home-manager-stable;
-          catppuccinInput = catppuccin-stable;
-          sopsNixInput = sops-nix-stable;
-        };
-
-        fredvps = self.lib.mkSystem {
-          hostName = "fredvps";
-          stateVersion = "25.05";
-          extraUsers = [ "nik" ];
-          hmModules = [ ];
-          pkgsInput = nixpkgs-stable;
-          hmInput = home-manager-stable;
-          catppuccinInput = catppuccin-stable;
-          sopsNixInput = sops-nix-stable;
-          extraModules = [
-            {
-              home-manager.users.nik = {
-                imports = [
-                  ./systems-linux/fredvps/nik-home.nix
-                  ./modules/attic/attic_client.nix
-                ];
-              };
-            }
-          ];
-        };
-
-        acarshub = self.lib.mkSystem {
-          hostName = "acarshub";
-          hmModules = [ ];
-          pkgsInput = nixpkgs-stable;
-          hmInput = home-manager-stable;
-          catppuccinInput = catppuccin-stable;
-          sopsNixInput = sops-nix-stable;
-        };
-
-        vdlmhub = self.lib.mkSystem {
-          hostName = "vdlmhub";
-          hmModules = [ ];
-          pkgsInput = nixpkgs-stable;
-          hmInput = home-manager-stable;
-          catppuccinInput = catppuccin-stable;
-          sopsNixInput = sops-nix-stable;
-        };
-
-        hfdlhub1 = self.lib.mkSystem {
-          hostName = "hfdlhub1";
-          hmModules = [ ];
-          pkgsInput = nixpkgs-stable;
-          hmInput = home-manager-stable;
-          catppuccinInput = catppuccin-stable;
-          sopsNixInput = sops-nix-stable;
-        };
-
-        hfdlhub2 = self.lib.mkSystem {
-          hostName = "hfdlhub2";
-          hmModules = [ ];
-          pkgsInput = nixpkgs-stable;
-          hmInput = home-manager-stable;
-          catppuccinInput = catppuccin-stable;
-          sopsNixInput = sops-nix-stable;
-        };
-      };
-
-      # https://github.com/NixOS/nix-installer
-      # sudo -i nix upgrade-nix
-      darwinConfigurations = {
-        "Freds-MacBook-Pro" = self.lib.mkDarwinSystem {
-          hostName = "Freds-MacBook-Pro";
-          hmModules = [ ./systems-darwin/Freds-MacBook-Pro/home.nix ];
-        };
-
-        "Freds-Mac-Studio" = self.lib.mkDarwinSystem {
-          hostName = "Freds-Mac-Studio";
-          hmModules = [ ./systems-darwin/Freds-MacBook-Pro/home.nix ];
-        };
+        home-desktop = import ./home-profiles/desktop.nix;
+        default = import ./home-profiles/desktop.nix;
       };
 
       ##########################################################################
-      ## Pre-commit checks (per system)                                       ##
+      ## System configurations                                                ##
       ##########################################################################
 
-      checks = forAllSystems (system: {
-        pre-commit-check = precommit-base.lib.mkCheck {
-          inherit system;
+      nixosConfigurations = import ./flake/hosts/nixos.nix sharedArgs;
 
-          src = ./.;
+      darwinConfigurations = import ./flake/hosts/darwin.nix sharedArgs;
+    }
 
-          extraExcludes = [
-            "secrets.yaml"
-            "tsconfig.json"
-          ];
-        };
-      });
+    ##########################################################################
+    ## Deployment, packages, checks, dev shell                              ##
+    ## Each file returns an attrset that is merged into the outputs.        ##
+    ##########################################################################
 
-      ##########################################################################
-      ## Dev shells (per system, Rust-free)                                   ##
-      ##########################################################################
-      devShells = forAllSystems (
-        system:
-        let
-          pkgs = import nixpkgs { inherit system; };
-          inherit (self.checks.${system}.pre-commit-check) shellHook enabledPackages;
-        in
-        {
-          default = pkgs.mkShell {
-            # Bring in the hook packages + extra tools
-            buildInputs =
-              enabledPackages
-              ++ (with pkgs; [
-                nodejs
-                nodePackages.typescript
-              ]);
-
-            shellHook = ''
-              # Run git-hooks.nix setup (creates .pre-commit-config.yaml)
-              ${shellHook}
-            '';
-          };
-        }
-      );
-    };
+    // import ./flake/deployment/colmena.nix sharedArgs
+    // import ./flake/dev/packages.nix sharedArgs
+    // import ./flake/dev/checks.nix sharedArgs
+    // import ./flake/dev/shell.nix sharedArgs;
 }

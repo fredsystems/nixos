@@ -27,10 +27,6 @@ alias rds="remove_dsstore"
 alias cat="bat --color always"
 alias c="zed ."
 
-alias updatedocker="updatedocker_ansible"
-alias updatesystems="updatesystems_ansible"
-alias rebootsystem="rebootsystem_ansible"
-
 alias nr="updatenix"
 alias nd="garbagecollect"
 alias pc="pushcache"

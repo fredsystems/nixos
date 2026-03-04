@@ -45,6 +45,13 @@
       group = "grafana";
       mode = "0444";
     };
+
+    "grafana/provisioning/dashboards/fleet/fleet-overview.json" = {
+      source = ./dashboards/fleet-overview.json;
+      user = "grafana";
+      group = "grafana";
+      mode = "0444";
+    };
   };
 
   services = {
@@ -80,6 +87,7 @@
                 url = "http://127.0.0.1:9090";
                 access = "proxy";
                 isDefault = true;
+                uid = "PBFA97CFB590B2093";
               }
 
               {
@@ -88,6 +96,7 @@
                 access = "proxy";
                 url = "http://localhost:5678";
                 isDefault = false;
+                uid = "P8E80F9AEF21F6940";
               }
             ];
           };
@@ -134,6 +143,19 @@
 
                 options = {
                   path = "/etc/grafana/provisioning/dashboards/adsb";
+                };
+              }
+
+              {
+                name = "fleet";
+                orgId = 1;
+                folder = "Fleet";
+                type = "file";
+                disableDeletion = true;
+                updateIntervalSeconds = 60;
+
+                options = {
+                  path = "/etc/grafana/provisioning/dashboards/fleet";
                 };
               }
             ];
