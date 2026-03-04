@@ -7,7 +7,7 @@
 }:
 let
   monitors = import ./monitors.nix;
-  hyprMonitors = import ../../modules/monitors/hyprland.nix {
+  hyprMonitors = import ../../modules/compositors/hyprland.nix {
     inherit lib monitors;
   };
 in

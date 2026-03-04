@@ -1,4 +1,4 @@
-# modules/monitors/model.nix
+# modules/compositors/model.nix (monitor data for maranello)
 {
   DP-3 = {
     width = 2560;

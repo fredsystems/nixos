@@ -1,4 +1,4 @@
-# modules/monitors/renderers/hyprland.nix
+# modules/compositors/hyprland.nix
 { lib, monitors }:
 
 lib.mapAttrsToList (

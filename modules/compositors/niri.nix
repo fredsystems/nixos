@@ -1,4 +1,4 @@
-# modules/monitors/renderers/niri.nix
+# modules/compositors/niri.nix
 { monitors }:
 
 builtins.mapAttrs (_: m: {
