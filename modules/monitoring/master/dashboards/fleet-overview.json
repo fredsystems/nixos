@@ -472,6 +472,7 @@
           "options": {
             "renameByName": {
               "host": "Host",
+              "hostname": "Host",
               "short_sha": "SHA",
               "Value #build": "Last Deployed",
               "Value #behind": "Behind Main",
@@ -481,11 +482,7 @@
             },
             "excludeByName": {
               "Time": true,
-              "sha": true,
-              "instance": true,
-              "job": true,
-              "role": true,
-              "exporter": true
+              "sha": true
             },
             "indexByName": {
               "Host": 0,
@@ -503,7 +500,7 @@
         {
           "refId": "build",
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "nixos_build_info",
+          "expr": "max by (host, short_sha) (nixos_build_info)",
           "instant": true,
           "legendFormat": "__auto",
           "format": "table"
@@ -511,7 +508,7 @@
         {
           "refId": "behind",
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "nixos_revision_behind",
+          "expr": "max by (host) (nixos_revision_behind)",
           "instant": true,
           "legendFormat": "__auto",
           "format": "table"
@@ -519,7 +516,7 @@
         {
           "refId": "lag",
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "nixos_revision_lag",
+          "expr": "max by (host) (nixos_revision_lag)",
           "instant": true,
           "legendFormat": "__auto",
           "format": "table"
@@ -527,7 +524,7 @@
         {
           "refId": "reboot",
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "nixos_needs_reboot",
+          "expr": "max by (host) (nixos_needs_reboot)",
           "instant": true,
           "legendFormat": "__auto",
           "format": "table"
@@ -535,7 +532,7 @@
         {
           "refId": "up",
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "up{job=\"node\"}",
+          "expr": "max by (hostname) (up{job=\"node\"})",
           "instant": true,
           "legendFormat": "__auto",
           "format": "table"
