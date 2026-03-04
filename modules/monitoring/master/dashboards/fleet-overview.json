@@ -472,7 +472,6 @@
           "options": {
             "renameByName": {
               "host": "Host",
-              "hostname": "Host",
               "short_sha": "SHA",
               "Value #build": "Last Deployed",
               "Value #behind": "Behind Main",
@@ -532,7 +531,7 @@
         {
           "refId": "up",
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "max by (hostname) (up{job=\"node\"})",
+          "expr": "max by (host) (label_replace(up{job=\"node\"}, \"host\", \"$1\", \"hostname\", \"(.*)\"))",
           "instant": true,
           "legendFormat": "__auto",
           "format": "table"
