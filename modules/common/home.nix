@@ -25,7 +25,7 @@ in
   ## Shared Home-Manager module imports
   ##########################################################################
   imports = [
-    ../../users/homemanager/default.nix
+    ../../modules/base/home-base.nix
     catppuccinInput.homeModules.catppuccin
     inputs.nixvim.homeModules.nixvim
   ]

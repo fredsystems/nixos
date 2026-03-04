@@ -13,10 +13,10 @@ let
   nikGithubEmail = "nik@placeholder.example"; # TODO: replace with real email (github: shake-py)
 in
 {
-  # users/homemanager/default.nix gives us: home.stateVersion + linux-xdg.nix
+  # modules/base/home-base.nix gives us: home.stateVersion + xdg.nix
   # (xdg dirs, mimeApps, fontconfig) — no user-specific fields, safe to reuse.
   imports = [
-    ../../users/homemanager/default.nix
+    ../../modules/base/home-base.nix
     inputs.catppuccin.homeModules.catppuccin
     inputs.nixvim.homeModules.nixvim
   ];

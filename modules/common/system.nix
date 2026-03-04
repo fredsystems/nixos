@@ -23,7 +23,7 @@ in
     # options so it is restricted to desktop systems (always on unstable).
     ++ lib.optional isLinux catppuccinInput.nixosModules.catppuccin
     ++ lib.optional isLinux ../../features
-    ++ lib.optional isLinux ../../users
+    ++ lib.optional isLinux ../../modules/base/user.nix
     ++ lib.optional (isLinux && isDesktop) ./linux-catpuccin.nix;
 
   nix = {
