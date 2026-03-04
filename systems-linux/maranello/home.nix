@@ -14,7 +14,7 @@ in
 {
   # Host-specific Home Manager config for maranello
   imports = [
-    ../../profiles/home-desktop.nix
+    ../../home-profiles/desktop.nix
   ];
 
   # Maranello-specific Home Manager settings

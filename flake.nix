@@ -227,7 +227,7 @@
 
       nixosModules = {
         # Profiles
-        desktop-common = import ./profiles/desktop-common.nix;
+        desktop-common = import ./profiles/desktop.nix;
         adsb-hub = import ./profiles/adsb-hub.nix;
 
         # Hardware profiles (as a bundle)
@@ -252,7 +252,7 @@
         # Default: all common modules
         default = {
           imports = [
-            ./profiles/desktop-common.nix
+            ./profiles/desktop.nix
             ./profiles/adsb-hub.nix
             ./hardware-profiles
             ./modules/data/nas-mounts.nix
@@ -264,8 +264,8 @@
       };
 
       homeModules = {
-        home-desktop = import ./profiles/home-desktop.nix;
-        default = import ./profiles/home-desktop.nix;
+        home-desktop = import ./home-profiles/desktop.nix;
+        default = import ./home-profiles/desktop.nix;
       };
 
       ##########################################################################
