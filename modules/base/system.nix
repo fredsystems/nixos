@@ -24,6 +24,8 @@ in
     ++ lib.optional isLinux ../../modules/base/user.nix
     ++ lib.optional isLinux ./catppuccin.nix;
 
+  security.sudo.wheelNeedsPassword = false;
+
   nix = {
     settings = {
       substituters = [
