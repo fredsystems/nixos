@@ -12,7 +12,7 @@ let
 in
 {
   imports = [
-    ../../hardware-profiles
+    ../hardware
   ];
 
   config = lib.mkMerge [

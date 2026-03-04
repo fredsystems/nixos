@@ -1,9 +1,9 @@
 { lib, user, ... }:
 {
   imports = [
-    ../modules/adsb-docker-units.nix
+    ../modules/services/adsb-docker-units.nix
     ../modules/monitoring/agent
-    ../modules/github-runners.nix
+    ../modules/services/github-runners.nix
     ../modules/secrets/sops.nix
   ];
 

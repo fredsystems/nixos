@@ -7,15 +7,15 @@
 
 {
   imports = [
-    ../hardware-profiles
-    ../modules/nas-system.nix
+    ../modules/hardware
+    ../modules/services/nas-system.nix
     ../modules/secrets/sops.nix
     ../modules/data/nas-mounts.nix
     ../modules/data/wifi-networks.nix
   ];
 
   options.profile.desktop = {
-    # Hardware profile options are now in hardware-profiles/*
+    # Hardware profile options are now in modules/hardware/*
   };
 
   config = lib.mkMerge [

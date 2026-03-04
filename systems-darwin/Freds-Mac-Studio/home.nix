@@ -13,7 +13,7 @@ in
 
   imports = [
     ../../modules/data/sync-hosts.nix
-    ../../modules/sync-compose.nix
+    ../../modules/services/sync-compose.nix
   ];
 
   services.yubikey-agent.enable = true;

@@ -30,7 +30,7 @@ in
     inputs.nixvim.homeModules.nixvim
   ]
   ++ lib.optional isLinux inputs.niri.homeModules.niri
-  ++ lib.optional isLinux ./linux-common.nix;
+  ++ lib.optional isLinux ./home-linux.nix;
 
   ##########################################################################
   ## .gitconfig — fully generated

@@ -7,10 +7,10 @@
   imports = [
     ./hardware-configuration.nix
     ../../modules/secrets/sops.nix
-    ../../modules/adsb-docker-units.nix
+    ../../modules/services/adsb-docker-units.nix
     ../../modules/monitoring/master
     ../../modules/monitoring/agent
-    ../../modules/tailscale
+    ../../modules/services/tailscale
   ];
 
   deployment.role = "monitoring-master";

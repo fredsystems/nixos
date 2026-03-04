@@ -53,8 +53,8 @@ darwin.lib.darwinSystem {
     (_: {
       nixpkgs.overlays = [ (import ./../../overlays/default.nix) ];
     })
-    ../../modules/deployment-meta.nix
-    ../../modules/common/system.nix
+    ../../modules/base/deployment-meta.nix
+    ../../modules/base/system.nix
     ../../systems-darwin/${hostName}/configuration.nix
     home-manager.darwinModules.home-manager
 
@@ -64,7 +64,7 @@ darwin.lib.darwinSystem {
         useUserPackages = true;
 
         users.${user} = {
-          imports = [ ../../modules/common/home.nix ] ++ hmModules;
+          imports = [ ../../modules/base/home.nix ] ++ hmModules;
 
           catppuccin = {
             enable = true;

@@ -8,7 +8,7 @@
   imports = [
     ./hardware-configuration.nix
     ../../profiles/adsb-hub.nix
-    ../../modules/attic/attic_server.nix
+    ../../modules/services/attic/attic_server.nix
   ];
 
   ai.local-llm = {

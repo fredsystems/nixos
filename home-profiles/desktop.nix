@@ -13,8 +13,8 @@ in
     inputs.fredbar.homeManagerModules.fredbar
     ../modules/data/sync-hosts.nix
     ../modules/data/nas-mounts.nix
-    ../modules/sync-compose.nix
-    ../modules/nas-home.nix
+    ../modules/services/sync-compose.nix
+    ../modules/services/nas-home.nix
   ];
 
   programs.sync-compose = {

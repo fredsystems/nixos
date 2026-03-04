@@ -8,7 +8,7 @@
   imports = [
     ./hardware-configuration.nix
     ../../profiles/adsb-hub.nix
-    ../../modules/tailscale
+    ../../modules/services/tailscale
     ./nginx.nix
   ];
 

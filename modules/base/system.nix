@@ -2,7 +2,7 @@
   inputs,
   lib,
   isDarwin,
-  isDesktop ? false,
+
   catppuccinInput ? inputs.catppuccin,
   ...
 }:
@@ -13,18 +13,16 @@ in
 {
   imports =
     lib.optional isDarwin inputs.home-manager.darwinModules.default
-    ++ lib.optional isDarwin ../homebrew.nix
+    ++ lib.optional isDarwin ../services/homebrew.nix
     # Linux-only NixOS modules
     # catppuccin NixOS module is needed on all Linux systems (e.g. GRUB theming
-    # in packages/common/boot).  Use catppuccinInput so stable systems get a
+    # in features/common/boot).  Use catppuccinInput so stable systems get a
     # catppuccin build whose nixpkgs dependency matches their channel.
-    # linux-catpuccin.nix sets catppuccin.enable = true which implicitly enables
-    # GTK icon theming; that in turn references unstable-only display manager
-    # options so it is restricted to desktop systems (always on unstable).
+    # catppuccin.nix sets catppuccin.enable = true for all Linux systems.
     ++ lib.optional isLinux catppuccinInput.nixosModules.catppuccin
     ++ lib.optional isLinux ../../features
     ++ lib.optional isLinux ../../modules/base/user.nix
-    ++ lib.optional (isLinux && isDesktop) ./linux-catpuccin.nix;
+    ++ lib.optional isLinux ./catppuccin.nix;
 
   nix = {
     settings = {

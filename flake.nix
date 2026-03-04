@@ -231,15 +231,15 @@
         adsb-hub = import ./profiles/adsb-hub.nix;
 
         # Hardware profiles (as a bundle)
-        hardware-profiles = import ./hardware-profiles;
+        hardware-profiles = import ./modules/hardware;
 
         # Individual hardware modules
-        hardware-i2c = import ./hardware-profiles/i2c.nix;
-        hardware-graphics = import ./hardware-profiles/graphics.nix;
-        hardware-fingerprint = import ./hardware-profiles/fingerprint.nix;
-        hardware-u2f = import ./hardware-profiles/u2f.nix;
-        hardware-rtl-sdr = import ./hardware-profiles/rtl-sdr.nix;
-        hardware-logitech = import ./hardware-profiles/logitech.nix;
+        hardware-i2c = import ./modules/hardware/i2c.nix;
+        hardware-graphics = import ./modules/hardware/graphics.nix;
+        hardware-fingerprint = import ./modules/hardware/fingerprint.nix;
+        hardware-u2f = import ./modules/hardware/u2f.nix;
+        hardware-rtl-sdr = import ./modules/hardware/rtl-sdr.nix;
+        hardware-logitech = import ./modules/hardware/logitech.nix;
 
         # Shared modules
         nas-mounts = import ./modules/data/nas-mounts.nix;
@@ -247,18 +247,18 @@
         sync-hosts = import ./modules/data/sync-hosts.nix;
 
         # Service modules
-        github-runners = import ./modules/github-runners.nix;
+        github-runners = import ./modules/services/github-runners.nix;
 
         # Default: all common modules
         default = {
           imports = [
             ./profiles/desktop.nix
             ./profiles/adsb-hub.nix
-            ./hardware-profiles
+            ./modules/hardware
             ./modules/data/nas-mounts.nix
             ./modules/data/wifi-networks.nix
             ./modules/data/sync-hosts.nix
-            ./modules/github-runners.nix
+            ./modules/services/github-runners.nix
           ];
         };
       };

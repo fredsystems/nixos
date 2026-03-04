@@ -105,9 +105,9 @@ let
         nixpkgs.overlays = [ (import ./../../overlays/default.nix) ];
       }
     )
-    ./../../modules/deployment-meta.nix
+    ./../../modules/base/deployment-meta.nix
     ./../../systems-linux/${hostName}/configuration.nix
-    ./../../modules/common/system.nix
+    ./../../modules/base/system.nix
     hmInput.nixosModules.home-manager
     {
       home-manager = {
@@ -117,8 +117,8 @@ let
         users.${user} = {
           # shared HM baseline
           imports = [
-            ./../../modules/common/home.nix
-            ./../../modules/attic/attic_client.nix
+            ./../../modules/base/home.nix
+            ./../../modules/services/attic/attic_client.nix
           ]
           ++ hmModules;
         };

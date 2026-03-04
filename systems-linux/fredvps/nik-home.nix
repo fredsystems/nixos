@@ -25,7 +25,7 @@ in
     inherit username;
     homeDirectory = homeDir;
 
-    # Mirrors modules/common/home.nix — gitconfig fully generated
+    # Mirrors modules/base/home.nix — gitconfig fully generated
     file.".gitconfig".text = ''
       [filter "lfs"]
           required = true

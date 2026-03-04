@@ -109,6 +109,7 @@ let
           agentScrapeMap
           ;
         system = "x86_64-linux";
+        isDarwin = false;
         isDesktop = false;
         # Conservative defaults; overridden per-node in nodeSpecialArgs.
         stateVersion = "24.11";
