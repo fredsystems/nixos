@@ -106,7 +106,7 @@ let
       }
     )
     ./../../modules/base/deployment-meta.nix
-    ./../../systems-linux/${hostName}/configuration.nix
+    ./../../hosts/linux/${hostName}/configuration.nix
     ./../../modules/base/system.nix
     hmInput.nixosModules.home-manager
     {

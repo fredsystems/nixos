@@ -55,7 +55,7 @@ darwin.lib.darwinSystem {
     })
     ../../modules/base/deployment-meta.nix
     ../../modules/base/system.nix
-    ../../systems-darwin/${hostName}/configuration.nix
+    ../../hosts/darwin/${hostName}/configuration.nix
     home-manager.darwinModules.home-manager
 
     {

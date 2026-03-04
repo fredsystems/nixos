@@ -5,7 +5,7 @@
 # all live here — one edit propagates everywhere.
 #
 # To add a server:
-#   1. Create systems-linux/<name>/configuration.nix
+#   1. Create hosts/linux/<name>/configuration.nix
 #   2. Add one entry below — everything else is derived.
 #
 # Per-entry fields (all optional — defaults shown):
@@ -35,7 +35,7 @@
       {
         home-manager.users.nik = {
           imports = [
-            ../systems-linux/fredvps/nik-home.nix
+            ../hosts/linux/fredvps/nik-home.nix
           ];
         };
       }
