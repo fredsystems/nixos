@@ -168,14 +168,14 @@ in
                 "network-manager-applet"
               ];
             }
-            {
-              command = [
-                "systemctl"
-                "--user"
-                "restart"
-                "bluetooth-agent"
-              ];
-            }
+            # {
+            #   # command = [
+            #   #   "systemctl"
+            #   #   "--user"
+            #   #   "restart"
+            #   #   "bluetooth-agent"
+            #   # ];
+            # }
             {
               command = [
                 "systemctl"

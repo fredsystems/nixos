@@ -17,7 +17,7 @@
 
         stdenvNoCC.mkDerivation rec {
           pname = "linux-firmware";
-          version = "20250410";
+          version = "20260110";
 
           src = fetchzip {
             url = "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/snapshot/linux-firmware-${version}.tar.gz";

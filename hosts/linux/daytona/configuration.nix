@@ -29,14 +29,42 @@
 
   desktop.enable_games = false;
 
-  boot.kernelPackages = pkgs.linuxPackages_latest;
+  boot.kernelPackages = pkgs.linuxKernel.packages.linux_6_18;
 
   networking = {
     hostName = "Daytona";
     networkmanager.wifi.scanRandMacAddress = false;
   };
 
+  hardware.bluetooth.enable = true;
+
+  system.activationScripts.sddm-hyprland-config = ''
+    mkdir -p /var/lib/sddm/.config/hypr
+    cat <<EOF > /var/lib/sddm/.config/hypr/hyprland.conf
+    EOF
+    chown -R sddm:sddm /var/lib/sddm/.config
+  '';
+
   services = {
+    displayManager = {
+      defaultSession = "hyprland";
+      sddm = {
+        enable = true;
+        wayland = {
+          enable = true;
+        };
+
+        settings = {
+          Wayland = {
+            EnableHiDPI = true;
+
+            CompositorCommand = "${pkgs.hyprland}/bin/start-hyprland";
+          };
+        };
+      };
+    };
+
+    blueman.enable = true;
     # Solaar configuration (requires solaar module from flake)
     solaar = {
       enable = true;
@@ -63,6 +91,10 @@
   };
 
   powerManagement.enable = true;
+
+  # FIXME: workaround for sleep regression — bad firmware version is 20250509
+  # Remove when upstream firmware is fixed and firmware.nix overlay is dropped
+  hardware.firmware = [ pkgs.linux-firmware ];
 
   environment.systemPackages = [ ];
 

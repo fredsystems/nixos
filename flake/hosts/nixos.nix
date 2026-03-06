@@ -25,7 +25,10 @@
     hostName = "daytona";
     isDesktop = true;
     hmModules = [ ../../hosts/linux/daytona/home.nix ];
-    extraModules = [ solaar.nixosModules.default ];
+    extraModules = [
+      solaar.nixosModules.default
+      (import ../../firmware.nix) # FIXME: workaround for sleep regression — bad firmware version is 20260221
+    ];
   };
 
   maranello = self.lib.mkSystem {

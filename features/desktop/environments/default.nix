@@ -44,18 +44,18 @@ in
           };
         };
 
-        bluetooth-agent = {
-          description = "Bluetooth Agent";
-          unitConfig = {
-            StartLimitIntervalSec = 0;
-          };
-          serviceConfig = {
-            Type = "simple";
-            ExecStart = "${pkgs.blueman}/bin/blueman-applet";
-            Restart = "always";
-            RestartSec = "2s";
-          };
-        };
+        # bluetooth-agent = {
+        #   description = "Bluetooth Agent";
+        #   unitConfig = {
+        #     StartLimitIntervalSec = 0;
+        #   };
+        #   serviceConfig = {
+        #     Type = "simple";
+        #     ExecStart = "${pkgs.blueman}/bin/blueman-applet";
+        #     Restart = "always";
+        #     RestartSec = "2s";
+        #   };
+        # };
 
         one-password-agent = {
           description = "1Password Background";

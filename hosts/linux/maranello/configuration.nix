@@ -49,7 +49,10 @@ in
 
   system.stateVersion = stateVersion;
 
+  hardware.bluetooth.enable = true;
+
   services = {
+    blueman.enable = true;
     # Solaar configuration (requires solaar module from flake)
     solaar = {
       enable = true;
@@ -61,17 +64,20 @@ in
 
     udev.packages = with pkgs; [ solaar ];
 
-    displayManager.sddm = {
-      enable = true;
-      wayland = {
+    displayManager = {
+      defaultSession = "hyprland";
+      sddm = {
         enable = true;
-      };
+        wayland = {
+          enable = true;
+        };
 
-      settings = {
-        Wayland = {
-          EnableHiDPI = true;
+        settings = {
+          Wayland = {
+            EnableHiDPI = true;
 
-          CompositorCommand = "${pkgs.hyprland}/bin/start-hyprland";
+            CompositorCommand = "${pkgs.hyprland}/bin/start-hyprland";
+          };
         };
       };
     };

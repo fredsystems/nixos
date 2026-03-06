@@ -171,13 +171,13 @@ in
             "systemctl restart --user one-password-agent"
             "systemctl restart --user network-manager-applet"
             "systemctl restart --user udiskie-agent"
-            "systemctl restart --user bluetooth-agent"
+            # "systemctl restart --user bluetooth-agent"
             "blueman-applet"
           ];
 
           exec-shutdown = [
             "systemctl stop --user network-manager-applet"
-            "systemctl stop --user bluetooth-agent"
+            # "systemctl stop --user bluetooth-agent"
             "systemctl stop --user udiskie-agent"
             "systemctl stop --user one-password-agent"
             "systemctl stop --user sway-audio-idle-inhibit"
