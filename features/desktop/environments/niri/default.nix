@@ -22,25 +22,10 @@ in
   config = mkIf cfg.enable {
     users.users = lib.genAttrs allUsers (_: {
       packages = with pkgs; [
+        # Niri-specific utilities
         hyprpolkitagent
-
-        grim
-        hyprshot
-        slurp
-        swaybg
-        swayidle
-        swaylock
-        wev
-        playerctl
-        libnotify
-        brightnessctl
-        sway-audio-idle-inhibit
-        swaynotificationcenter
-        blueman
         hyprpicker
-        udiskie
-        udisks
-        libappindicator-gtk3
+        sway-audio-idle-inhibit
       ];
     });
 

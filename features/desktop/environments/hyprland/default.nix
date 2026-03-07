@@ -40,25 +40,10 @@ in
 
     users.users = lib.genAttrs allUsers (_: {
       packages = with pkgs; [
+        # Hyprland-specific utilities
         hyprpolkitagent
-
-        grim
-        hyprshot
-        slurp
-        swaybg
-        swayidle
-        swaylock
-        wev
-        playerctl
-        libnotify
-        brightnessctl
-        sway-audio-idle-inhibit
-        swaynotificationcenter
-        blueman
         hyprpicker
-        udiskie
-        udisks
-        libappindicator-gtk3
+        sway-audio-idle-inhibit
       ];
     });
 
