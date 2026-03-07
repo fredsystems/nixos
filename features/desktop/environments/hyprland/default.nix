@@ -65,39 +65,6 @@ in
       catppuccin.hyprland.enable = true;
 
       services.network-manager-applet.enable = true;
-      # services.hypridle = {
-      #   enable = true;
-
-      #   settings = {
-      #     general = {
-      #       ignore_dbus_inhibit = false;
-      #       ignore_systemd_inhibit = false;
-      #     };
-      #   };
-      # };
-
-      # gtk = {
-      #   enable = true;
-      #   gtk3.extraConfig = {
-      #     gtk-application-prefer-dark-theme = 1;
-      #   };
-
-      #   gtk4.extraConfig = {
-      #     gtk-application-prefer-dark-theme = 1;
-      #   };
-
-      #   theme = {
-      #     name = "Catppuccin-GTK-Purple-Dark";
-      #     # + optionalString (cfg.gtk.size == "compact") "-Compact"
-      #     # + optionalString (flavorTweak != "") (mkSuffix flavorTweak);
-      #     package = pkgs.magnetic-catppuccin-gtk.override {
-      #       accent = [ "purple" ];
-      #       shade = "dark";
-      #       # inherit (cfg.gtk) size;
-      #       # tweaks = cfg.gtk.tweaks ++ optional (flavorTweak != "") flavorTweak;
-      #     };
-      #   };
-      # };
 
       wayland.windowManager.hyprland = {
         enable = true;

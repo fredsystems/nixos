@@ -20,6 +20,24 @@ in
   };
 
   config = mkIf cfg.enable {
+    home-manager.users = lib.genAttrs allUsers (_: {
+      gtk = {
+        enable = true;
+        gtk3.extraConfig = {
+          gtk-application-prefer-dark-theme = 1;
+        };
+        gtk4.extraConfig = {
+          gtk-application-prefer-dark-theme = 1;
+        };
+        theme = {
+          name = "Catppuccin-GTK-Mauve-Dark";
+          package = pkgs.magnetic-catppuccin-gtk.override {
+            accent = [ "mauve" ];
+            shade = "dark";
+          };
+        };
+      };
+    });
 
     services = {
       # ── Keyring ──────────────────────────────────────────────────────────────

@@ -66,23 +66,6 @@ in
 
       catppuccin.gtk.icon.enable = true;
 
-      gtk = {
-        enable = true;
-        gtk3.extraConfig = {
-          gtk-application-prefer-dark-theme = 1;
-        };
-        gtk4.extraConfig = {
-          gtk-application-prefer-dark-theme = 1;
-        };
-        theme = {
-          name = "Catppuccin-GTK-Mauve-Dark";
-          package = pkgs.magnetic-catppuccin-gtk.override {
-            accent = [ "mauve" ];
-            shade = "dark";
-          };
-        };
-      };
-
       dconf.settings = {
         "org/gnome/shell" = {
           disable-user-extensions = false;
