@@ -24,6 +24,18 @@
         wifi.ssid = "$work_ssid";
         wifi-security = { };
       };
+      "Work-Secret" = {
+        connection = {
+          id = "Work-Secret";
+          type = "wifi";
+          autoconnect = false;
+        };
+        wifi.ssid = "$work_secret_ssid";
+        wifi-security = {
+          key-mgmt = "wpa-psk";
+          psk = "$work_secret_psk";
+        };
+      };
       "Parents" = {
         connection = {
           id = "Parents";

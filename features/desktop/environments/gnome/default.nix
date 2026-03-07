@@ -44,14 +44,14 @@ in
       pkgs.gnome.gvfs
     ];
 
-    services.gvfs.enable = true;
-
     programs.nautilus-open-any-terminal = {
       enable = true;
       terminal = "wezterm";
     };
 
     services = {
+      gvfs.enable = true;
+      upower.enable = lib.mkForce true;
       # Enable the X11 windowing system.
       xserver.enable = false;
       # Enable the GNOME Desktop Environment.

@@ -20,16 +20,16 @@
 
   # extra options
   ai = {
-    enable = true;
+    enable = false;
     local-llm = {
-      enable = true;
+      enable = false;
       ollamaPackage = pkgs.ollama;
     };
   };
 
   desktop.enable_games = false;
 
-  boot.kernelPackages = pkgs.linuxKernel.packages.linux_6_18;
+  boot.kernelPackages = pkgs.linuxPackages_latest;
 
   networking = {
     hostName = "Daytona";
@@ -90,11 +90,7 @@
     login.fprintAuth = false;
   };
 
-  powerManagement.enable = true;
-
-  # FIXME: workaround for sleep regression — bad firmware version is 20250509
-  # Remove when upstream firmware is fixed and firmware.nix overlay is dropped
-  hardware.firmware = [ pkgs.linux-firmware ];
+  powerManagement.enable = false;
 
   environment.systemPackages = [ ];
 
