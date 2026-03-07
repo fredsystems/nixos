@@ -129,6 +129,10 @@ in
 
         # Misc Wayland utilities
         wev
+
+        # xdg-open — needed by udiskie for file manager integration and
+        # generally required by any app that opens URLs/files via xdg-open
+        xdg-utils
       ];
     });
 

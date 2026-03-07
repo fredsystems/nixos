@@ -59,6 +59,8 @@ in
         networkmanagerapplet
       ];
 
+      catppuccin.gtk.icon.enable = true;
+
       programs.niri = {
         enable = true;
         settings = {
@@ -167,6 +169,14 @@ in
                 "--user"
                 "restart"
                 "udiskie-agent"
+              ];
+            }
+            {
+              command = [
+                "systemctl"
+                "--user"
+                "restart"
+                "solaar"
               ];
             }
           ];

@@ -47,28 +47,6 @@ in
       ];
     });
 
-    # systemd = {
-    #   user.services.polkit-agent-helper-1 = {
-    #     description = "polkit-agent-helper-1";
-    #     wantedBy = [ "graphical-session.target" ];
-    #     wants = [ "graphical-session.target" ];
-    #     after = [ "graphical-session.target" ];
-    #     serviceConfig = {
-    #       Type = "simple";
-    #       ExecStart = "/run/wrappers/bin/polkit-agent-helper-1";
-    #       Restart = "on-failure";
-    #       RestartSec = 1;
-    #       TimeoutStopSec = 10;
-    #     };
-    #   };
-    #   settings.Manager = {
-    #     DefaultTimeoutStopSec = "10s";
-    #   };
-    #   # extraConfig = ''
-    #   #   DefaultTimeoutStopSec=10s
-    #   # '';
-    # };
-
     programs.hyprland = {
       # Install the packages from nixpkgs
       enable = true;
@@ -78,6 +56,7 @@ in
 
     home-manager.users = lib.genAttrs allUsers (_: {
       imports = [ ../modules/xdg-mime-common.nix ];
+      catppuccin.gtk.icon.enable = true;
 
       home.packages = with pkgs; [
         networkmanagerapplet
@@ -156,6 +135,7 @@ in
             "systemctl restart --user one-password-agent"
             "systemctl restart --user network-manager-applet"
             "systemctl restart --user udiskie-agent"
+            "systemctl restart --user solaar"
             # "systemctl restart --user bluetooth-agent"
             "blueman-applet"
           ];
@@ -164,6 +144,7 @@ in
             "systemctl stop --user network-manager-applet"
             # "systemctl stop --user bluetooth-agent"
             "systemctl stop --user udiskie-agent"
+            "systemctl stop --user solaar"
             "systemctl stop --user one-password-agent"
             "systemctl stop --user sway-audio-idle-inhibit"
             "systemctl stop --user user-sleep-hook"
