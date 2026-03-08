@@ -26,24 +26,12 @@ in
     ./cosmic
     ./gnome
     ./modules
+    ./common.nix
   ];
 
   config = mkIf cfg.enable {
     systemd = {
       user.services = {
-        polkit-gnome-authentication-agent-1 = {
-          description = "polkit-gnome-authentication-agent-1";
-          unitConfig = {
-            StartLimitIntervalSec = 0;
-          };
-          serviceConfig = {
-            Type = "simple";
-            ExecStart = "${pkgs.polkit_gnome}/libexec/polkit-gnome-authentication-agent-1";
-            Restart = "always";
-            RestartSec = "2s";
-          };
-        };
-
         # bluetooth-agent = {
         #   description = "Bluetooth Agent";
         #   unitConfig = {
@@ -112,10 +100,11 @@ in
     };
 
     desktop.environments = {
+      common.enable = true;
       hyprland.enable = true;
       niri.enable = true;
-      cosmic.enable = true;
-      gnome.enable = true;
+      cosmic.enable = false;
+      gnome.enable = false;
     };
 
     home-manager.users = lib.genAttrs allUsers (_: {

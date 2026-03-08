@@ -21,117 +21,55 @@ in
   };
 
   config = mkIf cfg.enable {
-    environment.systemPackages = [
-      pkgs.gnomeExtensions.caffeine
-      pkgs.gnomeExtensions.vitals
-      pkgs.gnomeExtensions.impatience
-      pkgs.gnomeExtensions.clipboard-indicator
-      pkgs.gnomeExtensions.dash-to-panel
-      pkgs.gnomeExtensions.arcmenu
-      pkgs.gnomeExtensions.search-light
-      pkgs.gnomeExtensions.weather-or-not
-      pkgs.gnomeExtensions.user-themes
-      pkgs.gnome-themes-extra
-      pkgs.flat-remix-gnome
-      pkgs.wl-clipboard
-      pkgs.dconf-editor
-      pkgs.gthumb
-      pkgs.gimp
-      pkgs.sushi
-      pkgs.polkit_gnome
-      pkgs.gparted
-      pkgs.gvfs
-      pkgs.gnome.gvfs
+    environment.systemPackages = with pkgs; [
+      gnomeExtensions.caffeine
+      gnomeExtensions.vitals
+      gnomeExtensions.impatience
+      gnomeExtensions.clipboard-indicator
+      gnomeExtensions.dash-to-panel
+      gnomeExtensions.arcmenu
+      gnomeExtensions.search-light
+      gnomeExtensions.weather-or-not
+      gnomeExtensions.user-themes
+      gnome-themes-extra
+      flat-remix-gnome
+      wl-clipboard
+      dconf-editor
     ];
 
-    services.gvfs.enable = true;
-
-    programs.nautilus-open-any-terminal = {
-      enable = true;
-      terminal = "wezterm";
-    };
-
     services = {
-      # Enable the X11 windowing system.
       xserver.enable = false;
-      # Enable the GNOME Desktop Environment.
-      displayManager.sddm = {
-        enable = true;
-        wayland.enable = true;
-
-        settings = {
-          Theme = {
-            font = "SFProDisplay Nerd Font";
-          };
-
-          General = {
-            RememberLastSession = true;
-            RememberLastUser = true;
-          };
-        };
-      };
-
       desktopManager.gnome.enable = true;
     };
 
     environment.gnome.excludePackages = with pkgs; [
-      atomix # puzzle game
-      cheese # webcam tool
-      epiphany # web browser
-      geary # email client
+      atomix
+      cheese
+      epiphany
+      geary
       gnome-characters
       gnome-music
       gnome-photos
       gnome-tour
-      hitori # sudoku game
-      iagno # go game
-      tali # poker game
-      totem # video player
+      hitori
+      iagno
+      tali
+      totem
     ];
 
-    systemd = {
-      settings.Manager = {
-        DefaultTimeoutStopSec = "10s";
-      };
+    systemd.settings.Manager = {
+      DefaultTimeoutStopSec = "10s";
     };
 
     home-manager.users = lib.genAttrs allUsers (_: {
       imports = [ ../modules/xdg-mime-common.nix ];
 
-      gtk = {
-        enable = true;
-        gtk3.extraConfig = {
-          gtk-application-prefer-dark-theme = 1;
-        };
-
-        gtk4.extraConfig = {
-          gtk-application-prefer-dark-theme = 1;
-        };
-
-        theme = {
-          name = "Catppuccin-GTK-Mauve-Dark";
-          # + optionalString (cfg.gtk.size == "compact") "-Compact"
-          # + optionalString (flavorTweak != "") (mkSuffix flavorTweak);
-          package = pkgs.magnetic-catppuccin-gtk.override {
-            accent = [ "mauve" ];
-            shade = "dark";
-            # inherit (cfg.gtk) size;
-            # tweaks = cfg.gtk.tweaks ++ optional (flavorTweak != "") flavorTweak;
-          };
-        };
-      };
-
-      # catppuccin.gtk.enable = true;
-      # catppuccin.gtk.gnomeShellTheme = true;
       catppuccin.gtk.icon.enable = true;
 
       dconf.settings = {
-        # ...
         "org/gnome/shell" = {
           disable-user-extensions = false;
           always-show-log-out = true;
-
-          # `gnome-extensions list` for a list
           enabled-extensions = [
             "user-theme@gnome-shell-extensions.gcampax.github.com"
             "Vitals@CoreCoding.com"
@@ -143,7 +81,6 @@ in
             "search-light@icedman.github.com"
             "weatherornot@somepaulo.github.io"
           ];
-
           favorite-apps = [
             "org.gnome.Nautilus.desktop"
             "org.gnome.Calendar.desktop"
@@ -165,7 +102,6 @@ in
 
         "org/gnome/desktop/interface" = {
           color-scheme = "prefer-dark";
-          # gtk-theme = "adw-gtk3-dark";
           enable-hot-corners = false;
           clock-show-seconds = true;
           clock-show-weekday = true;
@@ -185,11 +121,6 @@ in
           menu-button-appears = "Icon";
           menu-layout = "Plasma";
         };
-
-        # "org/gnome/desktop/background" = {
-        #   picture-uri = "file:///home/${username}/.config/backgrounds/lewis.jpg";
-        #   picture-uri-dark = "file:///home/${username}/.config/backgrounds/lewis.jpg"; # Updated dark background...same as light for now
-        # };
 
         "org/gnome/shell/extensions/dash-to-panel" = {
           trans-panel-opacity = 0.5;

@@ -40,49 +40,12 @@ in
 
     users.users = lib.genAttrs allUsers (_: {
       packages = with pkgs; [
+        # Hyprland-specific utilities
         hyprpolkitagent
-
-        grim
-        hyprshot
-        slurp
-        swaybg
-        swayidle
-        swaylock
-        wev
-        playerctl
-        libnotify
-        brightnessctl
-        sway-audio-idle-inhibit
-        swaynotificationcenter
-        blueman
         hyprpicker
-        udiskie
-        udisks
-        libappindicator-gtk3
+        sway-audio-idle-inhibit
       ];
     });
-
-    # systemd = {
-    #   user.services.polkit-agent-helper-1 = {
-    #     description = "polkit-agent-helper-1";
-    #     wantedBy = [ "graphical-session.target" ];
-    #     wants = [ "graphical-session.target" ];
-    #     after = [ "graphical-session.target" ];
-    #     serviceConfig = {
-    #       Type = "simple";
-    #       ExecStart = "/run/wrappers/bin/polkit-agent-helper-1";
-    #       Restart = "on-failure";
-    #       RestartSec = 1;
-    #       TimeoutStopSec = 10;
-    #     };
-    #   };
-    #   settings.Manager = {
-    #     DefaultTimeoutStopSec = "10s";
-    #   };
-    #   # extraConfig = ''
-    #   #   DefaultTimeoutStopSec=10s
-    #   # '';
-    # };
 
     programs.hyprland = {
       # Install the packages from nixpkgs
@@ -93,6 +56,7 @@ in
 
     home-manager.users = lib.genAttrs allUsers (_: {
       imports = [ ../modules/xdg-mime-common.nix ];
+      catppuccin.gtk.icon.enable = true;
 
       home.packages = with pkgs; [
         networkmanagerapplet
@@ -101,39 +65,6 @@ in
       catppuccin.hyprland.enable = true;
 
       services.network-manager-applet.enable = true;
-      # services.hypridle = {
-      #   enable = true;
-
-      #   settings = {
-      #     general = {
-      #       ignore_dbus_inhibit = false;
-      #       ignore_systemd_inhibit = false;
-      #     };
-      #   };
-      # };
-
-      # gtk = {
-      #   enable = true;
-      #   gtk3.extraConfig = {
-      #     gtk-application-prefer-dark-theme = 1;
-      #   };
-
-      #   gtk4.extraConfig = {
-      #     gtk-application-prefer-dark-theme = 1;
-      #   };
-
-      #   theme = {
-      #     name = "Catppuccin-GTK-Purple-Dark";
-      #     # + optionalString (cfg.gtk.size == "compact") "-Compact"
-      #     # + optionalString (flavorTweak != "") (mkSuffix flavorTweak);
-      #     package = pkgs.magnetic-catppuccin-gtk.override {
-      #       accent = [ "purple" ];
-      #       shade = "dark";
-      #       # inherit (cfg.gtk) size;
-      #       # tweaks = cfg.gtk.tweaks ++ optional (flavorTweak != "") flavorTweak;
-      #     };
-      #   };
-      # };
 
       wayland.windowManager.hyprland = {
         enable = true;
@@ -171,6 +102,7 @@ in
             "systemctl restart --user one-password-agent"
             "systemctl restart --user network-manager-applet"
             "systemctl restart --user udiskie-agent"
+            "systemctl restart --user solaar"
             # "systemctl restart --user bluetooth-agent"
             "blueman-applet"
           ];
@@ -179,6 +111,7 @@ in
             "systemctl stop --user network-manager-applet"
             # "systemctl stop --user bluetooth-agent"
             "systemctl stop --user udiskie-agent"
+            "systemctl stop --user solaar"
             "systemctl stop --user one-password-agent"
             "systemctl stop --user sway-audio-idle-inhibit"
             "systemctl stop --user user-sleep-hook"
