@@ -75,7 +75,14 @@ in
     environment.systemPackages = with pkgs; [
       polkit_gnome # polkit-gnome-authentication-agent-1 binary
       glib # gsettings binary — needed for GTK theming execs at startup
+      gsettings-desktop-schemas # org.gnome.desktop.interface schemas (color-scheme, gtk-theme, etc.)
     ];
+
+    # Point gsettings at the compiled schema dir inside the package.
+    # Without GNOME DE nothing sets up XDG_DATA_DIRS to include the
+    # gsettings-desktop-schemas store path, so gsettings calls at
+    # compositor startup (color-scheme, gtk-theme) find no schemas.
+    environment.sessionVariables.GSETTINGS_SCHEMA_DIR = "${pkgs.gsettings-desktop-schemas}/share/gsettings-schemas/${pkgs.gsettings-desktop-schemas.name}/glib-2.0/schemas";
 
     # ── XDG desktop portals ────────────────────────────────────────────────────
     # xdg-desktop-portal-gtk covers file chooser, screenshots, and appearance
