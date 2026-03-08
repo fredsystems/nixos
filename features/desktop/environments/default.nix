@@ -11,6 +11,7 @@ with lib;
 let
   cfg = config.desktop.environments;
   allUsers = [ user ] ++ extraUsers;
+  waitForWayland = "${lib.getExe' pkgs.bash "bash"} -c 'until [ -S \"$\{XDG_RUNTIME_DIR}/wayland-1\" ]; do sleep 0.5; done'";
 in
 {
   options.desktop.environments = {
@@ -32,31 +33,19 @@ in
   config = mkIf cfg.enable {
     systemd = {
       user.services = {
-        # bluetooth-agent = {
-        #   description = "Bluetooth Agent";
+        # one-password-agent = {
+        #   description = "1Password Background";
         #   unitConfig = {
         #     StartLimitIntervalSec = 0;
         #   };
         #   serviceConfig = {
         #     Type = "simple";
-        #     ExecStart = "${pkgs.blueman}/bin/blueman-applet";
+        #     ExecStartPre = waitForWayland;
+        #     ExecStart = "${pkgs._1password-gui}/bin/1password --silent";
         #     Restart = "always";
         #     RestartSec = "2s";
         #   };
         # };
-
-        one-password-agent = {
-          description = "1Password Background";
-          unitConfig = {
-            StartLimitIntervalSec = 0;
-          };
-          serviceConfig = {
-            Type = "simple";
-            ExecStart = "${pkgs._1password-gui}/bin/1password --silent";
-            Restart = "always";
-            RestartSec = "2s";
-          };
-        };
 
         udiskie-agent = {
           description = "udiskie Background";
@@ -65,6 +54,7 @@ in
           };
           serviceConfig = {
             Type = "simple";
+            ExecStartPre = waitForWayland;
             ExecStart = "${pkgs.udiskie}/bin/udiskie --appindicator -t";
             Restart = "always";
             RestartSec = "2s";
@@ -78,12 +68,12 @@ in
           };
           serviceConfig = {
             Type = "simple";
+            ExecStartPre = waitForWayland;
             ExecStart = "${pkgs.sway-audio-idle-inhibit}/bin/sway-audio-idle-inhibit";
             Restart = "always";
             RestartSec = "2s";
           };
         };
-
       };
     };
 

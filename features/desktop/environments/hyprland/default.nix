@@ -3,6 +3,7 @@
   pkgs,
   config,
   user,
+  hmlib,
   extraUsers ? [ ],
   ...
 }:
@@ -10,6 +11,7 @@ with lib;
 let
   allUsers = [ user ] ++ extraUsers;
   cfg = config.desktop.environments.hyprland;
+  waitForWayland = "${lib.getExe' pkgs.bash "bash"} -c 'until [ -S \"$\{XDG_RUNTIME_DIR}/wayland-1\" ]; do sleep 0.5; done'";
 in
 {
   options.desktop.environments.hyprland = {
@@ -54,8 +56,40 @@ in
       xwayland.enable = true;
     };
 
+    # xdg-desktop-portal-hyprland segfaults when Hyprland exits (a bug in xdph
+    # itself), then restarts 6 times in rapid succession against a dead
+    # compositor and hits the burst limit — leaving it permanently dead for the
+    # next login. overrideStrategy = "asDropin" merges these settings into the
+    # NixOS-managed unit without replacing it, giving it a RestartSec so the
+    # burst limit is never tripped, and an ExecStartPre so on re-login it waits
+    # for the Wayland socket before trying to connect.
+    systemd.user.services.xdg-desktop-portal-hyprland = {
+      overrideStrategy = "asDropin";
+      unitConfig = {
+        StartLimitIntervalSec = 0;
+      };
+      serviceConfig = {
+        RestartSec = "3s";
+        ExecStartPre = waitForWayland;
+      };
+    };
+
     home-manager.users = lib.genAttrs allUsers (_: {
       imports = [ ../modules/xdg-mime-common.nix ];
+
+      # wayland.windowManager.hyprland generates a broken stub unit at
+      # ~/.config/systemd/user/xdg-desktop-portal-hyprland.service that only
+      # contains our ExecStartPre and has no ExecStart — causing systemd to
+      # report bad-setting and refuse to start it, shadowing the real unit in
+      # /etc/systemd/user/. Remove it after home-manager places it so only the
+      # system-level unit (with our overrideStrategy drop-in) is used.
+      home.activation.removePortalHyprlandStub = hmlib.hm.dag.entryAfter [ "writeBoundary" ] ''
+        rm -f ~/.config/systemd/user/xdg-desktop-portal-hyprland.service
+        rm -f ~/.config/systemd/user/xdg-desktop-portal-hyprland.service.d/wait-for-wayland.conf
+        rmdir --ignore-fail-on-non-empty ~/.config/systemd/user/xdg-desktop-portal-hyprland.service.d 2>/dev/null || true
+        $DRY_RUN_CMD ${pkgs.systemd}/bin/systemctl --user daemon-reload || true
+      '';
+
       catppuccin = {
         gtk.icon.enable = true;
         hyprland.enable = true;
@@ -103,24 +137,20 @@ in
             "systemctl restart --user fredbar"
             "systemctl restart --user sway-audio-idle-inhibit"
             "systemctl restart --user hypridle"
-            "systemctl restart --user one-password-agent"
             "systemctl restart --user network-manager-applet"
             "systemctl restart --user udiskie-agent"
             "systemctl restart --user solaar"
-            # "systemctl restart --user bluetooth-agent"
             "blueman-applet"
+            "sleep 5 && 1password --silent"
           ];
 
           exec-shutdown = [
             "systemctl stop --user network-manager-applet"
-            # "systemctl stop --user bluetooth-agent"
             "systemctl stop --user udiskie-agent"
             "systemctl stop --user solaar"
-            "systemctl stop --user one-password-agent"
             "systemctl stop --user sway-audio-idle-inhibit"
             "systemctl stop --user hypridle"
             "systemctl stop --user polkit-gnome-authentication-agent-1"
-            "systemctl stop --user fredbar"
           ];
 
           general = {

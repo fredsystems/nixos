@@ -147,14 +147,6 @@ in
                 "systemctl"
                 "--user"
                 "restart"
-                "one-password-agent"
-              ];
-            }
-            {
-              command = [
-                "systemctl"
-                "--user"
-                "restart"
                 "network-manager-applet"
               ];
             }
@@ -180,6 +172,12 @@ in
                 "--user"
                 "restart"
                 "solaar"
+              ];
+            }
+            {
+              command = [
+                "1password"
+                "--silent"
               ];
             }
           ];
