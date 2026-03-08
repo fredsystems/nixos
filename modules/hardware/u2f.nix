@@ -13,6 +13,7 @@
       polkit-1.u2fAuth = lib.mkDefault true;
       polkit-gnome-authentication-agent-1.u2fAuth = lib.mkDefault true;
       hyprpolkitagent.u2fAuth = lib.mkDefault true;
+      hyprlock.u2fAuth = lib.mkDefault true;
     };
   };
 }

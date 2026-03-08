@@ -10,6 +10,7 @@ with lib;
 let
   allUsers = [ user ] ++ extraUsers;
   cfg = config.desktop.environments.common;
+  dpmsScript = "~/.config/hyprextra/scripts/dpms.sh";
 in
 {
   options.desktop.environments.common = {
@@ -21,6 +22,13 @@ in
 
   config = mkIf cfg.enable {
     home-manager.users = lib.genAttrs allUsers (_: {
+      # ── User avatar (.face) ───────────────────────────────────────────────────
+      # Deployed to ~/.face so that SDDM and any greeter that respects the
+      # freedesktop face icon convention picks it up automatically.
+      home.file.".face" = {
+        source = ./assets/face.png;
+      };
+
       gtk = {
         enable = true;
         gtk3.extraConfig = {
@@ -35,6 +43,43 @@ in
             accent = [ "mauve" ];
             shade = "dark";
           };
+        };
+      };
+
+      # ── Idle management (hypridle) ───────────────────────────────────────────
+      # Single shared hypridle definition for both Hyprland and Niri.
+      # DPMS on/off is delegated to dpms.sh, which probes the active compositor
+      # at runtime via hyprctl / niri IPC — so the correct command is always
+      # issued regardless of which compositor packages are installed on the host.
+      services.hypridle = {
+        enable = true;
+        settings = {
+          general = {
+            lock_cmd = "hyprlock";
+            before_sleep_cmd = "hyprlock";
+            after_sleep_cmd = "${dpmsScript} on";
+          };
+
+          listener = [
+            {
+              # Lock the screen after 5 minutes of inactivity.
+              timeout = 300;
+              on-timeout = "hyprlock";
+            }
+            {
+              # Power off monitors after 10 minutes of inactivity.
+              # dpms.sh detects whether Hyprland or Niri is running and
+              # issues the appropriate compositor command.
+              timeout = 600;
+              on-timeout = "${dpmsScript} off";
+              on-resume = "${dpmsScript} on";
+            }
+            {
+              # Suspend the system after 15 minutes of inactivity.
+              timeout = 900;
+              on-timeout = "systemctl suspend";
+            }
+          ];
         };
       };
     });
@@ -53,7 +98,7 @@ in
 
       # ── Power state information ───────────────────────────────────────────────
       # Provides battery / AC status over D-Bus (UPower). Needed by status bars
-      # (fredbar), notification daemons, and swayidle rules.
+      # (fredbar), notification daemons, and hypridle rules.
       # mkForce resolves the priority conflict introduced by disabling GNOME DE
       # (gnome.nix derives this from powerManagement.enable = false) while
       # cosmic.nix hardcodes true.
@@ -124,8 +169,8 @@ in
         slurp
 
         # Idle / lock / sleep
-        swayidle
-        swaylock
+        hypridle
+        hyprlock
 
         # Media controls (playerctl keybinds shared across both compositors)
         playerctl

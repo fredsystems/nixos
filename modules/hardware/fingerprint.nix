@@ -25,6 +25,7 @@
       polkit-1.fprintAuth = lib.mkDefault true;
       polkit-gnome-authentication-agent-1.fprintAuth = lib.mkDefault true;
       hyprpolkitagent.fprintAuth = lib.mkDefault true;
+      hyprlock.fprintAuth = lib.mkDefault true;
     };
   };
 }
