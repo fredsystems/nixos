@@ -61,6 +61,9 @@ in
 
       catppuccin.gtk.icon.enable = true;
 
+      programs.hyprlock.enable = true;
+      catppuccin.hyprlock.enable = true;
+
       programs.niri = {
         enable = true;
         settings = {
@@ -136,7 +139,7 @@ in
                 "systemctl"
                 "--user"
                 "restart"
-                "user-sleep-hook"
+                "hypridle"
               ];
             }
             {

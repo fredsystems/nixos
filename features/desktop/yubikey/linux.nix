@@ -51,7 +51,7 @@
   security = {
     pam.services = {
       sudo.u2fAuth = true;
-      swaylock.u2fAuth = true;
+      hyprlock.u2fAuth = true;
     };
   };
 }

@@ -56,13 +56,17 @@ in
 
     home-manager.users = lib.genAttrs allUsers (_: {
       imports = [ ../modules/xdg-mime-common.nix ];
-      catppuccin.gtk.icon.enable = true;
+      catppuccin = {
+        gtk.icon.enable = true;
+        hyprland.enable = true;
+        hyprlock.enable = true;
+      };
 
       home.packages = with pkgs; [
         networkmanagerapplet
       ];
 
-      catppuccin.hyprland.enable = true;
+      programs.hyprlock.enable = true;
 
       services.network-manager-applet.enable = true;
 
@@ -98,7 +102,7 @@ in
             "~/.config/hyprextra/scripts/background.sh"
             "systemctl restart --user fredbar"
             "systemctl restart --user sway-audio-idle-inhibit"
-            "systemctl restart --user user-sleep-hook"
+            "systemctl restart --user hypridle"
             "systemctl restart --user one-password-agent"
             "systemctl restart --user network-manager-applet"
             "systemctl restart --user udiskie-agent"
@@ -114,7 +118,7 @@ in
             "systemctl stop --user solaar"
             "systemctl stop --user one-password-agent"
             "systemctl stop --user sway-audio-idle-inhibit"
-            "systemctl stop --user user-sleep-hook"
+            "systemctl stop --user hypridle"
             "systemctl stop --user polkit-gnome-authentication-agent-1"
             "systemctl stop --user fredbar"
           ];

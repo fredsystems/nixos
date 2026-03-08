@@ -84,18 +84,6 @@ in
           };
         };
 
-        user-sleep-hook = {
-          description = "User Sleep Hook";
-          unitConfig = {
-            StartLimitIntervalSec = 0;
-          };
-          serviceConfig = {
-            Type = "simple";
-            ExecStart = "%h/.config/hyprextra/scripts/sleep.sh";
-            Restart = "always";
-            RestartSec = "2s";
-          };
-        };
       };
     };
 
