@@ -21,6 +21,7 @@
   # extra options
   ai = {
     enable = false;
+    opencode.enable = true;
     local-llm = {
       enable = false;
       ollamaPackage = pkgs.ollama;
