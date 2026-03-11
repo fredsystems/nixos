@@ -45,6 +45,7 @@ in
     ./discord
     ./firefox
     ./fonts
+    ./freminal
     ./ghostty
     ./githubdesktop
     ./ladybird
@@ -96,6 +97,7 @@ in
       ladybird.enable = true;
       yubikey.enable = true;
       thunderbird.enable = true;
+      freminal.enable = true;
       music.enable = if cfg.enable_extra then true else false;
       appimage.enable = if cfg.enable_extra then true else false;
       discord.enable = if cfg.enable_extra then true else false;

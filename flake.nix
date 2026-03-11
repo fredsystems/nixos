@@ -86,6 +86,13 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    freminal = {
+      url = "github:FredSystems/freminal";
+      #path on disk
+      #url = "git+file:/home/fred/GitHub/freminal";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     # wallpapers
 
     walls-catppuccin = {
@@ -111,6 +118,7 @@
       walls-catppuccin,
       solaar,
       colmena,
+      freminal,
       ...
     }:
 
@@ -204,6 +212,7 @@
           solaar
           colmena
           walls-catppuccin
+          freminal
           ;
       };
     in
