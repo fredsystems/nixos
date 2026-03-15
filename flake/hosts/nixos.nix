@@ -16,6 +16,7 @@
   sops-nix-stable,
   serverNodes,
   solaar,
+  freminal,
   ...
 }:
 
@@ -24,7 +25,10 @@
   Daytona = self.lib.mkSystem {
     hostName = "daytona";
     isDesktop = true;
-    hmModules = [ ../../hosts/linux/daytona/home.nix ];
+    hmModules = [
+      ../../hosts/linux/daytona/home.nix
+      freminal.homeManagerModules.default
+    ];
     extraModules = [
       solaar.nixosModules.default
     ];
@@ -33,7 +37,10 @@
   maranello = self.lib.mkSystem {
     hostName = "maranello";
     isDesktop = true;
-    hmModules = [ ../../hosts/linux/maranello/home.nix ];
+    hmModules = [
+      ../../hosts/linux/maranello/home.nix
+      freminal.homeManagerModules.default
+    ];
     extraModules = [ solaar.nixosModules.default ];
   };
 }

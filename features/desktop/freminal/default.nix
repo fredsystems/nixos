@@ -1,11 +1,13 @@
 {
-  inputs,
   lib,
   config,
+  user,
+  extraUsers ? [ ],
   ...
 }:
 let
   cfg = config.desktop.freminal;
+  allUsers = [ user ] ++ extraUsers;
 in
 {
   options.desktop.freminal = {
@@ -13,8 +15,16 @@ in
   };
 
   config = lib.mkIf cfg.enable {
-    environment.systemPackages = [
-      inputs.freminal.packages.${config.nixpkgs.hostPlatform.system}.freminal
-    ];
+    home-manager.users = lib.genAttrs allUsers (_: {
+      programs.freminal = {
+        enable = true;
+        settings = {
+          font.family = "CaskaydiaCove Nerd Font";
+          font.size = 14.0;
+          theme.name = "catppuccin-mocha";
+          scrollback.limit = 4000;
+        };
+      };
+    });
   };
 }
