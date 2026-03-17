@@ -89,6 +89,20 @@ in
                         })
                         vim.api.nvim_create_user_command("Qa", "qa", {})
 
+            -- Auto-reload files modified externally
+            vim.api.nvim_create_autocmd({ "FocusGained", "BufEnter", "CursorHold", "CursorHoldI" }, {
+              callback = function()
+                if vim.api.nvim_get_mode().mode ~= "c" then
+                  vim.cmd("checktime")
+                end
+              end,
+            })
+            vim.api.nvim_create_autocmd("FileChangedShellPost", {
+              callback = function()
+                vim.notify("File changed on disk. Buffer reloaded.", vim.log.levels.WARN)
+              end,
+            })
+
             vim.diagnostic.config({ virtual_lines = true })
             vim.diagnostic.config({ virtual_text = true })
             vim.api.nvim_create_autocmd({ "CursorHold" }, {
@@ -227,6 +241,7 @@ in
             ignorecase = true;
             smartcase = true;
             signcolumn = "yes:1";
+            autoread = true;
           };
 
           plugins = {
