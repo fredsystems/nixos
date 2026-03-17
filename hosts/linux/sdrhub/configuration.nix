@@ -569,7 +569,7 @@
       ###############################################################
       {
         name = "acarshubv4";
-        image = "ghcr.io/sdr-enthusiasts/docker-acarshub:v4-latest-build-64@sha256:04a7ec2850aab8b196e99c8887b481a9f1852c832e5fee562ece905a19032271";
+        image = "ghcr.io/sdr-enthusiasts/docker-acarshub:v4-latest-build-64@sha256:a91ec2d0c0854c9c9116b2125c2b2c34fc412d776483c6d3170986874d6b29fb";
 
         restart = "always";
         tty = true;
