@@ -190,6 +190,28 @@ in
               action = "<cmd>Crates update_crate<CR>";
               options.desc = "Update crate on current line";
             }
+
+            # Session management
+            {
+              key = "<leader>qs";
+              action = "<cmd>SessionRestore<CR>";
+              options.desc = "Restore session (cwd)";
+            }
+            {
+              key = "<leader>qS";
+              action = "<cmd>SessionSave<CR>";
+              options.desc = "Save session";
+            }
+            {
+              key = "<leader>qf";
+              action = "<cmd>SessionSearch<CR>";
+              options.desc = "Search sessions";
+            }
+            {
+              key = "<leader>qd";
+              action = "<cmd>SessionDelete<CR>";
+              options.desc = "Delete session";
+            }
           ];
 
           opts = {
@@ -200,6 +222,7 @@ in
             swapfile = false;
             undofile = true;
             incsearch = true;
+            sessionoptions = "blank,buffers,curdir,folds,help,tabpages,winsize,winpos,terminal,localoptions";
             inccommand = "split";
             ignorecase = true;
             smartcase = true;
@@ -548,25 +571,34 @@ in
                   sections = [
                     { section = "header"; }
                     {
-                      icon = " ";
+                      icon = " ";
                       title = "Keymaps";
                       section = "keys";
                       indent = 2;
                       padding = 1;
                     }
                     {
-                      icon = " ";
+                      icon = " ";
                       title = "Recent Files";
                       section = "recent_files";
                       indent = 2;
                       padding = 1;
                     }
                     {
-                      icon = " ";
+                      icon = " ";
                       title = "Projects";
                       section = "projects";
                       indent = 2;
                       padding = 1;
+                    }
+                    {
+                      icon = " ";
+                      title = "Restore Session";
+                      section = "keys";
+                      indent = 2;
+                      padding = 1;
+                      action = ":SessionRestore";
+                      key = "s";
                     }
                   ];
                 };
@@ -598,6 +630,58 @@ in
 
             package-info = {
               enable = true;
+            };
+
+            # Automatic session management per working directory
+            auto-session = {
+              enable = true;
+              settings = {
+                auto_restore = true;
+                auto_save = true;
+                auto_create = true;
+                lazy_support = false;
+                show_auto_restore_notif = true;
+                bypass_save_filetypes = [
+                  "snacks_dashboard"
+                  "snacks_layout_box"
+                ];
+                close_unsupported_windows = true;
+                suppressed_dirs = [
+                  "~/"
+                  "~/Downloads"
+                  "/tmp"
+                ];
+                use_git_branch = true;
+                log_level = "info";
+                pre_save_cmds = [
+                  {
+                    __raw = ''
+                      function()
+                        -- Close snacks explorer before saving session
+                        for _, win in ipairs(vim.api.nvim_list_wins()) do
+                          local buf = vim.api.nvim_win_get_buf(win)
+                          local ft = vim.bo[buf].filetype
+                          if ft == "snacks_layout_box" or ft == "snacks_picker_list" or ft == "snacks_explorer" then
+                            pcall(vim.api.nvim_win_close, win, true)
+                          end
+                        end
+                      end
+                    '';
+                  }
+                ];
+                post_restore_cmds = [
+                  {
+                    __raw = ''
+                      function()
+                        -- Reopen snacks explorer after restoring session
+                        vim.schedule(function()
+                          Snacks.explorer()
+                        end)
+                      end
+                    '';
+                  }
+                ];
+              };
             };
           };
           viAlias = true;
