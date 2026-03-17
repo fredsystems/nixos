@@ -240,7 +240,7 @@ in
             "$mainMod, E, exec, $email"
             "$mainMod, T, exec, $terminal"
             "$mainMod SHIFT, T, exec, wezterm start -- bash"
-            "$mainMod, A, exec, freminal yazi"
+            "$mainMod, A, exec, freminal --hide-menu-bar yazi"
             "$mainMod, S, exec, ~/.config/hyprextra/scripts/idleinhibit.sh"
             "ALT, SPACE, exec, vicinae toggle"
             "$mainMod, C, killactive"

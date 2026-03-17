@@ -251,7 +251,11 @@ in
             };
 
             "Mod+A".action = {
-              spawn = [ "freminal yazi" ];
+              spawn = [
+                "freminal"
+                "--hide-menu-bar"
+                "yazi"
+              ];
             };
 
             "Mod+S".action = {
