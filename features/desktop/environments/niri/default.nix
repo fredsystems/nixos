@@ -238,7 +238,7 @@ in
             };
 
             "Mod+T".action = {
-              spawn = [ "wezterm" ];
+              spawn = [ "freminal" ];
             };
 
             "Mod+Shift+T".action = {
@@ -251,7 +251,7 @@ in
             };
 
             "Mod+A".action = {
-              spawn = [ "nautilus" ];
+              spawn = [ "freminal yazi" ];
             };
 
             "Mod+S".action = {
