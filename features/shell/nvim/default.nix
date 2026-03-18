@@ -40,6 +40,60 @@ in
             nvim-lspconfig
           ];
 
+          extraConfigLuaPre = ''
+            -- Consider a "normal" buffer as: loaded, listed, and not special buftype
+            local function has_normal_buffer()
+              for _, b in ipairs(vim.api.nvim_list_bufs()) do
+                if vim.api.nvim_buf_is_loaded(b) and vim.fn.buflisted(b) == 1 then
+                  local bt = vim.api.nvim_get_option_value("buftype", { buf = b })
+                  if bt == "" then
+                    return true
+                  end
+                end
+              end
+              return false
+            end
+
+            -- Smart buffer close: switches to another buffer before deleting,
+            -- keeping the explorer and window layout intact.
+            function _G.smart_close_buffer(bufnr)
+              bufnr = bufnr or vim.api.nvim_get_current_buf()
+              if type(bufnr) == "string" then bufnr = tonumber(bufnr) end
+
+              -- Don't close special buffers (explorer, etc.)
+              local ok, ft = pcall(function() return vim.bo[bufnr].filetype end)
+              if ok and (ft == "snacks_layout_box" or ft == "snacks_picker_list" or ft == "snacks_explorer") then
+                return
+              end
+
+              -- Find another normal listed buffer to switch to
+              local alt_buf = nil
+              for _, b in ipairs(vim.api.nvim_list_bufs()) do
+                if b ~= bufnr and vim.api.nvim_buf_is_loaded(b) and vim.fn.buflisted(b) == 1 then
+                  local bt = vim.api.nvim_get_option_value("buftype", { buf = b })
+                  if bt == "" then
+                    alt_buf = b
+                    break
+                  end
+                end
+              end
+
+              if alt_buf then
+                -- Switch any window showing this buffer to the alternate buffer
+                for _, win in ipairs(vim.api.nvim_list_wins()) do
+                  if vim.api.nvim_win_is_valid(win) and vim.api.nvim_win_get_buf(win) == bufnr then
+                    vim.api.nvim_win_set_buf(win, alt_buf)
+                  end
+                end
+                vim.api.nvim_buf_delete(bufnr, { force = true })
+              else
+                -- Last normal buffer: keep window alive with an empty buffer
+                vim.cmd("enew")
+                vim.api.nvim_buf_delete(bufnr, { force = true })
+              end
+            end
+          '';
+
           extraConfigLua = ''
                                           -- Configure blink-cmp formatting with lspkind
                                           require('blink.cmp').setup({
@@ -58,35 +112,6 @@ in
                                           })
 
 
-                        -- Consider a "normal" buffer as: loaded, listed, and not special buftype
-                        local function has_normal_buffer()
-                          for _, b in ipairs(vim.api.nvim_list_bufs()) do
-                            if vim.api.nvim_buf_is_loaded(b) and vim.fn.buflisted(b) == 1 then
-                              local bt = vim.api.nvim_get_option_value("buftype", { buf = b })
-                              if bt == "" then
-                                return true
-                              end
-                            end
-                          end
-                          return false
-                        end
-
-                        local function ensure_normal_buffer()
-                          -- Don't interfere while Neovim is exiting
-                          if vim.v.exiting ~= vim.NIL and vim.v.exiting ~= 0 then
-                            return
-                          end
-
-                          vim.schedule(function()
-                            if not has_normal_buffer() then
-                              vim.cmd("enew")
-                            end
-                          end)
-                        end
-
-                        vim.api.nvim_create_autocmd({ "BufDelete", "BufWipeout" }, {
-                          callback = ensure_normal_buffer,
-                        })
                         vim.api.nvim_create_user_command("Qa", "qa", {})
 
             -- Auto-reload files modified externally
@@ -155,6 +180,11 @@ in
               action = "<cmd>bprevious<CR>";
               key = "<leader>bp";
               options.desc = "Previous buffer";
+            }
+            {
+              action.__raw = "function() smart_close_buffer() end";
+              key = "<leader>bd";
+              options.desc = "Close buffer";
             }
 
             # LSP
@@ -251,6 +281,11 @@ in
               settings = {
                 options = {
                   separator_style = "thin";
+                  close_command.__raw = ''
+                    function(bufnr)
+                      smart_close_buffer(bufnr)
+                    end
+                  '';
                   offsets = [
                     {
                       filetype = "snacks_layout_box";
@@ -309,7 +344,6 @@ in
                     "snippets"
                     "copilot"
                     "emoji"
-                    "spell"
                   ];
                   providers = {
                     buffer = {
@@ -324,11 +358,6 @@ in
                     emoji = {
                       name = "Emoji";
                       module = "blink-emoji";
-                      score_offset = 1;
-                    };
-                    spell = {
-                      name = "Spell";
-                      module = "blink-cmp-spell";
                       score_offset = 1;
                     };
                     copilot = {
@@ -347,7 +376,7 @@ in
             blink-copilot.enable = true;
             blink-emoji.enable = true;
             blink-indent.enable = true;
-            blink-cmp-spell.enable = true;
+            blink-cmp-spell.enable = false;
             # Lightweight yet powerful formatter plugin for Neovim.
             conform-nvim = {
               enable = true;
@@ -469,7 +498,7 @@ in
                 bashls.enable = true;
                 # Spellcheck
                 harper_ls = {
-                  enable = true;
+                  enable = false;
                   settings.settings = {
                     "harper-ls" = {
                       linters = {
