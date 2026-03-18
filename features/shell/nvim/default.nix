@@ -20,6 +20,9 @@ in
 
         home.packages = with pkgs; [
           ripgrep
+          tectonic
+          mermaid-cli
+          ghostscript
         ];
 
         programs.nixvim = {
@@ -496,6 +499,7 @@ in
               inlayHints = true;
               servers = {
                 bashls.enable = true;
+                norg.enable = true;
                 # Spellcheck
                 harper_ls = {
                   enable = false;
@@ -584,6 +588,10 @@ in
             snacks = {
               enable = true;
               settings = {
+                image = {
+                  enabled = true;
+                  force = true;
+                };
                 picker = {
                   enabled = true;
                   hidden = true;
