@@ -16,3 +16,4 @@ _widgets=( $(zle -la) )
 
 [[ -n "${_widgets[(r)down-line-or-beginning-search]}" ]] && bindkey '^[[B' down-line-or-beginning-search
 [[ -n "${_widgets[(r)up-line-or-beginning-search]}"   ]] && bindkey '^[[A' up-line-or-beginning-search
+unset _widgets

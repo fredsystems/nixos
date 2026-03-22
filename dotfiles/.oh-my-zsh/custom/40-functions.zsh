@@ -40,7 +40,7 @@ gitsig() {
 }
 
 git-sync-main() {
-    set -euo pipefail
+    setopt localoptions errexit nounset pipefail
 
     # Get current branch
     local current
@@ -77,23 +77,24 @@ git-sync-main() {
 }
 
 pushcache() {
-    set -euo pipefail
-
-    USER=fred
+    # localoptions scopes option changes to this function (zsh-only).
+    # 'set -euo pipefail' leaks errexit/nounset into the parent shell.
+    setopt localoptions errexit nounset pipefail
 
     # Detect Home Manager root (newer HM first)
+    local HM_ROOT HM_PATH USER_PROFILE
     if [ -e "$HOME/.local/state/home-manager/gcroots/current-home" ]; then
         HM_ROOT="$HOME/.local/state/home-manager/gcroots/current-home"
     elif [ -e "$HOME/.local/state/nix/profiles/home-manager" ]; then
         HM_ROOT="$HOME/.local/state/nix/profiles/home-manager"
     else
-        echo "❌ Could not find Home Manager GC root"
-        exit 1
+        echo "Could not find Home Manager GC root" >&2
+        return 1
     fi
 
     HM_PATH=$(readlink -f "$HM_ROOT")
 
-    USER_PROFILE=$(readlink -f /etc/profiles/per-user/${USER})
+    USER_PROFILE=$(readlink -f "/etc/profiles/per-user/${USER}")
 
     echo "Pushing home-manager cache to attic..."
     echo "  HM root: $HM_ROOT"
@@ -117,6 +118,8 @@ pushcache() {
 updatenix() {
     local nixos_dir="${GITHUB_DIR}/nixos"
     local pushed=false
+    local rc=0
+    local component versions line
 
     if [[ "$HOME" == /Users/* ]]; then
         if [[ "$(pwd)" != "$nixos_dir" ]]; then
@@ -124,8 +127,8 @@ updatenix() {
             pushed=true
         fi
         sudo darwin-rebuild switch --flake .#"$(hostname)"
-        echo " Done with nix."
-        echo " Upgrading brew"
+        echo " Done with nix."
+        echo " Upgrading brew"
         brew update
         brew upgrade
     else
@@ -133,7 +136,10 @@ updatenix() {
             pushd "$nixos_dir" >/dev/null || return 2
             pushed=true
         fi
-        sudo nixos-rebuild switch --flake .#"$(hostname)" || return 1
+        if ! sudo nixos-rebuild switch --flake .#"$(hostname)"; then
+            [[ "$pushed" == true ]] && popd >/dev/null 2>&1 || true
+            return 1
+        fi
         sudo nixos-needsreboot
 
         if [[ -f /run/reboot-required ]]; then
@@ -162,7 +168,7 @@ updatenix() {
         pkill -RTMIN+8 waybar 2>/dev/null || true
     fi
 
-    if [[ "$pushed" = true ]]; then
+    if [[ "$pushed" == true ]]; then
         popd >/dev/null || true
     fi
 }
@@ -214,24 +220,28 @@ sign() {
     pushd "${HOME}/tmp" >/dev/null || return
     touch a.txt
     gpg --sign a.txt
-    popd >/dev/null || return
+    local rc=$?
+    popd >/dev/null || true
     rm -rf "${HOME}/tmp"
+    return $rc
 }
 
 gcverify() {
     [[ -z "$2" ]] && echo "Provide commit message" && return
     sign
     pushd "${GITHUB_DIR}/$1" >/dev/null || return
-    git add .
-    gcam "$2"
-    popd >/dev/null || return
+    git add . && gcam "$2"
+    local rc=$?
+    popd >/dev/null || true
+    return $rc
 }
 
 gcnoverify() {
     [[ -z "$2" ]] && echo "Provide commit message" && return
     sign
     pushd "${GITHUB_DIR}/$1" >/dev/null || return
-    git add .
-    git commit --all --no-verify -m "$2"
-    popd >/dev/null || return
+    git add . && git commit --all --no-verify -m "$2"
+    local rc=$?
+    popd >/dev/null || true
+    return $rc
 }
