@@ -3,19 +3,15 @@
   config,
   ...
 }:
-with lib;
 let
   cfg = config.desktop.steam;
 in
 {
   options.desktop.steam = {
-    enable = mkOption {
-      description = "Enable Steam.";
-      default = false;
-    };
+    enable = lib.mkEnableOption "Steam";
   };
 
-  config = mkIf cfg.enable {
+  config = lib.mkIf cfg.enable {
     programs.steam = {
       enable = true;
       remotePlay.openFirewall = true; # Open ports in the firewall for Steam Remote Play

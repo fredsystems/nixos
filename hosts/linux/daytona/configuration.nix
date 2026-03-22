@@ -18,6 +18,8 @@
     logitech.enable = true;
   };
 
+  profile.desktop.bluetooth.enable = true;
+
   # extra options
   ai = {
     enable = false;
@@ -36,8 +38,6 @@
     hostName = "Daytona";
     networkmanager.wifi.scanRandMacAddress = false;
   };
-
-  hardware.bluetooth.enable = true;
 
   system.activationScripts.sddm-hyprland-config = ''
     mkdir -p /var/lib/sddm/.config/hypr
@@ -64,18 +64,6 @@
         };
       };
     };
-
-    blueman.enable = true;
-    # Solaar configuration (requires solaar module from flake)
-    solaar = {
-      enable = true;
-      package = pkgs.solaar;
-      window = "hide";
-      batteryIcons = "regular";
-      extraArgs = "";
-    };
-
-    udev.packages = with pkgs; [ solaar ];
 
     logind = {
       settings = {

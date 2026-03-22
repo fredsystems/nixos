@@ -6,21 +6,16 @@
   extraUsers ? [ ],
   ...
 }:
-with lib;
 let
   cfg = config.desktop.appimage;
   allUsers = [ user ] ++ extraUsers;
 in
 {
   options.desktop.appimage = {
-    # Updated to match the new configuration
-    enable = mkOption {
-      description = "Enable AppImage";
-      default = false;
-    };
+    enable = lib.mkEnableOption "AppImage";
   };
 
-  config = mkIf cfg.enable {
+  config = lib.mkIf cfg.enable {
     users.users = lib.genAttrs allUsers (_: {
       packages = with pkgs; [
         appimage-run

@@ -5,33 +5,19 @@
   extraUsers ? [ ],
   ...
 }:
-with lib;
 let
   cfg = config.desktop;
-  username = user;
-  allUsers = [ username ] ++ extraUsers;
+  allUsers = [ user ] ++ extraUsers;
 in
 {
   options.desktop = {
-    enable = mkOption {
-      description = "Enable desktop environment.";
-      default = false;
-    };
+    enable = lib.mkEnableOption "desktop environment";
 
-    enable_extra = mkOption {
-      description = "Enable extra desktop applications. This will turn on packages that do not work on arm64.";
-      default = false;
-    };
+    enable_extra = lib.mkEnableOption "extra desktop applications (packages that do not work on arm64)";
 
-    enable_games = mkOption {
-      description = "Enable games.";
-      default = false;
-    };
+    enable_games = lib.mkEnableOption "games";
 
-    enable_streaming = mkOption {
-      description = "Enable streaming applications.";
-      default = false;
-    };
+    enable_streaming = lib.mkEnableOption "streaming applications";
   };
 
   imports = [
@@ -71,7 +57,7 @@ in
     ./zed
   ];
 
-  config = mkIf cfg.enable {
+  config = lib.mkIf cfg.enable {
     desktop = {
       environments.enable = true;
       brave.enable = true;
@@ -98,14 +84,14 @@ in
       yubikey.enable = true;
       thunderbird.enable = true;
       freminal.enable = true;
-      music.enable = if cfg.enable_extra then true else false;
-      appimage.enable = if cfg.enable_extra then true else false;
-      discord.enable = if cfg.enable_extra then true else false;
-      tradingview.enable = if cfg.enable_extra then true else false;
-      steam.enable = if cfg.enable_games then true else false;
-      obs.enable = if cfg.enable_streaming then true else false;
-      ledger.enable = if cfg.enable_extra then true else false;
-      trezor.enable = if cfg.enable_extra then true else false;
+      music.enable = cfg.enable_extra;
+      appimage.enable = cfg.enable_extra;
+      discord.enable = cfg.enable_extra;
+      tradingview.enable = cfg.enable_extra;
+      steam.enable = cfg.enable_games;
+      obs.enable = cfg.enable_streaming;
+      ledger.enable = cfg.enable_extra;
+      trezor.enable = cfg.enable_extra;
     };
 
     home-manager.users = lib.genAttrs allUsers (_: {

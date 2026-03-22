@@ -4,19 +4,15 @@
   config,
   ...
 }:
-with lib;
 let
   cfg = config.desktop.trezor;
 in
 {
   options.desktop.trezor = {
-    enable = mkOption {
-      description = "Enable Trezor.";
-      default = false;
-    };
+    enable = lib.mkEnableOption "Trezor";
   };
 
-  config = mkIf cfg.enable {
+  config = lib.mkIf cfg.enable {
     services = {
       trezord = {
         enable = true;

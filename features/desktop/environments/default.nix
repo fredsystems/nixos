@@ -7,18 +7,14 @@
   extraUsers ? [ ],
   ...
 }:
-with lib;
 let
   cfg = config.desktop.environments;
   allUsers = [ user ] ++ extraUsers;
-  waitForWayland = "${lib.getExe' pkgs.bash "bash"} -c 'until [ -S \"$\{XDG_RUNTIME_DIR}/wayland-1\" ]; do sleep 0.5; done'";
+  inherit (config.desktop.environments.common) waitForWayland;
 in
 {
   options.desktop.environments = {
-    enable = mkOption {
-      description = "Enable the desktop environments.";
-      default = false;
-    };
+    enable = lib.mkEnableOption "desktop environments";
   };
 
   imports = [
@@ -30,7 +26,7 @@ in
     ./common.nix
   ];
 
-  config = mkIf cfg.enable {
+  config = lib.mkIf cfg.enable {
     systemd = {
       user.services = {
         # one-password-agent = {

@@ -6,7 +6,6 @@
   extraUsers ? [ ],
   ...
 }:
-with lib;
 let
   allUsers = [ user ] ++ extraUsers;
   cfg = config.desktop.environments.common;
@@ -14,142 +13,41 @@ let
 in
 {
   options.desktop.environments.common = {
-    enable = mkOption {
-      description = "Enable shared Wayland compositor infrastructure (keyring, gvfs, polkit, portal, etc.)";
-      default = false;
+    enable = lib.mkEnableOption "shared Wayland compositor infrastructure (keyring, gvfs, polkit, portal, etc.)";
+
+    # Shared helper exposed for compositor and bar modules that need to wait
+    # for the Wayland socket before starting a service.
+    waitForWayland = lib.mkOption {
+      type = lib.types.str;
+      readOnly = true;
+      default = "${lib.getExe' pkgs.bash "bash"} -c 'until [ -S \"$\{XDG_RUNTIME_DIR}/wayland-1\" ]; do sleep 0.5; done'";
+      description = "Shell command that blocks until the Wayland socket exists.";
     };
   };
 
-  config = mkIf cfg.enable {
-    home-manager.users = lib.genAttrs allUsers (_: {
-      # ── User avatar (.face) ───────────────────────────────────────────────────
-      # Deployed to ~/.face so that SDDM and any greeter that respects the
-      # freedesktop face icon convention picks it up automatically.
-      home.file.".face" = {
-        source = ./assets/face.png;
-      };
+  config = lib.mkIf cfg.enable {
 
-      gtk = {
-        enable = true;
-        gtk3.extraConfig = {
-          gtk-application-prefer-dark-theme = 1;
-        };
-        gtk4.extraConfig = {
-          gtk-application-prefer-dark-theme = 1;
-        };
-        theme = {
-          name = "Catppuccin-GTK-Mauve-Dark";
-          package = pkgs.magnetic-catppuccin-gtk.override {
-            accent = [ "mauve" ];
-            shade = "dark";
-          };
-        };
-      };
-
-      # ── Idle management (hypridle) ───────────────────────────────────────────
-      # Single shared hypridle definition for both Hyprland and Niri.
-      # DPMS on/off is delegated to dpms.sh, which probes the active compositor
-      # at runtime via hyprctl / niri IPC — so the correct command is always
-      # issued regardless of which compositor packages are installed on the host.
-      services.hypridle = {
-        enable = true;
-        settings = {
-          general = {
-            lock_cmd = "hyprlock";
-            before_sleep_cmd = "hyprlock";
-            after_sleep_cmd = "${dpmsScript} on";
-          };
-
-          listener = [
-            {
-              # Lock the screen after 5 minutes of inactivity.
-              timeout = 300;
-              on-timeout = "hyprlock";
-            }
-            {
-              # Power off monitors after 10 minutes of inactivity.
-              # dpms.sh detects whether Hyprland or Niri is running and
-              # issues the appropriate compositor command.
-              timeout = 600;
-              on-timeout = "${dpmsScript} off";
-              on-resume = "${dpmsScript} on";
-            }
-            {
-              # Suspend the system after 15 minutes of inactivity.
-              timeout = 900;
-              on-timeout = "systemctl suspend";
-            }
-          ];
-        };
-      };
-    });
-
-    services = {
-      # ── Keyring ──────────────────────────────────────────────────────────────
-      # Provides the D-Bus secret service (org.freedesktop.secrets), auto-unlocks
-      # at login via PAM, and exposes the PKCS#11 / SSH agent sockets.
-      # Required by: 1Password, Thunderbird, anything that stores credentials.
-      gnome.gnome-keyring.enable = true;
-
-      # ── Virtual filesystem / trash / network mounts ────────────────────────
-      # Required by Nautilus for MTP, SMB, SFTP, and the desktop trash integration
-      # that udiskie also relies on.
-      gvfs.enable = true;
-
-      # ── Power state information ───────────────────────────────────────────────
-      # Provides battery / AC status over D-Bus (UPower). Needed by status bars
-      # (fredbar), notification daemons, and hypridle rules.
-      # mkForce resolves the priority conflict introduced by disabling GNOME DE
-      # (gnome.nix derives this from powerManagement.enable = false) while
-      # cosmic.nix hardcodes true.
-      upower.enable = lib.mkForce true;
-    };
-
-    # ── dconf ──────────────────────────────────────────────────────────────────
-    # Backend for gsettings. Both Hyprland and Niri call:
-    #   gsettings set org.gnome.desktop.interface color-scheme / gtk-theme
-    # at startup for GTK dark mode and theme application. Without dconf enabled
-    # at the NixOS level the gsettings writes are silently discarded.
-    programs.dconf.enable = true;
-
-    # ── Polkit authentication agent ────────────────────────────────────────────
-    # polkit-gnome provides the graphical "enter password" dialog that pops up
-    # when a privileged action is requested (e.g. mounting, package installs).
-    # The package is installed here so it is available system-wide; the actual
-    # user service that starts the agent is defined below so it auto-restarts.
-    environment.systemPackages = with pkgs; [
-      polkit_gnome # polkit-gnome-authentication-agent-1 binary
-      glib # gsettings binary — needed for GTK theming execs at startup
-      gsettings-desktop-schemas # org.gnome.desktop.interface schemas (color-scheme, gtk-theme, etc.)
-    ];
-
-    # Point gsettings at the compiled schema dir inside the package.
-    # Without GNOME DE nothing sets up XDG_DATA_DIRS to include the
-    # gsettings-desktop-schemas store path, so gsettings calls at
-    # compositor startup (color-scheme, gtk-theme) find no schemas.
-    environment.sessionVariables.GSETTINGS_SCHEMA_DIR = "${pkgs.gsettings-desktop-schemas}/share/gsettings-schemas/${pkgs.gsettings-desktop-schemas.name}/glib-2.0/schemas";
-
-    # ── XDG desktop portals ────────────────────────────────────────────────────
-    # xdg-desktop-portal-gtk covers file chooser, screenshots, and appearance
-    # portals for both Hyprland and Niri. Each compositor adds its own
-    # portal backend on top of this in its own module.
-    xdg.portal = {
+    # ── SDDM display manager ────────────────────────────────────────────────
+    # Shared by all Wayland compositors (Hyprland, Niri).
+    services.displayManager.sddm = {
       enable = true;
-      extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
-      config.common.default = "*";
+      wayland.enable = true;
+
+      settings = {
+        Theme = {
+          font = "SFProDisplay Nerd Font";
+        };
+
+        General = {
+          RememberLastSession = true;
+          RememberLastUser = true;
+        };
+      };
     };
 
-    # ── Nautilus file manager ──────────────────────────────────────────────────
-    # Installed independently of the GNOME DE. Niri binds Mod+A to "nautilus".
-    # nautilus-open-any-terminal patches the right-click "Open Terminal" action.
-    programs.nautilus-open-any-terminal = {
-      enable = true;
-      terminal = "wezterm";
-    };
-
-    # ── Shared user packages ───────────────────────────────────────────────────
-    # Packages used in both Hyprland and Niri. Compositor-specific packages
-    # (e.g. hyprland/niri binaries themselves) stay in their own modules.
+    # ── Shared compositor utility packages ───────────────────────────────────
+    # Used by both Hyprland and Niri; compositor-specific binaries stay in
+    # their own modules.
     users.users = lib.genAttrs allUsers (_: {
       packages = with pkgs; [
         # File manager + supporting libraries
@@ -203,13 +101,130 @@ in
         # xdg-open — needed by udiskie for file manager integration and
         # generally required by any app that opens URLs/files via xdg-open
         xdg-utils
+
+        # Shared compositor utilities (polkit agent, picker, audio idle inhibit)
+        hyprpolkitagent
+        hyprpicker
+        sway-audio-idle-inhibit
+        networkmanagerapplet
       ];
     });
 
+    home-manager.users = lib.genAttrs allUsers (_: {
+      imports = [ ./modules/xdg-mime-common.nix ];
+
+      # ── User avatar (.face) ───────────────────────────────────────────────
+      # Deployed to ~/.face so that SDDM and any greeter that respects the
+      # freedesktop face icon convention picks it up automatically.
+      home.file.".face" = {
+        source = ./assets/face.png;
+      };
+
+      gtk = {
+        enable = true;
+        gtk3.extraConfig = {
+          gtk-application-prefer-dark-theme = 1;
+        };
+        gtk4.extraConfig = {
+          gtk-application-prefer-dark-theme = 1;
+        };
+        theme = {
+          name = "Catppuccin-GTK-Mauve-Dark";
+          package = pkgs.magnetic-catppuccin-gtk.override {
+            accent = [ "mauve" ];
+            shade = "dark";
+          };
+        };
+      };
+
+      # ── Shared catppuccin/hyprlock settings ────────────────────────────────
+      catppuccin = {
+        gtk.icon.enable = true;
+        hyprlock.enable = true;
+      };
+
+      programs.hyprlock.enable = true;
+
+      services.network-manager-applet.enable = true;
+
+      # ── Idle management (hypridle) ─────────────────────────────────────────
+      # Single shared hypridle definition for both Hyprland and Niri.
+      # DPMS on/off is delegated to dpms.sh, which probes the active compositor
+      # at runtime via hyprctl / niri IPC — so the correct command is always
+      # issued regardless of which compositor packages are installed on the host.
+      services.hypridle = {
+        enable = true;
+        settings = {
+          general = {
+            lock_cmd = "hyprlock";
+            before_sleep_cmd = "hyprlock";
+            after_sleep_cmd = "${dpmsScript} on";
+          };
+
+          listener = [
+            {
+              # Lock the screen after 5 minutes of inactivity.
+              timeout = 300;
+              on-timeout = "hyprlock";
+            }
+            {
+              # Power off monitors after 10 minutes of inactivity.
+              # dpms.sh detects whether Hyprland or Niri is running and
+              # issues the appropriate compositor command.
+              timeout = 600;
+              on-timeout = "${dpmsScript} off";
+              on-resume = "${dpmsScript} on";
+            }
+            {
+              # Suspend the system after 15 minutes of inactivity.
+              timeout = 900;
+              on-timeout = "systemctl suspend";
+            }
+          ];
+        };
+      };
+    });
+
+    services = {
+      # ── Keyring ──────────────────────────────────────────────────────────────
+      gnome.gnome-keyring.enable = true;
+
+      # ── Virtual filesystem / trash / network mounts ────────────────────────
+      gvfs.enable = true;
+
+      # ── Power state information ───────────────────────────────────────────────
+      upower.enable = lib.mkForce true;
+    };
+
+    # ── dconf ──────────────────────────────────────────────────────────────────
+    programs.dconf.enable = true;
+
+    # ── Polkit authentication agent ────────────────────────────────────────────
+    environment.systemPackages = with pkgs; [
+      polkit_gnome
+      glib
+      gsettings-desktop-schemas
+    ];
+
+    environment.sessionVariables.GSETTINGS_SCHEMA_DIR = "${pkgs.gsettings-desktop-schemas}/share/gsettings-schemas/${pkgs.gsettings-desktop-schemas.name}/glib-2.0/schemas";
+
+    # ── XDG desktop portals ────────────────────────────────────────────────────
+    xdg.portal = {
+      enable = true;
+      extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
+      config.common.default = "*";
+    };
+
+    # ── Nautilus file manager ──────────────────────────────────────────────────
+    programs.nautilus-open-any-terminal = {
+      enable = true;
+      terminal = "wezterm";
+    };
+
+    # ── Desktop environment helper modules ─────────────────────────────────────
+    desktop.environments.modules.enable = true;
+
     # ── Polkit agent user service ──────────────────────────────────────────────
-    # Runs polkit-gnome-authentication-agent-1 as a persistent user service.
-    # Both Hyprland (exec-once) and Niri (spawn-at-startup) restart this unit
-    # at compositor startup to ensure it is bound to the correct Wayland session.
     systemd.user.services.polkit-gnome-authentication-agent-1 = {
       description = "polkit-gnome-authentication-agent-1";
       unitConfig = {

@@ -7,20 +7,16 @@
   extraUsers ? [ ],
   ...
 }:
-with lib;
 let
   allUsers = [ user ] ++ extraUsers;
   cfg = config.desktop.environments.gnome;
 in
 {
   options.desktop.environments.gnome = {
-    enable = mkOption {
-      description = "Install GNOME desktop environment.";
-      default = false;
-    };
+    enable = lib.mkEnableOption "GNOME desktop environment";
   };
 
-  config = mkIf cfg.enable {
+  config = lib.mkIf cfg.enable {
     environment.systemPackages = with pkgs; [
       gnomeExtensions.caffeine
       gnomeExtensions.vitals

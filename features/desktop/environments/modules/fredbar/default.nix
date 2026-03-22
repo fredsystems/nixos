@@ -1,26 +1,21 @@
 {
   lib,
-  pkgs,
   config,
   user,
   extraUsers ? [ ],
   ...
 }:
-with lib;
 let
   allUsers = [ user ] ++ extraUsers;
   cfg = config.desktop.environments.modules.fredbar;
-  waitForWayland = "${lib.getExe' pkgs.bash "bash"} -c 'until [ -S \"$\{XDG_RUNTIME_DIR}/wayland-1\" ]; do sleep 0.5; done'";
+  inherit (config.desktop.environments.common) waitForWayland;
 in
 {
   options.desktop.environments.modules.fredbar = {
-    enable = mkOption {
-      description = "Enable fredbar.";
-      default = false;
-    };
+    enable = lib.mkEnableOption "fredbar";
   };
 
-  config = mkIf cfg.enable {
+  config = lib.mkIf cfg.enable {
     home-manager.users = lib.genAttrs allUsers (_: {
       services.swaync.enable = lib.mkForce false;
 

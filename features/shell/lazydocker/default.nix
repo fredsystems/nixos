@@ -1,7 +1,6 @@
 {
   user,
   extraUsers ? [ ],
-  pkgs,
   lib,
   ...
 }:
@@ -11,10 +10,6 @@ in
 {
   config = {
     home-manager.users = lib.genAttrs allUsers (_: {
-      home.packages = with pkgs; [
-        lazydocker
-      ];
-
       programs.lazydocker = {
         enable = true;
         settings = {

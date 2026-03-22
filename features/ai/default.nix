@@ -3,16 +3,12 @@
   config,
   ...
 }:
-with lib;
 let
   cfg = config.ai;
 in
 {
   options.ai = {
-    enable = mkOption {
-      description = "Enable AI LLM support.";
-      default = false;
-    };
+    enable = lib.mkEnableOption "AI LLM support";
   };
 
   imports = [
@@ -20,7 +16,7 @@ in
     ./opencode
   ];
 
-  config = mkIf cfg.enable {
+  config = lib.mkIf cfg.enable {
     ai.local-llm.enable = true;
     ai.opencode.enable = true;
   };

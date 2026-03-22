@@ -6,20 +6,16 @@
   extraUsers ? [ ],
   ...
 }:
-with lib;
 let
   cfg = config.desktop.brave;
   allUsers = [ user ] ++ extraUsers;
 in
 {
   options.desktop.brave = {
-    enable = mkOption {
-      description = "Install Brave browser.";
-      default = false;
-    };
+    enable = lib.mkEnableOption "Brave browser";
   };
 
-  config = mkIf cfg.enable {
+  config = lib.mkIf cfg.enable {
     users.users = lib.genAttrs allUsers (_: {
       packages = with pkgs; [
         brave

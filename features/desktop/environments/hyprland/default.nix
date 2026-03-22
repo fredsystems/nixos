@@ -7,47 +7,17 @@
   extraUsers ? [ ],
   ...
 }:
-with lib;
 let
   allUsers = [ user ] ++ extraUsers;
   cfg = config.desktop.environments.hyprland;
-  waitForWayland = "${lib.getExe' pkgs.bash "bash"} -c 'until [ -S \"$\{XDG_RUNTIME_DIR}/wayland-1\" ]; do sleep 0.5; done'";
+  inherit (config.desktop.environments.common) waitForWayland;
 in
 {
   options.desktop.environments.hyprland = {
-    enable = mkOption {
-      description = "Install Hyprland desktop environment.";
-      default = false;
-    };
+    enable = lib.mkEnableOption "Hyprland desktop environment";
   };
 
-  config = mkIf cfg.enable {
-    desktop.environments.modules.enable = true;
-
-    services.displayManager.sddm = {
-      enable = true;
-      wayland.enable = true;
-
-      settings = {
-        Theme = {
-          font = "SFProDisplay Nerd Font";
-        };
-
-        General = {
-          RememberLastSession = true;
-          RememberLastUser = true;
-        };
-      };
-    };
-
-    users.users = lib.genAttrs allUsers (_: {
-      packages = with pkgs; [
-        # Hyprland-specific utilities
-        hyprpolkitagent
-        hyprpicker
-        sway-audio-idle-inhibit
-      ];
-    });
+  config = lib.mkIf cfg.enable {
 
     programs.hyprland = {
       # Install the packages from nixpkgs
@@ -75,7 +45,6 @@ in
     };
 
     home-manager.users = lib.genAttrs allUsers (_: {
-      imports = [ ../modules/xdg-mime-common.nix ];
 
       # wayland.windowManager.hyprland generates a broken stub unit at
       # ~/.config/systemd/user/xdg-desktop-portal-hyprland.service that only
@@ -90,19 +59,7 @@ in
         $DRY_RUN_CMD ${pkgs.systemd}/bin/systemctl --user daemon-reload || true
       '';
 
-      catppuccin = {
-        gtk.icon.enable = true;
-        hyprland.enable = true;
-        hyprlock.enable = true;
-      };
-
-      home.packages = with pkgs; [
-        networkmanagerapplet
-      ];
-
-      programs.hyprlock.enable = true;
-
-      services.network-manager-applet.enable = true;
+      catppuccin.hyprland.enable = true;
 
       wayland.windowManager.hyprland = {
         enable = true;

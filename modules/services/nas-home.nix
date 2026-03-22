@@ -13,35 +13,14 @@ let
     types
     ;
   cfg = config.nas;
+  nasMountType = import ./nas-mount-type.nix { inherit lib; };
 in
 {
   options.nas = {
     enable = mkEnableOption "User-level NAS integration";
 
     mounts = mkOption {
-      type = types.listOf (
-        types.submodule {
-          options = {
-            path = mkOption { type = types.str; };
-            host = mkOption { type = types.str; };
-            share = mkOption { type = types.str; };
-            type = mkOption {
-              type = types.enum [
-                "nfs"
-                "smb"
-              ];
-            };
-            gvfsName = mkOption {
-              type = types.str;
-              default = "";
-            };
-            wifi = mkOption {
-              type = types.nullOr types.str;
-              default = null;
-            };
-          };
-        }
-      );
+      type = types.listOf nasMountType;
       default = [ ];
     };
 

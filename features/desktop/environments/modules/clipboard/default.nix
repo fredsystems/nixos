@@ -6,20 +6,16 @@
   extraUsers ? [ ],
   ...
 }:
-with lib;
 let
   allUsers = [ user ] ++ extraUsers;
   cfg = config.desktop.environments.modules.clipboard;
 in
 {
   options.desktop.environments.modules.clipboard = {
-    enable = mkOption {
-      description = "Enable clipboard stuff for hyprland.";
-      default = false;
-    };
+    enable = lib.mkEnableOption "clipboard support for Hyprland";
   };
 
-  config = mkIf cfg.enable {
+  config = lib.mkIf cfg.enable {
     users.users = lib.genAttrs allUsers (_: {
       packages = with pkgs; [
         cliphist

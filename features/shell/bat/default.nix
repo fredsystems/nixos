@@ -1,5 +1,4 @@
 {
-  pkgs,
   user,
   extraUsers ? [ ],
   lib,
@@ -7,15 +6,11 @@
 }:
 
 let
-  username = user;
-  allUsers = [ username ] ++ extraUsers;
+  allUsers = [ user ] ++ extraUsers;
 in
 {
   config = {
     home-manager.users = lib.genAttrs allUsers (_: {
-
-      # Install bat
-      home.packages = [ pkgs.bat ];
 
       programs.bat = {
         enable = true;

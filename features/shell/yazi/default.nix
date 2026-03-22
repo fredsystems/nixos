@@ -12,8 +12,6 @@ in
   config = {
     home-manager.users = lib.genAttrs allUsers (_: {
       home.packages = with pkgs; [
-        yazi
-
         # plugins for yazi
         ffmpeg
         p7zip

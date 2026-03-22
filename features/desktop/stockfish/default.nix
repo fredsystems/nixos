@@ -1,30 +1,8 @@
-{
-  lib,
-  pkgs,
-  config,
-  user,
-  extraUsers ? [ ],
-  ...
-}:
-with lib;
-let
-  allUsers = [ user ] ++ extraUsers;
-  cfg = config.desktop.stockfish;
-in
-{
-  options.desktop.stockfish = {
-    enable = mkOption {
-      description = "Enable Sublime Text.";
-      default = false;
-    };
-  };
-
-  config = mkIf cfg.enable {
-    users.users = lib.genAttrs allUsers (_: {
-      packages = with pkgs; [
-        stockfish
-        arena
-      ];
-    });
-  };
+import ../../../modules/lib/mk-simple-package-module.nix {
+  optionPath = "desktop.stockfish";
+  description = "Stockfish chess engine and Arena GUI";
+  packages = pkgs: [
+    pkgs.stockfish
+    pkgs.arena
+  ];
 }

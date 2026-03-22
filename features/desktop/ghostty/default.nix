@@ -1,6 +1,5 @@
 {
   lib,
-  pkgs,
   config,
   user,
   extraUsers ? [ ],
@@ -18,13 +17,11 @@ in
   imports = [ ../../../modules/terminal/common.nix ] ++ lib.optional isLinux ./linux-xdg.nix;
 
   options.desktop.ghostty = {
-    enable = lib.mkEnableOption "Enable Ghostty terminal emulator";
+    enable = lib.mkEnableOption "Ghostty terminal emulator";
   };
 
   config = lib.mkIf cfg.enable {
     home-manager.users = lib.genAttrs allUsers (_: {
-      home.packages = [ pkgs.ghostty ];
-
       programs.ghostty = {
         enable = true;
 

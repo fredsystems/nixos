@@ -3,19 +3,15 @@
   config,
   ...
 }:
-with lib;
 let
   cfg = config.desktop.print;
 in
 {
   options.desktop.print = {
-    enable = mkOption {
-      description = "Install printing services.";
-      default = false;
-    };
+    enable = lib.mkEnableOption "printing services";
   };
 
-  config = mkIf cfg.enable {
+  config = lib.mkIf cfg.enable {
     # Enable CUPS to print documents.
     services.printing.enable = true;
 

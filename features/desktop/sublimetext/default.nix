@@ -6,20 +6,16 @@
   extraUsers ? [ ],
   ...
 }:
-with lib;
 let
   allUsers = [ user ] ++ extraUsers;
   cfg = config.desktop.sublimetext;
 in
 {
   options.desktop.sublimetext = {
-    enable = mkOption {
-      description = "Enable Sublime Text.";
-      default = false;
-    };
+    enable = lib.mkEnableOption "Sublime Text";
   };
 
-  config = mkIf cfg.enable {
+  config = lib.mkIf cfg.enable {
     users.users = lib.genAttrs allUsers (_: {
       packages = with pkgs; [
         sublime4

@@ -6,20 +6,16 @@
   extraUsers ? [ ],
   ...
 }:
-with lib;
 let
   allUsers = [ user ] ++ extraUsers;
   cfg = config.desktop.ledger;
 in
 {
   options.desktop.ledger = {
-    enable = mkOption {
-      description = "Install Ledger Live desktop application.";
-      default = false;
-    };
+    enable = lib.mkEnableOption "Ledger Live desktop application";
   };
 
-  config = mkIf cfg.enable {
+  config = lib.mkIf cfg.enable {
     hardware.ledger.enable = true;
 
     services = {
