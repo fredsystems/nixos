@@ -4,19 +4,15 @@
   config,
   ...
 }:
-with lib;
 let
   cfg = config.desktop.audio;
 in
 {
   options.desktop.audio = {
-    enable = mkOption {
-      description = "Enable Audio.";
-      default = false;
-    };
+    enable = lib.mkEnableOption "Audio";
   };
 
-  config = mkIf cfg.enable {
+  config = lib.mkIf cfg.enable {
     environment.systemPackages = with pkgs; [
       pavucontrol
       crosspipe

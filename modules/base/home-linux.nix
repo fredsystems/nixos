@@ -1,26 +1,17 @@
 {
-  stateVersion,
   user,
-  pkgs,
   ...
 }:
 let
-  username = user;
-  homeDir = "/home/${username}";
+  homeDir = "/home/${user}";
 in
 {
   ##########################################################################
-  ## HOME BASE SETTINGS (platform-aware)
+  ## HOME BASE SETTINGS — Linux Only
   ##########################################################################
   home = {
-    inherit username;
+    username = user;
     homeDirectory = homeDir;
-    inherit stateVersion;
-
-    packages = with pkgs; [
-      zoxide
-      oh-my-zsh
-    ];
   };
 
   ##########################################################################

@@ -6,20 +6,16 @@
   extraUsers ? [ ],
   ...
 }:
-with lib;
 let
   allUsers = [ user ] ++ extraUsers;
   cfg = config.desktop.discord;
 in
 {
   options.desktop.discord = {
-    enable = mkOption {
-      description = "Enable Discord.";
-      default = false;
-    };
+    enable = lib.mkEnableOption "Discord";
   };
 
-  config = mkIf cfg.enable {
+  config = lib.mkIf cfg.enable {
     users.users = lib.genAttrs allUsers (_: {
       packages = with pkgs; [
         discord

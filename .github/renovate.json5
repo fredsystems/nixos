@@ -24,7 +24,10 @@
   customManagers: [
     {
       customType: "regex",
-      managerFilePatterns: ["/systems-linux/(.*)/configuration\\.nix$/"],
+      managerFilePatterns: [
+        "/hosts/linux/(.*)/configuration\\.nix$/",
+        "/modules/services/mk-dozzle-agent\\.nix$/",
+      ],
       matchStrings: [
         'image = "v?(?<depName>.*?):(?<currentValue>.*?)(?:@(?<currentDigest>sha256:[a-f0-9]+))?";',
       ],

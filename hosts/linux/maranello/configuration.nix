@@ -23,6 +23,8 @@ in
     logitech.enable = true;
   };
 
+  profile.desktop.bluetooth.enable = true;
+
   # extra options
   ai.enable = true;
   desktop = {
@@ -49,21 +51,7 @@ in
 
   system.stateVersion = stateVersion;
 
-  hardware.bluetooth.enable = true;
-
   services = {
-    blueman.enable = true;
-    # Solaar configuration (requires solaar module from flake)
-    solaar = {
-      enable = true;
-      package = pkgs.solaar;
-      window = "hide";
-      batteryIcons = "regular";
-      extraArgs = "";
-    };
-
-    udev.packages = with pkgs; [ solaar ];
-
     displayManager = {
       defaultSession = "hyprland";
       sddm = {

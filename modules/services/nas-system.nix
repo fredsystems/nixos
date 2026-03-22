@@ -13,41 +13,14 @@ let
     types
     ;
   cfg = config.nas;
+  nasMountType = import ./nas-mount-type.nix { inherit lib; };
 in
 {
   options.nas = {
     enable = mkEnableOption "System-level NAS mounting";
 
     mounts = mkOption {
-      type = types.listOf (
-        types.submodule {
-          options = {
-            path = mkOption { type = types.str; };
-            host = mkOption { type = types.str; };
-            share = mkOption { type = types.str; };
-            type = mkOption {
-              type = types.enum [
-                "nfs"
-                "smb"
-              ];
-            };
-            wifi = mkOption {
-              type = types.nullOr types.str;
-              default = null;
-              description = "Only mount when connected to this SSID.";
-            };
-            gvfsName = mkOption {
-              type = types.str;
-              default = "";
-              description = "Display name used by the Home Manager NAS module.";
-            };
-            extraOptions = mkOption {
-              type = types.listOf types.str;
-              default = [ ];
-            };
-          };
-        }
-      );
+      type = types.listOf nasMountType;
       default = [ ];
     };
 

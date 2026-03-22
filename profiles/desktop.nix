@@ -1,6 +1,7 @@
 {
   config,
   lib,
+  pkgs,
   user,
   ...
 }:
@@ -15,7 +16,7 @@
   ];
 
   options.profile.desktop = {
-    # Hardware profile options are now in modules/hardware/*
+    bluetooth.enable = lib.mkEnableOption "Bluetooth + Blueman + Solaar stack";
   };
 
   config = lib.mkMerge [
@@ -65,5 +66,24 @@
       deployment.role = lib.mkDefault "desktop";
       sops_secrets.enable_secrets.enable = lib.mkDefault true;
     }
+
+    # ── Bluetooth / Blueman / Solaar ─────────────────────────────────────────
+    (lib.mkIf config.profile.desktop.bluetooth.enable {
+      hardware.bluetooth.enable = true;
+
+      services = {
+        blueman.enable = true;
+
+        solaar = {
+          enable = true;
+          package = pkgs.solaar;
+          window = "hide";
+          batteryIcons = "regular";
+          extraArgs = "";
+        };
+
+        udev.packages = [ pkgs.solaar ];
+      };
+    })
   ];
 }

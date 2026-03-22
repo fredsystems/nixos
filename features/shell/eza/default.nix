@@ -1,5 +1,4 @@
 {
-  pkgs,
   user,
   extraUsers ? [ ],
   lib,
@@ -11,10 +10,6 @@ in
 {
   config = {
     home-manager.users = lib.genAttrs allUsers (_: {
-      home.packages = with pkgs; [
-        eza
-      ];
-
       programs.eza = {
         enable = true;
         colors = "always";

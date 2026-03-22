@@ -18,15 +18,13 @@ let
 in
 {
   options.desktop.alacritty = {
-    enable = lib.mkEnableOption "Enable Alacritty terminal emulator";
+    enable = lib.mkEnableOption "Alacritty terminal emulator";
   };
 
   imports = [ ../../../modules/terminal/common.nix ];
 
   config = lib.mkIf cfg.enable {
     home-manager.users = lib.genAttrs allUsers (_: {
-      home.packages = [ pkgs.alacritty ];
-
       programs.alacritty = {
         enable = true;
 

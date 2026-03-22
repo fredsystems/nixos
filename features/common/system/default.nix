@@ -7,10 +7,6 @@
 {
   config = {
 
-    # Bootloader.
-    boot.loader.systemd-boot.enable = true;
-    boot.loader.efi.canTouchEfiVariables = true;
-
     # Enable networking
     networking.networkmanager.enable = true;
 
@@ -19,7 +15,6 @@
       wget
       unzip
       file
-      lsd
       zip
       toybox
       nix-index
@@ -57,12 +52,6 @@
           };
         };
       };
-    };
-
-    xdg.portal = {
-      enable = true;
-      config.common.default = "*";
-      extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
     };
 
     nixpkgs.config = {

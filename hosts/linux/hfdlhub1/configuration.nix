@@ -31,17 +31,7 @@
       ###############################################################
       # DOZZLE AGENT
       ###############################################################
-      {
-        name = "dozzle-agent";
-        image = "amir20/dozzle:v10.0.7@sha256:d383abf0fee72a8037d6ec6474424e56d752a52208e0ed70f4805e9d86a77830";
-        exec = "agent";
-
-        volumes = [
-          "/var/run/docker.sock:/var/run/docker.sock:ro"
-        ];
-
-        ports = [ "7007:7007" ];
-      }
+      (import ../../../modules/services/mk-dozzle-agent.nix { })
 
       ###############################################################
       # DUMPHFDL-1

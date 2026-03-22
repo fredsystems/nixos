@@ -6,20 +6,16 @@
   extraUsers ? [ ],
   ...
 }:
-with lib;
 let
   allUsers = [ user ] ++ extraUsers;
   cfg = config.desktop.tradingview;
 in
 {
   options.desktop.tradingview = {
-    enable = mkOption {
-      description = "Enable Trading View.";
-      default = false;
-    };
+    enable = lib.mkEnableOption "TradingView";
   };
 
-  config = mkIf cfg.enable {
+  config = lib.mkIf cfg.enable {
     users.users = lib.genAttrs allUsers (_: {
       packages = with pkgs; [
         tradingview

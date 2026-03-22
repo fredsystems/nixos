@@ -5,35 +5,34 @@
   isDarwin,
   ...
 }:
-with lib;
 let
   cfg = config.ai.local-llm;
   isLinux = !isDarwin;
 in
 {
   options.ai.local-llm = {
-    enable = mkEnableOption "Enable local LLM stack (Ollama + Open WebUI)";
+    enable = lib.mkEnableOption "local LLM stack (Ollama + Open WebUI)";
 
-    ollamaPackage = mkOption {
-      type = types.package;
+    ollamaPackage = lib.mkOption {
+      type = lib.types.package;
       default = pkgs.ollama-rocm;
       description = "Ollama package to use (rocm by default, override for CPU).";
     };
 
-    ollamaPort = mkOption {
-      type = types.port;
+    ollamaPort = lib.mkOption {
+      type = lib.types.port;
       default = 11434;
       description = "Port for Ollama API";
     };
 
-    webuiPort = mkOption {
-      type = types.port;
+    webuiPort = lib.mkOption {
+      type = lib.types.port;
       default = 8889;
       description = "Port for Open WebUI";
     };
 
-    host = mkOption {
-      type = types.str;
+    host = lib.mkOption {
+      type = lib.types.str;
       default = "127.0.0.1";
       description = "Bind address for services";
     };
@@ -41,7 +40,7 @@ in
 
   imports = lib.optional isLinux ./linux.nix;
 
-  config = mkIf cfg.enable {
+  config = lib.mkIf cfg.enable {
     ########################################
     # REQUIRED: group must exist
     ########################################

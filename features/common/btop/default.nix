@@ -1,5 +1,4 @@
 {
-  pkgs,
   user,
   extraUsers ? [ ],
   lib,
@@ -10,10 +9,6 @@ let
 in
 {
   config = {
-    environment.systemPackages = [
-      pkgs.btop
-    ];
-
     home-manager.users = lib.genAttrs allUsers (_: {
       programs.btop = {
         enable = true;

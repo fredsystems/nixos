@@ -3,16 +3,12 @@
   config,
   ...
 }:
-with lib;
 let
   cfg = config.desktop.environments.modules;
 in
 {
   options.desktop.environments.modules = {
-    enable = mkOption {
-      description = "Install Hyprland/Niri desktop modules.";
-      default = false;
-    };
+    enable = lib.mkEnableOption "Hyprland/Niri desktop modules";
   };
   imports = [
     ./fredbar
@@ -22,7 +18,7 @@ in
     ./vicinae
   ];
 
-  config = mkIf cfg.enable {
+  config = lib.mkIf cfg.enable {
     desktop.environments.modules = {
       fredbar.enable = true;
       clipboard.enable = true;

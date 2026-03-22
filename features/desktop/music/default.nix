@@ -6,20 +6,16 @@
   extraUsers ? [ ],
   ...
 }:
-with lib;
 let
   allUsers = [ user ] ++ extraUsers;
   cfg = config.desktop.music;
 in
 {
   options.desktop.music = {
-    enable = mkOption {
-      description = "Enable Music";
-      default = false;
-    };
+    enable = lib.mkEnableOption "Music";
   };
 
-  config = mkIf cfg.enable {
+  config = lib.mkIf cfg.enable {
     users.users = lib.genAttrs allUsers (_: {
       packages = [ pkgs.cider3 ];
     });

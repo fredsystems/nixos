@@ -6,63 +6,23 @@
   extraUsers ? [ ],
   ...
 }:
-with lib;
 let
   allUsers = [ user ] ++ extraUsers;
   cfg = config.desktop.environments.niri;
 in
 {
   options.desktop.environments.niri = {
-    enable = mkOption {
-      description = "Install Niri.";
-      default = false;
-    };
+    enable = lib.mkEnableOption "Niri";
   };
 
-  config = mkIf cfg.enable {
-    users.users = lib.genAttrs allUsers (_: {
-      packages = with pkgs; [
-        # Niri-specific utilities
-        hyprpolkitagent
-        hyprpicker
-        sway-audio-idle-inhibit
-      ];
-    });
+  config = lib.mkIf cfg.enable {
 
     programs.niri = {
       enable = true;
     };
     programs.xwayland.enable = true;
 
-    desktop.environments.modules.enable = true;
-
-    services.displayManager.sddm = {
-      enable = true;
-      wayland.enable = true;
-
-      settings = {
-        Theme = {
-          font = "SFProDisplay Nerd Font";
-        };
-
-        General = {
-          RememberLastSession = true;
-          RememberLastUser = true;
-        };
-      };
-    };
-
     home-manager.users = lib.genAttrs allUsers (uname: {
-      imports = [ ../modules/xdg-mime-common.nix ];
-
-      home.packages = with pkgs; [
-        networkmanagerapplet
-      ];
-
-      catppuccin.gtk.icon.enable = true;
-
-      programs.hyprlock.enable = true;
-      catppuccin.hyprlock.enable = true;
 
       programs.niri = {
         enable = true;

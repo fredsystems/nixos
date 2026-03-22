@@ -18,7 +18,7 @@ let
 in
 {
   options.desktop.wezterm = {
-    enable = lib.mkEnableOption "Enable WezTerm terminal emulator";
+    enable = lib.mkEnableOption "WezTerm terminal emulator";
   };
 
   imports = [ ../../../modules/terminal/common.nix ] ++ lib.optional isLinux ./linux-xdg.nix;

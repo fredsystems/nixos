@@ -4,21 +4,17 @@
   config,
   ...
 }:
-with lib;
 let
   cfg = config.desktop.libreoffice;
 in
 {
   options.desktop.libreoffice = {
-    enable = mkOption {
-      description = "Enable LibreOffice.";
-      default = false;
-    };
+    enable = lib.mkEnableOption "LibreOffice";
   };
 
   # FIXME: mime types
 
-  config = mkIf cfg.enable {
+  config = lib.mkIf cfg.enable {
     environment.systemPackages = with pkgs; [
       libreoffice-qt
       hunspell

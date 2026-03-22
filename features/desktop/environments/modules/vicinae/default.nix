@@ -5,20 +5,16 @@
   extraUsers ? [ ],
   ...
 }:
-with lib;
 let
   allUsers = [ user ] ++ extraUsers;
   cfg = config.desktop.environments.modules.vicinae;
 in
 {
   options.desktop.environments.modules.vicinae = {
-    enable = mkOption {
-      description = "Enable vicinae.";
-      default = false;
-    };
+    enable = lib.mkEnableOption "vicinae";
   };
 
-  config = mkIf cfg.enable {
+  config = lib.mkIf cfg.enable {
     home-manager.users = lib.genAttrs allUsers (_: {
       programs.vicinae = {
         enable = true;

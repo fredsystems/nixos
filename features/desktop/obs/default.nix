@@ -6,21 +6,16 @@
   extraUsers ? [ ],
   ...
 }:
-with lib;
 let
   allUsers = [ user ] ++ extraUsers;
   cfg = config.desktop.obs;
 in
 {
   options.desktop.obs = {
-    # Updated to match the new configuration
-    enable = mkOption {
-      description = "Enable StreamLab";
-      default = false;
-    };
+    enable = lib.mkEnableOption "OBS Studio and StreamController";
   };
 
-  config = mkIf cfg.enable {
+  config = lib.mkIf cfg.enable {
     services.udev = {
       packages = with pkgs; [
         streamcontroller

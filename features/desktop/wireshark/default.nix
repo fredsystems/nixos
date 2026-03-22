@@ -3,19 +3,15 @@
   config,
   ...
 }:
-with lib;
 let
   cfg = config.desktop.wireshark;
 in
 {
   options.desktop.wireshark = {
-    enable = mkOption {
-      description = "Enable Wireshark.";
-      default = false;
-    };
+    enable = lib.mkEnableOption "Wireshark";
   };
 
-  config = mkIf cfg.enable {
+  config = lib.mkIf cfg.enable {
 
     programs.wireshark = {
       enable = true;

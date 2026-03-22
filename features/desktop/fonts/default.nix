@@ -5,19 +5,15 @@
   inputs,
   ...
 }:
-with lib;
 let
   cfg = config.desktop.fonts;
 in
 {
   options.desktop.fonts = {
-    enable = mkOption {
-      description = "Install fonts.";
-      default = false;
-    };
+    enable = lib.mkEnableOption "fonts";
   };
 
-  config = mkIf cfg.enable {
+  config = lib.mkIf cfg.enable {
     # environment.systemPackages = [
     #   pkgs.nerdfonts
     #   pkgs.fira-code

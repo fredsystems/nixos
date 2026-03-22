@@ -6,20 +6,16 @@
   pkgs,
   ...
 }:
-with lib;
 let
   allUsers = [ user ] ++ extraUsers;
   cfg = config.desktop.environments.modules.hyprlandextra;
 in
 {
   options.desktop.environments.modules.hyprlandextra = {
-    enable = mkOption {
-      description = "Enable extra stuff for hyprland.";
-      default = false;
-    };
+    enable = lib.mkEnableOption "extra Hyprland features";
   };
 
-  config = mkIf cfg.enable {
+  config = lib.mkIf cfg.enable {
     home-manager.users = lib.genAttrs allUsers (_: {
       systemd.user.services.caffeine-inhibit = {
         Unit = {

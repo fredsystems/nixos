@@ -1,5 +1,4 @@
 {
-  pkgs,
   user,
   extraUsers ? [ ],
   lib,
@@ -11,11 +10,6 @@ in
 {
   config = {
     home-manager.users = lib.genAttrs allUsers (_: {
-      home.packages = with pkgs; [
-        oh-my-zsh
-        zoxide
-      ];
-
       # Enable Oh-my-zsh
       programs.zsh.oh-my-zsh = {
         enable = true;

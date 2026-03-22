@@ -34,7 +34,7 @@ let
 in
 {
   options.desktop.thunderbird = {
-    enable = lib.mkEnableOption "Enable Thunderbird email client";
+    enable = lib.mkEnableOption "Thunderbird email client";
   };
 
   config = lib.mkIf cfg.enable {

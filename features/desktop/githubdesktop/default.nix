@@ -6,20 +6,16 @@
   extraUsers ? [ ],
   ...
 }:
-with lib;
 let
   allUsers = [ user ] ++ extraUsers;
   cfg = config.desktop.githubdesktop;
 in
 {
   options.desktop.githubdesktop = {
-    enable = mkOption {
-      description = "Enable GitHub Desktop.";
-      default = false;
-    };
+    enable = lib.mkEnableOption "GitHub Desktop";
   };
 
-  config = mkIf cfg.enable {
+  config = lib.mkIf cfg.enable {
     users.users = lib.genAttrs allUsers (_: {
       packages = with pkgs; [
         github-desktop

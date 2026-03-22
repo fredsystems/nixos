@@ -4,17 +4,16 @@
   pkgs,
   ...
 }:
-with lib;
 let
   cfg = config.media.jellyfin;
   mediaMount = "/mnt/media";
 in
 {
   options.media.jellyfin = {
-    enable = mkEnableOption "Enable Jellyfin media server";
+    enable = lib.mkEnableOption "Jellyfin media server";
   };
 
-  config = mkIf cfg.enable {
+  config = lib.mkIf cfg.enable {
     environment.systemPackages = [ pkgs.nfs-utils ];
 
     ############################################

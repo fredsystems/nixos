@@ -7,7 +7,6 @@
   isDarwin,
   ...
 }:
-with lib;
 let
   cfg = config.desktop.yubikey;
   allUsers = [ user ] ++ extraUsers;
@@ -15,15 +14,12 @@ let
 in
 {
   options.desktop.yubikey = {
-    enable = mkOption {
-      description = "Install Yubikey Manager.";
-      default = false;
-    };
+    enable = lib.mkEnableOption "Yubikey Manager";
   };
 
   imports = lib.optional isLinux ./linux.nix ++ lib.optional isDarwin ./mac.nix;
 
-  config = mkIf cfg.enable {
+  config = lib.mkIf cfg.enable {
     home-manager.users = lib.genAttrs allUsers (_: {
       services.yubikey-agent.enable = true;
 

@@ -6,20 +6,16 @@
   extraUsers ? [ ],
   ...
 }:
-with lib;
 let
   allUsers = [ user ] ++ extraUsers;
   cfg = config.desktop.zed;
 in
 {
   options.desktop.zed = {
-    enable = mkOption {
-      description = "Enable Zed.";
-      default = false;
-    };
+    enable = lib.mkEnableOption "Zed editor";
   };
 
-  config = mkIf cfg.enable {
+  config = lib.mkIf cfg.enable {
     sops.secrets.openai_api = {
       owner = config.users.users.${user}.name;
     };

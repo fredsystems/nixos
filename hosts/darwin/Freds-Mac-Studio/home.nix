@@ -8,7 +8,7 @@ let
 in
 {
   # ------------------------------
-  # Host-specific Home Manager overrides for Freds-MacBook-Pro
+  # Host-specific Home Manager overrides for Freds-Mac-Studio
   # ------------------------------
 
   imports = [

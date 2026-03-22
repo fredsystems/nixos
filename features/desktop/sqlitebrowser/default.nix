@@ -6,20 +6,16 @@
   extraUsers ? [ ],
   ...
 }:
-with lib;
 let
   allUsers = [ user ] ++ extraUsers;
   cfg = config.desktop.sqlitebrowser;
 in
 {
   options.desktop.sqlitebrowser = {
-    enable = mkOption {
-      description = "Enable SQLite Browser.";
-      default = false;
-    };
+    enable = lib.mkEnableOption "SQLite Browser";
   };
 
-  config = mkIf cfg.enable {
+  config = lib.mkIf cfg.enable {
     users.users = lib.genAttrs allUsers (_: {
       packages = with pkgs; [
         sqlitebrowser
