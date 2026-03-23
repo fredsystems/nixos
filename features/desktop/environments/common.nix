@@ -29,13 +29,18 @@ in
 
     # ── SDDM display manager ────────────────────────────────────────────────
     # Shared by all Wayland compositors (Hyprland, Niri).
+    # The catppuccin NixOS module (catppuccin.sddm) sets the theme and
+    # installs the theme package automatically; we only need to supply the
+    # Qt 6 SDDM build it requires and any SDDM-level knobs.
     services.displayManager.sddm = {
       enable = true;
+      package = pkgs.kdePackages.sddm;
       wayland.enable = true;
 
       settings = {
         Theme = {
-          font = "SFProDisplay Nerd Font";
+          CursorTheme = "catppuccin-mocha-lavender-cursors";
+          CursorSize = 24;
         };
 
         General = {
@@ -43,6 +48,17 @@ in
           RememberLastUser = true;
         };
       };
+    };
+
+    # ── Catppuccin SDDM theme options ────────────────────────────────────────
+    # Inherits flavor (mocha) and accent (lavender) from the global
+    # catppuccin settings.  catppuccin.enable = true auto-enables this.
+    catppuccin.sddm = {
+      enable = true;
+      font = "SFProDisplay Nerd Font";
+      fontSize = "12";
+      loginBackground = true;
+      userIcon = true;
     };
 
     # ── Shared compositor utility packages ───────────────────────────────────
@@ -199,11 +215,15 @@ in
     # ── dconf ──────────────────────────────────────────────────────────────────
     programs.dconf.enable = true;
 
-    # ── Polkit authentication agent ────────────────────────────────────────────
+    # ── Polkit authentication agent + SDDM cursor package ────────────────────
     environment.systemPackages = with pkgs; [
       polkit_gnome
       glib
       gsettings-desktop-schemas
+
+      # Catppuccin cursor theme – needed system-wide so the SDDM greeter
+      # (which runs as the sddm user) can resolve the CursorTheme setting.
+      catppuccin-cursors.mochaLavender
     ];
 
     environment.sessionVariables.GSETTINGS_SCHEMA_DIR = "${pkgs.gsettings-desktop-schemas}/share/gsettings-schemas/${pkgs.gsettings-desktop-schemas.name}/glib-2.0/schemas";
