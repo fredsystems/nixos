@@ -601,6 +601,26 @@
       }
 
       ###############################################################
+      # DEGOOG (search engine aggregator)
+      ###############################################################
+      {
+        name = "degoog";
+        image = "ghcr.io/fccview/degoog:0.9.0@sha256:6e65426d6d438dea1e043433f4610731b8a2c1ab9e21bb54c96d8f21cbe6af5a";
+
+        restart = "always";
+
+        extraDockerArgs = "--user 1000:1000";
+
+        ports = [
+          "4444:4444"
+        ];
+
+        volumes = [
+          "/opt/adsb/degoog:/app/data"
+        ];
+      }
+
+      ###############################################################
       # ACARS ROUTER (ACARS + VDLM2 + HFDL consolidation)
       ###############################################################
       {
@@ -728,6 +748,7 @@
     text = ''
       # Ensure directory exists (does not touch contents if already there)
       install -d -m0755 -o fred -g users /opt/adsb
+      install -d -m0755 -o fred -g users /opt/adsb/degoog
     '';
     deps = [ ];
   };
