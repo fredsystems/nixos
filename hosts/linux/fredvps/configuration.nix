@@ -153,7 +153,7 @@
       ###############################################################
       {
         name = "tar1090";
-        image = "ghcr.io/sdr-enthusiasts/docker-tar1090:telegraf-build-1420@sha256:e56d9cab0f4a6a77d1b1aadb9bed504aee08f0e23d76843e0feded938a80a413";
+        image = "ghcr.io/sdr-enthusiasts/docker-tar1090:telegraf-build-1426@sha256:c2934250f814a71f6a0d6be9970d1f2c0da11a98eeddfefadcaa8aeb4a61e8b8";
 
         environmentFiles = [
           config.sops.secrets."docker/fredvps/tar1090.env".path
