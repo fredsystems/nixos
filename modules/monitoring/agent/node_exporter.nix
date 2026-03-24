@@ -1,4 +1,9 @@
-{ config, pkgs, ... }:
+{
+  config,
+  pkgs,
+  inputs,
+  ...
+}:
 {
   systemd = {
     services = {
@@ -31,6 +36,11 @@
         serviceConfig = {
           Type = "oneshot";
           ExecStart = pkgs.writeShellScript "nixos-needs-reboot-metric.sh" ''
+            # Run nixos-needsreboot to create/update the /run/reboot-required sentinel
+            ${
+              inputs.nixos-needsreboot.packages.${config.nixpkgs.hostPlatform.system}.default
+            }/bin/nixos-needsreboot || true
+
             NEEDS_REBOOT=0
 
             if [ -e /run/reboot-required ]; then
