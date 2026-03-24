@@ -67,6 +67,9 @@ in
           enable = true;
 
           signing = {
+            # Format is managed via settings.gpg.format = "ssh" above;
+            # null avoids a conflicting default from the signing option.
+            format = null;
             signer = "${pkgs.gnupg}/bin/gpg";
             signByDefault = false;
           };

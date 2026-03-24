@@ -15,6 +15,7 @@
   catppuccin-stable,
   sops-nix-stable,
   serverNodes,
+  niri,
   solaar,
   freminal,
   ...
@@ -30,6 +31,7 @@
       freminal.homeManagerModules.default
     ];
     extraModules = [
+      niri.nixosModules.niri
       solaar.nixosModules.default
     ];
   };
@@ -41,7 +43,10 @@
       ../../hosts/linux/maranello/home.nix
       freminal.homeManagerModules.default
     ];
-    extraModules = [ solaar.nixosModules.default ];
+    extraModules = [
+      niri.nixosModules.niri
+      solaar.nixosModules.default
+    ];
   };
 }
 

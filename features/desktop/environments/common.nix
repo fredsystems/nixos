@@ -141,8 +141,13 @@ in
         gtk3.extraConfig = {
           gtk-application-prefer-dark-theme = 1;
         };
-        gtk4.extraConfig = {
-          gtk-application-prefer-dark-theme = 1;
+        gtk4 = {
+          extraConfig = {
+            gtk-application-prefer-dark-theme = 1;
+          };
+          # GTK4/libadwaita apps ignore traditional GTK themes; Catppuccin
+          # handles GTK4 theming via CSS, so no theme package is needed here.
+          theme = null;
         };
         theme = {
           name = "Catppuccin-GTK-Mauve-Dark";

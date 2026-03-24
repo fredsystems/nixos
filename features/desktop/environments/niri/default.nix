@@ -25,7 +25,6 @@ in
     home-manager.users = lib.genAttrs allUsers (uname: {
 
       programs.niri = {
-        enable = true;
         settings = {
           hotkey-overlay.skip-at-startup = true;
           xwayland-satellite.path = lib.getExe pkgs.xwayland-satellite;
