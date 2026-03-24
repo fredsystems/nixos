@@ -1,5 +1,7 @@
 {
   user,
+  lib,
+  options,
   ...
 }:
 let
@@ -23,6 +25,9 @@ in
     userDirs = {
       enable = true;
       createDirectories = false;
+    }
+    // lib.optionalAttrs (options.xdg.userDirs ? setSessionVariables) {
+      setSessionVariables = true;
     };
 
     mimeApps.enable = true;

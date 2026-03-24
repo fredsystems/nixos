@@ -29,7 +29,6 @@ in
     catppuccinInput.homeModules.catppuccin
     inputs.nixvim.homeModules.nixvim
   ]
-  ++ lib.optional isLinux inputs.niri.homeModules.niri
   ++ lib.optional isLinux ./home-linux.nix;
 
   ##########################################################################
