@@ -1,6 +1,7 @@
 {
-  pkgs,
   config,
+  inputs,
+  system,
   stateVersion,
   ...
 }:
@@ -13,7 +14,7 @@
 
   ai.local-llm = {
     enable = true;
-    ollamaPackage = pkgs.ollama;
+    ollamaPackage = inputs.nixpkgs.legacyPackages.${system}.ollama;
     host = "0.0.0.0";
   };
 

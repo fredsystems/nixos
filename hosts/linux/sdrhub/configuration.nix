@@ -124,6 +124,11 @@
             }
             {
               enabled = true;
+              domain = "search.sdrhub.lan";
+              answer = "192.168.31.20";
+            }
+            {
+              enabled = true;
               domain = "acarshub.lan";
               answer = "192.168.31.24";
             }
@@ -737,6 +742,12 @@
               proxy_set_header Connection $connection_upgrade;
             '';
           };
+        };
+      };
+
+      virtualHosts."search.sdrhub.lan" = {
+        locations."/" = {
+          proxyPass = "http://127.0.0.1:4444";
         };
       };
     };
