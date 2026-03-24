@@ -130,12 +130,12 @@
                     LAG=0
                 else
                     # Compare LOCAL (base) ... REMOTE (head):
-                    # behind_by = commits REMOTE has that LOCAL doesn't
-                    #             i.e. how many commits the running system is behind main
+                    # ahead_by = commits REMOTE has that LOCAL doesn't
+                    #            i.e. how many commits the running system is behind main
                     API_COMPARE="https://api.github.com/repos/$OWNER/$REPO/compare/$LOCAL...$REMOTE"
                     COMPARE=$($CURL -s "$API_COMPARE")
 
-                    BEHIND_BY=$(echo "$COMPARE" | $JQ -r .behind_by)
+                    BEHIND_BY=$(echo "$COMPARE" | $JQ -r .ahead_by)
 
                     # Default safe values
                     BEHIND=0
