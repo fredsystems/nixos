@@ -26,10 +26,9 @@ in
   profile.desktop.bluetooth.enable = true;
 
   # extra options
-  ai.enable = true;
-  desktop = {
-    enable_games = true;
-    enable_streaming = true;
+  ai = {
+    enable = true;
+
     models = [
       "qwen3-coder:latest"
       "qwen2.5-coder:7b"
@@ -37,6 +36,11 @@ in
       "deepseek-coder-v2:latest"
       "qwen3.5:9b"
     ];
+  };
+
+  desktop = {
+    enable_games = true;
+    enable_streaming = true;
   };
 
   boot = {
