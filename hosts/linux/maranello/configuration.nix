@@ -29,7 +29,7 @@ in
   ai = {
     enable = true;
 
-    models = [
+    local-llm.models = [
       "qwen3-coder:latest"
       "qwen2.5-coder:7b"
       "qwen2.5-coder:32b"
