@@ -55,7 +55,7 @@ in
       ###############################################################
       {
         name = "hfdlobserver";
-        image = "ghcr.io/sdr-enthusiasts/docker-hfdlobserver:latest-build-19@sha256:294abe7a3583bc3d33617d9ad13245ba8d3e757fdcade99e6f51786395afa995";
+        image = "ghcr.io/sdr-enthusiasts/docker-hfdlobserver:latest-build-20@sha256:c5493c2a1f4fc86d12a0dd6c8267388b66ebb87b6b6548f558920c5683f5dc74";
 
         environmentFiles = [
           config.sops.secrets."docker/hfdlhub2.env".path
