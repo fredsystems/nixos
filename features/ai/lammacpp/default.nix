@@ -36,6 +36,20 @@ in
       default = "127.0.0.1";
       description = "Bind address for services";
     };
+
+    models = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [ ];
+      example = [
+        "qwen3-coder"
+        "qwen2.5-coder:7b"
+      ];
+      description = ''
+        Models to pull at boot and keep updated on a weekly schedule.
+        Passed to services.ollama.loadModels and also checked for
+        updates by a periodic systemd timer.
+      '';
+    };
   };
 
   imports = lib.optional isLinux ./linux.nix;
@@ -57,9 +71,49 @@ in
       inherit (cfg) host;
       port = cfg.ollamaPort;
 
+      loadModels = cfg.models;
+
       environmentVariables = {
         OLLAMA_CONTEXT_LENGTH = "4096";
         OLLAMA_KEEP_ALIVE = "5m";
+      };
+    };
+
+    ########################################
+    # Periodic model update checker
+    ########################################
+    systemd.services.ollama-model-updater = lib.mkIf (cfg.models != [ ]) {
+      description = "Check for ollama model updates";
+      after = [ "ollama.service" ];
+      requires = [ "ollama.service" ];
+
+      serviceConfig = {
+        Type = "oneshot";
+        DynamicUser = true;
+      };
+
+      environment = {
+        HOME = "/var/lib/ollama";
+        OLLAMA_HOST = "${cfg.host}:${toString cfg.ollamaPort}";
+        OLLAMA_MODELS = "/var/lib/ollama/models";
+      };
+
+      script = ''
+        ${lib.concatMapStringsSep "\n" (model: ''
+          echo "Updating ${model}..."
+          ${lib.getExe cfg.ollamaPackage} pull ${lib.escapeShellArg model}
+        '') cfg.models}
+      '';
+    };
+
+    systemd.timers.ollama-model-updater = lib.mkIf (cfg.models != [ ]) {
+      description = "Weekly ollama model update check";
+      wantedBy = [ "timers.target" ];
+
+      timerConfig = {
+        OnCalendar = "weekly";
+        Persistent = true;
+        RandomizedDelaySec = "6h";
       };
     };
 

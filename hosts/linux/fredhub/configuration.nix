@@ -16,6 +16,11 @@
     enable = true;
     ollamaPackage = inputs.nixpkgs.legacyPackages.${system}.ollama;
     host = "0.0.0.0";
+    models = [
+      "qwen3-coder"
+      "qwen2.5-coder:7b"
+      "deepseek-coder-v2:latest"
+    ];
   };
 
   media.jellyfin = {
