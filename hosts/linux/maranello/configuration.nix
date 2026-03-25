@@ -30,6 +30,13 @@ in
   desktop = {
     enable_games = true;
     enable_streaming = true;
+    models = [
+      "qwen3-coder:latest"
+      "qwen2.5-coder:7b"
+      "qwen2.5-coder:32b"
+      "deepseek-coder-v2:latest"
+      "qwen3.5:9b"
+    ];
   };
 
   boot = {
