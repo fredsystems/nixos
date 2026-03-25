@@ -82,77 +82,81 @@ in
     ########################################
     # Periodic model update checker
     ########################################
-    systemd.services.ollama-model-updater = lib.mkIf (cfg.models != [ ]) {
-      description = "Check for ollama model updates";
-      after = [ "ollama.service" ];
-      requires = [ "ollama.service" ];
+    systemd = {
+      timers.ollama-model-updater = lib.mkIf (cfg.models != [ ]) {
+        description = "Weekly ollama model update check";
+        wantedBy = [ "timers.target" ];
 
-      serviceConfig = {
-        Type = "oneshot";
-        DynamicUser = true;
+        timerConfig = {
+          OnCalendar = "weekly";
+          Persistent = true;
+          RandomizedDelaySec = "6h";
+        };
       };
 
-      environment = {
-        HOME = "/var/lib/ollama";
-        OLLAMA_HOST = "${cfg.host}:${toString cfg.ollamaPort}";
-        OLLAMA_MODELS = "/var/lib/ollama/models";
-      };
+      ########################################
+      # Open WebUI
+      ########################################
+      services = {
+        ollama-model-updater = lib.mkIf (cfg.models != [ ]) {
+          description = "Check for ollama model updates";
+          after = [ "ollama.service" ];
+          requires = [ "ollama.service" ];
 
-      script = ''
-        ${lib.concatMapStringsSep "\n" (model: ''
-          echo "Updating ${model}..."
-          ${lib.getExe cfg.ollamaPackage} pull ${lib.escapeShellArg model}
-        '') cfg.models}
-      '';
-    };
+          serviceConfig = {
+            Type = "oneshot";
+            DynamicUser = true;
+          };
 
-    systemd.timers.ollama-model-updater = lib.mkIf (cfg.models != [ ]) {
-      description = "Weekly ollama model update check";
-      wantedBy = [ "timers.target" ];
+          environment = {
+            HOME = "/var/lib/ollama";
+            OLLAMA_HOST = "${cfg.host}:${toString cfg.ollamaPort}";
+            OLLAMA_MODELS = "/var/lib/ollama/models";
+          };
 
-      timerConfig = {
-        OnCalendar = "weekly";
-        Persistent = true;
-        RandomizedDelaySec = "6h";
-      };
-    };
+          script = ''
+            ${lib.concatMapStringsSep "\n" (model: ''
+              echo "Updating ${model}..."
+              ${lib.getExe cfg.ollamaPackage} pull ${lib.escapeShellArg model}
+            '') cfg.models}
+          '';
+        };
 
-    ########################################
-    # Open WebUI
-    ########################################
-    systemd.services.open-webui = {
-      description = "Open WebUI (UI for Ollama)";
-      wantedBy = [ "multi-user.target" ];
-      after = [
-        "network.target"
-        "ollama.service"
-      ];
-      requires = [ "ollama.service" ];
+        open-webui = {
+          description = "Open WebUI (UI for Ollama)";
+          wantedBy = [ "multi-user.target" ];
+          after = [
+            "network.target"
+            "ollama.service"
+          ];
+          requires = [ "ollama.service" ];
 
-      serviceConfig = {
-        ExecStart = "${pkgs.open-webui}/bin/open-webui serve --host ${cfg.host} --port ${toString cfg.webuiPort}";
+          serviceConfig = {
+            ExecStart = "${pkgs.open-webui}/bin/open-webui serve --host ${cfg.host} --port ${toString cfg.webuiPort}";
 
-        Restart = "always";
-        RestartSec = 3;
+            Restart = "always";
+            RestartSec = 3;
 
-        StateDirectory = "open-webui";
-        WorkingDirectory = "/var/lib/open-webui";
+            StateDirectory = "open-webui";
+            WorkingDirectory = "/var/lib/open-webui";
 
-        Environment = [
-          "OLLAMA_BASE_URL=http://${cfg.host}:${toString cfg.ollamaPort}"
+            Environment = [
+              "OLLAMA_BASE_URL=http://${cfg.host}:${toString cfg.ollamaPort}"
 
-          "WEBUI_AUTH=false"
-          "ENABLE_SIGNUP=false"
+              "WEBUI_AUTH=false"
+              "ENABLE_SIGNUP=false"
 
-          # Writable dirs (critical on NixOS)
-          "DATA_DIR=/var/lib/open-webui"
-          "STATIC_DIR=/var/lib/open-webui/static"
+              # Writable dirs (critical on NixOS)
+              "DATA_DIR=/var/lib/open-webui"
+              "STATIC_DIR=/var/lib/open-webui/static"
 
-          "HOST=${cfg.host}"
-          "PORT=${toString cfg.webuiPort}"
-        ];
+              "HOST=${cfg.host}"
+              "PORT=${toString cfg.webuiPort}"
+            ];
 
-        LimitNOFILE = 1048576;
+            LimitNOFILE = 1048576;
+          };
+        };
       };
     };
 
