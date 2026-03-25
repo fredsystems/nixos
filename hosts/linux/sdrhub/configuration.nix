@@ -405,7 +405,7 @@
       ###############################################################
       {
         name = "planefinder";
-        image = "ghcr.io/sdr-enthusiasts/docker-planefinder:latest-build-526@sha256:71f4957646dec888c4bfec08634b4cb22f26bed56c82f47fd9c97a6e341de5c0";
+        image = "ghcr.io/sdr-enthusiasts/docker-planefinder:latest-build-528@sha256:ff1030f189c75e70dca1a4b64cdd7b30083098246b26aa1165716dd00ab96f8b";
 
         restart = "always";
         tty = true;
