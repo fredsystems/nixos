@@ -57,42 +57,79 @@ jobs:
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-
-      # Detect which top-level paths changed.
-      # On non-PR events (merge_group, workflow_dispatch) this step is
-      # skipped and we fall back to building every system below.
-      - name: Detect changed paths
-        id: filter
-        if: github.event_name == 'pull_request'
-        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
         with:
-          # Return a JSON array of every file that matched the `machine`
-          # filter so we can extract individual machine names later.
-          list-files: json
-          filters: |
-            # Any path that is shared across machines forces a full rebuild.
-            global:
-              - 'flake.nix'
-              - 'flake.lock'
-              - 'modules/**'
-              - 'profiles/**'
-              - 'home-profiles/**'
-              - 'features/**'
-              - '!features/desktop/**'
-              - 'dotfiles/**'
-              - 'firmware.nix'
-              - '.github/**'
-              - '!.github/renovate.json5'
-            # Changes isolated to desktop features — servers are unaffected.
-            desktop_global:
-              - 'features/desktop/**'
-            # Machine-specific paths — we parse the dir names out of
-            # `machine_files` when `global` is false.
-            machine:
-              - 'hosts/linux/**'
+          fetch-depth: 0
+
+      # Detect which paths changed so we can scope builds to affected
+      # systems only.  Runs for both pull_request and merge_group events.
+      # workflow_dispatch always builds every system (no diff context).
+      #
+      # We use plain git-diff instead of dorny/paths-filter because the
+      # latter treats negation patterns (e.g. '!features/desktop/**') as
+      # independent picomatch matchers, causing the global filter to match
+      # virtually every file.
+      - name: Detect changed paths
+        id: changes
+        if: github.event_name != 'workflow_dispatch'
+        shell: bash
+        run: |
+          set -eo pipefail
+
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            base_sha="${{ github.event.pull_request.base.sha }}"
+          else
+            base_sha="${{ github.event.merge_group.base_sha }}"
+          fi
+
+          echo "Comparing ${base_sha}..HEAD"
+          changed_files=$(git diff --name-only "$base_sha" HEAD)
+          echo "Changed files:"
+          echo "$changed_files"
+
+          global=false
+          desktop_global=false
+          machine_files_arr=()
+
+          while IFS= read -r file; do
+            [ -z "$file" ] && continue
+            case "$file" in
+              flake.nix|flake.lock|firmware.nix)
+                global=true ;;
+              modules/*|profiles/*|home-profiles/*|dotfiles/*)
+                global=true ;;
+              features/desktop/*)
+                desktop_global=true ;;
+              features/*)
+                global=true ;;
+              .github/renovate.json5)
+                ;; # excluded from global
+              .github/*)
+                global=true ;;
+              hosts/linux/*)
+                machine_files_arr+=("$file") ;;
+            esac
+          done <<< "$changed_files"
+
+          if [ ${#machine_files_arr[@]} -eq 0 ]; then
+            machine_files="[]"
+          else
+            machine_files=$(printf '%s\n' "${machine_files_arr[@]}" | jq -R . | jq -cs .)
+          fi
+
+          echo "global=$global" >> "$GITHUB_OUTPUT"
+          echo "desktop_global=$desktop_global" >> "$GITHUB_OUTPUT"
+          echo "machine_files=$machine_files" >> "$GITHUB_OUTPUT"
+
+          echo "Change detection results:"
+          echo "  global=$global"
+          echo "  desktop_global=$desktop_global"
+          echo "  machine_files=$machine_files"
 
       - name: Install Nix
         uses: DeterminateSystems/nix-installer-action@c5a866b6ab867e88becbed4467b93592bce69f8a # v21
+        with:
+          extra-conf: |
+            access-tokens = github.com=${{ github.token }}
 
       - name: Enable Magic Nix Cache
         uses: DeterminateSystems/magic-nix-cache-action@565684385bcd71bad329742eefe8d12f2e765b39 # v13
@@ -125,31 +162,38 @@ jobs:
           # Decide which systems actually need to be built.
           #
           # Rules:
-          #   - workflow_dispatch or merge_group  → build everything (no PR
-          #     context to diff against, or the merge commit may compound
-          #     multiple PRs with different scopes)
-          #   - pull_request + global path changed → build everything
-          #   - pull_request + only systems-linux/** changed → build only the
-          #     machines whose directory appears in the diff
-          #   - pull_request + nothing relevant changed (e.g. only docs) →
-          #     empty matrix; build jobs are skipped automatically
+          #   - workflow_dispatch → build everything
+          #   - pull_request or merge_group + global path changed →
+          #     build everything
+          #   - pull_request or merge_group + only hosts/linux/** changed →
+          #     build only the machines whose directory appears in the diff
+          #   - pull_request or merge_group + nothing relevant changed
+          #     (e.g. only docs) → empty matrix; build jobs are skipped
           # ------------------------------------------------------------------
 
           event="${{ github.event_name }}"
-          global_changed="${{ steps.filter.outputs.global }}"
-          desktop_global_changed="${{ steps.filter.outputs.desktop_global }}"
 
-          if [ "$event" != "pull_request" ] || [ "$global_changed" = "true" ]; then
+          # Gather change-detection outputs (the step is skipped for
+          # workflow_dispatch, so fall back to building everything).
+          if [ "$event" = "workflow_dispatch" ]; then
+            global_changed="true"
+            desktop_global_changed="true"
+            machine_files="[]"
+          else
+            global_changed="${{ steps.changes.outputs.global }}"
+            desktop_global_changed="${{ steps.changes.outputs.desktop_global }}"
+            machine_files='${{ steps.changes.outputs.machine_files }}'
+          fi
+
+          if [ "$global_changed" = "true" ]; then
             echo "Building ALL systems (event=$event, global_changed=$global_changed)"
             filtered_servers=("${all_servers[@]}")
             filtered_desktops=("${all_desktops[@]}")
           else
-            echo "PR with no global changes — filtering to affected machines only"
+            echo "Filtering to affected machines only (event=$event)"
 
-            # `steps.filter.outputs.machine_files` is a JSON array of every
-            # changed path that matched hosts/linux/**.  Extract the third
-            # path segment (the machine dir name, always lowercase) from each.
-            machine_files='${{ steps.filter.outputs.machine_files }}'
+            # Extract the third path segment (the machine dir name, always
+            # lowercase) from every changed path under hosts/linux/**.
             changed_machines=$(echo "$machine_files" \
               | jq -r '.[] | split("/")[2]' \
               | sort -u)
@@ -223,6 +267,7 @@ jobs:
         with:
           trust-runner-user: true
           extra-conf: |
+            access-tokens = github.com=${{ github.token }}
             substituters = http://192.168.31.14/fred https://niri.cachix.org https://cache.nixos.org/
             trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= fred:JjyhvRSvKfkk8r4HS0mS5r5I7dT4GociEFbrR9OgBZ0= niri.cachix.org-1:Wv0OmO7PsuocRKzfDoJ3mulSl7Z6oezYhGhR+3W2964=
 
@@ -295,6 +340,7 @@ jobs:
         with:
           trust-runner-user: true
           extra-conf: |
+            access-tokens = github.com=${{ github.token }}
             substituters = http://192.168.31.14/fred https://niri.cachix.org https://cache.nixos.org/
             trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= fred:JjyhvRSvKfkk8r4HS0mS5r5I7dT4GociEFbrR9OgBZ0= niri.cachix.org-1:Wv0OmO7PsuocRKzfDoJ3mulSl7Z6oezYhGhR+3W2964=
 
