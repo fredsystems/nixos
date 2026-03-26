@@ -332,11 +332,20 @@ jobs:
             fi
           fi
 
-          servers_json=$(printf '%s\n' "${filtered_servers[@]}" | jq -R . | jq -cs .)
-          desktops_json=$(printf '%s\n' "${filtered_desktops[@]}" | jq -R . | jq -cs .)
+          # Guard against empty arrays: printf with no args still outputs a
+          # newline, which jq turns into [""] instead of [].
+          if [ ${#filtered_servers[@]} -eq 0 ]; then
+            servers_json="[]"
+          else
+            servers_json=$(printf '%s\n' "${filtered_servers[@]}" | jq -R . | jq -cs .)
+          fi
 
-          # printf with an empty array produces no output; jq -cs . on empty
-          # stdin returns "[]" which is exactly what we want for an empty matrix.
+          if [ ${#filtered_desktops[@]} -eq 0 ]; then
+            desktops_json="[]"
+          else
+            desktops_json=$(printf '%s\n' "${filtered_desktops[@]}" | jq -R . | jq -cs .)
+          fi
+
           echo "servers=$servers_json"   >> "$GITHUB_OUTPUT"
           echo "desktops=$desktops_json" >> "$GITHUB_OUTPUT"
 
