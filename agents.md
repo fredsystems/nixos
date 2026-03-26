@@ -157,10 +157,12 @@ whether the merge-queue synthetic commit is identical to the already-tested PR
 tip. If so, it outputs `skip=true` and all downstream jobs are skipped
 (the summary job still runs and passes, satisfying the required check).
 
-### Path-based change detection (`find-systems`)
+### Path-based and input-aware change detection (`find-systems`)
 
 Instead of `dorny/paths-filter` (which mishandles negation patterns — see
 below), we use a bash step with `git diff --name-only` and a `case` statement.
+When `flake.lock` changes, we additionally parse the lock file diff to
+determine which flake inputs changed and map them to CI categories.
 
 **Why not `dorny/paths-filter`?** That action uses picomatch internally.
 A negation pattern like `!features/desktop/**` becomes an independent matcher
@@ -171,7 +173,8 @@ virtually every PR, defeating the entire filtering system.
 **Current `case` logic:**
 
 ```text
-flake.nix | flake.lock | firmware.nix  → global
+flake.nix | firmware.nix  → global
+flake.lock  → input-aware parsing (see below)
 modules/* | profiles/* | home-profiles/* | dotfiles/*  → global
 features/desktop/*  → desktop_global  (checked BEFORE features/*)
 features/*  → global
@@ -186,16 +189,45 @@ The `case` statement order matters: more-specific patterns (e.g.
 (`features/*`). `.github/renovate.json5` is excluded before the catch-all
 `.github/*` pattern.
 
+**Input-aware `flake.lock` parsing:**
+
+When `flake.lock` is in the changed files and `global` is not already set by
+other changed paths, the workflow:
+
+1. Retrieves the old `flake.lock` from the base commit via `git show`
+2. Iterates over all root inputs in the new lock file
+3. Compares `locked.rev` (or `locked.narHash` for non-git sources) between
+   old and new for each input
+4. Looks up each changed input in a bash associative array that maps input
+   names to CI categories (`desktop`, `server`, `desktop+fredhub`, `global`,
+   `skip`)
+5. Sets the appropriate flags: `global`, `desktop_global`, `server_global`,
+   or injects a synthetic machine path for the `fredhub` special case
+6. Unknown inputs default to `global` (safe over-build)
+7. Short-circuits if `global` becomes true (no point checking further)
+
+The `desktop+fredhub` category (used only by `nixpkgs` unstable) sets
+`desktop_global=true` and injects `hosts/linux/fredhub/_input_change` into
+the machine files list. The downstream filtering extracts the third path
+segment (`fredhub`) and includes it in the per-machine server build, while
+all desktops are rebuilt.
+
 **Filtering outcomes:**
 
-| Scenario                              | Servers built         | Desktops built |
-| ------------------------------------- | --------------------- | -------------- |
-| `global=true`                         | All                   | All            |
-| Only `hosts/linux/<name>/*` changed   | Only affected         | Only affected  |
-| Only `features/desktop/*` changed     | None                  | All            |
-| `desktop_global` + some server hosts  | Only affected servers | All desktops   |
-| Only `.github/renovate.json5` changed | None                  | None           |
-| `workflow_dispatch`                   | All                   | All            |
+| Scenario                                       | Servers built | Desktops built |
+| ---------------------------------------------- | ------------- | -------------- |
+| `global=true`                                  | All           | All            |
+| `server_global=true`                           | All           | (per-machine)  |
+| `desktop_global=true`                          | (per-machine) | All            |
+| Only `hosts/linux/<name>/*` changed            | Only affected | Only affected  |
+| Only `features/desktop/*` changed              | None          | All            |
+| `flake.lock`: only `nixpkgs` changed           | Only fredhub  | All            |
+| `flake.lock`: only `nixpkgs-stable` changed    | All           | None           |
+| `flake.lock`: only `darwin` changed            | None          | None           |
+| `flake.lock`: only `nixos-needsreboot` changed | All           | All            |
+| `flake.lock`: unknown new input changed        | All           | All            |
+| Only `.github/renovate.json5` changed          | None          | None           |
+| `workflow_dispatch`                            | All           | All            |
 
 ### Build steps (servers and desktops)
 
@@ -249,13 +281,12 @@ Required status check for merge-queue / branch protection. It:
 ### Adding a new flake input
 
 1. Add the input to `flake.nix` under `inputs`
-2. Add a CI-category comment next to it (see existing pattern in `flake.nix`)
+2. Add a `# CI: <category>` comment above it (see existing pattern in `flake.nix`)
 3. **Update the input-to-category mapping table** in this file (`agents.md`)
-4. If the input is used by servers, desktops, or both, verify that the
-   path-based filtering in `ci-linux.yaml` correctly triggers rebuilds
-   (most new inputs only affect `flake.lock`, which triggers `global`)
-5. _Future:_ When input-aware CI filtering is implemented, update the
-   input-to-category map in the workflow file itself
+4. **Update the `input_category` associative array** in the `Detect changed paths`
+   step of `ci-linux.yaml`
+5. If the input is not added to the associative array, it will default to
+   `global` (safe but over-builds)
 
 ### Adding a new host
 
@@ -279,40 +310,23 @@ The filtering logic lives in the `Detect changed paths` step of the
 `find-systems` job in `ci-linux.yaml`. Key things to remember:
 
 - `case` pattern order matters — put specific patterns before general ones
-- `flake.lock` is in the `global` bucket (any lock change rebuilds everything)
+- `flake.lock` triggers the input-aware parser (not `global` directly)
+- `flake.nix` and `firmware.nix` still trigger `global=true`
 - To exclude a path from triggering builds, add a no-op `;;` case before the
   broader catch-all (like `.github/renovate.json5` is excluded before `.github/*`)
+- The `input_category` associative array in the flake.lock parsing block must
+  be kept in sync with the `# CI:` comments in `flake.nix` and the mapping
+  table in this file
 
 ---
 
-## Future work: input-aware CI filtering
+## Keeping things in sync
 
-**Goal:** When `flake.lock` changes, parse the diff to determine _which_
-inputs actually changed, then use the input-to-category mapping to rebuild
-only the affected hosts instead of everything.
+There are **three places** that define the input-to-CI-category mapping:
 
-**Context:**
+1. **`flake.nix`** — `# CI: <category>` comments above each input
+2. **`agents.md`** — the input-to-category mapping table (this file)
+3. **`ci-linux.yaml`** — the `input_category` bash associative array in the
+   `Detect changed paths` step
 
-- Any `flake.lock` change currently triggers `global=true` (rebuilds
-  everything), regardless of which inputs actually changed
-- `update-flakes.yaml` opens one PR per input — each PR still only changes
-  `flake.lock`, but only one input differs. The branch name (`update-<input>`)
-  also identifies which input changed, making these PRs simpler to handle
-- Renovate's lock-file-maintenance PR bundles _all_ input updates into a
-  single `flake.lock` change, so we must parse the `flake.lock` diff to
-  extract which input names actually changed
-- The mapping table above is the authoritative source for which category
-  each input belongs to
-- Unknown inputs should default to `global` (safe over-build)
-
-**Approach (not yet implemented):**
-
-1. In the `Detect changed paths` step, when `flake.lock` is in the changed
-   files, run `nix flake metadata --json` (or diff the lock JSON) to determine
-   which inputs changed
-2. Look up each changed input in a category map (bash associative array or
-   similar)
-3. Set `global`, `desktop_global`, `server_global`, or per-machine flags
-   accordingly
-4. Only fall back to `global=true` if an unknown input changed or if
-   non-lock files also changed that already trigger `global`
+When adding or recategorizing a flake input, update all three locations.
