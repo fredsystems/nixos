@@ -68,6 +68,11 @@ jobs:
       # latter treats negation patterns (e.g. '!features/desktop/**') as
       # independent picomatch matchers, causing the global filter to match
       # virtually every file.
+      #
+      # When flake.lock changes, we parse the diff to determine which
+      # inputs actually changed and map them to CI categories instead of
+      # blindly rebuilding everything.  See agents.md for the full
+      # input-to-category mapping and maintenance rules.
       - name: Detect changed paths
         id: changes
         if: github.event_name != 'workflow_dispatch'
@@ -88,13 +93,17 @@ jobs:
 
           global=false
           desktop_global=false
+          server_global=false
+          flake_lock_changed=false
           machine_files_arr=()
 
           while IFS= read -r file; do
             [ -z "$file" ] && continue
             case "$file" in
-              flake.nix|flake.lock|firmware.nix)
+              flake.nix|firmware.nix)
                 global=true ;;
+              flake.lock)
+                flake_lock_changed=true ;;
               modules/*|profiles/*|home-profiles/*|dotfiles/*)
                 global=true ;;
               features/desktop/*)
@@ -110,6 +119,87 @@ jobs:
             esac
           done <<< "$changed_files"
 
+          # ----------------------------------------------------------------
+          # Input-aware flake.lock filtering
+          #
+          # Instead of treating any flake.lock change as global, compare
+          # the locked revision of each root input between base and HEAD
+          # and map changed inputs to their CI category.
+          #
+          # Category map — keep in sync with flake.nix CI comments and
+          # the table in agents.md.  Unknown inputs default to "global".
+          # ----------------------------------------------------------------
+          if [ "$flake_lock_changed" = "true" ] && [ "$global" = "false" ]; then
+            echo ""
+            echo "flake.lock changed — parsing input diff..."
+
+            old_lock=$(git show "${base_sha}:flake.lock" 2>/dev/null || echo '{}')
+            new_lock=$(cat flake.lock)
+
+            # Associative array: input name → CI category
+            declare -A input_category=(
+              [nixpkgs]="desktop+fredhub"
+              [home-manager]="desktop"
+              [catppuccin]="desktop"
+              [niri]="desktop"
+              [fredbar]="desktop"
+              [freminal]="desktop"
+              [solaar]="desktop"
+              [apple-fonts]="desktop"
+              [walls-catppuccin]="desktop"
+              [nixvim]="desktop"
+              [sops-nix]="desktop"
+              [nixpkgs-stable]="server"
+              [home-manager-stable]="server"
+              [catppuccin-stable]="server"
+              [sops-nix-stable]="server"
+              [nixos-needsreboot]="global"
+              [darwin]="skip"
+              [colmena]="skip"
+              [flake-utils]="skip"
+              [precommit-base]="skip"
+            )
+
+            root_inputs=$(echo "$new_lock" | jq -r '.nodes.root.inputs | keys[]')
+
+            for input in $root_inputs; do
+              node_name=$(echo "$new_lock" | jq -r ".nodes.root.inputs.\"$input\"")
+              old_rev=$(echo "$old_lock" | jq -r ".nodes.\"$node_name\".locked.rev // .nodes.\"$node_name\".locked.narHash // empty" 2>/dev/null)
+              new_rev=$(echo "$new_lock" | jq -r ".nodes.\"$node_name\".locked.rev // .nodes.\"$node_name\".locked.narHash // empty")
+
+              if [ "$old_rev" != "$new_rev" ]; then
+                category="${input_category[$input]:-global}"
+                echo "  Input changed: $input → category: $category"
+
+                case "$category" in
+                  global)
+                    global=true ;;
+                  desktop)
+                    desktop_global=true ;;
+                  server)
+                    server_global=true ;;
+                  desktop+fredhub)
+                    desktop_global=true
+                    # Inject a synthetic machine path so fredhub is included
+                    # in per-machine server filtering (downstream extracts the
+                    # third path segment; sort -u deduplicates).
+                    machine_files_arr+=("hosts/linux/fredhub/_input_change") ;;
+                  skip)
+                    echo "    (skipped — no Linux rebuild needed)" ;;
+                esac
+              fi
+
+              # Short-circuit: if global is set, no point checking more inputs
+              if [ "$global" = "true" ]; then
+                echo "  global=true — skipping remaining inputs"
+                break
+              fi
+            done
+          elif [ "$flake_lock_changed" = "true" ] && [ "$global" = "true" ]; then
+            echo ""
+            echo "flake.lock changed but global already set — skipping input parsing"
+          fi
+
           if [ ${#machine_files_arr[@]} -eq 0 ]; then
             machine_files="[]"
           else
@@ -118,11 +208,14 @@ jobs:
 
           echo "global=$global" >> "$GITHUB_OUTPUT"
           echo "desktop_global=$desktop_global" >> "$GITHUB_OUTPUT"
+          echo "server_global=$server_global" >> "$GITHUB_OUTPUT"
           echo "machine_files=$machine_files" >> "$GITHUB_OUTPUT"
 
+          echo ""
           echo "Change detection results:"
           echo "  global=$global"
           echo "  desktop_global=$desktop_global"
+          echo "  server_global=$server_global"
           echo "  machine_files=$machine_files"
 
       - name: Install Nix
@@ -163,12 +256,14 @@ jobs:
           #
           # Rules:
           #   - workflow_dispatch → build everything
-          #   - pull_request or merge_group + global path changed →
-          #     build everything
-          #   - pull_request or merge_group + only hosts/linux/** changed →
-          #     build only the machines whose directory appears in the diff
-          #   - pull_request or merge_group + nothing relevant changed
-          #     (e.g. only docs) → empty matrix; build jobs are skipped
+          #   - global flag set → build everything
+          #   - server_global flag set → build all servers
+          #   - desktop_global flag set → build all desktops
+          #   - only hosts/linux/** changed (or synthetic input-change
+          #     paths) → build only the machines whose directory appears
+          #     in the diff
+          #   - nothing relevant changed (e.g. only docs) → empty matrix;
+          #     build jobs are skipped
           # ------------------------------------------------------------------
 
           event="${{ github.event_name }}"
@@ -178,10 +273,12 @@ jobs:
           if [ "$event" = "workflow_dispatch" ]; then
             global_changed="true"
             desktop_global_changed="true"
+            server_global_changed="true"
             machine_files="[]"
           else
             global_changed="${{ steps.changes.outputs.global }}"
             desktop_global_changed="${{ steps.changes.outputs.desktop_global }}"
+            server_global_changed="${{ steps.changes.outputs.server_global }}"
             machine_files='${{ steps.changes.outputs.machine_files }}'
           fi
 
@@ -194,30 +291,38 @@ jobs:
 
             # Extract the third path segment (the machine dir name, always
             # lowercase) from every changed path under hosts/linux/**.
+            # This includes both real file paths and synthetic entries
+            # injected by the input-aware flake.lock parser.
             changed_machines=$(echo "$machine_files" \
               | jq -r '.[] | split("/")[2]' \
               | sort -u)
 
             echo "Changed machine dirs: $(echo "$changed_machines" | tr '\n' ' ')"
 
-            filtered_servers=()
-            filtered_desktops=()
+            # --- Servers ---
+            if [ "$server_global_changed" = "true" ]; then
+              echo "Server-global change detected — building all servers"
+              filtered_servers=("${all_servers[@]}")
+            else
+              filtered_servers=()
+              for sys in "${all_servers[@]}"; do
+                # The nixosConfiguration attribute name may differ in case from
+                # the directory name (e.g. "Daytona" lives in hosts/linux/daytona/).
+                sys_lower=$(echo "$sys" | tr '[:upper:]' '[:lower:]')
+                if echo "$changed_machines" | grep -qx "$sys_lower"; then
+                  filtered_servers+=("$sys")
+                fi
+              done
+            fi
 
-            for sys in "${all_servers[@]}"; do
-              # The nixosConfiguration attribute name may differ in case from
-              # the directory name (e.g. "Daytona" lives in hosts/linux/daytona/).
-              sys_lower=$(echo "$sys" | tr '[:upper:]' '[:lower:]')
-              if echo "$changed_machines" | grep -qx "$sys_lower"; then
-                filtered_servers+=("$sys")
-              fi
-            done
-
+            # --- Desktops ---
             # features/desktop is isolated from server systems — a change there
             # forces all desktops to rebuild but leaves the server list as-is.
             if [ "$desktop_global_changed" = "true" ]; then
-              echo "Desktop-global change detected (features/desktop/**) — building all desktops"
+              echo "Desktop-global change detected — building all desktops"
               filtered_desktops=("${all_desktops[@]}")
             else
+              filtered_desktops=()
               for sys in "${all_desktops[@]}"; do
                 sys_lower=$(echo "$sys" | tr '[:upper:]' '[:lower:]')
                 if echo "$changed_machines" | grep -qx "$sys_lower"; then

@@ -2,90 +2,119 @@
   description = "Fred's NixOS config flake";
 
   inputs = {
+    ##########################################################################
+    ## CI categories  (see agents.md for the full mapping)                  ##
+    ##                                                                      ##
+    ##   desktop + fredhub  — rebuilds desktops + fredhub                   ##
+    ##   desktop            — rebuilds desktops only                        ##
+    ##   server             — rebuilds servers only                         ##
+    ##   global             — rebuilds all linux hosts                      ##
+    ##   skip               — no linux rebuild needed                       ##
+    ##########################################################################
+
+    # CI: desktop + fredhub
     nixpkgs = {
       url = "github:nixos/nixpkgs/nixos-unstable";
     };
 
+    # CI: server
     nixpkgs-stable = {
       url = "github:nixos/nixpkgs/nixos-25.11";
     };
 
+    # CI: server
     home-manager-stable = {
       url = "github:nix-community/home-manager/release-25.11";
       inputs.nixpkgs.follows = "nixpkgs-stable";
     };
 
+    # CI: desktop
     catppuccin = {
       url = "github:catppuccin/nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    # CI: server
     catppuccin-stable = {
       url = "github:catppuccin/nix/release-25.11";
       inputs.nixpkgs.follows = "nixpkgs-stable";
     };
 
+    # CI: desktop
     apple-fonts = {
       url = "github:Lyndeno/apple-fonts.nix";
     };
 
+    # CI: desktop
     home-manager = {
       url = "github:nix-community/home-manager";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    # CI: skip (utility lib, no system builds)
     flake-utils = {
       url = "github:numtide/flake-utils";
     };
 
+    # CI: desktop
     nixvim = {
       url = "github:nix-community/nixvim";
     };
 
+    # CI: desktop
     niri = {
       url = "github:sodiboo/niri-flake";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    # CI: skip (macOS only)
     darwin = {
       url = "github:lnl7/nix-darwin";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    # CI: desktop
     sops-nix = {
       url = "github:Mic92/sops-nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    # CI: server
     sops-nix-stable = {
       url = "github:Mic92/sops-nix";
       inputs.nixpkgs.follows = "nixpkgs-stable";
     };
 
+    # CI: global (all linux)
     nixos-needsreboot = {
       url = "github:fredclausen/nixos-needsreboot";
     };
 
+    # CI: skip (dev tooling only)
     precommit-base = {
       url = "github:FredSystems/pre-commit-checks";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    # CI: desktop
     fredbar = {
       url = "github:FredSystems/fred-bar";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    # CI: desktop
     solaar = {
       url = "github:Svenum/Solaar-Flake";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    # CI: skip (deployment tool, no effect on builds)
     colmena = {
       url = "github:zhaofengli/colmena";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    # CI: desktop
     freminal = {
       url = "github:FredSystems/freminal";
       #path on disk
@@ -95,6 +124,7 @@
 
     # wallpapers
 
+    # CI: desktop
     walls-catppuccin = {
       url = "github:orangci/walls-catppuccin-mocha";
       flake = false;
