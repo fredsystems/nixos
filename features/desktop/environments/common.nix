@@ -10,6 +10,17 @@ let
   allUsers = [ user ] ++ extraUsers;
   cfg = config.desktop.environments.common;
   dpmsScript = "~/.config/hyprextra/scripts/dpms.sh";
+
+  # Shared theme definition used for both gtk.theme (GTK3) and
+  # gtk.gtk4.theme.  Home-manager >=26.05 no longer auto-inherits the GTK3
+  # theme for GTK4, so we set both explicitly.
+  catppuccinGtkTheme = {
+    name = "Catppuccin-GTK-Mauve-Dark";
+    package = pkgs.magnetic-catppuccin-gtk.override {
+      accent = [ "mauve" ];
+      shade = "dark";
+    };
+  };
 in
 {
   options.desktop.environments.common = {
@@ -145,17 +156,12 @@ in
           extraConfig = {
             gtk-application-prefer-dark-theme = 1;
           };
-          # GTK4/libadwaita apps ignore traditional GTK themes; Catppuccin
-          # handles GTK4 theming via CSS, so no theme package is needed here.
-          theme = null;
+          # HM >=26.05 no longer inherits gtk.theme for GTK4 by default.
+          # Explicitly set it to preserve catppuccin theming for
+          # GTK4/libadwaita apps (Nautilus, etc.).
+          theme = catppuccinGtkTheme;
         };
-        theme = {
-          name = "Catppuccin-GTK-Mauve-Dark";
-          package = pkgs.magnetic-catppuccin-gtk.override {
-            accent = [ "mauve" ];
-            shade = "dark";
-          };
-        };
+        theme = catppuccinGtkTheme;
       };
 
       # ── Shared catppuccin/hyprlock settings ────────────────────────────────

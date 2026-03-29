@@ -104,7 +104,7 @@ reference for that future implementation.
 | `solaar`              | desktop                 | Logitech device manager (desktop only)       |
 | `apple-fonts`         | desktop                 | Apple fonts (desktop only)                   |
 | `walls-catppuccin`    | desktop                 | Wallpapers (desktop only, `flake=false`)     |
-| `nixvim`              | desktop                 | Neovim config (desktop only)                 |
+| `nixvim`              | global (all linux)      | Neovim config (all systems)                  |
 | `nixpkgs-stable`      | server                  | All servers (stable channel)                 |
 | `home-manager-stable` | server                  | Server home-manager configs                  |
 | `catppuccin-stable`   | server                  | Server theming                               |
