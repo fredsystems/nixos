@@ -516,11 +516,11 @@
         "precommit": "precommit_3"
       },
       "locked": {
-        "lastModified": 1774548798,
-        "narHash": "sha256-IHll2GRZnGQpHm0vFTFIYAaihrUiTX9ZBnTsfYmhAuo=",
+        "lastModified": 1774726595,
+        "narHash": "sha256-MMmoW1x9oxnD/Om+O3GcULJhljAJlJO8qDfCR/Cf3/Q=",
         "owner": "FredSystems",
         "repo": "freminal",
-        "rev": "05a7effe5eff7fc6cd56ab21ff954b5f3556157c",
+        "rev": "2d0f8e9e1aad782e434717f313fc8cc4bdef6ce8",
         "type": "github"
       },
       "original": {
