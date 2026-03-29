@@ -614,7 +614,12 @@
 
         restart = "always";
 
-        extraDockerArgs = "--user 1000:1000";
+        # 0.10.0 entrypoint starts as root, chowns /app/data, then drops
+        # to PUID/PGID.  Do NOT pass --user; let the entrypoint handle it.
+        environment = {
+          PUID = "1000";
+          PGID = "1000";
+        };
 
         ports = [
           "4444:4444"
