@@ -147,7 +147,7 @@ jobs:
               [solaar]="desktop"
               [apple-fonts]="desktop"
               [walls-catppuccin]="desktop"
-              [nixvim]="desktop"
+              [nixvim]="global"
               [sops-nix]="desktop"
               [nixpkgs-stable]="server"
               [home-manager-stable]="server"

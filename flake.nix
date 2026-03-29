@@ -56,7 +56,7 @@
       url = "github:numtide/flake-utils";
     };
 
-    # CI: desktop
+    # CI: global
     nixvim = {
       url = "github:nix-community/nixvim";
     };
