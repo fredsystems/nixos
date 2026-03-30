@@ -1,6 +1,7 @@
-# modules/compositors/model.nix (monitor data for maranello)
+# Monitor data for maranello, keyed by "Make Model Serial" description.
+# This format is matched directly by niri (since 0.1.9) and with desc: prefix by Hyprland.
 {
-  DP-3 = {
+  "ASUSTek COMPUTER INC VG27A SCLMQS041662" = {
     width = 2560;
     height = 1440;
     refresh = 144.0;
@@ -9,7 +10,7 @@
     y = 0;
   };
 
-  DP-2 = {
+  "ASUSTek COMPUTER INC VG27A SALMQS105752" = {
     width = 2560;
     height = 1440;
     refresh = 144.0;
@@ -18,16 +19,16 @@
     y = 0;
   };
 
-  HDMI-A-1 = {
+  "ASUSTek COMPUTER INC VG27A SALMQS105747" = {
     width = 2560;
     height = 1440;
-    refresh = 60.0;
+    refresh = 144.0;
     scale = 1.0;
     x = -2560;
     y = -1440;
   };
 
-  DP-1 = {
+  "ASUSTek COMPUTER INC VG27A SALMQS105749" = {
     width = 2560;
     height = 1440;
     refresh = 144.0;

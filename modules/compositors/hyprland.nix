@@ -1,9 +1,10 @@
 # modules/compositors/hyprland.nix
+# Monitor keys are "Make Model Serial" descriptions; prefix with desc: for Hyprland.
 { lib, monitors }:
 
 lib.mapAttrsToList (
   name: m:
-  "${name}, ${
+  "desc:${name}, ${
     if m.refresh >= 120 then
       "highrr"
     else

@@ -26,10 +26,10 @@ in
     monitor = hyprMonitors;
 
     workspace = [
-      "1, monitor:DP-3"
-      "2, monitor:DP-2"
-      "3, monitor:HDMI-A-1"
-      "4, monitor:DP-1"
+      "1, monitor:desc:ASUSTek COMPUTER INC VG27A SCLMQS041662"
+      "2, monitor:desc:ASUSTek COMPUTER INC VG27A SALMQS105752"
+      "3, monitor:desc:ASUSTek COMPUTER INC VG27A SALMQS105747"
+      "4, monitor:desc:ASUSTek COMPUTER INC VG27A SALMQS105749"
     ];
 
     binde = [
