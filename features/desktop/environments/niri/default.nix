@@ -51,10 +51,13 @@ in
               ];
             }
 
-            # Wallpaper (same as swaybg in Hyprland)
+            # Wallpaper
             {
               command = [
-                "~/.config/hyprextra/scripts/background.sh"
+                "systemctl"
+                "--user"
+                "restart"
+                "hyprpaper"
               ];
             }
 
