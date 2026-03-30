@@ -16,11 +16,14 @@ in
         clock24 = true;
 
         extraConfig = ''
-                    # ---------- Terminal Settings ----------
+          # ---------- Terminal Settings ----------
           set -g default-terminal "tmux-256color"
           set -ga terminal-overrides ",*:RGB"
           set -g mouse on
           set -g set-clipboard on
+          set -s extended-keys on
+          set -as terminal-features 'xterm*:extkeys'
+          set-option -g allow-passthrough on
 
           # ---------- Prefix ----------
           unbind C-b

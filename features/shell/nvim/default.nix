@@ -155,6 +155,19 @@ in
                 end
             })
 
+            -- Fix Home/End keys in tmux
+            -- Map all common escape sequences for Home/End so they work
+            -- regardless of terminfo mismatches between tmux and the outer terminal
+            local home_seqs = {'\x1bOH', '\x1b[H', '\x1b[1~', '\x1b[7~'}
+            local end_seqs = {'\x1bOF', '\x1b[F', '\x1b[4~', '\x1b[8~'}
+            local modes = {'n', 'i', 'v', 'c'}
+            for _, seq in ipairs(home_seqs) do
+              vim.keymap.set(modes, seq, '<Home>', {silent = true, noremap = true})
+            end
+            for _, seq in ipairs(end_seqs) do
+              vim.keymap.set(modes, seq, '<End>', {silent = true, noremap = true})
+            end
+
                                           -- Fix for zellij.nvim health check
                                           vim.health = vim.health or {}
                                           vim.health.report_start = vim.health.report_start or function() end
