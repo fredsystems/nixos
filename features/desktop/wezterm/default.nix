@@ -49,9 +49,13 @@ in
           config.keys = {
             { mods = "OPT", key = "LeftArrow",  action = act.SendKey({ mods = "ALT",  key = "b" }) },
             { mods = "OPT", key = "RightArrow", action = act.SendKey({ mods = "ALT",  key = "f" }) },
-            { mods = "CMD", key = "LeftArrow",  action = act.SendKey({ mods = "CTRL", key = "a" }) },
-            { mods = "CMD", key = "RightArrow", action = act.SendKey({ mods = "CTRL", key = "e" }) },
+            { mods = "CMD", key = "LeftArrow",  action = act.SendString("\x1b[H") },
+            { mods = "CMD", key = "RightArrow", action = act.SendString("\x1b[F") },
             { mods = "CMD", key = "Backspace",  action = act.SendKey({ mods = "CTRL", key = "u" }) },
+
+            -- Home/End keys (Fn+Left/Right on macOS)
+            { key = "Home", action = act.SendString("\x1b[H") },
+            { key = "End",  action = act.SendString("\x1b[F") },
 
             -- Tab navigation
             { mods = "CMD|OPT",   key = "LeftArrow",  action = act.ActivateTabRelative(-1) },
