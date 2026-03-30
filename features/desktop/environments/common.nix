@@ -180,6 +180,23 @@ in
       # at runtime via hyprctl / niri IPC — so the correct command is always
       # issued regardless of which compositor packages are installed on the host.
       services = {
+        hyprsunset = {
+          enable = true;
+          package = pkgs.hyprsunset;
+          settings = {
+            profile = [
+              {
+                time = "07:30";
+                temperature = 6500;
+              }
+              {
+                time = "18:00";
+                temperature = 5000;
+              }
+            ];
+          };
+        };
+
         hyprpaper = {
           enable = true;
           settings = {
