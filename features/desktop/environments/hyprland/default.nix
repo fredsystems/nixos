@@ -97,6 +97,7 @@ in
             "systemctl restart --user udiskie-agent"
             "systemctl restart --user solaar"
             "blueman-applet"
+            "hyprsunset"
             "sleep 5 && 1password --silent"
           ];
 

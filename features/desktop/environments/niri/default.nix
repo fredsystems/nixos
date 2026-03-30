@@ -134,6 +134,11 @@ in
                 "--silent"
               ];
             }
+            {
+              command = [
+                "hyprsunset"
+              ];
+            }
           ];
 
           layout = {
