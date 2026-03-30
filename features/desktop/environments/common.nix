@@ -118,7 +118,7 @@ in
         libappindicator-gtk3
 
         # Wallpaper
-        swaybg
+        hyprpaper
 
         # Misc Wayland utilities
         wev
@@ -170,42 +170,64 @@ in
 
       programs.hyprlock.enable = true;
 
-      services.network-manager-applet.enable = true;
-
+      # ── Wallpaper (hyprpaper) ──────────────────────────────────────────────
+      # Shared hyprpaper config for both Hyprland and Niri.
+      # Cycles through ~/Pictures/Background every 5 minutes in random order.
+      #
       # ── Idle management (hypridle) ─────────────────────────────────────────
       # Single shared hypridle definition for both Hyprland and Niri.
       # DPMS on/off is delegated to dpms.sh, which probes the active compositor
       # at runtime via hyprctl / niri IPC — so the correct command is always
       # issued regardless of which compositor packages are installed on the host.
-      services.hypridle = {
-        enable = true;
-        settings = {
-          general = {
-            lock_cmd = "hyprlock";
-            before_sleep_cmd = "hyprlock";
-            after_sleep_cmd = "${dpmsScript} on";
+      services = {
+        hyprpaper = {
+          enable = true;
+          settings = {
+            splash = false;
+            ipc = true;
+            wallpaper = [
+              {
+                monitor = "";
+                path = "~/Pictures/Background";
+                fit_mode = "cover";
+                timeout = 300;
+              }
+            ];
           };
+        };
 
-          listener = [
-            {
-              # Lock the screen after 5 minutes of inactivity.
-              timeout = 300;
-              on-timeout = "hyprlock";
-            }
-            {
-              # Power off monitors after 10 minutes of inactivity.
-              # dpms.sh detects whether Hyprland or Niri is running and
-              # issues the appropriate compositor command.
-              timeout = 600;
-              on-timeout = "${dpmsScript} off";
-              on-resume = "${dpmsScript} on";
-            }
-            {
-              # Suspend the system after 15 minutes of inactivity.
-              timeout = 900;
-              on-timeout = "systemctl suspend";
-            }
-          ];
+        network-manager-applet.enable = true;
+
+        hypridle = {
+          enable = true;
+          settings = {
+            general = {
+              lock_cmd = "hyprlock";
+              before_sleep_cmd = "hyprlock";
+              after_sleep_cmd = "${dpmsScript} on";
+            };
+
+            listener = [
+              {
+                # Lock the screen after 5 minutes of inactivity.
+                timeout = 300;
+                on-timeout = "hyprlock";
+              }
+              {
+                # Power off monitors after 10 minutes of inactivity.
+                # dpms.sh detects whether Hyprland or Niri is running and
+                # issues the appropriate compositor command.
+                timeout = 600;
+                on-timeout = "${dpmsScript} off";
+                on-resume = "${dpmsScript} on";
+              }
+              {
+                # Suspend the system after 15 minutes of inactivity.
+                timeout = 900;
+                on-timeout = "systemctl suspend";
+              }
+            ];
+          };
         };
       };
     });

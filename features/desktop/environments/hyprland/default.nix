@@ -89,7 +89,7 @@ in
             "systemctl restart --user polkit-gnome-authentication-agent-1"
             "gsettings set org.gnome.desktop.interface color-scheme \"prefer-dark\""
             "gsettings set org.gnome.desktop.interface gtk-theme \"Catppuccin-GTK-Mauve-Dark\""
-            "~/.config/hyprextra/scripts/background.sh"
+            "systemctl restart --user hyprpaper"
             "systemctl restart --user fredbar"
             "systemctl restart --user sway-audio-idle-inhibit"
             "systemctl restart --user hypridle"
