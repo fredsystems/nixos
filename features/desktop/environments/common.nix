@@ -101,9 +101,6 @@ in
         # Media controls (playerctl keybinds shared across both compositors)
         playerctl
 
-        # Notification daemon
-        swaynotificationcenter
-
         # Brightness
         brightnessctl
 

@@ -17,8 +17,6 @@ in
 
   config = lib.mkIf cfg.enable {
     home-manager.users = lib.genAttrs allUsers (_: {
-      services.swaync.enable = lib.mkForce false;
-
       programs.fredbar = {
         enable = true;
       };
