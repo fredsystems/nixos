@@ -20,10 +20,22 @@ in
   # Maranello-specific Home Manager settings
   programs.niri.settings = {
     outputs = niriOutputs;
+    spawn-at-startup = [
+      {
+        command = [
+          "streamcontroller"
+          "-b"
+        ];
+      }
+    ];
   };
 
   wayland.windowManager.hyprland.settings = {
     monitor = hyprMonitors;
+
+    exec-once = [
+      "streamcontroller -b"
+    ];
 
     workspace = [
       "1, monitor:desc:ASUSTek COMPUTER INC VG27A SCLMQS041662"

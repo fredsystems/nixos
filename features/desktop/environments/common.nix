@@ -81,6 +81,7 @@ in
         nautilus
         gvfs
         gnome.gvfs
+        baobab
 
         # Media / file viewers used in xdg-mime-common.nix default associations
         gthumb
