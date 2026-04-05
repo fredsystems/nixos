@@ -29,7 +29,7 @@ in
           enabledPackages
           ++ (with pkgs; [
             nodejs
-            nodePackages.typescript
+            typescript
             # Use the binary from the colmena flake input so the CLI version
             # matches the evaluator used by colmenaHive (not pkgs.colmena
             # from nixpkgs, which is shadowed by the flake input attrset).
