@@ -26,6 +26,7 @@ in
           font.size = t.font.size * 1.0;
           theme.name = "catppuccin-mocha";
           scrollback.limit = 4000;
+          ui.background_opacity = t.opacity;
         };
       };
     });
