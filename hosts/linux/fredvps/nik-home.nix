@@ -4,6 +4,7 @@
 # which belong to fred.
 {
   inputs,
+  catppuccinInput,
   ...
 }:
 let
@@ -17,7 +18,7 @@ in
   # (xdg dirs, mimeApps, fontconfig) — no user-specific fields, safe to reuse.
   imports = [
     ../../../modules/base/home-base.nix
-    inputs.catppuccin.homeModules.catppuccin
+    catppuccinInput.homeModules.catppuccin
     inputs.nixvim.homeModules.nixvim
   ];
 
