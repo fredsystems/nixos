@@ -125,16 +125,17 @@
         ]
       },
       "locked": {
-        "lastModified": 1775213373,
-        "narHash": "sha256-wJHsijC2l/E+ovmlpPGha8pXA6RHSwHWmBV97gvkmyI=",
-        "owner": "catppuccin",
-        "repo": "nix",
-        "rev": "ba73719e673e7c2d89ac2f8df0bc0d48983e4907",
+        "lastModified": 1775373002,
+        "narHash": "sha256-xfldOlEH68wul1wMSESRIhXpCIG7U2FnivIFuhgsOi4=",
+        "owner": "fredclausen",
+        "repo": "catnix",
+        "rev": "fcb58808f78b5d853886851d305e0b59bca520a8",
         "type": "github"
       },
       "original": {
-        "owner": "catppuccin",
-        "repo": "nix",
+        "owner": "fredclausen",
+        "ref": "fix/opencode-tui-theme",
+        "repo": "catnix",
         "type": "github"
       }
     },
@@ -766,11 +767,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1775320414,
-        "narHash": "sha256-pIDPHus8udcxO4lT+zUULBfvue2D08E73abzVEJNE+8=",
+        "lastModified": 1775360939,
+        "narHash": "sha256-XUBlSgUFdvTh6+K5LcI5mJu5F5L8scmJDMRiZM484TM=",
         "owner": "nix-community",
         "repo": "home-manager",
-        "rev": "5ee3b3ef63e469c84639c2c9e282726352c86069",
+        "rev": "2097a5c82bdc099c6135eae4b111b78124604554",
         "type": "github"
       },
       "original": {

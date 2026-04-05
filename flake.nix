@@ -30,7 +30,7 @@
 
     # CI: desktop
     catppuccin = {
-      url = "github:catppuccin/nix";
+      url = "github:fredclausen/catnix/fix/opencode-tui-theme";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
