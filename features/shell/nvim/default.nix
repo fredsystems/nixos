@@ -156,11 +156,20 @@ in
             })
 
             -- Fix Home/End keys in tmux
-            -- Map all common escape sequences for Home/End so they work
-            -- regardless of terminfo mismatches between tmux and the outer terminal
-            local home_seqs = {'\x1bOH', '\x1b[H', '\x1b[1~', '\x1b[7~'}
-            local end_seqs = {'\x1bOF', '\x1b[F', '\x1b[4~', '\x1b[8~'}
+            -- Nvim's terminal layer converts raw escape sequences into internal
+            -- key names BEFORE keymaps are checked. For example \x1b[1~ becomes
+            -- <Find> (VT220) instead of <Home>. We must map both the internal
+            -- key names AND raw sequences to cover all code paths.
             local modes = {'n', 'i', 'v', 'c'}
+
+            -- Map VT220 internal key names that nvim resolves to
+            vim.keymap.set(modes, '<Find>',   '<Home>', {silent = true, noremap = true})
+            vim.keymap.set(modes, '<Select>', '<End>',  {silent = true, noremap = true})
+
+            -- Also map raw escape sequences as a fallback in case terminfo
+            -- doesn't recognise them and they pass through verbatim
+            local home_seqs = {'\x1bOH', '\x1b[H', '\x1b[1~', '\x1b[7~'}
+            local end_seqs  = {'\x1bOF', '\x1b[F', '\x1b[4~', '\x1b[8~'}
             for _, seq in ipairs(home_seqs) do
               vim.keymap.set(modes, seq, '<Home>', {silent = true, noremap = true})
             end
