@@ -22,7 +22,7 @@ in
           set -g mouse on
           set -g set-clipboard on
           set -s extended-keys on
-          set -as terminal-features 'xterm*:extkeys'
+          set -as terminal-features '*:extkeys'
           set-option -g allow-passthrough on
 
           # ---------- Prefix ----------
