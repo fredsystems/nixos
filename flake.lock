@@ -125,11 +125,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1775373002,
-        "narHash": "sha256-xfldOlEH68wul1wMSESRIhXpCIG7U2FnivIFuhgsOi4=",
+        "lastModified": 1775375041,
+        "narHash": "sha256-fuRCAF+86UAgdNKd1lknVZRzlJZcp0S90wReOg8Rylw=",
         "owner": "fredclausen",
         "repo": "catnix",
-        "rev": "fcb58808f78b5d853886851d305e0b59bca520a8",
+        "rev": "e0260034617a5d7609f4a7cf58836bc1892cdb6c",
         "type": "github"
       },
       "original": {
