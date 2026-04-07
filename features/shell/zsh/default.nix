@@ -45,11 +45,6 @@ in
               source ${homeDir}/00-env.zsh
             '')
 
-            # TMUX must come before OMZ
-            (lib.mkOrder 900 ''
-              source ${homeDir}/15-tmux.zsh
-            '')
-
             # ZLE before completion
             (lib.mkOrder 550 ''
               source ${homeDir}/20-zle.zsh

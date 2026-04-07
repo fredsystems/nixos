@@ -34,3 +34,4 @@ alias pc="pushcache"
 alias dtop="docker run -v /var/run/docker.sock:/var/run/docker.sock -it ghcr.io/amir20/dtop"
 
 alias tools='nix develop ~/GitHub/fred-dev-tools --command zsh'
+alias tm="tmux new-session -A -s main"
