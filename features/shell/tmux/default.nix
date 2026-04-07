@@ -58,6 +58,31 @@ in
           bind-key -T copy-mode-vi y send-keys -X copy-selection-and-cancel
           unbind -T copy-mode-vi MouseDragEnd1Pane
 
+          # ---------- Scroll in alt buffers ----------
+          bind-key -n WheelUpPane {
+            #select-pane  # this should be consistent with the minor suggestion below
+            if-shell -F '#{mouse_any_flag}' {
+              send-keys -M  # vim with "set mouse=a" / htop / less with mouse support e.g. "LESS='--mouse --wheel-lines 5' less"
+            } {
+              if-shell -F '#{alternate_on}' {
+                send-keys -N5 Up  # vim with "set mouse=" / man / less without mouse support
+              } {
+                copy-mode -e
+                send-keys -N5 -X scroll-up
+              }
+            }
+          }
+          bind-key -n WheelDownPane {
+            #select-pane
+            if-shell -F '#{mouse_any_flag}' {
+                send-keys -M
+            } {
+              if-shell -F '#{alternate_on}' {
+                send-keys -N5 Down
+              }
+            }
+          }
+
           # ---------- Alt + hjkl to switch panes ----------
           bind -n M-h select-pane -L
           bind -n M-j select-pane -D
