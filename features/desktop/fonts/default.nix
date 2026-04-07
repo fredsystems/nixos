@@ -43,8 +43,8 @@ in
         twemoji-color-font
         noto-fonts-color-emoji
         google-fonts
-        inputs.apple-fonts.packages.${pkg.system}.sf-pro-nerd
-        inputs.apple-fonts.packages.${pkg.system}.ny-nerd
+        inputs.apple-fonts.packages.${pkgs.stdenv.hostPlatform.system}.sf-pro-nerd
+        inputs.apple-fonts.packages.${pkgs.stdenv.hostPlatform.system}.ny-nerd
         # corefonts
         # cifs-utils
         # dina-font

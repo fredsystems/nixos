@@ -16,4 +16,14 @@
 
 final: _: {
   cider3 = final.callPackage ./cider.nix { };
+
+  # Shadow the deprecated top-level `pkgs.hostPlatform` warnAlias (added
+  # 2025-10-28 in nixpkgs aliases.nix) with the real value so that packages
+  # which still reference `pkgs.hostPlatform` (e.g. the Flutter build
+  # infrastructure used by yubioath-flutter) don't fire
+  # "'hostPlatform' has been renamed to/replaced by 'stdenv.hostPlatform'"
+  # evaluation warnings.  CI treats warnings as errors so this is
+  # build-critical.  Mirrors the `withShadowedSystem` pattern in
+  # flake/deployment/colmena.nix for the analogous `pkgs.system` alias.
+  inherit (final.stdenv) hostPlatform;
 }
