@@ -27,6 +27,9 @@ in
           theme.name = "catppuccin-mocha";
           scrollback.limit = 4000;
           ui.background_opacity = t.opacity;
+          cursor = {
+            trail = true;
+          };
         };
       };
     });
