@@ -126,12 +126,6 @@ in
   ###### IMPLEMENTATION ######
 
   config = mkIf cfg.enable {
-    # github-runner ≥ 2.333.1 sets __noChroot on its derivation (nixpkgs commit
-    # 40231286), which Nix rejects when sandbox = true (strict).  "relaxed" still
-    # sandboxes all other derivations but honours __noChroot for the ones that
-    # explicitly opt out.
-    nix.settings.sandbox = "relaxed";
-
     environment.systemPackages = [
       pkgs.curl
       pkgs.jq

@@ -14,8 +14,16 @@
 #   { someDep, anotherDep, ... }:
 #   derivation ...
 
-final: _: {
+final: prev: {
   cider3 = final.callPackage ./cider.nix { };
+
+  # github-runner ≥ 2.333.1 has __noChroot = true set on its derivation
+  # (nixpkgs commit 40231286, added as a darwin sandbox workaround).  On any
+  # system with sandbox = true (the NixOS default), Nix refuses to even
+  # schedule the build.  The flag is not needed for Linux builds, so strip it.
+  github-runner = prev.github-runner.overrideAttrs (_: {
+    __noChroot = false;
+  });
 
   # Shadow the deprecated top-level `pkgs.hostPlatform` warnAlias (added
   # 2025-10-28 in nixpkgs aliases.nix) with the real value so that packages
