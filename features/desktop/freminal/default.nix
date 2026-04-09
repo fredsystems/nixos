@@ -22,11 +22,18 @@ in
       programs.freminal = {
         enable = true;
         settings = {
-          font.family = t.font.family;
-          font.size = t.font.size * 1.0;
-          theme.name = "catppuccin-mocha";
+          font = {
+            inherit (t.font) family;
+            size = t.font.size * 1.0;
+          };
+          theme = {
+            mode = "dark";
+            dark_name = "catppuccin-mocha";
+            light_name = "catppuccin-latte";
+          };
           scrollback.limit = 4000;
           ui.background_opacity = t.opacity;
+          security.allow_clipboard_read = true;
           cursor = {
             trail = true;
           };
