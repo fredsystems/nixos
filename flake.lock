@@ -125,17 +125,16 @@
         ]
       },
       "locked": {
-        "lastModified": 1775375041,
-        "narHash": "sha256-fuRCAF+86UAgdNKd1lknVZRzlJZcp0S90wReOg8Rylw=",
-        "owner": "fredclausen",
-        "repo": "catnix",
-        "rev": "e0260034617a5d7609f4a7cf58836bc1892cdb6c",
+        "lastModified": 1775938181,
+        "narHash": "sha256-3VRl7wTV2guWBI1kYT2OZEAMYU5nUZMo6um9UH+HYHE=",
+        "owner": "catppuccin",
+        "repo": "nix",
+        "rev": "8d8b4fd30aecbf30eef6b1d1977670a597d29494",
         "type": "github"
       },
       "original": {
-        "owner": "fredclausen",
-        "ref": "fix/opencode-tui-theme",
-        "repo": "catnix",
+        "owner": "catppuccin",
+        "repo": "nix",
         "type": "github"
       }
     },
