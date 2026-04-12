@@ -18,6 +18,7 @@ in
     ./gh-dash
     ./lazydocker
     ./lazygit
+    ./lazynpm
     ./lsd
     ./ohmyzsh
     ./nvim
