@@ -610,7 +610,7 @@
       ###############################################################
       {
         name = "degoog";
-        image = "ghcr.io/fccview/degoog:0.12.0@sha256:d15c1d8445bfd16c89a19c5d9aadc06f700a4a833f8205e17476056e1956c648";
+        image = "ghcr.io/fccview/degoog:0.13.0@sha256:489ad2cdee5f02aa0392056b0e759ef8993b185352511acad5e826517afac541";
 
         restart = "always";
 
