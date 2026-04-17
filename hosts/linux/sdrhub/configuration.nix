@@ -356,7 +356,7 @@
       ###############################################################
       {
         name = "fr24";
-        image = "ghcr.io/sdr-enthusiasts/docker-flightradar24:latest-build-843@sha256:80e8662be431f9e960094cedeca6841bc02a78346b30d5533b2d38546eecc16c";
+        image = "ghcr.io/sdr-enthusiasts/docker-flightradar24:latest-build-845@sha256:ddd1ca0b59642a91d82a1f736ccdaaa5e5f3ffd5164160604667e7e256e30b24";
 
         restart = "always";
         tty = true;
