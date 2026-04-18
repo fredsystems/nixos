@@ -40,7 +40,7 @@ gitsig() {
 }
 
 git-sync-main() {
-    setopt localoptions errexit nounset pipefail
+    setopt localoptions nounset pipefail
 
     # Get current branch
     local current
@@ -77,9 +77,17 @@ git-sync-main() {
 }
 
 pushcache() {
-    # localoptions scopes option changes to this function (zsh-only).
-    # 'set -euo pipefail' leaks errexit/nounset into the parent shell.
-    setopt localoptions errexit nounset pipefail
+    # Do NOT use 'setopt errexit' here — if any command fails before the
+    # function returns, zsh exits the *entire interactive shell* because
+    # localoptions never gets the chance to restore the old value.
+    setopt localoptions nounset pipefail
+
+    local jobs
+    if command -v nproc &>/dev/null; then
+        jobs="$(nproc)"
+    else
+        jobs="$(sysctl -n hw.ncpu)"
+    fi
 
     # Detect Home Manager root (newer HM first)
     local HM_ROOT HM_PATH USER_PROFILE
@@ -93,26 +101,36 @@ pushcache() {
     fi
 
     HM_PATH=$(readlink -f "$HM_ROOT")
-
     USER_PROFILE=$(readlink -f "/etc/profiles/per-user/${USER}")
+
+    # System profile path differs between NixOS and nix-darwin
+    local SYS_PROFILE
+    if [ -e /run/current-system ]; then
+        SYS_PROFILE=/run/current-system
+    elif [ -e /nix/var/nix/profiles/system ]; then
+        SYS_PROFILE=/nix/var/nix/profiles/system
+    else
+        echo "Could not find system profile" >&2
+        return 1
+    fi
 
     echo "Pushing home-manager cache to attic..."
     echo "  HM root: $HM_ROOT"
     attic push fred "$HM_PATH" \
         --ignore-upstream-cache-filter \
-        -j "$(nproc)"
+        -j "$jobs" || { echo "Failed to push home-manager cache" >&2; return 1; }
 
     echo
     echo "Pushing per-user cache to attic..."
     attic push fred "$USER_PROFILE" \
         --ignore-upstream-cache-filter \
-        -j "$(nproc)"
+        -j "$jobs" || { echo "Failed to push per-user cache" >&2; return 1; }
 
     echo
     echo "Pushing current-system cache to attic..."
-    attic push fred /run/current-system \
+    attic push fred "$SYS_PROFILE" \
         --ignore-upstream-cache-filter \
-        -j "$(nproc)"
+        -j "$jobs" || { echo "Failed to push system cache" >&2; return 1; }
 }
 
 updatenix() {

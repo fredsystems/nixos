@@ -55,6 +55,7 @@ darwin.lib.darwinSystem {
   modules = [
     (_: {
       nixpkgs.overlays = [ (import ./../../overlays/default.nix) ];
+      networking.hostName = hostName;
     })
     ../../modules/base/deployment-meta.nix
     ../../modules/base/system.nix
@@ -67,7 +68,11 @@ darwin.lib.darwinSystem {
         useUserPackages = true;
 
         users.${user} = {
-          imports = [ ../../modules/base/home.nix ] ++ hmModules;
+          imports = [
+            ../../modules/base/home.nix
+            ../../modules/services/attic/attic_client.nix
+          ]
+          ++ hmModules;
 
           catppuccin = {
             enable = true;

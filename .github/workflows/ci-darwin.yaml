@@ -44,22 +44,168 @@ jobs:
           fi
 
   # =====================================================================
-  # Discover Darwin systems
+  # Discover Darwin systems and detect what changed
   # =====================================================================
   find-darwin:
     name: Find Darwin systems
     runs-on: ubuntu-latest
     needs: [skip-if-clean]
-    if: ${{ needs.skip-if-clean.outputs.skip != 'true' }} # <-- works reliably now
+    if: ${{ needs.skip-if-clean.outputs.skip != 'true' }}
 
     outputs:
       systems: ${{ steps.out.outputs.systems }}
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 0
+
+      # Detect which paths changed so we can scope builds to affected
+      # systems only.  Uses the same git-diff approach as ci-linux.yaml.
+      #
+      # When flake.lock changes, we parse the diff to determine which
+      # inputs actually changed and map them to darwin CI categories.
+      #
+      # Darwin input categories:
+      #   darwin       — rebuilds all darwin hosts
+      #   skip         — no darwin rebuild needed
+      #
+      # Any input used by darwin builds maps to "darwin" (rebuild all).
+      # Inputs only used by Linux (stable channel, niri, solaar, etc.)
+      # map to "skip".
+      - name: Detect changed paths
+        id: changes
+        if: github.event_name != 'workflow_dispatch'
+        shell: bash
+        run: |
+          set -eo pipefail
+
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            base_sha="${{ github.event.pull_request.base.sha }}"
+          else
+            base_sha="${{ github.event.merge_group.base_sha }}"
+          fi
+
+          echo "Comparing ${base_sha}..HEAD"
+          changed_files=$(git diff --name-only "$base_sha" HEAD)
+          echo "Changed files:"
+          echo "$changed_files"
+
+          global=false
+          flake_lock_changed=false
+          machine_files_arr=()
+
+          while IFS= read -r file; do
+            [ -z "$file" ] && continue
+            case "$file" in
+              flake.nix)
+                global=true ;;
+              flake.lock)
+                flake_lock_changed=true ;;
+              modules/*|profiles/*|home-profiles/*|dotfiles/*|overlays/*)
+                global=true ;;
+              features/*)
+                global=true ;;
+              .github/renovate.json5)
+                ;; # excluded
+              .github/workflows/ci-darwin.yaml)
+                global=true ;;
+              .github/*)
+                ;; # other CI/GH files don't affect darwin builds
+              hosts/darwin/*)
+                machine_files_arr+=("$file") ;;
+              hosts/linux/*|firmware.nix)
+                ;; # linux-only, skip
+            esac
+          done <<< "$changed_files"
+
+          # ----------------------------------------------------------------
+          # Input-aware flake.lock filtering for darwin
+          #
+          # Map each changed input to a darwin CI category.  Inputs used by
+          # darwin builds trigger a full rebuild; linux-only inputs are
+          # skipped.  Unknown inputs default to "darwin" (safe over-build).
+          # ----------------------------------------------------------------
+          if [ "$flake_lock_changed" = "true" ] && [ "$global" = "false" ]; then
+            echo ""
+            echo "flake.lock changed — parsing input diff..."
+
+            old_lock=$(git show "${base_sha}:flake.lock" 2>/dev/null || echo '{}')
+            new_lock=$(cat flake.lock)
+
+            # Associative array: input name → darwin CI category
+            declare -A input_category=(
+              [nixpkgs]="darwin"
+              [home-manager]="darwin"
+              [catppuccin]="darwin"
+              [sops-nix]="darwin"
+              [nixvim]="darwin"
+              [darwin]="darwin"
+              [freminal]="darwin"
+              [apple-fonts]="darwin"
+              [nixpkgs-stable]="skip"
+              [home-manager-stable]="skip"
+              [catppuccin-stable]="skip"
+              [sops-nix-stable]="skip"
+              [niri]="skip"
+              [fredbar]="skip"
+              [solaar]="skip"
+              [walls-catppuccin]="skip"
+              [nixos-needsreboot]="skip"
+              [colmena]="skip"
+              [flake-utils]="skip"
+              [precommit-base]="skip"
+            )
+
+            root_inputs=$(echo "$new_lock" | jq -r '.nodes.root.inputs | keys[]')
+
+            for input in $root_inputs; do
+              node_name=$(echo "$new_lock" | jq -r ".nodes.root.inputs.\"$input\"")
+              old_rev=$(echo "$old_lock" | jq -r ".nodes.\"$node_name\".locked.rev // .nodes.\"$node_name\".locked.narHash // empty" 2>/dev/null)
+              new_rev=$(echo "$new_lock" | jq -r ".nodes.\"$node_name\".locked.rev // .nodes.\"$node_name\".locked.narHash // empty")
+
+              if [ "$old_rev" != "$new_rev" ]; then
+                category="${input_category[$input]:-darwin}"
+                echo "  Input changed: $input → category: $category"
+
+                case "$category" in
+                  darwin)
+                    global=true ;;
+                  skip)
+                    echo "    (skipped — no darwin rebuild needed)" ;;
+                esac
+              fi
+
+              # Short-circuit
+              if [ "$global" = "true" ]; then
+                echo "  global=true — skipping remaining inputs"
+                break
+              fi
+            done
+          elif [ "$flake_lock_changed" = "true" ] && [ "$global" = "true" ]; then
+            echo ""
+            echo "flake.lock changed but global already set — skipping input parsing"
+          fi
+
+          if [ ${#machine_files_arr[@]} -eq 0 ]; then
+            machine_files="[]"
+          else
+            machine_files=$(printf '%s\n' "${machine_files_arr[@]}" | jq -R . | jq -cs .)
+          fi
+
+          echo "global=$global" >> "$GITHUB_OUTPUT"
+          echo "machine_files=$machine_files" >> "$GITHUB_OUTPUT"
+
+          echo ""
+          echo "Change detection results:"
+          echo "  global=$global"
+          echo "  machine_files=$machine_files"
 
       - name: Install Nix
         uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
+        with:
+          extra-conf: |
+            access-tokens = github.com=${{ github.token }}
 
       - name: Enable Magic Nix Cache
         uses: DeterminateSystems/magic-nix-cache-action@565684385bcd71bad329742eefe8d12f2e765b39 # v13
@@ -68,36 +214,83 @@ jobs:
           use-gha-cache: false
 
       - id: out
+        shell: bash
         run: |
           echo "Evaluating darwinConfigurations..."
-          systems=$(nix eval --json .#darwinConfigurations --apply builtins.attrNames)
-          echo "Darwin systems: $systems"
-          echo "systems=$systems" >> "$GITHUB_OUTPUT"
+
+          all_systems=$(nix eval --json .#darwinConfigurations --apply builtins.attrNames)
+          echo "All darwin systems: $all_systems"
+
+          event="${{ github.event_name }}"
+
+          # Gather change-detection outputs (the step is skipped for
+          # workflow_dispatch, so fall back to building everything).
+          if [ "$event" = "workflow_dispatch" ]; then
+            global_changed="true"
+            machine_files="[]"
+          else
+            global_changed="${{ steps.changes.outputs.global }}"
+            machine_files='${{ steps.changes.outputs.machine_files }}'
+          fi
+
+          if [ "$global_changed" = "true" ]; then
+            echo "Building ALL darwin systems (event=$event, global_changed=$global_changed)"
+            systems_json="$all_systems"
+          else
+            echo "Filtering to affected machines only (event=$event)"
+
+            # Extract the third path segment (the machine dir name)
+            # from every changed path under hosts/darwin/**.
+            changed_machines=$(echo "$machine_files" \
+              | jq -r '.[] | split("/")[2]' \
+              | sort -u)
+
+            echo "Changed machine dirs: $(echo "$changed_machines" | tr '\n' ' ')"
+
+            filtered=()
+            for sys in $(jq -r '.[]' <<< "$all_systems"); do
+              if echo "$changed_machines" | grep -qx "$sys"; then
+                filtered+=("$sys")
+              fi
+            done
+
+            if [ ${#filtered[@]} -eq 0 ]; then
+              systems_json="[]"
+            else
+              systems_json=$(printf '%s\n' "${filtered[@]}" | jq -R . | jq -cs .)
+            fi
+          fi
+
+          echo "systems=$systems_json" >> "$GITHUB_OUTPUT"
+          echo "Darwin systems to build: $systems_json"
 
   # =====================================================================
   # Build Darwin systems (matrix)
   # =====================================================================
   build-darwin:
     name: Build Darwin systems
-    runs-on: macos-latest
+    runs-on: [self-hosted, macOS]
     needs: [skip-if-clean, find-darwin]
-    if: ${{ needs.skip-if-clean.outputs.skip != 'true' }} # <-- same tidy logic
-
+    if: ${{ needs.skip-if-clean.outputs.skip != 'true' && needs.find-darwin.outputs.systems != '[]' }}
+    permissions:
+      id-token: "write"
+      contents: "read"
     strategy:
       fail-fast: false
       matrix:
         system: ${{ fromJson(needs.find-darwin.outputs.systems) }}
 
     steps:
-      - name: Free disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /opt/ghc
-          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
-          sudo docker image prune --all --force || true
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
       - name: Install Nix
         uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
+        with:
+          trust-runner-user: true
+          extra-conf: |
+            access-tokens = github.com=${{ github.token }}
+            substituters = http://192.168.31.14/fred https://cache.nixos.org/
+            trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= fred:JjyhvRSvKfkk8r4HS0mS5r5I7dT4GociEFbrR9OgBZ0=
 
       - name: Enable Magic Nix Cache
         uses: DeterminateSystems/magic-nix-cache-action@565684385bcd71bad329742eefe8d12f2e765b39 # v13
@@ -106,11 +299,44 @@ jobs:
           use-gha-cache: false
 
       - name: Build Darwin system
+        shell: bash
         run: |
-          echo "Skipping build for now (placeholder)"
-          # Uncomment when ready:
-          # echo "Building Darwin system: ${{ matrix.system }}"
-          # nix build ".#darwinConfigurations.${{ matrix.system }}.system"
+          set -euo pipefail
+
+          error=0
+
+          echo "Logging in..."
+          nix shell nixpkgs#attic-client --command attic login fred http://192.168.31.14:8080 eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjIxNDgyMzMyODksIm5iZiI6MTc2OTU0MjA4OSwic3ViIjoiZnJlZCIsImh0dHBzOi8vand0LmF0dGljLnJzL3YxIjp7ImNhY2hlcyI6eyJmcmVkIjp7InIiOjEsInciOjEsImNjIjoxfX19fQ.WhR5ixdW0j-wV77Tl8VubJPEyEvgQ8nQWYbgJxI8pPiLJN6v4DVaqKPu15mcY0N0B0zKnq9-njG5EOn2Z2-4dMgfx9ttTA-lltxrvPf5nKR9zAXg6hgPYsnGQuRFBvAFzlfPCpcIU2rgEVzMajzjipQgfUnVPDuto9uPU1VG25fncVRYz5dUhOXTfvN_WWpzcgQ7HDHQufbui5IoG-nmFMFWcNkxTCw7XVNs1PYFpadMGn6zAeh9Hi6epYYllr1aTcmTCx6ut3-fbFdQaxGG_HsCyxFiIf9r6GNSQvZOeHbeLcE21RQ6qNrkKZuQiVoOAcQr7ngpQ2jjcWnajw_hCPi6rqByZxdZy8IAbPQ83nm9o5UlfKg99sr6YSV-6ZTBvsOm-ioUX9hSktWm3O7cdH74ygmbUC_QL-os6aYNhbyQjSEMgiOpS65VnFURG58gnnvVHncMvohyDKwZqcWVtiaQApNeL3_LEATtX_zdqlaWdCVXO3t3QlD0ebYVhb4rn2KEg0GOZHGpWPqJnszRSMwXgWM1fG37OF117Qz6O9280BoEMdjLvITr5Cq0kQqS0PzapLdI5maU6ZluyqvAvgqdHzwjey4hDDq3FjITA_JMUStRlH7sMwtaSGTiTTOHQPe7WT9PImqfm4G8Q3urOsHMBE_Au1dqnUz4Lq-yU4M
+
+          : > build.stderr
+
+          echo "Building Darwin system: ${{ matrix.system }}"
+          nix build ".#darwinConfigurations.${{ matrix.system }}.config.system.build.toplevel" 2> >(tee build.stderr >&2)
+
+          if grep -qE "evaluation warning:" build.stderr; then
+            error=1
+          fi
+
+          echo "Pushing system result..."
+          nix shell nixpkgs#attic-client --command attic push fred result --ignore-upstream-cache-filter -j 2
+
+          : > build.stderr
+          echo "Building home-manager for: ${{ matrix.system }}"
+          nix build ".#darwinConfigurations.${{ matrix.system }}.config.home-manager.users.fred.home.activationPackage" 2> >(tee build.stderr >&2)
+
+          if grep -qE "evaluation warning:" build.stderr; then
+            error=1
+          fi
+
+          echo "Pushing home-manager result..."
+          nix shell nixpkgs#attic-client --command attic push fred result --ignore-upstream-cache-filter -j 2
+
+          if [ "$error" -ne 0 ]; then
+            echo "One or more warnings were detected during the build."
+
+            echo "::error::Nix evaluation warnings detected"
+            exit 1
+          fi
 
   # =====================================================================
   # Required Check Summary
@@ -144,5 +370,5 @@ jobs:
             exit 1
           fi
 
-          echo "All Darwin builds succeeded."
+          echo "✅ All in-scope Darwin systems built successfully (skipped systems were not affected by this PR)."
           exit 0
