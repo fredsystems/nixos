@@ -14,17 +14,10 @@ in
   imports =
     lib.optional isDarwin inputs.home-manager.darwinModules.default
     ++ lib.optional isDarwin ../services/homebrew.nix
-    # Linux-only NixOS modules
-    # catppuccin NixOS module is needed on all Linux systems (e.g. GRUB theming
-    # in features/common/boot).  Use catppuccinInput so stable systems get a
-    # catppuccin build whose nixpkgs dependency matches their channel.
-    # catppuccin.nix sets catppuccin.enable = true for all Linux systems.
     ++ lib.optional isLinux catppuccinInput.nixosModules.catppuccin
     ++ lib.optional isLinux ../../features
     ++ lib.optional isLinux ../../modules/base/user.nix
     ++ lib.optional isLinux ./catppuccin.nix;
-
-  security.sudo.wheelNeedsPassword = false;
 
   nix = {
     settings = {
@@ -57,6 +50,9 @@ in
     };
     optimise.automatic = true;
   };
+}
+// lib.optionalAttrs isLinux {
+  security.sudo.wheelNeedsPassword = false;
 
   # The goModules fixed-output derivation in nixpkgs includes "GOPROXY" in
   # impureEnvVars, meaning it inherits GOPROXY from the Nix daemon's environment.
@@ -67,7 +63,7 @@ in
   # proxy.golang.org (GCS) for uncached entries, which also fails.
   # mirrors.aliyun.com/goproxy/ is backed by Alibaba Cloud OSS (not GCS)
   # and confirmed to serve all required modules directly.
-  systemd.services.nix-daemon.environment = lib.optionalAttrs isLinux {
+  systemd.services.nix-daemon.environment = {
     GOPROXY = "https://mirrors.aliyun.com/goproxy/";
     GONOSUMDB = "*";
   };

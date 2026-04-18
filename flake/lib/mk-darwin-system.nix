@@ -47,6 +47,9 @@ darwin.lib.darwinSystem {
       ;
 
     inherit isDarwin;
+    sopsNixInput = inputs.sops-nix;
+    catppuccinInput = catppuccin;
+    extraUsers = [ ];
   };
 
   modules = [
@@ -87,6 +90,7 @@ darwin.lib.darwinSystem {
             stateVersion
             isDarwin
             ;
+          catppuccinInput = catppuccin;
         };
       };
 
