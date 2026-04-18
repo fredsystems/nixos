@@ -292,11 +292,9 @@ jobs:
             substituters = http://192.168.31.14/fred https://cache.nixos.org/
             trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= fred:JjyhvRSvKfkk8r4HS0mS5r5I7dT4GociEFbrR9OgBZ0=
 
-      - name: Enable Magic Nix Cache
-        uses: DeterminateSystems/magic-nix-cache-action@565684385bcd71bad329742eefe8d12f2e765b39 # v13
-        with:
-          use-flakehub: false
-          use-gha-cache: false
+      # Magic Nix Cache is NOT used here — multiple self-hosted runners
+      # on the same machine fight over port 41239.  We push to Attic
+      # explicitly instead.
 
       - name: Build Darwin system
         shell: bash
