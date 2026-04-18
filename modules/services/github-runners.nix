@@ -215,6 +215,7 @@ in
       environment.systemPackages = [
         pkgs.curl
         pkgs.jq
+        pkgs.xz
       ];
     }
 
