@@ -357,7 +357,7 @@ jobs:
   # =====================================================================
   build-servers:
     name: Build server systems
-    runs-on: self-hosted
+    runs-on: [self-hosted, Linux]
     needs: [skip-if-clean, find-systems]
     if: ${{ needs.skip-if-clean.outputs.skip != 'true' && needs.find-systems.outputs.servers != '[]' }}
     permissions:
@@ -429,7 +429,7 @@ jobs:
   # =====================================================================
   build-desktops:
     name: Build desktop systems
-    runs-on: self-hosted
+    runs-on: [self-hosted, Linux]
     needs: [skip-if-clean, find-systems]
     if: ${{ needs.skip-if-clean.outputs.skip != 'true' && needs.find-systems.outputs.desktops != '[]' }}
     permissions:
