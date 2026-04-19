@@ -357,7 +357,7 @@ jobs:
   # =====================================================================
   build-servers:
     name: Build server systems
-    runs-on: self-hosted
+    runs-on: [self-hosted, Linux]
     needs: [skip-if-clean, find-systems]
     if: ${{ needs.skip-if-clean.outputs.skip != 'true' && needs.find-systems.outputs.servers != '[]' }}
     permissions:
@@ -384,12 +384,6 @@ jobs:
             access-tokens = github.com=${{ github.token }}
             substituters = http://192.168.31.14/fred https://niri.cachix.org https://cache.nixos.org/
             trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= fred:JjyhvRSvKfkk8r4HS0mS5r5I7dT4GociEFbrR9OgBZ0= niri.cachix.org-1:Wv0OmO7PsuocRKzfDoJ3mulSl7Z6oezYhGhR+3W2964=
-
-      - name: Enable Magic Nix Cache
-        uses: DeterminateSystems/magic-nix-cache-action@565684385bcd71bad329742eefe8d12f2e765b39 # v13
-        with:
-          use-flakehub: false
-          use-gha-cache: false
 
       - name: Build server system
         shell: bash
@@ -435,7 +429,7 @@ jobs:
   # =====================================================================
   build-desktops:
     name: Build desktop systems
-    runs-on: self-hosted
+    runs-on: [self-hosted, Linux]
     needs: [skip-if-clean, find-systems]
     if: ${{ needs.skip-if-clean.outputs.skip != 'true' && needs.find-systems.outputs.desktops != '[]' }}
     permissions:
@@ -457,12 +451,6 @@ jobs:
             access-tokens = github.com=${{ github.token }}
             substituters = http://192.168.31.14/fred https://niri.cachix.org https://cache.nixos.org/
             trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= fred:JjyhvRSvKfkk8r4HS0mS5r5I7dT4GociEFbrR9OgBZ0= niri.cachix.org-1:Wv0OmO7PsuocRKzfDoJ3mulSl7Z6oezYhGhR+3W2964=
-
-      - name: Enable Magic Nix Cache
-        uses: DeterminateSystems/magic-nix-cache-action@565684385bcd71bad329742eefe8d12f2e765b39 # v13
-        with:
-          use-flakehub: false
-          use-gha-cache: false
 
       - name: Build desktop system
         shell: bash

@@ -47,11 +47,15 @@ darwin.lib.darwinSystem {
       ;
 
     inherit isDarwin;
+    sopsNixInput = inputs.sops-nix;
+    catppuccinInput = catppuccin;
+    extraUsers = [ ];
   };
 
   modules = [
     (_: {
       nixpkgs.overlays = [ (import ./../../overlays/default.nix) ];
+      networking.hostName = hostName;
     })
     ../../modules/base/deployment-meta.nix
     ../../modules/base/system.nix
@@ -64,7 +68,11 @@ darwin.lib.darwinSystem {
         useUserPackages = true;
 
         users.${user} = {
-          imports = [ ../../modules/base/home.nix ] ++ hmModules;
+          imports = [
+            ../../modules/base/home.nix
+            ../../modules/services/attic/attic_client.nix
+          ]
+          ++ hmModules;
 
           catppuccin = {
             enable = true;
@@ -87,6 +95,7 @@ darwin.lib.darwinSystem {
             stateVersion
             isDarwin
             ;
+          catppuccinInput = catppuccin;
         };
       };
 

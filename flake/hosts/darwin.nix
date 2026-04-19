@@ -4,16 +4,23 @@
 #   darwinConfigurations = import ./flake/hosts/darwin.nix { inherit self; };
 {
   self,
+  freminal,
   ...
 }:
 {
   "Freds-MacBook-Pro" = self.lib.mkDarwinSystem {
     hostName = "Freds-MacBook-Pro";
-    hmModules = [ ../../hosts/darwin/Freds-MacBook-Pro/home.nix ];
+    hmModules = [
+      ../../hosts/darwin/Freds-MacBook-Pro/home.nix
+      freminal.homeManagerModules.default
+    ];
   };
 
   "Freds-Mac-Studio" = self.lib.mkDarwinSystem {
     hostName = "Freds-Mac-Studio";
-    hmModules = [ ../../hosts/darwin/Freds-Mac-Studio/home.nix ];
+    hmModules = [
+      ../../hosts/darwin/Freds-Mac-Studio/home.nix
+      freminal.homeManagerModules.default
+    ];
   };
 }
