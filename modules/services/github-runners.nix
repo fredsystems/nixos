@@ -59,6 +59,7 @@ let
 
       # Ensure working directory exists
       mkdir -p "$WORK_DIR"
+      export HOME="$WORK_DIR"
 
       # Wait for sops secret to be available (may not be decrypted yet at boot)
       for i in $(seq 1 60); do
@@ -92,13 +93,8 @@ let
 
       cd "$WORK_DIR"
 
-      # Remove any previous configuration / stale state
-      if [ -f .runner ]; then
-        ${pkgs.github-runner}/bin/Runner.Listener remove \
-          --token "$REG_TOKEN" 2>/dev/null || true
-      fi
-      # Force-clean leftover state files so configure always starts fresh
-      rm -f .runner .credentials .credentials_rsaparams
+      # Force-clean all stale state so configure always starts fresh
+      rm -rf "$WORK_DIR"/.runner "$WORK_DIR"/.credentials "$WORK_DIR"/.credentials_rsaparams "$WORK_DIR"/.github-runner
 
       # Configure the runner
       ${pkgs.github-runner}/bin/Runner.Listener configure \
