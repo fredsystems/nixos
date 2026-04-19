@@ -60,6 +60,18 @@ let
       # Ensure working directory exists
       mkdir -p "$WORK_DIR"
 
+      # Wait for sops secret to be available (may not be decrypted yet at boot)
+      for i in $(seq 1 60); do
+        [ -f "$TOKEN_FILE" ] && [ -s "$TOKEN_FILE" ] && break
+        echo "Waiting for token file ($i/60)..."
+        sleep 5
+      done
+
+      if [ ! -f "$TOKEN_FILE" ] || [ ! -s "$TOKEN_FILE" ]; then
+        echo "ERROR: Token file $TOKEN_FILE not available after 5 minutes" >&2
+        exit 1
+      fi
+
       # Cleanup stale registration
       ${cleanupRunner}/bin/github-runner-cleanup "$RUNNER_NAME" "$TOKEN_FILE" "$REPO"
 
@@ -80,11 +92,13 @@ let
 
       cd "$WORK_DIR"
 
-      # Remove any previous configuration
+      # Remove any previous configuration / stale state
       if [ -f .runner ]; then
         ${pkgs.github-runner}/bin/Runner.Listener remove \
           --token "$REG_TOKEN" 2>/dev/null || true
       fi
+      # Force-clean leftover state files so configure always starts fresh
+      rm -f .runner .credentials .credentials_rsaparams
 
       # Configure the runner
       ${pkgs.github-runner}/bin/Runner.Listener configure \
@@ -318,8 +332,8 @@ in
               # Restart on exit (ephemeral runners exit after each job)
               KeepAlive = true;
 
-              # Wait 5 seconds before restarting to avoid hammering the API
-              ThrottleInterval = 5;
+              # Wait 30 seconds before restarting to avoid being throttled by launchd
+              ThrottleInterval = 30;
 
               # Working directory
               WorkingDirectory = "/var/lib/github-runners/${r.name}";
