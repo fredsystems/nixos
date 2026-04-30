@@ -44,6 +44,22 @@ final: prev: {
     else
       prev.dateutils;
 
+  # `direnv`'s checkPhase runs `make test-go test-bash test-fish test-zsh`.
+  # On darwin, the fish test suite hangs indefinitely (CI hits the 6h max
+  # execution time with no output).  Tracked upstream:
+  # https://github.com/NixOS/nixpkgs/issues/507531 (still open).  The related
+  # zsh sigsuspend issue (#513543) is fixed in our pinned nixpkgs, but the
+  # fish hang appears to be a separate codesign/sigsuspend interaction
+  # (see also #208951).  Disable the check phase on darwin only; Linux still
+  # runs the full test suite.
+  direnv =
+    if prev.stdenv.isDarwin then
+      prev.direnv.overrideAttrs (_: {
+        doCheck = false;
+      })
+    else
+      prev.direnv;
+
   # Shadow the deprecated top-level `pkgs.hostPlatform` warnAlias (added
   # 2025-10-28 in nixpkgs aliases.nix) with the real value so that packages
   # which still reference `pkgs.hostPlatform` (e.g. the Flutter build
