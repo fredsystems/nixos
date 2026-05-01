@@ -97,8 +97,8 @@ in
           };
 
           show_edit_predictions = true;
-          features = {
-            edit_prediction_provider = "copilot";
+          edit_predictions = {
+            provider = "copilot";
           };
 
           load_direnv = "shell_hook";
@@ -119,7 +119,9 @@ in
           # AI / Agent configuration (THIS IS THE ONLY VALID AI TOP-LEVEL KEY)
           ##########################################################################
           agent = {
-            always_allow_tool_actions = true;
+            tool_permissions = {
+              default = "allow";
+            };
 
             default_model = {
               provider = "copilot_chat";
