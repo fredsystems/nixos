@@ -5,11 +5,11 @@
     "config:best-practices",
     "default:pinDigestsDisabled",
   ],
-  lockFileMaintenance: {
-    enabled: true,
-    automerge: true,
-    schedule: ["* 12 * * 0"],
-  },
+  // lockFileMaintenance intentionally omitted: the update-flakes workflow
+  // (.github/workflows/update-flakes.yaml) iterates every root flake input
+  // weekly and opens per-input PRs with proper diffs.  lockFileMaintenance
+  // would wholesale-rewrite flake.lock and bypass the manual-merge cadence
+  // for nixpkgs-kernel, since it ignores per-package enabled:false rules.
   timezone: "Etc/UTC",
   schedule: ["* 12 * * 0"],
   enabledManagers: ["custom.regex", "nix", "github-actions"],
