@@ -30,10 +30,7 @@ jobs:
     name: Get Flake Inputs
     runs-on: ubuntu-latest
     outputs:
-      auto_inputs: ${{ steps.split.outputs.auto_inputs }}
-      manual_inputs: ${{ steps.split.outputs.manual_inputs }}
-      run_auto: ${{ steps.dispatch.outputs.run_auto }}
-      run_manual: ${{ steps.dispatch.outputs.run_manual }}
+      flakes: ${{ steps.split.outputs.flakes }}
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -42,26 +39,17 @@ jobs:
           persist-credentials: false
 
       - id: split
-        # Single source of truth for which inputs are manual-merge.  Add a
-        # name to MANUAL_INPUTS to move it out of the weekly auto-merge run
-        # and into the monthly manual-review run.
+        # Build a single matrix containing every flake input, each tagged
+        # with its merge policy (auto vs manual) and a `run` flag that
+        # decides whether it participates in this invocation. The job-level
+        # `if: matrix.run` below filters out entries that should be skipped,
+        # so the matrix expansion only produces visible jobs for inputs we
+        # actually want to update.
+        #
+        # MANUAL_INPUTS is the single source of truth for which inputs are
+        # held back from the weekly auto-merge run.
         env:
           MANUAL_INPUTS: '["nixpkgs-kernel"]'
-        run: |
-          all=$(jq -c '.nodes.root.inputs | keys' flake.lock)
-          manual=$(jq -nc --argjson all "$all" --argjson m "$MANUAL_INPUTS" \
-            '$all | map(select(. as $i | $m | index($i)))')
-          auto=$(jq -nc --argjson all "$all" --argjson m "$MANUAL_INPUTS" \
-            '$all | map(select(. as $i | $m | index($i) | not))')
-          echo "auto_inputs={\"flake\": $auto}"     >> "$GITHUB_OUTPUT"
-          echo "manual_inputs={\"flake\": $manual}" >> "$GITHUB_OUTPUT"
-
-      - id: dispatch
-        # Decide which downstream jobs run based on the trigger.
-        # - schedule "0 5 * * 0"   -> weekly auto run
-        # - schedule "0 6 1 * *"   -> monthly manual run
-        # - workflow_dispatch      -> honor the `target` input
-        env:
           EVENT: ${{ github.event_name }}
           SCHEDULE: ${{ github.event.schedule }}
           TARGET: ${{ github.event.inputs.target }}
@@ -84,18 +72,32 @@ jobs:
               esac
               ;;
           esac
-          echo "run_auto=$run_auto"     >> "$GITHUB_OUTPUT"
-          echo "run_manual=$run_manual" >> "$GITHUB_OUTPUT"
 
-  update-auto:
-    name: update-auto-${{ matrix.flake }}
+          flakes=$(jq -nc \
+            --argjson all "$(jq -c '.nodes.root.inputs | keys' flake.lock)" \
+            --argjson manual "$MANUAL_INPUTS" \
+            --arg run_auto "$run_auto" \
+            --arg run_manual "$run_manual" '
+            $all | map(. as $name | {
+              name: $name,
+              kind: (if ($manual | index($name)) then "manual" else "auto" end),
+              run:  (if ($manual | index($name))
+                     then ($run_manual == "true")
+                     else ($run_auto   == "true")
+                     end)
+            })
+          ')
+          echo "flakes={\"include\": $flakes}" >> "$GITHUB_OUTPUT"
+
+  update-flake:
+    name: update-flake (${{ matrix.name }})
     runs-on: ubuntu-latest
     needs: get-flake-inputs
-    if: needs.get-flake-inputs.outputs.run_auto == 'true'
+    if: matrix.run
 
     strategy:
       fail-fast: false
-      matrix: ${{ fromJson(needs.get-flake-inputs.outputs.auto_inputs) }}
+      matrix: ${{ fromJson(needs.get-flake-inputs.outputs.flakes) }}
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -115,46 +117,10 @@ jobs:
 
       - uses: fredsystems/flake-update-action@76d4f6b1d4d924c9ff073075b685d96474fb87f2 # v3.0.4
         with:
-          dependency: ${{ matrix.flake }}
+          dependency: ${{ matrix.name }}
           pull-request-token: ${{ secrets.PAT }}
           pull-request-author: github[bot] <noreply@github.com>
           delete-branch: true
           github-token: ${{ secrets.GITHUB_TOKEN }}
           pull-request-branch-prefix: update-
-          automerge: true
-
-  update-manual:
-    name: update-manual-${{ matrix.flake }}
-    runs-on: ubuntu-latest
-    needs: get-flake-inputs
-    if: needs.get-flake-inputs.outputs.run_manual == 'true'
-
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJson(needs.get-flake-inputs.outputs.manual_inputs) }}
-
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          persist-credentials: false
-          ref: main
-
-      - uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
-        with:
-          extra-conf: accept-flake-config = true
-
-      - name: Configure Git identity
-        run: |
-          git config --global user.email "noreply@github.com"
-          git config --global user.name "github[bot]"
-
-      - uses: fredsystems/flake-update-action@76d4f6b1d4d924c9ff073075b685d96474fb87f2 # v3.0.4
-        with:
-          dependency: ${{ matrix.flake }}
-          pull-request-token: ${{ secrets.PAT }}
-          pull-request-author: github[bot] <noreply@github.com>
-          delete-branch: true
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          pull-request-branch-prefix: update-
-          automerge: false
+          automerge: ${{ matrix.kind == 'auto' }}
