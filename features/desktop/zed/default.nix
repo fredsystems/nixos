@@ -97,8 +97,8 @@ in
           };
 
           show_edit_predictions = true;
-          features = {
-            edit_prediction_provider = "copilot";
+          edit_predictions = {
+            provider = "copilot";
           };
 
           load_direnv = "shell_hook";
@@ -107,11 +107,21 @@ in
           ui_font_size = 14;
           buffer_font_size = 14;
 
+          # Zed flipped the upstream default for the project / outline / git /
+          # collaboration panels to "right" (see assets/settings/default.json
+          # in zed v0.233.10). Pin the file tree back to the left.
+          project_panel.dock = "left";
+          outline_panel.dock = "left";
+          git_panel.dock = "left";
+          collaboration_panel.dock = "left";
+
           ##########################################################################
           # AI / Agent configuration (THIS IS THE ONLY VALID AI TOP-LEVEL KEY)
           ##########################################################################
           agent = {
-            always_allow_tool_actions = true;
+            tool_permissions = {
+              default = "allow";
+            };
 
             default_model = {
               provider = "copilot_chat";
