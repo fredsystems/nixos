@@ -79,5 +79,17 @@
       matchPackageNames: ["amir20/dozzle"],
       automerge: true,
     },
+    {
+      // Server kernel pin — managed exclusively by the monthly
+      // `update-manual` job in .github/workflows/update-flakes.yaml so
+      // kernel bumps land as manual-review PRs on a planned-reboot
+      // cadence.  Disable Renovate for this input entirely to avoid
+      // duplicate PRs and accidental auto-merges.  Must be the last
+      // rule in this list so it wins against the "nix automerge" rule
+      // above (Renovate merges packageRules in order; later wins).
+      matchManagers: ["nix"],
+      matchPackageNames: ["nixpkgs-kernel"],
+      enabled: false,
+    },
   ],
 }

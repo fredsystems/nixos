@@ -38,6 +38,7 @@ let
     nixpkgs
     catppuccin-stable
     sops-nix-stable
+    nixpkgs-kernel
     ;
 
   # The colmena flake input — renamed to avoid clashing with the `colmena`
@@ -116,6 +117,7 @@ let
         extraUsers = [ ];
         catppuccinInput = catppuccin-stable;
         sopsNixInput = sops-nix-stable;
+        kernelPkgsInput = nixpkgs-kernel;
         catppuccinWallpapers = self.packages."x86_64-linux".catppuccin-wallpapers;
       };
 
