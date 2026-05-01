@@ -30,10 +30,10 @@ jobs:
     name: Get Flake Inputs
     runs-on: ubuntu-latest
     outputs:
-      auto-inputs: ${{ steps.split.outputs.auto-inputs }}
-      manual-inputs: ${{ steps.split.outputs.manual-inputs }}
-      run-auto: ${{ steps.dispatch.outputs.run-auto }}
-      run-manual: ${{ steps.dispatch.outputs.run-manual }}
+      auto_inputs: ${{ steps.split.outputs.auto_inputs }}
+      manual_inputs: ${{ steps.split.outputs.manual_inputs }}
+      run_auto: ${{ steps.dispatch.outputs.run_auto }}
+      run_manual: ${{ steps.dispatch.outputs.run_manual }}
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -53,8 +53,8 @@ jobs:
             '$all | map(select(. as $i | $m | index($i)))')
           auto=$(jq -nc --argjson all "$all" --argjson m "$MANUAL_INPUTS" \
             '$all | map(select(. as $i | $m | index($i) | not))')
-          echo "auto-inputs={\"flake\": $auto}"     >> "$GITHUB_OUTPUT"
-          echo "manual-inputs={\"flake\": $manual}" >> "$GITHUB_OUTPUT"
+          echo "auto_inputs={\"flake\": $auto}"     >> "$GITHUB_OUTPUT"
+          echo "manual_inputs={\"flake\": $manual}" >> "$GITHUB_OUTPUT"
 
       - id: dispatch
         # Decide which downstream jobs run based on the trigger.
@@ -84,18 +84,18 @@ jobs:
               esac
               ;;
           esac
-          echo "run-auto=$run_auto"     >> "$GITHUB_OUTPUT"
-          echo "run-manual=$run_manual" >> "$GITHUB_OUTPUT"
+          echo "run_auto=$run_auto"     >> "$GITHUB_OUTPUT"
+          echo "run_manual=$run_manual" >> "$GITHUB_OUTPUT"
 
   update-auto:
     name: update-auto-${{ matrix.flake }}
     runs-on: ubuntu-latest
     needs: get-flake-inputs
-    if: needs.get-flake-inputs.outputs.run-auto == 'true'
+    if: needs.get-flake-inputs.outputs.run_auto == 'true'
 
     strategy:
       fail-fast: false
-      matrix: ${{ fromJson(needs.get-flake-inputs.outputs.auto-inputs) }}
+      matrix: ${{ fromJson(needs.get-flake-inputs.outputs.auto_inputs) }}
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -127,11 +127,11 @@ jobs:
     name: update-manual-${{ matrix.flake }}
     runs-on: ubuntu-latest
     needs: get-flake-inputs
-    if: needs.get-flake-inputs.outputs.run-manual == 'true'
+    if: needs.get-flake-inputs.outputs.run_manual == 'true'
 
     strategy:
       fail-fast: false
-      matrix: ${{ fromJson(needs.get-flake-inputs.outputs.manual-inputs) }}
+      matrix: ${{ fromJson(needs.get-flake-inputs.outputs.manual_inputs) }}
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
