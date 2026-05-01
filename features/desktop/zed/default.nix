@@ -107,6 +107,14 @@ in
           ui_font_size = 14;
           buffer_font_size = 14;
 
+          # Zed flipped the upstream default for the project / outline / git /
+          # collaboration panels to "right" (see assets/settings/default.json
+          # in zed v0.233.10). Pin the file tree back to the left.
+          project_panel.dock = "left";
+          outline_panel.dock = "left";
+          git_panel.dock = "left";
+          collaboration_panel.dock = "left";
+
           ##########################################################################
           # AI / Agent configuration (THIS IS THE ONLY VALID AI TOP-LEVEL KEY)
           ##########################################################################
