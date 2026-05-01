@@ -23,6 +23,18 @@
     };
 
     # CI: server
+    #
+    # Pinned-kernel input.  Tracks the same nixos-25.11 channel as
+    # nixpkgs-stable but lives as its own flake input so the kernel can be
+    # bumped on its own cadence (monthly, manual-merge PR via the
+    # update-flakes workflow) instead of riding the weekly auto-merged
+    # nixpkgs-stable bump.  Servers consume linuxPackages_6_12 from this
+    # input via modules/system/kernel-pin.nix.
+    nixpkgs-kernel = {
+      url = "github:nixos/nixpkgs/nixos-25.11";
+    };
+
+    # CI: server
     home-manager-stable = {
       url = "github:nix-community/home-manager/release-25.11";
       inputs.nixpkgs.follows = "nixpkgs-stable";
@@ -136,6 +148,7 @@
       self,
       nixpkgs,
       nixpkgs-stable,
+      nixpkgs-kernel,
       home-manager,
       home-manager-stable,
       catppuccin,
@@ -228,6 +241,7 @@
           forAllSystems
           # Channel inputs used as defaults for server nodes
           nixpkgs-stable
+          nixpkgs-kernel
           home-manager-stable
           catppuccin-stable
           sops-nix-stable

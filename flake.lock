@@ -1138,6 +1138,22 @@
         "type": "github"
       }
     },
+    "nixpkgs-kernel": {
+      "locked": {
+        "lastModified": 1777428379,
+        "narHash": "sha256-ypxFOeDz+CqADEQNL72haqGjvZQdBR5Vc7pyx2JDttI=",
+        "owner": "nixos",
+        "repo": "nixpkgs",
+        "rev": "755f5aa91337890c432639c60b6064bb7fe67769",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nixos",
+        "ref": "nixos-25.11",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
     "nixpkgs-stable": {
       "locked": {
         "lastModified": 1777077449,
@@ -1486,6 +1502,7 @@
         "niri": "niri",
         "nixos-needsreboot": "nixos-needsreboot",
         "nixpkgs": "nixpkgs_10",
+        "nixpkgs-kernel": "nixpkgs-kernel",
         "nixpkgs-stable": "nixpkgs-stable_2",
         "nixvim": "nixvim",
         "precommit-base": "precommit-base",

@@ -5,11 +5,11 @@
     "config:best-practices",
     "default:pinDigestsDisabled",
   ],
-  lockFileMaintenance: {
-    enabled: true,
-    automerge: true,
-    schedule: ["* 12 * * 0"],
-  },
+  // lockFileMaintenance intentionally omitted: the update-flakes workflow
+  // (.github/workflows/update-flakes.yaml) iterates every root flake input
+  // weekly and opens per-input PRs with proper diffs.  lockFileMaintenance
+  // would wholesale-rewrite flake.lock and bypass the manual-merge cadence
+  // for nixpkgs-kernel, since it ignores per-package enabled:false rules.
   timezone: "Etc/UTC",
   schedule: ["* 12 * * 0"],
   enabledManagers: ["custom.regex", "nix", "github-actions"],
@@ -78,6 +78,18 @@
       matchDatasources: ["docker"],
       matchPackageNames: ["amir20/dozzle"],
       automerge: true,
+    },
+    {
+      // Server kernel pin — managed exclusively by the monthly
+      // `update-manual` job in .github/workflows/update-flakes.yaml so
+      // kernel bumps land as manual-review PRs on a planned-reboot
+      // cadence.  Disable Renovate for this input entirely to avoid
+      // duplicate PRs and accidental auto-merges.  Must be the last
+      // rule in this list so it wins against the "nix automerge" rule
+      // above (Renovate merges packageRules in order; later wins).
+      matchManagers: ["nix"],
+      matchPackageNames: ["nixpkgs-kernel"],
+      enabled: false,
     },
   ],
 }

@@ -30,6 +30,8 @@
 #   hmInput          = inputs.home-manager     (unstable)
 #   catppuccinInput  = inputs.catppuccin       (unstable)
 #   sopsNixInput     = inputs.sops-nix         (unstable)
+#   kernelPkgsInput  = inputs.nixpkgs-kernel   (server kernel pin source;
+#                                               unused on desktops)
 #   isDesktop        = false  – gates the desktop package tree
 {
   inputs,
@@ -55,6 +57,7 @@
   hmInput ? inputs.home-manager,
   catppuccinInput ? inputs.catppuccin,
   sopsNixInput ? inputs.sops-nix,
+  kernelPkgsInput ? inputs.nixpkgs-kernel,
   isDesktop ? false,
 }:
 let
@@ -77,6 +80,7 @@ let
       isDesktop
       catppuccinInput
       sopsNixInput
+      kernelPkgsInput
       isDarwin
       ;
 
