@@ -39,15 +39,14 @@ jobs:
           persist-credentials: false
 
       - id: split
-        # Build a single matrix containing every flake input, each tagged
-        # with its merge policy (auto vs manual) and a `run` flag that
-        # decides whether it participates in this invocation. The job-level
-        # `if: matrix.run` below filters out entries that should be skipped,
-        # so the matrix expansion only produces visible jobs for inputs we
-        # actually want to update.
+        # Build the matrix of flake inputs to update on this invocation.
+        # Each entry carries the input name and its merge policy (auto vs
+        # manual); inputs that should be skipped this invocation are
+        # filtered out of the matrix entirely so they never appear as
+        # jobs in the run summary.
         #
-        # MANUAL_INPUTS is the single source of truth for which inputs are
-        # held back from the weekly auto-merge run.
+        # MANUAL_INPUTS is the single source of truth for which inputs
+        # are held back from the weekly auto-merge run.
         env:
           MANUAL_INPUTS: '["nixpkgs-kernel"]'
           EVENT: ${{ github.event_name }}
@@ -78,14 +77,16 @@ jobs:
             --argjson manual "$MANUAL_INPUTS" \
             --arg run_auto "$run_auto" \
             --arg run_manual "$run_manual" '
-            $all | map(. as $name | {
-              name: $name,
-              kind: (if ($manual | index($name)) then "manual" else "auto" end),
-              run:  (if ($manual | index($name))
-                     then ($run_manual == "true")
-                     else ($run_auto   == "true")
-                     end)
-            })
+            $all
+            | map(. as $name | {
+                name: $name,
+                kind: (if ($manual | index($name)) then "manual" else "auto" end)
+              })
+            | map(select(
+                if .kind == "manual"
+                then $run_manual == "true"
+                else $run_auto   == "true"
+                end))
           ')
           echo "flakes={\"include\": $flakes}" >> "$GITHUB_OUTPUT"
 
@@ -93,7 +94,6 @@ jobs:
     name: update-flake (${{ matrix.name }})
     runs-on: ubuntu-latest
     needs: get-flake-inputs
-    if: matrix.run
 
     strategy:
       fail-fast: false
