@@ -57,6 +57,7 @@
   users.users.${user}.home = "/Users/${user}";
 
   nixpkgs.hostPlatform = lib.mkDefault "aarch64-darwin";
+  nixpkgs.config.allowUnfree = true;
 
   desktop = {
     freminal.enable = true;
