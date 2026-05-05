@@ -231,7 +231,7 @@
       ###############################################################
       # {
       #   name = "airspy_adsb";
-      #   image = "ghcr.io/sdr-enthusiasts/airspy_adsb:latest-build-304@sha256:b3f57810f20afeb657844b508ab45ae17c4c754efde97ed7463ee8e1260bc28e";
+      #   image = "ghcr.io/sdr-enthusiasts/airspy_adsb:latest-build-306@sha256:b52473eb760924dd468d025a4c650ff2617e5aa7cd7fd91d4584a67fa1558277";
 
       #   hostname = "airspy_adsb";
       #   restart = "always";
