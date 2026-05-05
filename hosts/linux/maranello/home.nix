@@ -38,10 +38,15 @@ in
     ];
 
     workspace = [
-      "1, monitor:desc:ASUSTek COMPUTER INC VG27A SCLMQS041662"
-      "2, monitor:desc:ASUSTek COMPUTER INC VG27A SALMQS105752"
-      "3, monitor:desc:ASUSTek COMPUTER INC VG27A SALMQS105747"
-      "4, monitor:desc:ASUSTek COMPUTER INC VG27A SALMQS105749"
+      # Pin workspaces 1-4 to the four physical monitor corners and
+      # mark each as the default for that monitor so Hyprland starts
+      # them on these IDs (without `default:true` Hyprland reserves
+      # the IDs but auto-assigns the next free workspace at startup,
+      # which is why they previously came up as 5-8).
+      "1, monitor:desc:ASUSTek COMPUTER INC VG27A SALMQS105747, default:true" # top-left
+      "2, monitor:desc:ASUSTek COMPUTER INC VG27A SCLMQS041662, default:true" # top-right
+      "3, monitor:desc:ASUSTek COMPUTER INC VG27A SALMQS105752, default:true" # bottom-left
+      "4, monitor:desc:ASUSTek COMPUTER INC VG27A SALMQS105749, default:true" # bottom-right
     ];
 
     binde = [
