@@ -20,11 +20,6 @@ in
     #   pkgs.fira-code-symbols
     # ];
 
-    nixpkgs.config.allowUnfreePredicate =
-      pkg:
-      builtins.elem (lib.getName pkg) [
-        "joypixels"
-      ];
     nixpkgs.config.joypixels.acceptLicense = true;
 
     fonts = {
