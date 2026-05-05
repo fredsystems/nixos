@@ -43,10 +43,10 @@ in
       # them on these IDs (without `default:true` Hyprland reserves
       # the IDs but auto-assigns the next free workspace at startup,
       # which is why they previously came up as 5-8).
-      "1, monitor:desc:ASUSTek COMPUTER INC VG27A SALMQS105747, default:true" # top-left
-      "2, monitor:desc:ASUSTek COMPUTER INC VG27A SCLMQS041662, default:true" # top-right
-      "3, monitor:desc:ASUSTek COMPUTER INC VG27A SALMQS105752, default:true" # bottom-left
-      "4, monitor:desc:ASUSTek COMPUTER INC VG27A SALMQS105749, default:true" # bottom-right
+      "1, monitor:desc:ASUSTek COMPUTER INC VG27A SALMQS105747, default:true" # top-left     (HDMI-A-1)
+      "2, monitor:desc:ASUSTek COMPUTER INC VG27A SALMQS105749, default:true" # top-right    (DP-1)
+      "3, monitor:desc:ASUSTek COMPUTER INC VG27A SALMQS105752, default:true" # bottom-left  (DP-3)
+      "4, monitor:desc:ASUSTek COMPUTER INC VG27A SCLMQS041662, default:true" # bottom-right (DP-2)
     ];
 
     binde = [
