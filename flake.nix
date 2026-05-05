@@ -141,6 +141,35 @@
       url = "github:orangci/walls-catppuccin-mocha";
       flake = false;
     };
+
+    # CI: desktop
+    # Community-maintained mirror of the (taken-down) catppuccin/wallpapers
+    # repo. Provides the original 11 categories (dithered, flatppuccin,
+    # gradients, landscapes, mandelbrot, minimalistic, misc, os, patterns,
+    # solids, waves).
+    walls-zhichaoh = {
+      url = "github:zhichaoh/catppuccin-wallpapers";
+      flake = false;
+    };
+
+    # CI: desktop
+    # Curated cozy/aesthetic collection. We only consume the Catppuccin/
+    # subtree from this repo (it also ships Nord and One Dark variants).
+    walls-cozypixels = {
+      url = "github:SleepyCatHey/CozyPixels";
+      flake = false;
+    };
+
+    # NOTE: daylinmorgan/catppuccin-wallpapers is NOT a flake input.
+    # It is fetched as a release tarball via pkgs.fetchurl inside
+    # flake/dev/packages.nix because:
+    #   1. The upstream repo ships only SVG sources + a Python+Inkscape
+    #      generator — generating PNGs at build time would pull a ~500MB
+    #      Inkscape closure for only 4 base designs.
+    #   2. The pre-generated PNGs are released as .tar.gz on the v2022.05.02
+    #      release.  The repo has been dormant since 2022, so a pinned
+    #      release tarball is fully equivalent to (and cheaper than)
+    #      tracking the git source.
   };
 
   outputs =
@@ -159,6 +188,8 @@
       niri,
       darwin,
       walls-catppuccin,
+      walls-zhichaoh,
+      walls-cozypixels,
       solaar,
       colmena,
       freminal,
@@ -256,6 +287,8 @@
           solaar
           colmena
           walls-catppuccin
+          walls-zhichaoh
+          walls-cozypixels
           freminal
           ;
       };

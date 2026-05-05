@@ -208,6 +208,21 @@ in
                 path = "~/Pictures/Background";
                 fit_mode = "cover";
                 timeout = 300;
+                # Walk subdirectories so the source-attributed layout
+                # ($out/share/backgrounds/{orangci,catppuccin,daylin,
+                # cozypixels}/...) populated by the catppuccin-wallpapers
+                # derivation is fully cycled.
+                recursive = true;
+                # Shuffle the resolved file list once at load.  Without
+                # this, hyprpaper steps through the directory in
+                # filesystem iteration order, which on a deep tree
+                # means a single leaf subdir dominates rotation for
+                # many hours before any other subtree is reached.
+                # Note: hyprpaper has a hard-coded cap of 1024 images
+                # per wallpaper entry (see ConfigManager.cpp
+                # `maxImagesCount`); files past that point are dropped
+                # regardless of order.
+                order = "random";
               }
             ];
           };

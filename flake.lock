@@ -1509,7 +1509,9 @@
         "solaar": "solaar",
         "sops-nix": "sops-nix",
         "sops-nix-stable": "sops-nix-stable",
-        "walls-catppuccin": "walls-catppuccin"
+        "walls-catppuccin": "walls-catppuccin",
+        "walls-cozypixels": "walls-cozypixels",
+        "walls-zhichaoh": "walls-zhichaoh"
       }
     },
     "rust-overlay": {
@@ -1933,6 +1935,38 @@
       "original": {
         "owner": "orangci",
         "repo": "walls-catppuccin-mocha",
+        "type": "github"
+      }
+    },
+    "walls-cozypixels": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1772560259,
+        "narHash": "sha256-xbDUXJ/EpLc7fipKg92NM9t2j8lRulre6ja9EjubndI=",
+        "owner": "SleepyCatHey",
+        "repo": "CozyPixels",
+        "rev": "a6063c135e16d66f24e0f5bb4146247cc7904cd1",
+        "type": "github"
+      },
+      "original": {
+        "owner": "SleepyCatHey",
+        "repo": "CozyPixels",
+        "type": "github"
+      }
+    },
+    "walls-zhichaoh": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1661293434,
+        "narHash": "sha256-h+cFlTXvUVJPRMpk32jYVDDhHu1daWSezFcvhJqDpmU=",
+        "owner": "zhichaoh",
+        "repo": "catppuccin-wallpapers",
+        "rev": "1023077979591cdeca76aae94e0359da1707a60e",
+        "type": "github"
+      },
+      "original": {
+        "owner": "zhichaoh",
+        "repo": "catppuccin-wallpapers",
         "type": "github"
       }
     },

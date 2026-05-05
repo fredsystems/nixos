@@ -93,28 +93,30 @@ reference for that future implementation.
 
 ### Input-to-category mapping
 
-| Input                 | CI Category             | Affects                                      |
-| --------------------- | ----------------------- | -------------------------------------------- |
-| `nixpkgs`             | desktop + fredhub       | Desktops + fredhub (unstable channel)        |
-| `home-manager`        | desktop                 | Desktop home-manager configs                 |
-| `catppuccin`          | desktop                 | Desktop theming                              |
-| `niri`                | desktop                 | Niri Wayland compositor (desktop only)       |
-| `fredbar`             | desktop                 | Status bar (desktop only)                    |
-| `freminal`            | desktop                 | Terminal emulator (desktop only)             |
-| `solaar`              | desktop                 | Logitech device manager (desktop only)       |
-| `apple-fonts`         | desktop                 | Apple fonts (desktop only)                   |
-| `walls-catppuccin`    | desktop                 | Wallpapers (desktop only, `flake=false`)     |
-| `nixvim`              | global (all linux)      | Neovim config (all systems)                  |
-| `nixpkgs-stable`      | server                  | All servers (stable channel)                 |
-| `home-manager-stable` | server                  | Server home-manager configs                  |
-| `catppuccin-stable`   | server                  | Server theming                               |
-| `sops-nix-stable`     | server                  | Server secrets management                    |
-| `sops-nix`            | desktop                 | Secrets management (unstable, desktops only) |
-| `nixos-needsreboot`   | global (all linux)      | Reboot detection module (all hosts)          |
-| `darwin`              | skip (no linux rebuild) | macOS only — does not affect Linux CI        |
-| `colmena`             | skip (no linux rebuild) | Deployment tool — no effect on builds        |
-| `flake-utils`         | skip (no linux rebuild) | Utility lib — no effect on system builds     |
-| `precommit-base`      | skip (no linux rebuild) | Dev tooling only — no system builds          |
+| Input                 | CI Category             | Affects                                                    |
+| --------------------- | ----------------------- | ---------------------------------------------------------- |
+| `nixpkgs`             | desktop + fredhub       | Desktops + fredhub (unstable channel)                      |
+| `home-manager`        | desktop                 | Desktop home-manager configs                               |
+| `catppuccin`          | desktop                 | Desktop theming                                            |
+| `niri`                | desktop                 | Niri Wayland compositor (desktop only)                     |
+| `fredbar`             | desktop                 | Status bar (desktop only)                                  |
+| `freminal`            | desktop                 | Terminal emulator (desktop only)                           |
+| `solaar`              | desktop                 | Logitech device manager (desktop only)                     |
+| `apple-fonts`         | desktop                 | Apple fonts (desktop only)                                 |
+| `walls-catppuccin`    | desktop                 | Wallpapers — orangci (desktop only, `flake=false`)         |
+| `walls-zhichaoh`      | desktop                 | Wallpapers — zhichaoh mirror (desktop only, `flake=false`) |
+| `walls-cozypixels`    | desktop                 | Wallpapers — CozyPixels (desktop only, `flake=false`)      |
+| `nixvim`              | global (all linux)      | Neovim config (all systems)                                |
+| `nixpkgs-stable`      | server                  | All servers (stable channel)                               |
+| `home-manager-stable` | server                  | Server home-manager configs                                |
+| `catppuccin-stable`   | server                  | Server theming                                             |
+| `sops-nix-stable`     | server                  | Server secrets management                                  |
+| `sops-nix`            | desktop                 | Secrets management (unstable, desktops only)               |
+| `nixos-needsreboot`   | global (all linux)      | Reboot detection module (all hosts)                        |
+| `darwin`              | skip (no linux rebuild) | macOS only — does not affect Linux CI                      |
+| `colmena`             | skip (no linux rebuild) | Deployment tool — no effect on builds                      |
+| `flake-utils`         | skip (no linux rebuild) | Utility lib — no effect on system builds                   |
+| `precommit-base`      | skip (no linux rebuild) | Dev tooling only — no system builds                        |
 
 **Unknown / new inputs should default to `global`** (rebuilds all Linux hosts).
 This is the safe fallback — it may over-build but will never miss a required
