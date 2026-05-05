@@ -151,6 +151,8 @@ jobs:
               [fredbar]="skip"
               [solaar]="skip"
               [walls-catppuccin]="skip"
+              [walls-zhichaoh]="skip"
+              [walls-cozypixels]="skip"
               [nixos-needsreboot]="skip"
               [colmena]="skip"
               [flake-utils]="skip"

@@ -208,6 +208,11 @@ in
                 path = "~/Pictures/Background";
                 fit_mode = "cover";
                 timeout = 300;
+                # Walk subdirectories so the source-attributed layout
+                # ($out/share/backgrounds/{orangci,catppuccin,daylin,
+                # cozypixels}/...) populated by the catppuccin-wallpapers
+                # derivation is fully cycled.
+                recursive = true;
               }
             ];
           };
