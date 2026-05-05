@@ -29,6 +29,11 @@ in
           defaultEditor = true;
           enable = true;
 
+          # Allow unfree-tagged plugins (e.g. git-conflict.nvim) in nixvim's
+          # internal pkgs instance. The host's nixpkgs.config does not propagate
+          # to nixvim's bundled nixpkgs, so this must be set explicitly here.
+          nixpkgs.config.allowUnfree = true;
+
           colorscheme = "catppuccin";
           colorschemes.catppuccin = {
             enable = true;
