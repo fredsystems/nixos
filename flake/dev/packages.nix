@@ -21,6 +21,7 @@ in
     system:
     let
       pkgs = import nixpkgs { inherit system; };
+      inherit (pkgs) lib;
 
       # Pinned release tarball of procedurally-generated catppuccin
       # wallpapers from daylinmorgan/catppuccin-wallpapers.  See the
@@ -31,7 +32,10 @@ in
         hash = "sha256-kMpqJhr1sR/xhifKCp0IwmmfQ6SqKsWMRW34Nn8n2y8=";
       };
     in
-    {
+    # The aggregate wallpaper bundle is a Linux-desktop-only asset
+    # (consumed by hyprpaper).  Skip it on Darwin so the 1.4 GB closure
+    # is never built or surfaced there.
+    lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
       # Aggregate catppuccin wallpaper collection.
       #
       # Layout under $out/share/backgrounds/:
@@ -151,7 +155,7 @@ in
         meta = with pkgs.lib; {
           description = "Aggregated catppuccin wallpaper collection (orangci, zhichaoh, daylinmorgan, CozyPixels)";
           license = licenses.mit;
-          platforms = platforms.all;
+          platforms = platforms.linux;
         };
       };
     }
