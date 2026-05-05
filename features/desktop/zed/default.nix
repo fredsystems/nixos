@@ -107,6 +107,12 @@ in
           ui_font_size = 14;
           buffer_font_size = 14;
 
+          # When opening a path from the CLI (e.g. `c` -> `zed .`) while
+          # another Zed window is already open, reuse that window as a
+          # new workspace tab instead of spawning a separate window.
+          # Suppresses the "Add to existing / Open new window" prompt.
+          cli_default_open_behavior = "existing_window";
+
           # Zed flipped the upstream default for the project / outline / git /
           # collaboration panels to "right" (see assets/settings/default.json
           # in zed v0.233.10). Pin the file tree back to the left.
