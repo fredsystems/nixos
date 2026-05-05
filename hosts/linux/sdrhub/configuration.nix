@@ -301,7 +301,7 @@
       ###############################################################
       {
         name = "dump978";
-        image = "ghcr.io/sdr-enthusiasts/docker-dump978:telegraf-build-791@sha256:dcddd3720b05fb96daa8b79eb0cd210f04f000790bafc1fcd0794319bb709a39";
+        image = "ghcr.io/sdr-enthusiasts/docker-dump978:telegraf-build-793@sha256:6a7ce596b76d8732647ea5c9d48cfa4cd14c26c65eca46a61cc64b36d6c99749";
 
         hostname = "dump978";
         restart = "always";
