@@ -20,6 +20,6 @@
     services.udev.packages = lib.mkDefault [ pkgs.rtl-sdr ];
 
     # Add user to plugdev group for device access
-    users.users.${user}.extraGroups = lib.mkDefault [ "plugdev" ];
+    users.users.${user}.extraGroups = [ "plugdev" ];
   };
 }
