@@ -1,4 +1,5 @@
 {
+  config,
   inputs,
   lib,
   isDarwin,
@@ -21,6 +22,10 @@ in
     ++ lib.optional isLinux ./catppuccin.nix;
 
   nix = {
+    extraOptions = lib.mkIf isLinux ''
+      !include ${config.sops.templates."nix-access-tokens.conf".path}
+    '';
+
     settings = {
       substituters = [
         "http://192.168.31.14:8080/fred"
@@ -54,6 +59,12 @@ in
 }
 // lib.optionalAttrs isLinux {
   security.sudo.wheelNeedsPassword = false;
+
+  sops.secrets.github_pat = { };
+
+  sops.templates."nix-access-tokens.conf".content = ''
+    access-tokens = github.com=${config.sops.placeholder.github_pat}
+  '';
 
   # The goModules fixed-output derivation in nixpkgs includes "GOPROXY" in
   # impureEnvVars, meaning it inherits GOPROXY from the Nix daemon's environment.

@@ -11,6 +11,6 @@
 
   config = lib.mkIf config.hardware-profile.i2c.enable {
     hardware.i2c.enable = lib.mkDefault true;
-    users.users.${user}.extraGroups = lib.mkDefault [ "i2c" ];
+    users.users.${user}.extraGroups = [ "i2c" ];
   };
 }
