@@ -19,7 +19,7 @@
 }:
 {
   name = "dozzle-agent";
-  image = "amir20/dozzle:v10.5.1@sha256:2f8d5c2b6181533a58246313b1d840a69ae04e6c1010e2f6bb52c2228342b443";
+  image = "amir20/dozzle:v10.5.3@sha256:1cc972250626553009ddacbdf1f5725b681cdcbabe551fec69cd728882ffbc58";
   exec = "agent";
   volumes = [
     "/var/run/docker.sock:/var/run/docker.sock:ro"
