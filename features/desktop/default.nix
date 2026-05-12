@@ -34,6 +34,7 @@ in
     ./fonts
     ./freminal
     ./frext
+    ./garmin-express
     ./ghostty
     ./githubdesktop
     ./kitty
@@ -73,6 +74,7 @@ in
       fonts.enable = true;
       freminal.enable = true;
       frext.enable = true;
+      garmin-express.enable = cfg.enable_extra;
       ghostty.enable = true;
       githubdesktop.enable = true;
       kitty.enable = true;
