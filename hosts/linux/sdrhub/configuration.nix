@@ -520,7 +520,7 @@
       ###############################################################
       {
         name = "sdrmap";
-        image = "ghcr.io/sdr-enthusiasts/docker-sdrmap:latest-build-90@sha256:29e98100c7f1d88bfd67e55c932a9915356f589840a4c5bc43e287121be296d0";
+        image = "ghcr.io/sdr-enthusiasts/docker-sdrmap:latest-build-92@sha256:cfc141dbef80e30fd0ea86639d5daca1281966576c995c88d8cd1bb09ea3fbdd";
 
         restart = "always";
 
