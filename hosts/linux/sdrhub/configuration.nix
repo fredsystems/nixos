@@ -635,7 +635,7 @@
       ###############################################################
       {
         name = "acars_router";
-        image = "ghcr.io/sdr-enthusiasts/acars_router:latest-build-575@sha256:7b15c958ba098962b4632ec792103d6e51b26f9088b834a7f6e9c26d0b5a58b8";
+        image = "ghcr.io/sdr-enthusiasts/acars_router:latest-build-577@sha256:d3f993fc829f247b1e56a3454ce4ff55c8a64904379b98e072b26b822f6fb1b1";
 
         restart = "always";
         tty = true;
