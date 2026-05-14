@@ -64,6 +64,16 @@ in
       wayland.windowManager.hyprland = {
         enable = true;
 
+        # home-manager changed the default `configType` from "hyprlang" to
+        # "lua" for stateVersion >= "26.05". Pin to "hyprlang" explicitly for
+        # now so the existing `settings` attrset (and the catppuccin.hyprland
+        # integration, which currently emits hyprlang) keep rendering as
+        # before. This also silences the migration warning that CI treats as
+        # fatal. TODO: migrate `settings` to the new lua API in a dedicated
+        # PR once catppuccin/hyprland supports it and the attrset has been
+        # reshaped for the lua serializer.
+        configType = "hyprlang";
+
         settings = {
           "$mainMod" = "SUPER";
           "$fileManager" = "yazi";
