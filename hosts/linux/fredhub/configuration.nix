@@ -16,6 +16,7 @@
     local-llm = {
       enable = true;
       ollamaPackage = inputs.nixpkgs.legacyPackages.${system}.ollama;
+      openwebPackage = inputs.nixpkgs.legacyPackages.${system}.open-webui;
       host = "0.0.0.0";
       models = [
         "qwen3.6:latest"
