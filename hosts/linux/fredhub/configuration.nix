@@ -6,6 +6,16 @@
   lib,
   ...
 }:
+let
+  unstablePkgs = import inputs.nixpkgs {
+    inherit system;
+    config.allowUnfreePredicate =
+      pkg:
+      builtins.elem (lib.getName pkg) [
+        "open-webui"
+      ];
+  };
+in
 {
   imports = [
     ./hardware-configuration.nix
@@ -13,7 +23,7 @@
     ../../../modules/services/attic/attic_server.nix
   ];
 
-  inputs.nixpkgs.config.allowUnfreePredicate =
+  nixpkgs.config.allowUnfreePredicate =
     pkg:
     builtins.elem (lib.getName pkg) [
       "open-webui"
@@ -22,8 +32,8 @@
   ai = {
     local-llm = {
       enable = true;
-      ollamaPackage = inputs.nixpkgs.legacyPackages.${system}.ollama;
-      openwebPackage = inputs.nixpkgs.legacyPackages.${system}.open-webui;
+      ollamaPackage = unstablePkgs.ollama;
+      openwebPackage = unstablePkgs.open-webui;
       host = "0.0.0.0";
       models = [
         "qwen3.6:latest"
