@@ -3,8 +3,19 @@
   inputs,
   system,
   stateVersion,
+  lib,
   ...
 }:
+let
+  unstablePkgs = import inputs.nixpkgs {
+    inherit system;
+    config.allowUnfreePredicate =
+      pkg:
+      builtins.elem (lib.getName pkg) [
+        "open-webui"
+      ];
+  };
+in
 {
   imports = [
     ./hardware-configuration.nix
@@ -12,17 +23,23 @@
     ../../../modules/services/attic/attic_server.nix
   ];
 
-  ai.local-llm = {
-    enable = true;
-    ollamaPackage = inputs.nixpkgs.legacyPackages.${system}.ollama;
-    host = "0.0.0.0";
-    models = [
-      "qwen3-coder:latest"
-      "qwen2.5-coder:7b"
-      "qwen2.5-coder:32b"
-      "deepseek-coder-v2:latest"
-      "qwen3.5:9b"
+  nixpkgs.config.allowUnfreePredicate =
+    pkg:
+    builtins.elem (lib.getName pkg) [
+      "open-webui"
     ];
+
+  ai = {
+    local-llm = {
+      enable = true;
+      ollamaPackage = unstablePkgs.ollama;
+      openwebPackage = unstablePkgs.open-webui;
+      host = "0.0.0.0";
+      models = [
+        "qwen3.6:latest"
+        "gemma4:latest"
+      ];
+    };
   };
 
   media.jellyfin = {

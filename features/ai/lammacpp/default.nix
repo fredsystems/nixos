@@ -25,6 +25,12 @@ in
       description = "Port for Ollama API";
     };
 
+    openwebPackage = lib.mkOption {
+      type = lib.types.package;
+      default = pkgs.open-webui;
+      description = "Open Web UI package to use";
+    };
+
     webuiPort = lib.mkOption {
       type = lib.types.port;
       default = 8889;
@@ -132,7 +138,7 @@ in
           requires = [ "ollama.service" ];
 
           serviceConfig = {
-            ExecStart = "${pkgs.open-webui}/bin/open-webui serve --host ${cfg.host} --port ${toString cfg.webuiPort}";
+            ExecStart = "${cfg.openwebPackage}/bin/open-webui serve --host ${cfg.host} --port ${toString cfg.webuiPort}";
 
             Restart = "always";
             RestartSec = 3;

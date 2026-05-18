@@ -145,12 +145,12 @@
             {
               enabled = true;
               domain = "hfdlhub1.lan";
-              answer = "192.168.31.17";
+              answer = "192.168.31.19";
             }
             {
               enabled = true;
               domain = "hfdlhub2.lan";
-              answer = "192.168.31.19";
+              answer = "192.168.31.17";
             }
             {
               enabled = true;
@@ -750,9 +750,16 @@
         };
       };
 
-      virtualHosts."search.sdrhub.lan" = {
-        locations."/" = {
-          proxyPass = "http://127.0.0.1:4444";
+      virtualHosts = {
+        "ai.fredhub.lan" = {
+          locations."/" = {
+            proxyPass = "http://192.168.31.14:8889";
+          };
+        };
+        "search.sdrhub.lan" = {
+          locations."/" = {
+            proxyPass = "http://127.0.0.1:4444";
+          };
         };
       };
     };
