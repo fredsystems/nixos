@@ -3,6 +3,7 @@
   inputs,
   system,
   stateVersion,
+  lib,
   ...
 }:
 {
@@ -11,6 +12,12 @@
     ../../../profiles/adsb-hub.nix
     ../../../modules/services/attic/attic_server.nix
   ];
+
+  inputs.nixpkgs.config.allowUnfreePredicate =
+    pkg:
+    builtins.elem (lib.getName pkg) [
+      "open-webui"
+    ];
 
   ai = {
     local-llm = {
