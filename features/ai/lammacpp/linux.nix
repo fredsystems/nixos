@@ -1,4 +1,8 @@
+{ config, ... }:
 {
   hardware.graphics.enable = true;
-  networking.firewall.allowedTCPPorts = [ 11434 ];
+  networking.firewall.allowedTCPPorts = [
+    config.ai.local-llm.ollamaPort
+    config.ai.local-llm.webuiPort
+  ];
 }
