@@ -9,6 +9,7 @@ let
 in
 {
   imports = [
+    ./bash
     ./bat
     ./direnv
     ./eza
