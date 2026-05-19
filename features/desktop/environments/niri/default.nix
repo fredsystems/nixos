@@ -212,8 +212,7 @@ in
             "Mod+Ctrl+T".action = {
               spawn = [
                 "freminal"
-                "--"
-                "shell"
+                "--shell"
                 "bash"
               ];
             };

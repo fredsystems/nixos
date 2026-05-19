@@ -22,9 +22,9 @@ in
     ./lazygit
     ./lazynpm
     ./lsd
-    ./ohmyzsh
     ./nushell
     ./nvim
+    ./ohmyzsh
     # FIXME: pay respects appears to be fucked. It kills the terminal
     ./pay-respects
     ./starship
