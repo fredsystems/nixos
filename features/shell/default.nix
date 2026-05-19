@@ -14,6 +14,7 @@ in
     ./eza
     ./fastfetch
     ./fd
+    ./fish
     ./fzf
     ./gh-dash
     ./lazydocker
