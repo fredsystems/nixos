@@ -70,6 +70,9 @@ in
 
     # Run nix-index weekly for each user as a system timer so the database
     # is kept fresh regardless of whether the user is logged in.
+    # Linux only — systemd is not available on Darwin.
+  }
+  // lib.optionalAttrs pkgs.stdenv.isLinux {
     systemd.services = lib.listToAttrs (
       map (u: {
         name = "nix-index-${u}";
