@@ -751,7 +751,7 @@
       };
 
       virtualHosts = {
-        "ai.fredhub.lan" = {
+        "ai.sdrhub.lan" = {
           locations."/" = {
             proxyPass = "http://192.168.31.14:8889";
           };
