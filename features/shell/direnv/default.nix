@@ -12,8 +12,9 @@ in
     home-manager.users = lib.genAttrs allUsers (_: {
       programs.direnv = {
         enable = true;
+        enableBashIntegration = true;
+        enableFishIntegration = true;
         enableZshIntegration = true;
-        enableFishIntegration = false;
         # Add any additional configuration for direnv here
       };
     });
