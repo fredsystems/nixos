@@ -13,7 +13,6 @@ in
       programs.direnv = {
         enable = true;
         enableBashIntegration = true;
-        enableFishIntegration = true;
         enableZshIntegration = true;
         # Add any additional configuration for direnv here
       };
