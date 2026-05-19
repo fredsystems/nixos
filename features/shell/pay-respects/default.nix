@@ -1,5 +1,6 @@
 {
   pkgs,
+  config,
   user,
   extraUsers ? [ ],
   lib,
@@ -72,7 +73,7 @@ in
     # is kept fresh regardless of whether the user is logged in.
     # Linux only — systemd is not available on Darwin.
   }
-  // lib.optionalAttrs pkgs.stdenv.isLinux {
+  // lib.optionalAttrs config.nixpkgs.hostPlatform.isLinux {
     systemd.services = lib.listToAttrs (
       map (u: {
         name = "nix-index-${u}";
