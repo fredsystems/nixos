@@ -1,9 +1,9 @@
 {
   pkgs,
-  config,
   user,
   extraUsers ? [ ],
   lib,
+  isDarwin ? false,
   ...
 }:
 let
@@ -71,37 +71,42 @@ in
 
     # Run nix-index weekly for each user as a system timer so the database
     # is kept fresh regardless of whether the user is logged in.
-    # Linux only — systemd is not available on Darwin.
-  }
-  // lib.optionalAttrs config.nixpkgs.hostPlatform.isLinux {
-    systemd.services = lib.listToAttrs (
-      map (u: {
-        name = "nix-index-${u}";
-        value = {
-          description = "Update nix-index database for ${u}";
-          serviceConfig = {
-            Type = "oneshot";
-            User = u;
-            ExecStart = "${lib.getExe' pkgs.nix-index "nix-index"}";
-            Nice = 19;
-            IOSchedulingClass = "idle";
+    # Linux only — systemd.services/timers behavior differs on Darwin
+    # (nix-darwin), so guard with mkIf using the specialArg isDarwin
+    # rather than reading pkgs/config from _module.args which causes
+    # infinite recursion when used at the top level of a `config` block.
+    systemd.services = lib.mkIf (!isDarwin) (
+      lib.listToAttrs (
+        map (u: {
+          name = "nix-index-${u}";
+          value = {
+            description = "Update nix-index database for ${u}";
+            serviceConfig = {
+              Type = "oneshot";
+              User = u;
+              ExecStart = "${lib.getExe' pkgs.nix-index "nix-index"}";
+              Nice = 19;
+              IOSchedulingClass = "idle";
+            };
           };
-        };
-      }) allUsers
+        }) allUsers
+      )
     );
 
-    systemd.timers = lib.listToAttrs (
-      map (u: {
-        name = "nix-index-${u}";
-        value = {
-          wantedBy = [ "timers.target" ];
-          timerConfig = {
-            OnCalendar = "weekly";
-            Persistent = true;
-            RandomizedDelaySec = "4h";
+    systemd.timers = lib.mkIf (!isDarwin) (
+      lib.listToAttrs (
+        map (u: {
+          name = "nix-index-${u}";
+          value = {
+            wantedBy = [ "timers.target" ];
+            timerConfig = {
+              OnCalendar = "weekly";
+              Persistent = true;
+              RandomizedDelaySec = "4h";
+            };
           };
-        };
-      }) allUsers
+        }) allUsers
+      )
     );
   };
 }
