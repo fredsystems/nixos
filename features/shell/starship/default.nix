@@ -14,6 +14,10 @@ in
 
       programs.starship = {
         enable = true;
+        enableZshIntegration = true;
+        enableFishIntegration = true;
+        enableBashIntegration = true;
+        enableNushellIntegration = true;
 
         settings = {
           "$schema" = "https://starship.rs/config-schema.json";

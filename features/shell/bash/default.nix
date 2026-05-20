@@ -4,18 +4,19 @@
   lib,
   ...
 }:
+
 let
   allUsers = [ user ] ++ extraUsers;
 in
 {
   config = {
     home-manager.users = lib.genAttrs allUsers (_: {
-      programs.direnv = {
+
+      programs.bash = {
         enable = true;
-        enableBashIntegration = true;
-        enableZshIntegration = true;
-        # Add any additional configuration for direnv here
       };
+
+      #catppuccin.bash.enable = true;
     });
   };
 }

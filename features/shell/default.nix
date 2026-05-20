@@ -9,20 +9,22 @@ let
 in
 {
   imports = [
+    ./bash
     ./bat
     ./direnv
     ./eza
     ./fastfetch
     ./fd
+    ./fish
     ./fzf
     ./gh-dash
     ./lazydocker
     ./lazygit
     ./lazynpm
     ./lsd
-    ./ohmyzsh
+    ./nushell
     ./nvim
-    # FIXME: pay respects appears to be fucked. It kills the terminal
+    ./ohmyzsh
     ./pay-respects
     ./starship
     ./tmux

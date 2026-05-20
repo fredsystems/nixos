@@ -209,6 +209,14 @@ in
               ];
             };
 
+            "Mod+Ctrl+T".action = {
+              spawn = [
+                "freminal"
+                "--shell"
+                "bash"
+              ];
+            };
+
             "Mod+A".action = {
               spawn = [
                 "freminal"

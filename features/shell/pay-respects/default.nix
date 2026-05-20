@@ -3,21 +3,74 @@
   user,
   extraUsers ? [ ],
   lib,
+  isDarwin ? false,
   ...
 }:
 let
   allUsers = [ user ] ++ extraUsers;
+  payRespectsCmd = lib.getExe pkgs.pay-respects;
 in
 {
-  config = {
-    home-manager.users = lib.genAttrs allUsers (_: {
-      home.packages = with pkgs; [
-        pay-respects
-      ];
+  # The systemd timer module only references options that exist on NixOS;
+  # nix-darwin has no `systemd` option tree, so the import itself must be
+  # conditional. `isDarwin` is a specialArg (not sourced from `config`),
+  # so referencing it here does not trigger module-system recursion.
+  imports = lib.optional (!isDarwin) ./nix-index-timer.nix;
 
-      # programs.pay-respects = {
-      #   enable = true;
-      # };
-    });
-  };
+  home-manager.users = lib.genAttrs allUsers (_: {
+    programs = {
+      nix-index = {
+        enable = true;
+        enableBashIntegration = false;
+        enableFishIntegration = false;
+        enableNushellIntegration = false;
+        enableZshIntegration = false;
+      };
+
+      pay-respects = {
+        enable = true;
+        enableZshIntegration = false;
+      };
+
+      # Inline the pay-respects zsh integration as static nix strings instead
+      # of using eval "$(pay-respects zsh --alias)". Two issues with the eval
+      # form: (1) zle -N inside an eval can trigger a ZLE redraw blocking on
+      # TTY state; (2) something in the post-init hook chain (precmd/chpwd)
+      # looks up a not-found command, invoking command_not_found_handler before
+      # the shell is fully ready, causing pay-respects to block. Fix: inline
+      # all functions statically and guard command_not_found_handler with a TTY
+      # check ([[ -t 0 && -t 1 ]]) so it only runs in a real interactive shell.
+      zsh.initContent = lib.mkOrder 1400 ''
+        alias f="__pr_main suggest"
+
+        function __pr_main() {
+          eval $(__pr_base "$1" "$(fc -ln -1)")
+        }
+
+        function __pr_base() {
+          prefix=$(print -P "$PROMPT")
+          _PR_MODE="$1" _PR_PREFIX="$prefix" _PR_LAST_COMMAND="$2" _PR_ALIAS="$(alias)" _PR_SHELL="zsh" "${payRespectsCmd}"
+        }
+
+        function __pr_inline() {
+          local input="$BUFFER"
+          local output=$(__pr_base "inline" "$input")
+          if [[ -n "$output" ]]; then
+            BUFFER="$output"
+            CURSOR=''${#BUFFER}
+          fi
+        }
+
+        function command_not_found_handler() {
+          [[ -t 0 && -t 1 ]] || return 127
+          eval $(__pr_base "cnf" "$*")
+        }
+
+        if [[ $options[zle] = on ]]; then
+          zle -N __pr_inline
+          bindkey '^X^X' __pr_inline
+        fi
+      '';
+    };
+  });
 }

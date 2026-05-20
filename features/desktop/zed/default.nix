@@ -89,6 +89,7 @@ in
           "just"
           "sql"
           "log"
+          "fish"
         ];
         mutableUserSettings = false;
         userSettings = {
