@@ -21,6 +21,7 @@
     },
     "apple-fonts": {
       "inputs": {
+        "ci": "ci",
         "nixpkgs": "nixpkgs",
         "ny": "ny",
         "sf-arabic": "sf-arabic",
@@ -32,11 +33,11 @@
         "sf-pro": "sf-pro"
       },
       "locked": {
-        "lastModified": 1777376912,
-        "narHash": "sha256-aLvNGToDh5g3Lm2NoTPN3ifYLxlCs3yF7qO3qZ1X46s=",
+        "lastModified": 1779851139,
+        "narHash": "sha256-MbveJ0ka8bAIAXHXPEoQ5xnDDejeu1ptuBpNwQSPER8=",
         "owner": "Lyndeno",
         "repo": "apple-fonts.nix",
-        "rev": "746df8b060c2f16080ea2faf502fee652b733047",
+        "rev": "e593ac862763f1863359d066f0b1032b180ec993",
         "type": "github"
       },
       "original": {
@@ -118,6 +119,32 @@
         "type": "github"
       }
     },
+    "blueprint": {
+      "inputs": {
+        "nixpkgs": [
+          "apple-fonts",
+          "ci",
+          "nixpkgs"
+        ],
+        "systems": [
+          "apple-fonts",
+          "ci"
+        ]
+      },
+      "locked": {
+        "lastModified": 1776249299,
+        "narHash": "sha256-Dt9t1TGRmJFc0xVYhttNBD6QsAgHOHCArqGa0AyjrJY=",
+        "owner": "numtide",
+        "repo": "blueprint",
+        "rev": "56131e8628f173d24a27f6d27c0215eff57e40dd",
+        "type": "github"
+      },
+      "original": {
+        "owner": "numtide",
+        "repo": "blueprint",
+        "type": "github"
+      }
+    },
     "catppuccin": {
       "inputs": {
         "nixpkgs": [
@@ -156,6 +183,28 @@
         "owner": "catppuccin",
         "ref": "release-25.11",
         "repo": "nix",
+        "type": "github"
+      }
+    },
+    "ci": {
+      "inputs": {
+        "blueprint": "blueprint",
+        "nixpkgs": [
+          "apple-fonts",
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1779849193,
+        "narHash": "sha256-Bc80n+fA3NtxqYHWcdb1XFuYLaV+yX2xnvDRnwAv4ak=",
+        "owner": "Lyndeno",
+        "repo": "ci",
+        "rev": "38cfa6f01bdaf91bc4ce44176b322bab2bb208a0",
+        "type": "github"
+      },
+      "original": {
+        "owner": "Lyndeno",
+        "repo": "ci",
         "type": "github"
       }
     },
