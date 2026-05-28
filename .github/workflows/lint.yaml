@@ -58,7 +58,13 @@ jobs:
           nix_path: nixpkgs=channel:nixos-unstable
 
       - name: Run flake pre-commit hooks
-        run: nix develop -c pre-commit run --all-files
+        # Build the pre-commit-check derivation directly instead of entering
+        # the dev shell. The dev shell pulls in `colmena` from its flake input
+        # (not cached by cache.nixos.org), forcing CI to compile colmena and
+        # all its Cargo dependencies on every run — which is both slow and
+        # prone to transient crates.io 403s. The check derivation runs the
+        # same hooks at build time without that dependency.
+        run: nix build --no-link --print-build-logs .#checks.x86_64-linux.pre-commit-check
 
   # =====================================================================
   # Required Check Summary
