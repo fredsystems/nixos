@@ -65,14 +65,15 @@
     };
   };
 
-  wayland.windowManager.hyprland.settings = {
-    monitor = [
-      ",highres,auto,1"
-    ];
+  wayland.windowManager.hyprland.extraConfig = ''
+    --------------------
+    ---- HOST: DAYTONA
+    --------------------
 
-    binde = [
-      ", XF86MonBrightnessUp, exec, ~/.config/hyprextra/scripts/backlight.sh 64764 --inc"
-      ", XF86MonBrightnessDown, exec, ~/.config/hyprextra/scripts/backlight.sh 64764 --dec"
-    ];
-  };
+    hl.monitor({ output = "", mode = "highres", position = "auto", scale = 1 })
+
+    local scripts = os.getenv("HOME") .. "/.config/hyprextra/scripts"
+    hl.bind("XF86MonBrightnessUp",   hl.dsp.exec_cmd(scripts .. "/backlight.sh 64764 --inc"), { locked = true, repeating = true })
+    hl.bind("XF86MonBrightnessDown", hl.dsp.exec_cmd(scripts .. "/backlight.sh 64764 --dec"), { locked = true, repeating = true })
+  '';
 }

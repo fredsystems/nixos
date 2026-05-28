@@ -81,8 +81,9 @@ in
 
   system.activationScripts.sddm-hyprland-config = ''
     mkdir -p /var/lib/sddm/.config/hypr
-    cat <<EOF > /var/lib/sddm/.config/hypr/hyprland.conf
-    ${lib.concatStringsSep "\n" (map (m: "monitor=${m}") hyprMonitors)}
+    cat <<EOF > /var/lib/sddm/.config/hypr/hyprland.lua
+    -- Auto-generated for the SDDM Wayland session.
+    ${lib.concatStringsSep "\n    " hyprMonitors}
     EOF
     chown -R sddm:sddm /var/lib/sddm/.config
   '';
