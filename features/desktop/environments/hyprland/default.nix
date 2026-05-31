@@ -64,240 +64,218 @@ in
       wayland.windowManager.hyprland = {
         enable = true;
 
-        # home-manager changed the default `configType` from "hyprlang" to
-        # "lua" for stateVersion >= "26.05". Pin to "hyprlang" explicitly for
-        # now so the existing `settings` attrset (and the catppuccin.hyprland
-        # integration, which currently emits hyprlang) keep rendering as
-        # before. This also silences the migration warning that CI treats as
-        # fatal. TODO: migrate `settings` to the new lua API in a dedicated
-        # PR once catppuccin/hyprland supports it and the attrset has been
-        # reshaped for the lua serializer.
-        configType = "hyprlang";
+        # Migrated to the Lua API so catppuccin's `colors._var` local renders
+        # correctly. All settings live in `extraConfig` as hand-written Lua
+        # because (a) most of our keys (`exec-once`, `col.active_border`,
+        # `$mainMod`, `binde`, etc.) are not valid Lua identifiers the HM
+        # `settings` renderer can express, and (b) dispatchers are functions
+        # in the Lua API (`hl.dsp.exec_cmd(...)`), not comma-separated
+        # strings. Hosts add their own monitor/workspace/bind config via
+        # `extraConfig` as well.
+        configType = "lua";
 
-        settings = {
-          "$mainMod" = "SUPER";
-          "$fileManager" = "yazi";
-          "$terminal" = "freminal";
-          "$email" = "thunderbird";
+        extraConfig = ''
+          ----------------
+          ---- LOCALS ----
+          ----------------
 
-          env = [
-            "QT_QPA_PLATFORMTHEME,qt6ct"
-            "XCURSOR_SIZE, 24"
-            # "GTK_THEME, adw-gtk3-dark"
-          ];
+          local mainMod = "SUPER"
+          local fileManager = "yazi"
+          local terminal = "freminal"
+          local email = "thunderbird"
+          local scripts = os.getenv("HOME") .. "/.config/hyprextra/scripts"
 
-          misc = [
-            "disable_splash_rendering = true"
-            "disable_hyprland_logo = true"
-          ];
+          ----------------
+          ---- ENV    ----
+          ----------------
 
-          exec = [
+          hl.env("QT_QPA_PLATFORMTHEME", "qt6ct")
+          hl.env("XCURSOR_SIZE", "24")
 
-          ];
+          ----------------
+          ---- MISC   ----
+          ----------------
 
-          exec-once = [
-            "systemctl restart --user polkit-gnome-authentication-agent-1"
-            "gsettings set org.gnome.desktop.interface color-scheme \"prefer-dark\""
-            "gsettings set org.gnome.desktop.interface gtk-theme \"Catppuccin-GTK-Mauve-Dark\""
-            "systemctl restart --user hyprpaper"
-            "systemctl restart --user fredbar"
-            "systemctl restart --user sway-audio-idle-inhibit"
-            "systemctl restart --user hypridle"
-            "systemctl restart --user network-manager-applet"
-            "systemctl restart --user udiskie-agent"
-            "systemctl restart --user solaar"
-            "blueman-applet"
-            "hyprsunset"
-            "sleep 5 && 1password --silent"
-          ];
+          hl.config({
+            misc = {
+              disable_splash_rendering = true,
+              disable_hyprland_logo = true,
+            },
 
-          exec-shutdown = [
-            "systemctl stop --user network-manager-applet"
-            "systemctl stop --user udiskie-agent"
-            "systemctl stop --user solaar"
-            "systemctl stop --user sway-audio-idle-inhibit"
-            "systemctl stop --user hypridle"
-            "systemctl stop --user polkit-gnome-authentication-agent-1"
-          ];
+            general = {
+              gaps_in = 2,
+              gaps_out = 2,
+              border_size = 2,
+              resize_on_border = true,
+              col = {
+                active_border = { colors = {"rgb(44475a)", "rgb(bd93f9)"}, angle = 90 },
+                inactive_border = "rgba(44475aaa)",
+                nogroup_border_active = { colors = {"rgb(bd93f9)", "rgb(44475a)"}, angle = 90 },
+              },
+            },
 
-          general = {
-            "gaps_in" = 2;
-            "gaps_out" = 2;
-            "col.active_border" = "rgb(44475a) rgb(bd93f9) 90deg";
-            "col.inactive_border" = "rgba(44475aaa)";
+            input = {
+              kb_layout = "us",
+              follow_mouse = 1,
+              numlock_by_default = true,
+              repeat_delay = 250,
+              repeat_rate = 35,
+              touchpad = {
+                natural_scroll = true,
+                disable_while_typing = true,
+                clickfinger_behavior = true,
+                scroll_factor = 0.5,
+              },
+            },
 
-            "col.nogroup_border_active" = "rgb(bd93f9) rgb(44475a) 90deg";
-            border_size = 2;
-            resize_on_border = true;
-          };
+            gestures = {
+              workspace_swipe_distance = 700,
+              workspace_swipe_cancel_ratio = 0.2,
+              workspace_swipe_min_speed_to_force = 5,
+              workspace_swipe_direction_lock = true,
+              workspace_swipe_direction_lock_threshold = 0,
+              workspace_swipe_create_new = true,
+            },
 
-          input = {
-            kb_layout = "us";
-            follow_mouse = 1;
-            numlock_by_default = true;
-            repeat_delay = 250;
-            repeat_rate = 35;
+            decoration = {
+              shadow = {
+                enabled = true,
+                range = 60,
+                offset = "1 2",
+                color = "rgba(1E202966)",
+                render_power = 3,
+                scale = 0.97,
+              },
+            },
 
-            touchpad = {
-              natural_scroll = "yes";
-              disable_while_typing = true;
-              clickfinger_behavior = true;
-              scroll_factor = 0.5;
-            };
-          };
+            group = {
+              groupbar = {
+                col = {
+                  active = { colors = {"rgb(bd93f9)", "rgb(44475a)"}, angle = 90 },
+                  inactive = "rgba(282a36dd)",
+                },
+              },
+            },
 
-          gesture = [
-            "3, horizontal, workspace"
-            "4, horizontal, workspace"
-          ];
+            binds = {
+              scroll_event_delay = 0,
+            },
 
-          gestures = {
-            # workspace_swipe = true;
-            workspace_swipe_distance = 700;
-            # workspace_swipe_fingers = 4;
-            workspace_swipe_cancel_ratio = 0.2;
-            workspace_swipe_min_speed_to_force = 5;
-            workspace_swipe_direction_lock = true;
-            workspace_swipe_direction_lock_threshold = 0;
-            workspace_swipe_create_new = true;
-          };
+            animations = {
+              enabled = true,
+            },
+          })
 
-          decoration = {
-            shadow = {
-              enabled = true;
-              range = 60;
-              offset = "1 2";
-              color = "rgba(1E202966)";
-              render_power = 3;
-              scale = 0.97;
-            };
-          };
+          --------------------
+          ---- GESTURES   ----
+          --------------------
 
-          animations = {
-            enabled = "yes";
+          hl.gesture({ fingers = 3, direction = "horizontal", action = "workspace" })
+          hl.gesture({ fingers = 4, direction = "horizontal", action = "workspace" })
 
-            bezier = "myBezier, 0.05, 0.9, 0.1, 1.05";
+          --------------------
+          ---- ANIMATIONS ----
+          --------------------
 
-            animation = [
-              "windows, 1, 7, myBezier"
-              "windowsOut, 1, 7, default, popin 80%"
-              "border, 1, 10, default"
-              "borderangle, 1, 8, default"
-              "fade, 1, 7, default"
-              "workspaces, 1, 6, default"
-            ];
-          };
+          hl.curve("myBezier", { type = "bezier", points = { {0.05, 0.9}, {0.1, 1.05} } })
 
-          group = {
-            groupbar = {
-              "col.active" = "rgb(bd93f9) rgb(44475a) 90deg";
-              "col.inactive" = "rgba(282a36dd)";
-            };
-          };
+          hl.animation({ leaf = "windows",     enabled = true, speed = 7,  bezier = "myBezier" })
+          hl.animation({ leaf = "windowsOut",  enabled = true, speed = 7,  bezier = "default", style = "popin 80%" })
+          hl.animation({ leaf = "border",      enabled = true, speed = 10, bezier = "default" })
+          hl.animation({ leaf = "borderangle", enabled = true, speed = 8,  bezier = "default" })
+          hl.animation({ leaf = "fade",        enabled = true, speed = 7,  bezier = "default" })
+          hl.animation({ leaf = "workspaces",  enabled = true, speed = 6,  bezier = "default" })
 
-          binds = {
-            scroll_event_delay = 0;
-          };
+          --------------------
+          ---- AUTOSTART  ----
+          --------------------
 
-          # windowrulev2 = "bordercolor rgb(ff5555),xwayland:1";
-          # check if window is xwayland
+          hl.on("hyprland.start", function()
+            hl.exec_cmd("systemctl restart --user polkit-gnome-authentication-agent-1")
+            hl.exec_cmd("gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark'")
+            hl.exec_cmd("gsettings set org.gnome.desktop.interface gtk-theme 'Catppuccin-GTK-Mauve-Dark'")
+            hl.exec_cmd("systemctl restart --user hyprpaper")
+            hl.exec_cmd("systemctl restart --user fredbar")
+            hl.exec_cmd("systemctl restart --user sway-audio-idle-inhibit")
+            hl.exec_cmd("systemctl restart --user hypridle")
+            hl.exec_cmd("systemctl restart --user network-manager-applet")
+            hl.exec_cmd("systemctl restart --user udiskie-agent")
+            hl.exec_cmd("systemctl restart --user solaar")
+            hl.exec_cmd("blueman-applet")
+            hl.exec_cmd("hyprsunset")
+            hl.exec_cmd("sleep 5 && 1password --silent")
+          end)
 
-          bind = [
-            "$mainMod, F, exec, firefox"
-            "$mainMod, E, exec, $email"
-            "$mainMod, T, exec, $terminal"
-            "$mainMod SHIFT, T, exec, wezterm start -- bash"
-            "$mainMod CTRL, T, exec, freminal --shell bash"
-            "$mainMod, A, exec, freminal --hide-menu-bar yazi"
-            "$mainMod, S, exec, ~/.config/hyprextra/scripts/idleinhibit.sh"
-            "ALT, SPACE, exec, vicinae toggle"
-            "$mainMod, C, killactive"
-            "$mainMod, M, exit"
-            "$mainMod, L, exec, ~/.config/hyprextra/scripts/pauseandsleep.sh"
+          --------------------
+          ---- KEYBINDS   ----
+          --------------------
 
-            # Move windows with mainMod + arrow keys
-            "$mainMod, left, movewindow, l"
-            "$mainMod, right, movewindow, r"
-            "$mainMod, up, movewindow, u"
-            "$mainMod, down, movewindow, d"
+          hl.bind(mainMod .. " + F",         hl.dsp.exec_cmd("firefox"))
+          hl.bind(mainMod .. " + E",         hl.dsp.exec_cmd(email))
+          hl.bind(mainMod .. " + T",         hl.dsp.exec_cmd(terminal))
+          hl.bind(mainMod .. " + SHIFT + T", hl.dsp.exec_cmd("wezterm start -- bash"))
+          hl.bind(mainMod .. " + CTRL + T",  hl.dsp.exec_cmd("freminal --shell bash"))
+          hl.bind(mainMod .. " + A",         hl.dsp.exec_cmd("freminal --hide-menu-bar yazi"))
+          hl.bind(mainMod .. " + S",         hl.dsp.exec_cmd(scripts .. "/idleinhibit.sh"))
+          hl.bind("ALT + SPACE",             hl.dsp.exec_cmd("vicinae toggle"))
+          hl.bind(mainMod .. " + C",         hl.dsp.window.close())
+          hl.bind(mainMod .. " + M",         hl.dsp.exit())
+          hl.bind(mainMod .. " + L",         hl.dsp.exec_cmd(scripts .. "/pauseandsleep.sh"))
 
-            # Move focus with mainMod + SHIFT + arrow keys
-            "$mainMod SHIFT, left, movefocus, l"
-            "$mainMod SHIFT, right, movefocus, r"
-            "$mainMod SHIFT, up, movefocus, u"
-            "$mainMod SHIFT, down, movefocus, d"
+          -- Move windows with mainMod + arrow keys
+          hl.bind(mainMod .. " + left",  hl.dsp.window.move({ direction = "l" }))
+          hl.bind(mainMod .. " + right", hl.dsp.window.move({ direction = "r" }))
+          hl.bind(mainMod .. " + up",    hl.dsp.window.move({ direction = "u" }))
+          hl.bind(mainMod .. " + down",  hl.dsp.window.move({ direction = "d" }))
 
-            ", Print, exec, grim"
-            "$mainMod, Print, exec, grim -g \"$(slurp)\""
+          -- Move focus with mainMod + SHIFT + arrow keys
+          hl.bind(mainMod .. " + SHIFT + left",  hl.dsp.focus({ direction = "l" }))
+          hl.bind(mainMod .. " + SHIFT + right", hl.dsp.focus({ direction = "r" }))
+          hl.bind(mainMod .. " + SHIFT + up",    hl.dsp.focus({ direction = "u" }))
+          hl.bind(mainMod .. " + SHIFT + down",  hl.dsp.focus({ direction = "d" }))
 
-            # Switch workspaces with mainMod + [0-9]
-            "$mainMod, 1, workspace, 1"
-            "$mainMod, 2, workspace, 2"
-            "$mainMod, 3, workspace, 3"
-            "$mainMod, 4, workspace, 4"
-            "$mainMod, 5, workspace, 5"
-            "$mainMod, 6, workspace, 6"
-            "$mainMod, 7, workspace, 7"
-            "$mainMod, 8, workspace, 8"
-            "$mainMod, 9, workspace, 9"
-            "$mainMod, 0, workspace, 10"
+          hl.bind("Print",                 hl.dsp.exec_cmd("grim"))
+          hl.bind(mainMod .. " + Print",   hl.dsp.exec_cmd("grim -g \"$(slurp)\""))
 
-            # Move active window to a workspace with mainMod + SHIFT + [0-9]
-            "$mainMod SHIFT, 1, movetoworkspace, 1"
-            "$mainMod SHIFT, 2, movetoworkspace, 2"
-            "$mainMod SHIFT, 3, movetoworkspace, 3"
-            "$mainMod SHIFT, 4, movetoworkspace, 4"
-            "$mainMod SHIFT, 5, movetoworkspace, 5"
-            "$mainMod SHIFT, 6, movetoworkspace, 6"
-            "$mainMod SHIFT, 7, movetoworkspace, 7"
-            "$mainMod SHIFT, 8, movetoworkspace, 8"
-            "$mainMod SHIFT, 9, movetoworkspace, 9"
-            "$mainMod SHIFT, 0, movetoworkspace, 10"
+          -- Switch workspaces with mainMod + [0-9]
+          for i = 1, 10 do
+            local key = i % 10 -- 10 maps to key 0
+            hl.bind(mainMod .. " + " .. key,           hl.dsp.focus({ workspace = i }))
+            hl.bind(mainMod .. " + SHIFT + " .. key,   hl.dsp.window.move({ workspace = i }))
+          end
 
-            # Scroll through existing workspaces with mainMod + scroll
-            "$mainMod, mouse_down, workspace, e+1"
-            "$mainMod, mouse_up, workspace, e-1"
+          -- Scroll through workspaces with mainMod + scroll / mouse forward/back
+          hl.bind(mainMod .. " + mouse_down", hl.dsp.focus({ workspace = "e+1" }))
+          hl.bind(mainMod .. " + mouse_up",   hl.dsp.focus({ workspace = "e-1" }))
+          hl.bind(mainMod .. " + mouse:276",  hl.dsp.focus({ workspace = "e-1" })) -- Back
+          hl.bind(mainMod .. " + mouse:275",  hl.dsp.focus({ workspace = "e+1" })) -- Forward
 
-            # Scroll through existing workspaces with mainMod + scroll
-            "$mainMod, mouse_down, workspace, e+1"
-            "$mainMod, mouse_up, workspace, e-1"
-            "$mainMod, mouse_down, workspace, e-1"
-            "$mainMod, mouse_up, workspace, e+1"
+          -- Multimedia (locked + repeating)
+          hl.bind("XF86AudioRaiseVolume", hl.dsp.exec_cmd(scripts .. "/volume.sh --inc"),        { locked = true, repeating = true })
+          hl.bind("XF86AudioLowerVolume", hl.dsp.exec_cmd(scripts .. "/volume.sh --dec"),        { locked = true, repeating = true })
+          hl.bind("XF86AudioMute",        hl.dsp.exec_cmd(scripts .. "/volume.sh --toggle"),     { locked = true, repeating = true })
+          hl.bind("XF86AudioMicMute",     hl.dsp.exec_cmd(scripts .. "/volume.sh --toggle-mic"), { locked = true, repeating = true })
+          hl.bind("XF86AudioPlay",        hl.dsp.exec_cmd("playerctl play-pause"),               { locked = true, repeating = true })
+          hl.bind("XF86AudioPause",       hl.dsp.exec_cmd("playerctl play-pause"),               { locked = true, repeating = true })
+          hl.bind("XF86AudioNext",        hl.dsp.exec_cmd("playerctl next"),                     { locked = true, repeating = true })
+          hl.bind("XF86AudioPrev",        hl.dsp.exec_cmd("playerctl previous"),                 { locked = true, repeating = true })
 
-            "$mainMod, mouse:276, workspace, e-1" # Back button
-            "$mainMod, mouse:275, workspace, e+1" # Forward button
-          ];
+          hl.bind("XF86KbdBrightnessUp",   hl.dsp.exec_cmd(scripts .. "/kbbacklight.sh --inc"), { locked = true, repeating = true })
+          hl.bind("XF86KbdBrightnessDown", hl.dsp.exec_cmd(scripts .. "/kbbacklight.sh --dec"), { locked = true, repeating = true })
+          hl.bind("XF86SelectiveScreenshot",       hl.dsp.exec_cmd("grim -g \"$(slurp)\""),             { locked = true, repeating = true })
+          hl.bind("XF86Display",                   hl.dsp.exec_cmd(scripts .. "/pauseandsleep.sh"),     { locked = true, repeating = true })
+          hl.bind("code:248",                      hl.dsp.exec_cmd(terminal),                           { locked = true, repeating = true })
+          hl.bind("XF86Favorites",                 hl.dsp.exec_cmd("fuzzel"),                           { locked = true, repeating = true })
+          hl.bind(mainMod .. " + XF86MonBrightnessUp",   hl.dsp.exec_cmd(scripts .. "/kbbacklight.sh --inc"), { locked = true, repeating = true })
+          hl.bind(mainMod .. " + XF86MonBrightnessDown", hl.dsp.exec_cmd(scripts .. "/kbbacklight.sh --dec"), { locked = true, repeating = true })
 
-          binde = [
-            ", XF86AudioRaiseVolume, exec, ~/.config/hyprextra/scripts/volume.sh --inc "
-            ", XF86AudioLowerVolume, exec, ~/.config/hyprextra/scripts/volume.sh --dec "
-            ", XF86AudioMute, exec, ~/.config/hyprextra/scripts/volume.sh --toggle"
-            ", XF86AudioMicMute, exec, ~/.config/hyprextra/scripts/volume.sh --toggle-mic"
-            ", XF86AudioPlay, exec, playerctl play-pause"
-            ", XF86AudioPause, exec, playerctl play-pause"
-            ", XF86AudioNext, exec, playerctl next"
-            ", XF86AudioPrev, exec, playerctl previous"
-            ", XKB_KEY_XF86KbdBrightnessUp, exec, ~/.config/hyprextra/scripts/kbbacklight.sh --inc"
-            ", XKB_KEY_XF86KbdBrightnessDown, exec, ~/.config/hyprextra/scripts/kbbacklight.sh --dec"
-            ", XF86SelectiveScreenshot, exec, grim -g \"$(slurp)\""
-            ", XF86Display, exec, ~/.config/hyprextra/scripts/pauseandsleep.sh"
-            ", code:248, exec, $terminal"
-            ", XF86Favorites, exec, fuzzel"
-            "$mainMod, XF86MonBrightnessUp, exec, ~/.config/hyprextra/scripts/kbbacklight.sh --inc"
-            "$mainMod, XF86MonBrightnessDown, exec, ~/.config/hyprextra/scripts/kbbacklight.sh --dec"
-          ];
+          -- Move/resize windows with mainMod + LMB/RMB and dragging
+          hl.bind(mainMod .. " + mouse:272", hl.dsp.window.drag(),   { mouse = true })
+          hl.bind(mainMod .. " + mouse:273", hl.dsp.window.resize(), { mouse = true })
 
-          bindm = [
-            # Move/resize windows with mainMod + LMB/RMB and dragging
-            "$mainMod, mouse:272, movewindow"
-            "$mainMod, mouse:273, resizewindow"
-          ];
-
-          bindl = [
-            # Lock lid on close
-            ",switch:off:Lid Switch, exec, ~/.config/hyprextra/scripts/pauseandsleep.sh"
-          ];
-        };
+          -- Lock lid on close
+          hl.bind("switch:off:Lid Switch", hl.dsp.exec_cmd(scripts .. "/pauseandsleep.sh"), { locked = true })
+        '';
       };
 
     });

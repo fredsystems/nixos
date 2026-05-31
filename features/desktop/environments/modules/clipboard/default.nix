@@ -24,18 +24,18 @@ in
     });
 
     home-manager.users = lib.genAttrs allUsers (_: {
-      wayland.windowManager.hyprland = {
-        settings = {
-          exec-once = [
-            "wl-paste --type text --watch cliphist store"
-            "wl-paste --type image --watch cliphist store"
-          ];
+      wayland.windowManager.hyprland.extraConfig = ''
+        --------------------
+        ---- CLIPBOARD  ----
+        --------------------
 
-          bind = [
-            "SUPER, V, exec, cliphist list | fuzzel --dmenu | cliphist decode | wl-copy"
-          ];
-        };
-      };
+        hl.on("hyprland.start", function()
+          hl.exec_cmd("wl-paste --type text --watch cliphist store")
+          hl.exec_cmd("wl-paste --type image --watch cliphist store")
+        end)
+
+        hl.bind("SUPER + V", hl.dsp.exec_cmd("cliphist list | fuzzel --dmenu | cliphist decode | wl-copy"))
+      '';
     });
   };
 }

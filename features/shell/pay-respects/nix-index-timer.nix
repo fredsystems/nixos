@@ -22,9 +22,27 @@ in
         serviceConfig = {
           Type = "oneshot";
           User = u;
-          ExecStart = "${lib.getExe' pkgs.nix-index "nix-index"}";
+          # nix-index invokes `nix-env -f <nixpkgs> -qaP` which needs a
+          # nixpkgs path. systemd services run with no NIX_PATH, so we pin
+          # nixpkgs to the flake input via -f.
+          ExecStart = "${lib.getExe' pkgs.nix-index "nix-index"} -f ${pkgs.path}";
           Nice = 19;
           IOSchedulingClass = "idle";
+
+          # nix-index streams every store path in nixpkgs and indexes their
+          # file lists in memory. On small/headless hosts this can balloon
+          # past 1.5 GB and, without swap, drive the box into hard reclaim
+          # thrash that takes SSH down. Constrain the unit so a runaway
+          # invocation dies cleanly via cgroup-level OOM instead of taking
+          # the whole machine with it.
+          MemoryHigh = "1200M";
+          MemoryMax = "1800M";
+          # If the kernel-wide OOM killer ever has to choose, pick this.
+          OOMScoreAdjust = 1000;
+          # Keep the timer alive even if the service is OOM-killed.
+          OOMPolicy = "continue";
+          # Don't let it dominate the CPU on a busy box either.
+          CPUWeight = 20;
         };
       };
     }) allUsers

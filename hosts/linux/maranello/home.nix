@@ -30,28 +30,29 @@ in
     ];
   };
 
-  wayland.windowManager.hyprland.settings = {
-    monitor = hyprMonitors;
+  wayland.windowManager.hyprland.extraConfig = ''
+    --------------------
+    ---- HOST: MARANELLO
+    --------------------
 
-    exec-once = [
-      "streamcontroller -b"
-    ];
+    -- Monitors (generated from modules/compositors/hyprland.nix)
+    ${lib.concatStringsSep "\n    " hyprMonitors}
 
-    workspace = [
-      # Pin workspaces 1-4 to the four physical monitor corners and
-      # mark each as the default for that monitor so Hyprland starts
-      # them on these IDs (without `default:true` Hyprland reserves
-      # the IDs but auto-assigns the next free workspace at startup,
-      # which is why they previously came up as 5-8).
-      "1, monitor:desc:ASUSTek COMPUTER INC VG27A SALMQS105747, default:true" # top-left     (HDMI-A-1)
-      "2, monitor:desc:ASUSTek COMPUTER INC VG27A SALMQS105749, default:true" # top-right    (DP-1)
-      "3, monitor:desc:ASUSTek COMPUTER INC VG27A SALMQS105752, default:true" # bottom-left  (DP-3)
-      "4, monitor:desc:ASUSTek COMPUTER INC VG27A SCLMQS041662, default:true" # bottom-right (DP-2)
-    ];
+    -- Autostart streamcontroller
+    hl.on("hyprland.start", function()
+      hl.exec_cmd("streamcontroller -b")
+    end)
 
-    binde = [
-      ", XF86MonBrightnessUp, exec, ~/.config/hyprextra/scripts/backlight.sh 255 --inc"
-      ", XF86MonBrightnessDown, exec, ~/.config/hyprextra/scripts/backlight.sh 255 --dec"
-    ];
-  };
+    -- Pin workspaces 1-4 to the four physical monitor corners and mark each
+    -- as the default for that monitor so Hyprland starts them on these IDs.
+    hl.workspace_rule({ workspace = "1", monitor = "desc:ASUSTek COMPUTER INC VG27A SALMQS105747", default = true }) -- top-left     (HDMI-A-1)
+    hl.workspace_rule({ workspace = "2", monitor = "desc:ASUSTek COMPUTER INC VG27A SALMQS105749", default = true }) -- top-right    (DP-1)
+    hl.workspace_rule({ workspace = "3", monitor = "desc:ASUSTek COMPUTER INC VG27A SALMQS105752", default = true }) -- bottom-left  (DP-3)
+    hl.workspace_rule({ workspace = "4", monitor = "desc:ASUSTek COMPUTER INC VG27A SCLMQS041662", default = true }) -- bottom-right (DP-2)
+
+    -- Brightness keys (binde -> bind with repeating=true)
+    local scripts = os.getenv("HOME") .. "/.config/hyprextra/scripts"
+    hl.bind("XF86MonBrightnessUp",   hl.dsp.exec_cmd(scripts .. "/backlight.sh 255 --inc"), { locked = true, repeating = true })
+    hl.bind("XF86MonBrightnessDown", hl.dsp.exec_cmd(scripts .. "/backlight.sh 255 --dec"), { locked = true, repeating = true })
+  '';
 }
