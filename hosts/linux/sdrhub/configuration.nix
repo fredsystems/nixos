@@ -203,7 +203,7 @@
       ###############################################################
       {
         name = "dozzle";
-        image = "amir20/dozzle:v10.6.1@sha256:4a5e45a15120807294d0a896ec9f89e63d8d43da4e97480fe245454e2b00403e";
+        image = "amir20/dozzle:v10.6.3@sha256:3d42f4c7b27f475117004f8524b52b6ea2cc1cdc39a508892d6b81ffb2883160";
 
         restart = "always";
 
