@@ -74,11 +74,11 @@ darwin.lib.darwinSystem {
           ]
           ++ hmModules;
 
-          catppuccin = {
-            enable = true;
-            flavor = "mocha";
-            accent = "lavender";
-          };
+          # `enable`, `flavor`, `accent`, and (when present on the input)
+          # `autoEnable` are set by ../../modules/base/home.nix. Only the
+          # NixOS-side system module sets `enable = true` automatically;
+          # Darwin needs it set explicitly here at the HM level.
+          catppuccin.enable = true;
         };
 
         extraSpecialArgs = {
