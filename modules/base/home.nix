@@ -32,6 +32,20 @@ in
   ++ lib.optional isLinux ./home-linux.nix;
 
   ##########################################################################
+  ## catppuccin (home-manager)
+  ##########################################################################
+  # Opt out of the new global auto-enroll behavior introduced in
+  # catppuccin/nix #817. Each port is explicitly enabled in its feature
+  # module, so setting `autoEnable = false` preserves current behavior and
+  # suppresses the "catppuccin/nix will soon auto enroll ports" warning at
+  # the home-manager profile level.
+  catppuccin = {
+    autoEnable = false;
+    flavor = "mocha";
+    accent = "lavender";
+  };
+
+  ##########################################################################
   ## .gitconfig — fully generated
   ##########################################################################
   home.file.".gitconfig".text = ''
