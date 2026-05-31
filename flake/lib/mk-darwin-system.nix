@@ -74,16 +74,11 @@ darwin.lib.darwinSystem {
           ]
           ++ hmModules;
 
-          catppuccin = {
-            enable = true;
-            # Opt out of the new global auto-enroll behavior introduced in
-            # catppuccin/nix #817 — per-port enables remain explicit in the
-            # feature modules. Silences the "catppuccin/nix will soon auto
-            # enroll ports" home-manager warning.
-            autoEnable = false;
-            flavor = "mocha";
-            accent = "lavender";
-          };
+          # `enable`, `flavor`, `accent`, and (when present on the input)
+          # `autoEnable` are set by ../../modules/base/home.nix. Only the
+          # NixOS-side system module sets `enable = true` automatically;
+          # Darwin needs it set explicitly here at the HM level.
+          catppuccin.enable = true;
         };
 
         extraSpecialArgs = {

@@ -1,5 +1,6 @@
 {
   lib,
+  options,
   isDarwin,
   inputs,
   verbose_name,
@@ -34,15 +35,18 @@ in
   ##########################################################################
   ## catppuccin (home-manager)
   ##########################################################################
-  # Opt out of the new global auto-enroll behavior introduced in
-  # catppuccin/nix #817. Each port is explicitly enabled in its feature
-  # module, so setting `autoEnable = false` preserves current behavior and
-  # suppresses the "catppuccin/nix will soon auto enroll ports" warning at
-  # the home-manager profile level.
+  # `autoEnable` was introduced in catppuccin/nix #817 (post-25.11). The
+  # release-25.11 input used by server hosts does not have this option yet,
+  # so guard the assignment on its presence. Setting it to `false` keeps
+  # current behavior (per-port enables remain explicit in feature modules)
+  # and suppresses the "catppuccin/nix will soon auto enroll ports" warning
+  # at the home-manager profile level on hosts pinned to unstable.
   catppuccin = {
-    autoEnable = false;
     flavor = "mocha";
     accent = "lavender";
+  }
+  // lib.optionalAttrs (options.catppuccin ? autoEnable) {
+    autoEnable = false;
   };
 
   ##########################################################################
