@@ -106,11 +106,11 @@
         "nixpkgs": "nixpkgs_3"
       },
       "locked": {
-        "lastModified": 1777578913,
-        "narHash": "sha256-2Hzr8T4oUtw2q0ZYxrgDB8kvy85QawlhpiQDk4eGOHQ=",
+        "lastModified": 1779465550,
+        "narHash": "sha256-lsLyO08Gv9eLvUYd6I+UUuZeT4w5M1vU/ulo5QICoNo=",
         "owner": "Aylur",
         "repo": "astal",
-        "rev": "67ddc83e0bdbda6de7f6f15e4fbc5d6b9d2d1b18",
+        "rev": "d8738f97ed01f4d87f668df35fa7bbad795c9e49",
         "type": "github"
       },
       "original": {
@@ -539,11 +539,11 @@
         "precommit": "precommit_2"
       },
       "locked": {
-        "lastModified": 1778610837,
-        "narHash": "sha256-yFJ3TRKK1p4YqI69E5iMIGXbdQ/RjSw0sBK7P0gLlos=",
+        "lastModified": 1780275362,
+        "narHash": "sha256-hryAXqZqk9K6MP1fBUIaq2Uig244Op9/mp79T/XCknA=",
         "owner": "FredSystems",
         "repo": "fred-bar",
-        "rev": "1f0b4cecda7e56aae512a1dd08f71a5400c81f29",
+        "rev": "a63537d47a0fa02f6e009734de6122af3080eb84",
         "type": "github"
       },
       "original": {
@@ -561,11 +561,11 @@
         "precommit": "precommit"
       },
       "locked": {
-        "lastModified": 1777638682,
-        "narHash": "sha256-Kx359MQM+wG39VU/D8533nWFUpr1DF93suR+zXrf7Zo=",
+        "lastModified": 1778015901,
+        "narHash": "sha256-zTeXF9gydfCSuRLbTCrclPLzwkrB0npyEf2ShL0uuJE=",
         "owner": "FredSystems",
         "repo": "fred-cal",
-        "rev": "7b079018f09da7a482cea9fc4917af5a780375ec",
+        "rev": "3f4ad3ff945ca3e306aa06df87f9396f599d0ead",
         "type": "github"
       },
       "original": {
@@ -992,11 +992,11 @@
         "systems": "systems_3"
       },
       "locked": {
-        "lastModified": 1777392587,
-        "narHash": "sha256-pJhNBGIBmviw8C4SQtIhGGlVlJYANAm3VRazncZKq5Q=",
+        "lastModified": 1778610771,
+        "narHash": "sha256-msCMXV9k9+1siOPaxSzNJwx/o8pn2srCR4h0pxyW/WE=",
         "owner": "hyprwm",
         "repo": "hyprshutdown",
-        "rev": "f70097e670adddb5a02fb0994804532d6b483b72",
+        "rev": "db1f38b03b173984ae9ed3abeb9750583c9bbd91",
         "type": "github"
       },
       "original": {
@@ -1564,11 +1564,11 @@
         "rust-overlay": "rust-overlay_2"
       },
       "locked": {
-        "lastModified": 1777597424,
-        "narHash": "sha256-2szcq71hbF+FK4XrJa+sERYVo5rQVjPmxWjTMedLIXM=",
+        "lastModified": 1780274558,
+        "narHash": "sha256-JGnGxFoytLBM0jzWWUUf5BzQk+1rfebdVlzGdCc7HHM=",
         "owner": "FredSystems",
         "repo": "pre-commit-checks",
-        "rev": "cb27f0e8312a14e144978fac6963d55897aa6dea",
+        "rev": "09383f5f0dfd038af0614bede6ca3288c36b61c9",
         "type": "github"
       },
       "original": {
