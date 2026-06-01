@@ -42,11 +42,12 @@ in
   # and suppresses the "catppuccin/nix will soon auto enroll ports" warning
   # at the home-manager profile level on hosts pinned to unstable.
   catppuccin = {
+    enable = true;
     flavor = "mocha";
     accent = "lavender";
   }
   // lib.optionalAttrs (options.catppuccin ? autoEnable) {
-    autoEnable = false;
+    autoEnable = true;
   };
 
   ##########################################################################

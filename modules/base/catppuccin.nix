@@ -12,6 +12,6 @@
   # and silences the "catppuccin/nix will soon auto enroll ports" warning
   # on hosts pinned to unstable.
   // lib.optionalAttrs (options.catppuccin ? autoEnable) {
-    autoEnable = false;
+    autoEnable = true;
   };
 }
