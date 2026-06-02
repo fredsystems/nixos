@@ -1,0 +1,67 @@
+---
+name: renovate-relock
+
+# When Renovate's customManager bumps a channel ref in flake.nix
+# (e.g. nixos-25.11 -> nixos-26.05) it cannot re-resolve flake.lock
+# because the hosted bot has no Nix.  This workflow runs `nix flake lock`
+# on the PR branch and pushes the re-locked flake.lock back as a
+# follow-up commit so the PR merges with flake.nix and flake.lock
+# consistent.  Without this the lock stays pinned at the old channel,
+# every subsequent `nix build` silently re-resolves the drifted inputs
+# against whatever HEAD-of-the-moment exists on the new channel, and
+# the repo loses reproducibility until somebody runs `nix flake lock`
+# by hand.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - flake.nix
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  relock:
+    # Only act on Renovate's PRs.  Skip everything else (incl. our own
+    # follow-up push, which is authored by github[bot]) to avoid loops.
+    if: github.event.pull_request.user.login == 'renovate[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          # PAT (not GITHUB_TOKEN) so the resulting push re-triggers CI.
+          # GITHUB_TOKEN-authored pushes are suppressed from triggering
+          # downstream workflows as a recursion guard; a PAT push is
+          # treated as a regular human push and re-runs the matrix.
+          token: ${{ secrets.PAT }}
+          ref: ${{ github.event.pull_request.head.ref }}
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          persist-credentials: true
+
+      - uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
+        with:
+          extra-conf: |
+            accept-flake-config = true
+            access-tokens = github.com=${{ github.token }}
+
+      - name: Re-lock drifted inputs
+        # Plain `nix flake lock` only re-resolves inputs whose flake.nix
+        # URL no longer matches the lock entry's `original` ref.  It
+        # does NOT bump nixpkgs-kernel or any other input where the URL
+        # is unchanged.  --refresh forces revalidation of channel HEADs
+        # so a same-day re-run picks up upstream movement.
+        run: nix flake lock --refresh
+
+      - name: Commit and push if lock changed
+        run: |
+          if git diff --quiet flake.lock; then
+            echo "flake.lock already in sync with flake.nix; nothing to do."
+            exit 0
+          fi
+          git config user.email "noreply@github.com"
+          git config user.name "github[bot]"
+          git add flake.lock
+          git commit -m "chore(flake): relock after renovate flake.nix update"
+          git push
