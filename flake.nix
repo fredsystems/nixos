@@ -24,14 +24,19 @@
 
     # CI: server
     #
-    # Pinned-kernel input.  Tracks the same nixos-25.11 channel as
+    # Pinned-kernel input.  Tracks the same stable channel as
     # nixpkgs-stable but lives as its own flake input so the kernel can be
     # bumped on its own cadence (monthly, manual-merge PR via the
     # update-flakes workflow) instead of riding the weekly auto-merged
     # nixpkgs-stable bump.  Servers consume linuxPackages_6_12 from this
     # input via modules/system/kernel-pin.nix.
+    #
+    # NOTE: the ?ref= URL form is intentional — it resolves to the same
+    # channel as nixpkgs-stable above, but the differing string lets
+    # Renovate's nix manager update each input independently without the
+    # two identical URLs colliding during in-place replacement.
     nixpkgs-kernel = {
-      url = "github:nixos/nixpkgs/nixos-25.11";
+      url = "github:nixos/nixpkgs?ref=nixos-25.11";
     };
 
     # CI: server
