@@ -11,12 +11,19 @@ name: renovate-relock
 # against whatever HEAD-of-the-moment exists on the new channel, and
 # the repo loses reproducibility until somebody runs `nix flake lock`
 # by hand.
+#
+# NOTE: this workflow intentionally has NO `paths:` filter on the
+# trigger. It is configured as a required status check on the default
+# branch, and a `paths:` filter would prevent GitHub from instantiating
+# the workflow at all for PRs that don't touch flake.nix, leaving the
+# required check stuck as "Expected — Waiting for status" forever.
+# Cheap no-op behavior is enforced inside the job instead:
+#   * the job-level `if:` skips non-renovate PRs (skipped == success),
+#   * `git diff --quiet flake.lock` short-circuits when nothing drifted.
 
 on:
   pull_request:
     types: [opened, synchronize, reopened]
-    paths:
-      - flake.nix
 
 permissions:
   contents: write
