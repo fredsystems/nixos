@@ -1,6 +1,7 @@
 {
   config,
   pkgs,
+  lib,
   inputs,
   ...
 }:
@@ -16,7 +17,8 @@
       unzip
       file
       zip
-      toybox
+      (lib.lowPrio toybox)
+      inetutils
       nix-index
       lm_sensors
       dig
