@@ -31,12 +31,14 @@
     # nixpkgs-stable bump.  Servers consume linuxPackages_6_12 from this
     # input via modules/system/kernel-pin.nix.
     #
-    # NOTE: the ?ref= URL form is intentional — it resolves to the same
-    # channel as nixpkgs-stable above, but the differing string lets
-    # Renovate's nix manager update each input independently without the
-    # two identical URLs colliding during in-place replacement.
+    # NOTE: tracks the `-small` variant of the same release.  Contents
+    # are identical to nixos-25.11 (same nixpkgs commits); the channel
+    # just advances on a lighter test set.  The differing channel name
+    # is required so Renovate's nix manager can update nixpkgs-stable
+    # via in-place string replacement without colliding on a duplicate
+    # `nixos-25.11` substring in this file.
     nixpkgs-kernel = {
-      url = "github:nixos/nixpkgs?ref=nixos-25.11";
+      url = "github:nixos/nixpkgs/nixos-25.11-small";
     };
 
     # CI: server
