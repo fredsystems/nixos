@@ -56,7 +56,7 @@
       customType: "regex",
       managerFilePatterns: ["/^flake\\.nix$/"],
       matchStrings: [
-        "#\\s*renovate:\\s+datasource=(?<datasource>\\S+)\\s+depName=(?<depName>\\S+)\\s+packageName=(?<packageName>\\S+)\\s+versioning=(?<versioning>\\S+)[\\s\\S]*?url\\s*=\\s*\"[^\"]+/(?<currentValue>[^\"]+)\"",
+        '#\\s*renovate:\\s+datasource=(?<datasource>\\S+)\\s+depName=(?<depName>\\S+)\\s+packageName=(?<packageName>\\S+)\\s+versioning=(?<versioning>\\S+)[\\s\\S]*?url\\s*=\\s*"[^"]+/(?<currentValue>[^"]+)"',
       ],
     },
   ],

@@ -30,7 +30,7 @@
     # so the kernel can be bumped on its own cadence (monthly,
     # manual-merge PR via .github/workflows/update-flakes.yaml) instead
     # of riding the weekly auto-merged stable bump.  Servers consume
-    # linuxPackages_6_12 from this input via
+    # linuxPackages_6_18 from this input via
     # modules/system/kernel-pin.nix.
     #
     # NOT tracked by Renovate: no `# renovate:` annotation, so the
