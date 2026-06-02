@@ -1,8 +1,46 @@
 {
   config,
   stateVersion,
+  lib,
   ...
 }:
+let
+  # Map of <bare hostname> -> <answer IP>. Each entry produces both
+  # `<name>.lan` and `<name>.local` AdGuard rewrites so that either
+  # TLD works on the LAN. Keep this in sync with the nginx vhosts
+  # below (which use matching serverAliases).
+  lanHosts = {
+    "sdrhub" = "192.168.31.20";
+    "ai.sdrhub" = "192.168.31.20";
+    "search.sdrhub" = "192.168.31.20";
+    "tar1090.sdrhub" = "192.168.31.20";
+    "dump978.sdrhub" = "192.168.31.20";
+    "piaware.sdrhub" = "192.168.31.20";
+    "acarshub" = "192.168.31.24";
+    "fredhub" = "192.168.31.14";
+    "fredvps" = "5.161.253.151";
+    "hfdlhub1" = "192.168.31.19";
+    "hfdlhub2" = "192.168.31.17";
+    "vdlmhub" = "192.168.31.23";
+  };
+
+  mkRewrites =
+    hosts:
+    lib.concatLists (
+      lib.mapAttrsToList (name: ip: [
+        {
+          enabled = true;
+          domain = "${name}.lan";
+          answer = ip;
+        }
+        {
+          enabled = true;
+          domain = "${name}.local";
+          answer = ip;
+        }
+      ]) hosts
+    );
+in
 {
   imports = [
     ./hardware-configuration.nix
@@ -116,48 +154,7 @@
           parental_enabled = false;
           safe_search.enabled = false;
 
-          rewrites = [
-            {
-              enabled = true;
-              domain = "sdrhub.lan";
-              answer = "192.168.31.20";
-            }
-            {
-              enabled = true;
-              domain = "search.sdrhub.lan";
-              answer = "192.168.31.20";
-            }
-            {
-              enabled = true;
-              domain = "acarshub.lan";
-              answer = "192.168.31.24";
-            }
-            {
-              enabled = true;
-              domain = "fredhub.lan";
-              answer = "192.168.31.14";
-            }
-            {
-              enabled = true;
-              domain = "fredvps.lan";
-              answer = "5.161.253.151";
-            }
-            {
-              enabled = true;
-              domain = "hfdlhub1.lan";
-              answer = "192.168.31.19";
-            }
-            {
-              enabled = true;
-              domain = "hfdlhub2.lan";
-              answer = "192.168.31.17";
-            }
-            {
-              enabled = true;
-              domain = "vdlmhub.lan";
-              answer = "192.168.31.23";
-            }
-          ];
+          rewrites = mkRewrites lanHosts;
         };
 
         user_rules = [
@@ -682,81 +679,95 @@
         }
       '';
 
-      virtualHosts.localhost = {
-        root = ./html;
+      virtualHosts = {
+        # Landing page — bound to sdrhub.lan AND set as the default server
+        # so any unknown Host header (e.g. raw IP) also gets the dashboard
+        # instead of accidentally hitting ai.sdrhub.lan / OpenWebUI.
+        "sdrhub.lan" = {
+          default = true;
+          serverAliases = [
+            "localhost"
+            "sdrhub.local"
+          ];
+          root = ./html;
 
-        locations = {
-          "/" = {
-            index = "index.html";
-          };
+          locations = {
+            "/" = {
+              index = "index.html";
+            };
 
-          "/dozzle/" = {
-            proxyPass = "http://192.168.31.20:9999";
-            extraConfig = "proxy_redirect / /dozzle/;";
-          };
+            "/dozzle/" = {
+              proxyPass = "http://192.168.31.20:9999";
+              extraConfig = "proxy_redirect / /dozzle/;";
+            };
 
-          "/tar1090/" = {
-            proxyPass = "http://192.168.31.20:8080/";
-            extraConfig = "proxy_redirect / /tar1090/;";
-          };
+            "/graphs/" = {
+              proxyPass = "http://192.168.31.20:8080/graphs1090/";
+            };
 
-          "/dump978/" = {
-            proxyPass = "http://192.168.31.20:8083/";
-            extraConfig = "proxy_redirect / /dump978/;";
-          };
+            "/fr24/" = {
+              return = "302 http://192.168.31.20:8082/";
+            };
 
-          "/graphs/" = {
-            proxyPass = "http://192.168.31.20:8080/graphs1090/";
-          };
+            "/fr24" = {
+              return = "302 http://192.168.31.20:8082/";
+            };
 
-          "/fr24/" = {
-            return = "http://192.168.31.20:8082/";
-          };
+            "/planefinder/" = {
+              return = "302 http://192.168.31.20:8087/";
+            };
 
-          "/fr24" = {
-            return = "http://192.168.31.20:8082/";
-          };
+            "/planefinder" = {
+              return = "302 http://192.168.31.20:8087/";
+            };
 
-          "/piaware/" = {
-            proxyPass = "http://192.168.31.20:8084/";
-            extraConfig = "proxy_redirect / /piaware/;";
-          };
+            "/acarshub/" = {
+              proxyPass = "http://192.168.31.20:8085/";
+              extraConfig = ''
+                proxy_http_version 1.1;
+                proxy_set_header Upgrade $http_upgrade;
+                proxy_set_header Connection $connection_upgrade;
+              '';
+            };
 
-          "/planefinder/" = {
-            return = "http://192.168.31.20:8087";
-          };
-
-          "/planefinder" = {
-            return = "http://192.168.31.20:8087";
-          };
-
-          "/acarshub/" = {
-            proxyPass = "http://192.168.31.20:8085/";
-            extraConfig = ''
-              proxy_http_version 1.1;
-              proxy_set_header Upgrade $http_upgrade;
-              proxy_set_header Connection $connection_upgrade;
-            '';
-          };
-
-          "/acarshub-test/" = {
-            proxyPass = "http://192.168.31.20:8086/";
-            extraConfig = ''
-              proxy_http_version 1.1;
-              proxy_set_header Upgrade $http_upgrade;
-              proxy_set_header Connection $connection_upgrade;
-            '';
+            "/acarshub-test/" = {
+              proxyPass = "http://192.168.31.20:8086/";
+              extraConfig = ''
+                proxy_http_version 1.1;
+                proxy_set_header Upgrade $http_upgrade;
+                proxy_set_header Connection $connection_upgrade;
+              '';
+            };
           };
         };
-      };
 
-      virtualHosts = {
+        # tar1090, dump978 and piaware all serve assets from absolute
+        # paths (/data, /chunks, /db, ...). Sub-path proxying breaks them,
+        # so give each its own vhost. Update your landing page links to
+        # http://tar1090.sdrhub.lan, http://dump978.sdrhub.lan, etc.
+        "tar1090.sdrhub.lan" = {
+          serverAliases = [ "tar1090.sdrhub.local" ];
+          locations."/".proxyPass = "http://192.168.31.20:8080";
+        };
+
+        "dump978.sdrhub.lan" = {
+          serverAliases = [ "dump978.sdrhub.local" ];
+          locations."/".proxyPass = "http://192.168.31.20:8083";
+        };
+
+        "piaware.sdrhub.lan" = {
+          serverAliases = [ "piaware.sdrhub.local" ];
+          locations."/".proxyPass = "http://192.168.31.20:8084";
+        };
+
         "ai.sdrhub.lan" = {
+          serverAliases = [ "ai.sdrhub.local" ];
           locations."/" = {
             proxyPass = "http://192.168.31.14:8889";
           };
         };
         "search.sdrhub.lan" = {
+          serverAliases = [ "search.sdrhub.local" ];
           locations."/" = {
             proxyPass = "http://127.0.0.1:4444";
           };
