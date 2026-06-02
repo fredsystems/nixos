@@ -3,7 +3,6 @@
   user,
   extraUsers ? [ ],
   lib,
-  isDarwin ? false,
   ...
 }:
 let
@@ -11,12 +10,6 @@ let
   payRespectsCmd = lib.getExe pkgs.pay-respects;
 in
 {
-  # The systemd timer module only references options that exist on NixOS;
-  # nix-darwin has no `systemd` option tree, so the import itself must be
-  # conditional. `isDarwin` is a specialArg (not sourced from `config`),
-  # so referencing it here does not trigger module-system recursion.
-  imports = lib.optional (!isDarwin) ./nix-index-timer.nix;
-
   home-manager.users = lib.genAttrs allUsers (_: {
     programs = {
       nix-index = {
