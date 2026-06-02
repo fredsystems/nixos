@@ -256,7 +256,7 @@
       ###############################################################
       {
         name = "ultrafeeder";
-        image = "ghcr.io/sdr-enthusiasts/docker-adsb-ultrafeeder:telegraf-build-931@sha256:1f7044032e3e2521e13d8d4e1e2c5a1386cd7d9eaab95b527a40c475969ef15d";
+        image = "ghcr.io/sdr-enthusiasts/docker-adsb-ultrafeeder:latest-build-932@sha256:a9251937245acead28e64083c5a666b1ad76e93db9ccac5ac9791f0ab1fe13ef";
 
         hostname = "ultrafeeder";
         restart = "always";
