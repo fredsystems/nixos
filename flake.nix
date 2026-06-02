@@ -18,30 +18,32 @@
     };
 
     # CI: server
+    # renovate: datasource=git-refs depName=nixpkgs-stable packageName=https://github.com/NixOS/nixpkgs versioning=regex:^nixos-(?<major>\d+)\.(?<minor>\d+)$
     nixpkgs-stable = {
       url = "github:nixos/nixpkgs/nixos-25.11";
     };
 
     # CI: server
     #
-    # Pinned-kernel input.  Tracks the same stable channel as
-    # nixpkgs-stable but lives as its own flake input so the kernel can be
-    # bumped on its own cadence (monthly, manual-merge PR via the
-    # update-flakes workflow) instead of riding the weekly auto-merged
-    # nixpkgs-stable bump.  Servers consume linuxPackages_6_12 from this
-    # input via modules/system/kernel-pin.nix.
+    # Pinned-kernel input.  Tracks the `-small` variant of the same
+    # stable channel as nixpkgs-stable but lives as its own flake input
+    # so the kernel can be bumped on its own cadence (monthly,
+    # manual-merge PR via .github/workflows/update-flakes.yaml) instead
+    # of riding the weekly auto-merged stable bump.  Servers consume
+    # linuxPackages_6_12 from this input via
+    # modules/system/kernel-pin.nix.
     #
-    # NOTE: tracks the `-small` variant of the same release.  Contents
-    # are identical to nixos-25.11 (same nixpkgs commits); the channel
-    # just advances on a lighter test set.  The differing channel name
-    # is required so Renovate's nix manager can update nixpkgs-stable
-    # via in-place string replacement without colliding on a duplicate
-    # `nixos-25.11` substring in this file.
+    # NOT tracked by Renovate: no `# renovate:` annotation, so the
+    # custom regex manager in .github/renovate.json5 ignores it.  The
+    # monthly update-flakes job advances flake.lock for this input via
+    # `nix flake lock --update-input`; the channel name itself is bumped
+    # by hand at NixOS release time.
     nixpkgs-kernel = {
       url = "github:nixos/nixpkgs/nixos-25.11-small";
     };
 
     # CI: server
+    # renovate: datasource=git-refs depName=home-manager-stable packageName=https://github.com/nix-community/home-manager versioning=regex:^release-(?<major>\d+)\.(?<minor>\d+)$
     home-manager-stable = {
       url = "github:nix-community/home-manager/release-25.11";
       inputs.nixpkgs.follows = "nixpkgs-stable";
@@ -54,6 +56,7 @@
     };
 
     # CI: server
+    # renovate: datasource=git-refs depName=catppuccin-stable packageName=https://github.com/catppuccin/nix versioning=regex:^release-(?<major>\d+)\.(?<minor>\d+)$
     catppuccin-stable = {
       url = "github:catppuccin/nix/release-25.11";
       inputs.nixpkgs.follows = "nixpkgs-stable";

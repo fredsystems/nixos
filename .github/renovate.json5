@@ -10,17 +10,23 @@
   // weekly and opens per-input PRs with proper diffs.  lockFileMaintenance
   // would wholesale-rewrite flake.lock and bypass the manual-merge cadence
   // for nixpkgs-kernel, since it ignores per-package enabled:false rules.
+  //
+  // Built-in `nix` manager intentionally omitted: it does naive substring
+  // replacement of the channel-name `currentValue` in flake.nix, which
+  // collides whenever two inputs share a substring (e.g. `nixos-25.11`
+  // and `nixos-25.11-small`).  The custom regex manager below keys off
+  // explicit `# renovate:` annotations and matches each input with full
+  // URL context, so no collision is possible.  Inputs without an
+  // annotation (e.g. nixpkgs-kernel) are not tracked by Renovate and are
+  // updated by the weekly/monthly update-flakes workflow instead.
   timezone: "Etc/UTC",
   schedule: ["* 12 * * 0"],
-  enabledManagers: ["custom.regex", "nix", "github-actions"],
+  enabledManagers: ["custom.regex", "github-actions"],
   prConcurrentLimit: 0,
   prHourlyLimit: 0,
   prCreation: "immediate",
   automerge: true,
   platformAutomerge: true,
-  nix: {
-    enabled: true,
-  },
   customManagers: [
     {
       customType: "regex",
@@ -38,10 +44,25 @@
       packageNameTemplate: "{{depName}}",
       versioningTemplate: "loose",
     },
+    {
+      // Flake-input channel manager.  Matches inputs annotated with a
+      // `# renovate: datasource=... depName=... packageName=... versioning=...`
+      // comment on the line immediately above the input declaration.
+      // The currentValue capture is anchored to the URL of THAT
+      // specific input (the lazy `[\s\S]*?` between the annotation and
+      // the url stops at the first url it finds), so each match has
+      // unique context and substring collisions across inputs are
+      // impossible.
+      customType: "regex",
+      managerFilePatterns: ["/^flake\\.nix$/"],
+      matchStrings: [
+        "#\\s*renovate:\\s+datasource=(?<datasource>\\S+)\\s+depName=(?<depName>\\S+)\\s+packageName=(?<packageName>\\S+)\\s+versioning=(?<versioning>\\S+)[\\s\\S]*?url\\s*=\\s*\"[^\"]+/(?<currentValue>[^\"]+)\"",
+      ],
+    },
   ],
   packageRules: [
     {
-      matchManagers: ["github-actions", "nix"],
+      matchManagers: ["github-actions", "custom.regex"],
       matchUpdateTypes: ["major", "minor", "patch", "pin"],
       automerge: true,
     },
@@ -80,16 +101,21 @@
       automerge: true,
     },
     {
-      // Server kernel pin — managed exclusively by the monthly
-      // `update-manual` job in .github/workflows/update-flakes.yaml so
-      // kernel bumps land as manual-review PRs on a planned-reboot
-      // cadence.  Disable Renovate for this input entirely to avoid
-      // duplicate PRs and accidental auto-merges.  Must be the last
-      // rule in this list so it wins against the "nix automerge" rule
-      // above (Renovate merges packageRules in order; later wins).
-      matchManagers: ["nix"],
-      matchPackageNames: ["nixpkgs-kernel"],
-      enabled: false,
+      // Group the stable-channel flake inputs into a single PR so the
+      // NixOS release bump (e.g. 25.11 → 26.05) lands atomically.
+      // nixpkgs-kernel is intentionally excluded; it is bumped by hand
+      // at release time via .github/workflows/update-flakes.yaml's
+      // monthly manual-merge job.  Major bumps are NOT auto-merged —
+      // a NixOS release is a planned event that warrants human review.
+      matchManagers: ["custom.regex"],
+      matchDepNames: [
+        "nixpkgs-stable",
+        "home-manager-stable",
+        "catppuccin-stable",
+      ],
+      groupName: "nixos stable channel",
+      groupSlug: "nixos-stable-channel",
+      automerge: false,
     },
   ],
 }
