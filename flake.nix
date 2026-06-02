@@ -20,7 +20,7 @@
     # CI: server
     # renovate: datasource=git-refs depName=nixpkgs-stable packageName=https://github.com/NixOS/nixpkgs versioning=regex:^nixos-(?<major>\d+)\.(?<minor>\d+)$
     nixpkgs-stable = {
-      url = "github:nixos/nixpkgs/nixos-25.11";
+      url = "github:nixos/nixpkgs/nixos-26.05";
     };
 
     # CI: server
@@ -45,7 +45,7 @@
     # CI: server
     # renovate: datasource=git-refs depName=home-manager-stable packageName=https://github.com/nix-community/home-manager versioning=regex:^release-(?<major>\d+)\.(?<minor>\d+)$
     home-manager-stable = {
-      url = "github:nix-community/home-manager/release-25.11";
+      url = "github:nix-community/home-manager/release-26.05";
       inputs.nixpkgs.follows = "nixpkgs-stable";
     };
 
@@ -58,7 +58,7 @@
     # CI: server
     # renovate: datasource=git-refs depName=catppuccin-stable packageName=https://github.com/catppuccin/nix versioning=regex:^release-(?<major>\d+)\.(?<minor>\d+)$
     catppuccin-stable = {
-      url = "github:catppuccin/nix/release-25.11";
+      url = "github:catppuccin/nix/release-26.05";
       inputs.nixpkgs.follows = "nixpkgs-stable";
     };
 
