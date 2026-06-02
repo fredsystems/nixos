@@ -24,6 +24,12 @@ name: renovate-relock
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+  # Required status checks must also be posted on the merge_group ref
+  # that the queue builds, otherwise the queue stalls waiting for a
+  # check that is never instantiated.  The job-level `if:` below skips
+  # cleanly on merge_group events (no pull_request context), which
+  # GitHub records as "Skipped" == passing for branch protection.
+  merge_group:
 
 permissions:
   contents: write
