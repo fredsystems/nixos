@@ -1,6 +1,6 @@
 # modules/system/kernel-pin.nix
 #
-# Pin the kernel on Linux server hosts to the LTS 6.12 line, sourced from a
+# Pin the kernel on Linux server hosts to the LTS 6.18 line, sourced from a
 # dedicated `nixpkgs-kernel` flake input rather than the host's normal pkgs
 # tree.  This decouples kernel bumps (which require a reboot to take effect)
 # from the weekly auto-merged nixpkgs-stable churn, so kernel updates land
@@ -33,6 +33,6 @@ let
 in
 {
   config = lib.mkIf pinActive {
-    boot.kernelPackages = lib.mkDefault kernelPkgs.linuxPackages_6_12;
+    boot.kernelPackages = lib.mkDefault kernelPkgs.linuxPackages_6_18;
   };
 }
