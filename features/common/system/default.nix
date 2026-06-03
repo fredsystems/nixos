@@ -80,6 +80,24 @@
           return polkit.Result.YES;
         }
       })
+
+      // Workaround for upstream NixOS bug: fwupd-refresh.service runs
+      // fwupdmgr as the `fwupd-refresh` user, which has no seat and
+      // therefore falls under <allow_any>auth_admin</allow_any> for the
+      // refresh polkit actions, so the unit fails with
+      // "Failed to obtain auth" on every timer fire. Upstream expects
+      // the uid to be listed under TrustedUids in fwupd.conf, but on
+      // NixOS the uid is allocated at activation time and not known
+      // during evaluation, so we grant the actions via a polkit rule
+      // keyed on the user name instead. Mirrors NixOS/nixpkgs#526476;
+      // remove this block once that lands in the channels we track.
+      polkit.addRule(function(action, subject) {
+        if ((action.id == "org.freedesktop.fwupd.get-remotes" ||
+             action.id == "org.freedesktop.fwupd.refresh-remote") &&
+            subject.user == "fwupd-refresh") {
+          return polkit.Result.YES;
+        }
+      });
     '';
   };
 }
