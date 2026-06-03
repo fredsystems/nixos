@@ -1,6 +1,7 @@
 {
   config,
   pkgs,
+  lib,
   inputs,
   ...
 }:
@@ -159,6 +160,55 @@
           '';
         };
       };
+    }
+    // lib.optionalAttrs config.services.fwupd.enable {
+      fwupd-updates-metric = {
+        description = "Emit fwupd available-firmware-updates metrics";
+        # fwupd-refresh updates metadata; querying right after means fresh data.
+        after = [ "fwupd-refresh.service" ];
+        serviceConfig = {
+          Type = "oneshot";
+          ExecStart = pkgs.writeShellScript "fwupd-updates-metric.sh" ''
+            set -u
+            FWUPDMGR=${config.services.fwupd.package}/bin/fwupdmgr
+            JQ=${pkgs.jq}/bin/jq
+            HOST="${config.networking.hostName}"
+            OUT=/var/lib/node_exporter/textfiles/fwupd_updates.prom
+            TMP="$OUT.tmp"
+
+            mkdir -p /var/lib/node_exporter/textfiles
+
+            # fwupdmgr exits non-zero when there are no updates AND when
+            # something goes wrong. Capture stdout regardless and fall back
+            # to an empty device list so the script always emits valid
+            # metrics for prometheus textfile collector consumption.
+            JSON=$("$FWUPDMGR" get-updates --json 2>/dev/null || echo '{"Devices":[]}')
+
+            # Validate JSON; treat malformed output as "no updates".
+            if ! echo "$JSON" | "$JQ" -e . >/dev/null 2>&1; then
+              JSON='{"Devices":[]}'
+            fi
+
+            COUNT=$(echo "$JSON" | "$JQ" '[.Devices[]?.Releases[0]?] | map(select(. != null)) | length')
+
+            {
+              echo "# HELP fwupd_updates_available Total firmware updates available on this host."
+              echo "# TYPE fwupd_updates_available gauge"
+              echo "fwupd_updates_available{host=\"$HOST\"} $COUNT"
+              echo "# HELP fwupd_device_update_info Per-device firmware update info (value is always 1; metadata in labels)."
+              echo "# TYPE fwupd_device_update_info gauge"
+              echo "$JSON" | "$JQ" -r --arg host "$HOST" '
+                .Devices[]?
+                | select(.Releases[0]? != null)
+                | . as $d
+                | .Releases[0] as $r
+                | "fwupd_device_update_info{host=\"\($host)\",device=\"\(($d.Name // "unknown") | gsub("\""; "\\\""))\",vendor=\"\(($d.Vendor // "unknown") | gsub("\""; "\\\""))\",version_current=\"\(($d.Version // "") | gsub("\""; "\\\""))\",version_available=\"\(($r.Version // "") | gsub("\""; "\\\""))\",urgency=\"\(($r.Urgency // "unknown") | ascii_downcase)\"} 1"
+              '
+            } > "$TMP"
+            mv "$TMP" "$OUT"
+          '';
+        };
+      };
     };
 
     timers = {
@@ -188,6 +238,15 @@
         wantedBy = [ "timers.target" ];
         timerConfig = {
           OnCalendar = "*:0/15"; # every 15 minutes
+          Persistent = true;
+        };
+      };
+    }
+    // lib.optionalAttrs config.services.fwupd.enable {
+      fwupd-updates-metric = {
+        wantedBy = [ "timers.target" ];
+        timerConfig = {
+          OnCalendar = "*:0/30"; # every 30 minutes — firmware changes infrequently
           Persistent = true;
         };
       };

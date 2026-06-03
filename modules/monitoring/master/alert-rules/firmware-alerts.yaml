@@ -1,0 +1,24 @@
+groups:
+  - name: firmware-alerts
+    rules:
+      - alert: FwupdUpdatesAvailable
+        # Long for: window — firmware updates appear continuously and we
+        # only want a nudge, not an immediate page.
+        expr: fwupd_updates_available > 0
+        for: 24h
+        labels:
+          severity: info
+        annotations:
+          summary: "Firmware updates available on {{ $labels.host }}"
+          description: "{{ $value }} firmware update(s) available via fwupd on {{ $labels.host }}. Run `fwupdmgr update` to apply."
+
+      - alert: FwupdCriticalUpdate
+        # Critical / high urgency firmware (per LVFS metadata) should not
+        # sit for a full day before notification.
+        expr: max by (host) (fwupd_device_update_info{urgency=~"critical|high"}) > 0
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Critical firmware update available on {{ $labels.host }}"
+          description: "fwupd reports at least one critical- or high-urgency firmware update on {{ $labels.host }}. Run `fwupdmgr get-updates` for details and `fwupdmgr update` to apply."

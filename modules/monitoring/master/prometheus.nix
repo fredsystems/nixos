@@ -151,6 +151,7 @@ in
       ruleFiles = [
         ./alert-rules/alert-rules.yaml
         ./alert-rules/docker-rules.yaml
+        ./alert-rules/firmware-alerts.yaml
         ./alert-rules/system-alerts.yaml
         ./alert-rules/sdr-alerts.yaml
       ];
