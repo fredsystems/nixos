@@ -114,17 +114,18 @@ unstable `nixpkgs`. CI treats changes to the `nixpkgs` input as
 These are loaded on demand by opencode when their description matches
 the task. The full bodies live under `.opencode/skills/`.
 
-| Skill                       | When it fires                                                                              |
-| --------------------------- | ------------------------------------------------------------------------------------------ |
-| `nixos-eval-impacted-hosts` | Before pushing any change. Computes impacted hosts from the diff and runs evals.           |
-| `nixos-input-category-sync` | When editing flake inputs / `flake.lock` / `ci-linux.yaml` / the impacted-hosts script.    |
-| `nixos-add-host`            | When adding a new host (server or desktop).                                                |
-| `nixos-add-flake-input`     | When adding (or removing) a flake input.                                                   |
-| `precommit-fix-loop`        | When a commit is rejected by pre-commit hooks.                                             |
-| `commit-discipline`         | Before any commit / PR.                                                                    |
-| `testing-mandate`           | Before declaring any task done.                                                            |
-| `no-summary-documents`      | Before creating any new markdown file.                                                     |
-| `markdown-lint-discipline`  | Before writing or editing any `.md` file. MD031, MD040, table widths, no emojis in tables. |
+| Skill                       | When it fires                                                                                    |
+| --------------------------- | ------------------------------------------------------------------------------------------------ |
+| `nixos-eval-impacted-hosts` | Before pushing any change. Computes impacted hosts from the diff and runs evals.                 |
+| `nixos-input-category-sync` | When editing flake inputs / `flake.lock` / `ci-linux.yaml` / the impacted-hosts script.          |
+| `nixos-add-host`            | When adding a new host (server or desktop).                                                      |
+| `nixos-add-flake-input`     | When adding (or removing) a flake input.                                                         |
+| `precommit-fix-loop`        | When a commit is rejected by pre-commit hooks.                                                   |
+| `commit-discipline`         | Before any commit / PR.                                                                          |
+| `testing-mandate`           | Before declaring any task done.                                                                  |
+| `no-summary-documents`      | Before creating any new markdown file.                                                           |
+| `markdown-lint-discipline`  | Before writing or editing any `.md` file. MD031, MD040, table widths, no emojis in tables.       |
+| `nix-best-practices`        | When editing any `.nix` file. Codifies the active strict lint stack (nixfmt + statix + deadnix). |
 
 If the skill doesn't fire automatically and you think it should, that
 means the skill description needs a stronger trigger -- fix the skill,

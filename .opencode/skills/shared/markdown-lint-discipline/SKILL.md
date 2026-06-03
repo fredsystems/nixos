@@ -214,6 +214,69 @@ description: ...
 After the closing `---`, leave one blank line, then the H1, then
 the body.
 
+## Prettier auto-normalizations (write it this way the first time)
+
+Prettier runs alongside markdownlint in fred's pre-commit setup and
+will silently rewrite your file on commit, then re-stage. The fixes
+don't reject the commit on the first round, but the file ends up
+modified again and the next round of hooks runs against the new
+content. Writing markdown the way prettier wants it from the start
+avoids that ping-pong.
+
+The normalizations to anticipate:
+
+- **Emphasis with underscores, not asterisks.** Write `_italic_`,
+  not `*italic*`. Strong (`**bold**`) keeps the asterisks.
+- **Unordered lists use `-`.** Not `*`, not `+`. Stay consistent
+  within a file.
+- **Numbered lists keep literal `1.`, `2.`, ...** Prettier does not
+  renumber, and it expects a single space after the dot before the
+  item text.
+- **Blank line between numbered-list items that contain fenced code
+  blocks.** Prettier and MD031 disagree about list-with-fence
+  formatting otherwise — prettier will add the blank line, so just
+  write it that way:
+
+  ````markdown
+  1. Step one.
+
+     ```sh
+     do-thing
+     ```
+
+  2. Step two.
+  ````
+
+- **Tables get re-padded.** Don't waste time hand-aligning a table
+  to pixel-perfect widths; prettier will redo it on commit. Just
+  make sure every row has the same number of `|` separators and
+  prettier handles the rest.
+- **Trailing whitespace stripped.** Don't leave it.
+- **Final newline at EOF.** Always end the file with one newline.
+
+## codespell (sibling hook, runs alongside markdownlint)
+
+`codespell` is a separate pre-commit hook that scans for common
+typos. It is **not** markdownlint and will reject the commit
+independently. Frequent offender patterns (written with a space
+to dodge codespell flagging this file itself — in real prose the
+hyphenated or misspelled form is what trips the hook):
+
+- The `re- use` / `re- uses` / `re- used` family → collapse to
+  `reuse` / `reuses` / `reused` (no hyphen).
+- `sep arately` (with the missing `a` in the wrong place) →
+  `separately`.
+- `occ ured` (single `r`) → `occurred`.
+- `rec ieve` (i-before-e violation) → `receive`.
+- `acc omodate` (single `m`) → `accommodate`.
+- `pre- existing` is often allowed; check the repo's wordlist.
+
+If a flagged word is a genuine proper noun, a domain term, or a
+deliberate spelling, add it to the repo's `.codespellrc`
+`ignore-words-list` or `typos.toml` rather than working around it
+case by case. New additions should be real exceptions — don't
+pollute the wordlist to dodge typos.
+
 ## When to stop and ask
 
 - The repo's `.markdownlint.json` (or `.markdownlint.jsonc`, or
