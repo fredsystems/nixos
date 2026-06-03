@@ -1,6 +1,7 @@
 {
   config,
   pkgs,
+  lib,
   inputs,
   ...
 }:
@@ -159,6 +160,67 @@
           '';
         };
       };
+    }
+    // lib.optionalAttrs config.services.fwupd.enable {
+      fwupd-updates-metric = {
+        description = "Emit fwupd available-firmware-updates metrics";
+        # Ordering only — `after=` does NOT trigger fwupd-refresh. We rely on
+        # the upstream fwupd-refresh.timer (daily, persistent) to keep LVFS
+        # metadata current; this service simply consumes whatever metadata
+        # exists on disk when it fires (every 30 minutes).
+        after = [ "fwupd-refresh.service" ];
+        serviceConfig = {
+          Type = "oneshot";
+          ExecStart = pkgs.writeShellScript "fwupd-updates-metric.sh" ''
+            set -u
+            FWUPDMGR=${config.services.fwupd.package}/bin/fwupdmgr
+            JQ=${pkgs.jq}/bin/jq
+            HOST="${config.networking.hostName}"
+            OUT=/var/lib/node_exporter/textfiles/fwupd_updates.prom
+            TMP="$OUT.tmp"
+
+            mkdir -p /var/lib/node_exporter/textfiles
+
+            # fwupdmgr exits non-zero when there are no updates AND when
+            # something goes wrong. Capture stdout regardless and fall back
+            # to an empty device list so the script always emits valid
+            # metrics for prometheus textfile collector consumption.
+            JSON=$("$FWUPDMGR" get-updates --json 2>/dev/null || echo '{"Devices":[]}')
+
+            # Validate JSON; treat malformed output as "no updates".
+            if ! echo "$JSON" | "$JQ" -e . >/dev/null 2>&1; then
+              JSON='{"Devices":[]}'
+            fi
+
+            COUNT=$(echo "$JSON" | "$JQ" '[.Devices[]?.Releases[0]?] | map(select(. != null)) | length')
+
+            {
+              echo "# HELP fwupd_updates_available Total firmware updates available on this host."
+              echo "# TYPE fwupd_updates_available gauge"
+              echo "fwupd_updates_available{host=\"$HOST\"} $COUNT"
+              echo "# HELP fwupd_device_update_info Per-device firmware update info (value is always 1; metadata in labels)."
+              echo "# TYPE fwupd_device_update_info gauge"
+              # Prometheus exposition format requires label values to escape
+              # backslash, double-quote, and newline. Order matters: escape
+              # backslashes first or you'll double-escape the ones added by
+              # the quote/newline steps.
+              echo "$JSON" | "$JQ" -r --arg host "$HOST" '
+                def promesc:
+                  tostring
+                  | gsub("\\\\"; "\\\\")
+                  | gsub("\""; "\\\"")
+                  | gsub("\n"; "\\n");
+                .Devices[]?
+                | select(.Releases[0]? != null)
+                | . as $d
+                | .Releases[0] as $r
+                | "fwupd_device_update_info{host=\"\($host | promesc)\",device=\"\(($d.Name // "unknown") | promesc)\",vendor=\"\(($d.Vendor // "unknown") | promesc)\",version_current=\"\(($d.Version // "") | promesc)\",version_available=\"\(($r.Version // "") | promesc)\",urgency=\"\(($r.Urgency // "unknown") | ascii_downcase | promesc)\"} 1"
+              '
+            } > "$TMP"
+            mv "$TMP" "$OUT"
+          '';
+        };
+      };
     };
 
     timers = {
@@ -188,6 +250,15 @@
         wantedBy = [ "timers.target" ];
         timerConfig = {
           OnCalendar = "*:0/15"; # every 15 minutes
+          Persistent = true;
+        };
+      };
+    }
+    // lib.optionalAttrs config.services.fwupd.enable {
+      fwupd-updates-metric = {
+        wantedBy = [ "timers.target" ];
+        timerConfig = {
+          OnCalendar = "*:0/30"; # every 30 minutes — firmware changes infrequently
           Persistent = true;
         };
       };

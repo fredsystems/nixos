@@ -19,6 +19,9 @@
 #   github_email, github_signing_key — git identity strings
 #   hmlib        — home-manager lib
 #   agentNodes, agentTargets, agentScrapeMap — monitoring topology
+#   desktopNodes, desktopScrapeMap — desktop monitoring topology (consumed by
+#     prometheus.nix on the master; harmless on agent nodes that import the
+#     same module set)
 {
   inputs,
   self,
@@ -31,6 +34,8 @@
   agentNodes,
   agentTargets,
   agentScrapeMap,
+  desktopNodes,
+  desktopScrapeMap,
   ...
 }:
 let
@@ -108,6 +113,8 @@ let
           agentNodes
           agentTargets
           agentScrapeMap
+          desktopNodes
+          desktopScrapeMap
           ;
         system = "x86_64-linux";
         isDarwin = false;

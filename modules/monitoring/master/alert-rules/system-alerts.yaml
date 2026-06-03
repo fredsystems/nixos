@@ -20,7 +20,8 @@ groups:
           description: "Host {{ $labels.host }} has pending upgrades and needs a reboot."
 
       - alert: NixOSRevisionBehind
-        expr: nixos_revision_behind == 1
+        # Desktops are updated manually on a different cadence than servers.
+        expr: nixos_revision_behind{role!="desktop"} == 1
         for: 6h
         labels:
           severity: warning

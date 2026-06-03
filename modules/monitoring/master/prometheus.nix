@@ -3,11 +3,14 @@
   pkgs,
   agentNodes,
   agentScrapeMap,
+  desktopNodes,
+  desktopScrapeMap,
   user,
   ...
 }:
 let
   agentHosts = agentNodes;
+  desktopHosts = desktopNodes;
 
 in
 {
@@ -148,6 +151,7 @@ in
       ruleFiles = [
         ./alert-rules/alert-rules.yaml
         ./alert-rules/docker-rules.yaml
+        ./alert-rules/firmware-alerts.yaml
         ./alert-rules/system-alerts.yaml
         ./alert-rules/sdr-alerts.yaml
       ];
@@ -198,6 +202,14 @@ in
                 exporter = "node";
               };
             }) agentHosts)
+            ++ (map (h: {
+              targets = [ "${desktopScrapeMap.${h}}:9100" ];
+              labels = {
+                hostname = h;
+                role = "desktop";
+                exporter = "node";
+              };
+            }) desktopHosts)
             ++ [
               {
                 targets = [ "sdrhub.local:9100" ];

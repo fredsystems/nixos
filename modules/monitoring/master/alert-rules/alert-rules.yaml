@@ -2,7 +2,8 @@ groups:
   - name: node-alerts
     rules:
       - alert: NodeDown
-        expr: up{job="node"} == 0
+        # Desktops sleep/shut down regularly; scope to non-desktop roles.
+        expr: up{job="node", role!="desktop"} == 0
         for: 2m
         labels:
           severity: critical
@@ -11,7 +12,7 @@ groups:
           description: "Prometheus has not scraped {{ $labels.hostname }} for 2 minutes."
 
       - alert: HighNodeCPU
-        expr: 100 - (avg by (hostname) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 70
+        expr: 100 - (avg by (hostname) (irate(node_cpu_seconds_total{mode="idle", role!="desktop"}[5m])) * 100) > 70
         for: 5m
         labels:
           severity: warning
@@ -20,7 +21,7 @@ groups:
           description: "CPU usage exceeded 70% for 5 minutes."
 
       - alert: HighNodeMemory
-        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) > 0.80
+        expr: (1 - (node_memory_MemAvailable_bytes{role!="desktop"} / node_memory_MemTotal_bytes{role!="desktop"})) > 0.80
         for: 5m
         labels:
           severity: warning
@@ -53,7 +54,7 @@ groups:
   - name: systemd-alerts
     rules:
       - alert: SystemdUnitFailed
-        expr: node_systemd_unit_state{state="failed", name!~"docker-.*"} == 1
+        expr: node_systemd_unit_state{state="failed", name!~"docker-.*", role!="desktop"} == 1
         for: 2m
         labels:
           severity: critical
@@ -62,7 +63,7 @@ groups:
           description: "The unit {{ $labels.name }} has been in a failed state for >2 minutes."
 
       - alert: SystemdUnitFlapping
-        expr: changes(node_systemd_unit_state{state="active", name!~"docker-.*|github-runner-runner-.*"}[10m]) > 3
+        expr: changes(node_systemd_unit_state{state="active", name!~"docker-.*|github-runner-runner-.*", role!="desktop"}[10m]) > 3
         for: 5m
         labels:
           severity: warning
@@ -111,7 +112,8 @@ groups:
   - name: system-alerts
     rules:
       - alert: PrometheusTargetDown
-        expr: sum by (job, instance) (up == 0) > 0
+        # Desktops sleep regularly; exclude their scrape targets from this alert.
+        expr: sum by (job, instance) (up{role!="desktop"} == 0) > 0
         for: 2m
         labels:
           severity: critical
