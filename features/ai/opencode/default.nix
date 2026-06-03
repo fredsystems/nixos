@@ -23,28 +23,26 @@ in
   };
 
   config = lib.mkIf cfg.enable {
-    home-manager.users = lib.genAttrs allUsers (
-      _userName: _: {
-        programs.opencode = {
-          enable = true;
-          settings = {
-            "$schema" = "https://opencode.ai/config.json";
-          };
+    home-manager.users = lib.genAttrs allUsers (_userName: {
+      programs.opencode = {
+        enable = true;
+        settings = {
+          "$schema" = "https://opencode.ai/config.json";
         };
+      };
 
-        # opencode auto-scans `~/.config/opencode/skills/**/SKILL.md`, so
-        # placing the baked-in skills tree there is sufficient -- no
-        # `skills.paths` entry is required. `recursive = true` mirrors the
-        # directory contents (one symlink per file) rather than symlinking
-        # the top-level directory itself, which would break opencode's
-        # ability to scan sub-folders managed alongside non-managed ones.
-        home.file.".config/opencode/skills" = {
-          source = skillsSource;
-          recursive = true;
-        };
+      # opencode auto-scans `~/.config/opencode/skills/**/SKILL.md`, so
+      # placing the baked-in skills tree there is sufficient -- no
+      # `skills.paths` entry is required. `recursive = true` mirrors the
+      # directory contents (one symlink per file) rather than symlinking
+      # the top-level directory itself, which would break opencode's
+      # ability to scan sub-folders managed alongside non-managed ones.
+      home.file.".config/opencode/skills" = {
+        source = skillsSource;
+        recursive = true;
+      };
 
-        catppuccin.opencode.enable = true;
-      }
-    );
+      catppuccin.opencode.enable = true;
+    });
   };
 }

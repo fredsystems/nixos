@@ -54,7 +54,7 @@ truth. Cases where drift happens:
   `agents.md` -> "Adding a new flake input", all three locations
   (`flake.nix` comments, `agents.md` table, `ci-linux.yaml` array)
   must be updated, and now this script's `INPUT_CATEGORY` array as
-  well. Default to `global` for any unknown input \u2014 safe over-build.
+  well. Default to `global` for any unknown input — safe over-build.
 - A new desktop host was added but `desktop_names=(...)` in CI was not
   updated. This script reads `desktop_names` from CI at runtime so it
   auto-recovers, but CI itself will be broken until the array is fixed.

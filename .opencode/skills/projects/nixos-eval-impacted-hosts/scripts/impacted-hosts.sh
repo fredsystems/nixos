@@ -151,17 +151,23 @@ if [[ $LOCK_CHANGED -eq 1 && $GLOBAL -eq 0 ]]; then
         [[ $GLOBAL -eq 1 ]] && break
       done
     else
-      # jq missing \u2014 safe over-build.
+      # jq missing — safe over-build.
       GLOBAL=1
     fi
   else
-    # No old lock retrievable \u2014 safe over-build.
+    # No old lock retrievable — safe over-build.
     GLOBAL=1
   fi
 fi
 
 # Build the final host list.
-ALL_HOSTS_JSON="$(nix eval .#nixosConfigurations --apply 'cfgs: builtins.attrNames cfgs' --json 2>/dev/null || echo '[]')"
+# Fail loud if nix eval can't enumerate nixosConfigurations -- a broken
+# flake silently producing an empty host list would defeat the whole
+# point of this verification gate.
+if ! ALL_HOSTS_JSON="$(nix eval .#nixosConfigurations --apply 'cfgs: builtins.attrNames cfgs' --json 2>&1)"; then
+  printf 'ERROR: failed to enumerate nixosConfigurations:\n%s\n' "$ALL_HOSTS_JSON" >&2
+  exit 1
+fi
 mapfile -t ALL_HOSTS < <(echo "$ALL_HOSTS_JSON" | tr -d '[]" ' | tr ',' '\n' | grep -v '^$')
 
 if [[ $GLOBAL -eq 1 ]]; then

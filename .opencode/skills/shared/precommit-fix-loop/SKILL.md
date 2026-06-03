@@ -32,7 +32,7 @@ code is allowed to enter main".
 ## Diagnostic loop
 
 1. Read the hook output top-to-bottom. Pre-commit prints one section per
-   hook. Find the first hook that says `Failed` and start there \u2014
+   hook. Find the first hook that says `Failed` and start there —
    downstream failures are often consequences of the first.
 2. Note the hook's `id:` line (e.g. `id: clippy`, `id: biome`,
    `id: nixfmt-rfc-style`, `id: markdownlint`). That tells you which
@@ -54,7 +54,7 @@ code is allowed to enter main".
 | Symptom in output                           | Likely hook              | Real cause                                                                                                                                                                  |
 | ------------------------------------------- | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `error: ...clippy::...`                     | clippy                   | Lint violation in `.rs` change. Fix the code; do NOT add `#[allow]`.                                                                                                        |
-| `Formatted N files`                         | rustfmt / nixfmt / biome | A formatter rewrote files. Re-stage them and commit again \u2014 this is not a "failure" so much as a "you forgot to format".                                               |
+| `Formatted N files`                         | rustfmt / nixfmt / biome | A formatter rewrote files. Re-stage them and commit again — this is not a "failure" so much as a "you forgot to format".                                                    |
 | `error: typos found`                        | typos                    | A real typo, or a project-specific word missing from `typos.toml` / `.dictionary.txt`. Adding to the dictionary is acceptable only for genuine proper nouns / domain terms. |
 | `MD0xx ... markdownlint`                    | markdownlint             | A real markdown rule violation. See the rule reference: <https://github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md>.                                                |
 | `evaluation warning:` from a nix build      | flake check              | A nixpkgs deprecation surfaced during eval. Update the call site.                                                                                                           |
@@ -63,9 +63,9 @@ code is allowed to enter main".
 ## When to stop and ask
 
 - The failing rule looks wrong for this codebase (e.g. a new rule from a
-  precommit-base bump that doesn't fit the repo). Stop \u2014 the right
+  precommit-base bump that doesn't fit the repo). Stop — the right
   fix is upstream.
-- A hook is asking for a tool that isn't in the dev shell. Stop \u2014
+- A hook is asking for a tool that isn't in the dev shell. Stop —
   the right fix is either adding the tool to `flake.nix` (then re-enter
   the shell) or removing the hook's requirement.
 - Fixing the lint requires meaningfully changing behavior. Stop, surface
