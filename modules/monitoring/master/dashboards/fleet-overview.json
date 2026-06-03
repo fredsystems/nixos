@@ -31,7 +31,7 @@
       "type": "stat",
       "title": "Nodes Up",
       "description": "Number of nodes currently reachable by Prometheus",
-      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 },
+      "gridPos": { "h": 4, "w": 3, "x": 0, "y": 1 },
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "options": {
         "reduceOptions": {
@@ -74,7 +74,7 @@
       "type": "stat",
       "title": "Nodes Down",
       "description": "Number of nodes not reachable by Prometheus",
-      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 },
+      "gridPos": { "h": 4, "w": 3, "x": 3, "y": 1 },
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "options": {
         "reduceOptions": {
@@ -111,7 +111,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "count(up{job=\"node\"} == 0) or vector(0)",
+          "expr": "count(up{job=\"node\", role!=\"desktop\"} == 0) or vector(0)",
           "legendFormat": "Down",
           "instant": true
         }
@@ -122,7 +122,7 @@
       "type": "stat",
       "title": "Nodes Needing Reboot",
       "description": "Nodes with /run/reboot-required present",
-      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 1 },
+      "gridPos": { "h": 4, "w": 3, "x": 6, "y": 1 },
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "options": {
         "reduceOptions": {
@@ -170,7 +170,7 @@
       "type": "stat",
       "title": "Nodes Behind Main",
       "description": "Nodes whose deployed commit is behind GitHub main",
-      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 1 },
+      "gridPos": { "h": 4, "w": 3, "x": 9, "y": 1 },
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "options": {
         "reduceOptions": {
@@ -207,7 +207,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "count(nixos_revision_behind == 1) or vector(0)",
+          "expr": "count(nixos_revision_behind{role!=\"desktop\"} == 1) or vector(0)",
           "legendFormat": "Behind",
           "instant": true
         }
@@ -218,7 +218,7 @@
       "type": "stat",
       "title": "Failed Systemd Units",
       "description": "Total count of failed systemd units across all nodes",
-      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 1 },
+      "gridPos": { "h": 4, "w": 3, "x": 12, "y": 1 },
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "options": {
         "reduceOptions": {
@@ -255,7 +255,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "count(node_systemd_unit_state{state=\"failed\"} == 1) or vector(0)",
+          "expr": "count(node_systemd_unit_state{state=\"failed\", role!=\"desktop\"} == 1) or vector(0)",
           "legendFormat": "Failed Units",
           "instant": true
         }
@@ -266,7 +266,7 @@
       "type": "stat",
       "title": "Active Alerts",
       "description": "Number of currently firing Alertmanager alerts",
-      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 1 },
+      "gridPos": { "h": 4, "w": 3, "x": 15, "y": 1 },
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "options": {
         "reduceOptions": {
@@ -305,6 +305,102 @@
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "count(ALERTS{alertstate=\"firing\"}) or vector(0)",
           "legendFormat": "Firing",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "stat",
+      "title": "Firmware Updates",
+      "description": "Total firmware updates available across the fleet (fwupd)",
+      "gridPos": { "h": 4, "w": 3, "x": 18, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": { "0": { "text": "None", "color": "green" } }
+            }
+          ],
+          "unit": "none",
+          "color": { "mode": "thresholds" }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+          "expr": "sum(fwupd_updates_available) or vector(0)",
+          "legendFormat": "Updates",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "stat",
+      "title": "Critical Firmware",
+      "description": "Devices with critical- or high-urgency firmware updates pending",
+      "gridPos": { "h": 4, "w": 3, "x": 21, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": { "0": { "text": "None", "color": "green" } }
+            }
+          ],
+          "unit": "none",
+          "color": { "mode": "thresholds" }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+          "expr": "count(fwupd_device_update_info{urgency=~\"critical|high\"}) or vector(0)",
+          "legendFormat": "Critical",
           "instant": true
         }
       ]
@@ -857,17 +953,163 @@
       ]
     },
     {
+      "id": 35,
+      "type": "row",
+      "title": "Pending Firmware Updates",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 30 }
+    },
+    {
+      "id": 36,
+      "type": "table",
+      "title": "Firmware Updates by Device",
+      "description": "Devices across the fleet with firmware updates available (fwupd). Run `fwupdmgr update` on the affected host to apply.",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 31 },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": { "show": false, "reducer": ["sum"], "fields": "" },
+        "frameIndex": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "displayMode": "auto",
+            "filterable": true
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "transparent", "value": null }]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "host" },
+            "properties": [{ "id": "custom.width", "value": 140 }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "device" },
+            "properties": [{ "id": "custom.width", "value": 280 }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "vendor" },
+            "properties": [{ "id": "custom.width", "value": 140 }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "version_current" },
+            "properties": [
+              { "id": "displayName", "value": "Current" },
+              { "id": "custom.width", "value": 140 }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "version_available" },
+            "properties": [
+              { "id": "displayName", "value": "Available" },
+              { "id": "custom.width", "value": 140 }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "urgency" },
+            "properties": [
+              { "id": "custom.width", "value": 100 },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": { "critical": { "color": "red" } }
+                  },
+                  {
+                    "type": "value",
+                    "options": { "high": { "color": "orange" } }
+                  },
+                  {
+                    "type": "value",
+                    "options": { "medium": { "color": "yellow" } }
+                  },
+                  {
+                    "type": "value",
+                    "options": { "low": { "color": "green" } }
+                  }
+                ]
+              },
+              { "id": "custom.cellOptions", "value": { "type": "color-text" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Value" },
+            "properties": [{ "id": "custom.hidden", "value": true }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Time" },
+            "properties": [{ "id": "custom.hidden", "value": true }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "__name__" },
+            "properties": [{ "id": "custom.hidden", "value": true }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "job" },
+            "properties": [{ "id": "custom.hidden", "value": true }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "instance" },
+            "properties": [{ "id": "custom.hidden", "value": true }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "hostname" },
+            "properties": [{ "id": "custom.hidden", "value": true }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "role" },
+            "properties": [{ "id": "custom.hidden", "value": true }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "exporter" },
+            "properties": [{ "id": "custom.hidden", "value": true }]
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "indexByName": {
+              "host": 0,
+              "device": 1,
+              "vendor": 2,
+              "version_current": 3,
+              "version_available": 4,
+              "urgency": 5
+            }
+          }
+        }
+      ],
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+          "expr": "fwupd_device_update_info",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "__auto"
+        }
+      ]
+    },
+    {
       "id": 40,
       "type": "row",
       "title": "Resource Trends",
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 30 }
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 39 }
     },
     {
       "id": 41,
       "type": "timeseries",
       "title": "CPU Usage % — All Nodes",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 31 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 40 },
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "options": {
         "tooltip": { "mode": "multi", "sort": "desc" },
@@ -913,7 +1155,7 @@
       "id": 42,
       "type": "timeseries",
       "title": "Memory Usage % — All Nodes",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 31 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 40 },
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "options": {
         "tooltip": { "mode": "multi", "sort": "desc" },
@@ -959,7 +1201,7 @@
       "id": 43,
       "type": "timeseries",
       "title": "Network Receive — All Nodes",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 39 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 48 },
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "options": {
         "tooltip": { "mode": "multi", "sort": "desc" },
@@ -996,7 +1238,7 @@
       "id": 44,
       "type": "timeseries",
       "title": "Network Transmit — All Nodes",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 39 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 48 },
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "options": {
         "tooltip": { "mode": "multi", "sort": "desc" },
@@ -1033,7 +1275,7 @@
       "id": 45,
       "type": "timeseries",
       "title": "System Load (1m) — All Nodes",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 47 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 56 },
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "options": {
         "tooltip": { "mode": "multi", "sort": "desc" },
@@ -1070,7 +1312,7 @@
       "id": 46,
       "type": "timeseries",
       "title": "Root Disk Usage % — All Nodes",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 47 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 56 },
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "options": {
         "tooltip": { "mode": "multi", "sort": "desc" },
