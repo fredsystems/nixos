@@ -164,7 +164,10 @@
     // lib.optionalAttrs config.services.fwupd.enable {
       fwupd-updates-metric = {
         description = "Emit fwupd available-firmware-updates metrics";
-        # fwupd-refresh updates metadata; querying right after means fresh data.
+        # Ordering only — `after=` does NOT trigger fwupd-refresh. We rely on
+        # the upstream fwupd-refresh.timer (daily, persistent) to keep LVFS
+        # metadata current; this service simply consumes whatever metadata
+        # exists on disk when it fires (every 30 minutes).
         after = [ "fwupd-refresh.service" ];
         serviceConfig = {
           Type = "oneshot";
@@ -197,12 +200,21 @@
               echo "fwupd_updates_available{host=\"$HOST\"} $COUNT"
               echo "# HELP fwupd_device_update_info Per-device firmware update info (value is always 1; metadata in labels)."
               echo "# TYPE fwupd_device_update_info gauge"
+              # Prometheus exposition format requires label values to escape
+              # backslash, double-quote, and newline. Order matters: escape
+              # backslashes first or you'll double-escape the ones added by
+              # the quote/newline steps.
               echo "$JSON" | "$JQ" -r --arg host "$HOST" '
+                def promesc:
+                  tostring
+                  | gsub("\\\\"; "\\\\")
+                  | gsub("\""; "\\\"")
+                  | gsub("\n"; "\\n");
                 .Devices[]?
                 | select(.Releases[0]? != null)
                 | . as $d
                 | .Releases[0] as $r
-                | "fwupd_device_update_info{host=\"\($host)\",device=\"\(($d.Name // "unknown") | gsub("\""; "\\\""))\",vendor=\"\(($d.Vendor // "unknown") | gsub("\""; "\\\""))\",version_current=\"\(($d.Version // "") | gsub("\""; "\\\""))\",version_available=\"\(($r.Version // "") | gsub("\""; "\\\""))\",urgency=\"\(($r.Urgency // "unknown") | ascii_downcase)\"} 1"
+                | "fwupd_device_update_info{host=\"\($host | promesc)\",device=\"\(($d.Name // "unknown") | promesc)\",vendor=\"\(($d.Vendor // "unknown") | promesc)\",version_current=\"\(($d.Version // "") | promesc)\",version_available=\"\(($r.Version // "") | promesc)\",urgency=\"\(($r.Urgency // "unknown") | ascii_downcase | promesc)\"} 1"
               '
             } > "$TMP"
             mv "$TMP" "$OUT"
