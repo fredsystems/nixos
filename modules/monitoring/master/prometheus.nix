@@ -3,11 +3,14 @@
   pkgs,
   agentNodes,
   agentScrapeMap,
+  desktopNodes,
+  desktopScrapeMap,
   user,
   ...
 }:
 let
   agentHosts = agentNodes;
+  desktopHosts = desktopNodes;
 
 in
 {
@@ -198,6 +201,14 @@ in
                 exporter = "node";
               };
             }) agentHosts)
+            ++ (map (h: {
+              targets = [ "${desktopScrapeMap.${h}}:9100" ];
+              labels = {
+                hostname = h;
+                role = "desktop";
+                exporter = "node";
+              };
+            }) desktopHosts)
             ++ [
               {
                 targets = [ "sdrhub.local:9100" ];

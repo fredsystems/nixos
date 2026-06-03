@@ -259,6 +259,21 @@
         }) agentNodes
       );
 
+      desktopNodes = builtins.filter (
+        name: self.nixosConfigurations.${name}.config.deployment.role == "desktop"
+      ) (builtins.attrNames self.nixosConfigurations);
+
+      desktopScrapeMap = builtins.listToAttrs (
+        map (name: {
+          inherit name;
+          value =
+            let
+              addr = self.nixosConfigurations.${name}.config.deployment.scrapeAddress;
+            in
+            if addr != null then addr else "${name}.local";
+        }) desktopNodes
+      );
+
       ##########################################################################
       ## Shared arguments                                                     ##
       ##                                                                      ##
@@ -279,6 +294,8 @@
           agentNodes
           agentTargets
           agentScrapeMap
+          desktopNodes
+          desktopScrapeMap
           forAllSystems
           # Channel inputs used as defaults for server nodes
           nixpkgs-stable

@@ -13,6 +13,11 @@
     ../modules/secrets/sops.nix
     ../modules/data/nas-mounts.nix
     ../modules/data/wifi-networks.nix
+    # Monitoring: node_exporter only. cadvisor (Docker container metrics)
+    # and alloy (log shipping) are deliberately not pulled in — desktops
+    # don't run the same container fleet and log shipping is out of scope
+    # for this profile.
+    ../modules/monitoring/agent/node_exporter.nix
   ];
 
   options.profile.desktop = {

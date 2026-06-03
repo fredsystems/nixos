@@ -17,6 +17,8 @@
 #   agentNodes       – list of monitoring-agent hostnames
 #   agentTargets     – list of scrape target strings
 #   agentScrapeMap   – attrset of hostname → scrape address
+#   desktopNodes     – list of desktop hostnames
+#   desktopScrapeMap – attrset of desktop hostname → scrape address
 #
 # Per-host arguments (all optional — defaults shown):
 #
@@ -44,6 +46,8 @@
   agentNodes,
   agentTargets,
   agentScrapeMap,
+  desktopNodes,
+  desktopScrapeMap,
   ...
 }:
 {
@@ -77,6 +81,8 @@ let
       agentNodes
       agentTargets
       agentScrapeMap
+      desktopNodes
+      desktopScrapeMap
       isDesktop
       catppuccinInput
       sopsNixInput
