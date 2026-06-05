@@ -48,6 +48,8 @@ in
   }
   // lib.optionalAttrs (options.catppuccin ? autoEnable) {
     autoEnable = true;
+    # Prevent warning from home-manager option rename until catppuccin catches up
+    gemini-cli.enable = false;
   };
 
   ##########################################################################
