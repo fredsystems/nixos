@@ -70,7 +70,11 @@
     ---- HOST: DAYTONA
     --------------------
 
-    hl.monitor({ output = "", mode = "highres", position = "auto", scale = 1 })
+    hl.monitor({ output = "", mode = "highres", position = "auto-left", scale = 1 })
+
+    -- Swap external monitor position dynamically
+    hl.bind("SUPER + ALT + left",  hl.dsp.exec_cmd("hyprctl eval 'hl.monitor({ output = \"\", mode = \"highres\", position = \"auto-left\", scale = 1 })'"))
+    hl.bind("SUPER + ALT + right", hl.dsp.exec_cmd("hyprctl eval 'hl.monitor({ output = \"\", mode = \"highres\", position = \"auto-right\", scale = 1 })'"))
 
     local scripts = os.getenv("HOME") .. "/.config/hyprextra/scripts"
     hl.bind("XF86MonBrightnessUp",   hl.dsp.exec_cmd(scripts .. "/backlight.sh 64764 --inc"), { locked = true, repeating = true })
