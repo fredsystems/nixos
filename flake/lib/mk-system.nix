@@ -35,6 +35,12 @@
 #   kernelPkgsInput  = inputs.nixpkgs-kernel   (server kernel pin source;
 #                                               unused on desktops)
 #   isDesktop        = false  – gates the desktop package tree
+#   isLaptop         = false  – machine has an internal battery (laptop
+#                               chassis). Drives battery-dependent UI such
+#                               as the wayle bar battery module. Distinct
+#                               from isDesktop, which only means "runs the
+#                               desktop environment" (a desktop tower has
+#                               isDesktop = true but isLaptop = false).
 {
   inputs,
   self,
@@ -63,6 +69,7 @@
   sopsNixInput ? inputs.sops-nix,
   kernelPkgsInput ? inputs.nixpkgs-kernel,
   isDesktop ? false,
+  isLaptop ? false,
 }:
 let
   isDarwin = pkgsInput.lib.hasSuffix "darwin" system;
@@ -84,6 +91,7 @@ let
       desktopNodes
       desktopScrapeMap
       isDesktop
+      isLaptop
       catppuccinInput
       sopsNixInput
       kernelPkgsInput
