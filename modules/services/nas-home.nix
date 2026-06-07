@@ -54,18 +54,34 @@ in
         wifiCondition = if m.wifi != null then ''[ "$SSID" = "${m.wifi}" ]'' else "true";
 
         scriptFile = pkgs.writeShellScript "nas-bookmark-${lib.replaceStrings [ "/" ] [ "-" ] m.path}" ''
+          set -u
           BOOKMARK="$HOME/.config/gtk-3.0/bookmarks"
           mkdir -p "$(dirname "$BOOKMARK")"
+          touch "$BOOKMARK"
 
           SSID="$(${cfg.wifiDetectionCmd})"
 
-          if ${wifiCondition}; then
-            if ! grep -Fxq "${bookmarkLine}" "$BOOKMARK" 2>/dev/null; then
-              echo "${bookmarkLine}" >> "$BOOKMARK"
+          # Idempotent reconcile: always strip every existing copy of this
+          # bookmark line first, then add back exactly one when the wifi
+          # condition holds. The previous "append unless grep finds it"
+          # approach could not self-heal duplicates that had already
+          # accumulated (a missing guard in an earlier revision left
+          # ~/.config/gtk-3.0/bookmarks with hundreds of repeated NAS
+          # entries, which crashed gThumb's bookmark loader in memmove).
+          #
+          # One oneshot runs per mount and they all rewrite this single file,
+          # so a lock serialises them (read-modify-write would otherwise race,
+          # with the last `mv` clobbering a sibling's just-added line). The
+          # rewrite via a temp file keeps each update atomic.
+          exec ${pkgs.util-linux}/bin/flock "$BOOKMARK.lock" ${pkgs.bash}/bin/bash -c '
+            BOOKMARK="$1"; line="$2"; want="$3"
+            tmp="$(mktemp "$BOOKMARK.XXXXXX")"
+            grep -Fxv "$line" "$BOOKMARK" > "$tmp" 2>/dev/null || true
+            if [ "$want" = "1" ]; then
+              echo "$line" >> "$tmp"
             fi
-          else
-            sed -i "\|${bookmarkLine}|d" "$BOOKMARK" 2>/dev/null || true
-          fi
+            mv "$tmp" "$BOOKMARK"
+          ' bash "$BOOKMARK" "${bookmarkLine}" "$(if ${wifiCondition}; then echo 1; else echo 0; fi)"
         '';
       in
       acc
