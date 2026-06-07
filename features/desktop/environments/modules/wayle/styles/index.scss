@@ -1,0 +1,52 @@
+/*
+ * Wayle custom styles -- layered on top of the built-in stylesheet.
+ *
+ * Dynamic per-state colouring for the NixOS config-state pill. The custom
+ * module's command emits a `class` per state (reboot | updates | clean); wayle
+ * stamps that class onto the module's outer box and the inner icon container.
+ * The GTK inspector tree for the module is:
+ *
+ *   box .custom.horizontal.module.nixos-state-pill.<state>   <- unique + state
+ *     menubutton .bar-button.block-prefix.icon-only
+ *       button .toggle
+ *         box .horizontal
+ *           contents
+ *             box .bar-button-content.horizontal
+ *               box .horizontal.icon-container.<state>        <- THE PILL
+ *
+ * SPECIFICITY: wayle's built-in stylesheet already paints the pill with
+ *   `menubutton.bar-button.block-prefix.icon-only .icon-container`
+ * (specificity 0,4,2). A plain `.nixos-state-pill.<state> .icon-container`
+ * (0,3,0) LOSES to it on source order, so the colour never changes -- this is
+ * why the inline GTK custom-CSS editor worked (it loads at PRIORITY_USER, which
+ * beats specificity) but this file did not (it is merged at the app's own
+ * priority, so it is a pure specificity fight).
+ *
+ * The fix is to out-specify wayle's rule: anchor on our unique outer class AND
+ * reproduce wayle's full button chain. That yields 0,6,2 and wins cleanly with
+ * no `!important` (GTK4's parser rejects `!important` here anyway).
+ *
+ * Scoped under our unique `.nixos-state-pill` class, so no bleed into other
+ * modules -- including wayle's built-in `updates` module.
+ *
+ * Colours are Catppuccin Mocha: red (reboot), peach (behind upstream /
+ * non-main branch), green (clean / up to date).
+ */
+
+.nixos-state-pill.reboot
+  menubutton.bar-button.block-prefix.icon-only
+  .icon-container {
+  background-color: #f38ba8;
+}
+
+.nixos-state-pill.updates
+  menubutton.bar-button.block-prefix.icon-only
+  .icon-container {
+  background-color: #fab387;
+}
+
+.nixos-state-pill.clean
+  menubutton.bar-button.block-prefix.icon-only
+  .icon-container {
+  background-color: #a6e3a1;
+}

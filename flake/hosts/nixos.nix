@@ -26,6 +26,7 @@
   Daytona = self.lib.mkSystem {
     hostName = "daytona";
     isDesktop = true;
+    isLaptop = true;
     hmModules = [
       ../../hosts/linux/daytona/home.nix
       freminal.homeManagerModules.default
