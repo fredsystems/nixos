@@ -29,6 +29,7 @@ in
           "wheel"
           "docker"
           "wireshark"
+          "input"
         ];
 
         packages = with pkgs; [
@@ -50,6 +51,7 @@ in
           "wheel"
           "docker"
           "wireshark"
+          "input"
         ];
         packages = with pkgs; [
           gh
