@@ -51,23 +51,13 @@ in
               ];
             }
 
-            # Wallpaper
+            # Wayle desktop shell (bar, OSD, notifications, wallpaper)
             {
               command = [
                 "systemctl"
                 "--user"
                 "restart"
-                "hyprpaper"
-              ];
-            }
-
-            # Fred Bar
-            {
-              command = [
-                "systemctl"
-                "--user"
-                "restart"
-                "fredbar"
+                "wayle"
               ];
             }
 
@@ -399,29 +389,35 @@ in
 
             "XF86AudioRaiseVolume".action = {
               spawn = [
-                "~/.config/hyprextra/scripts/volume.sh"
-                "--inc"
+                "wayle"
+                "audio"
+                "output-volume"
+                "+5"
               ];
             };
 
             "XF86AudioLowerVolume".action = {
               spawn = [
-                "~/.config/hyprextra/scripts/volume.sh"
-                "--dec"
+                "wayle"
+                "audio"
+                "output-volume"
+                "-5"
               ];
             };
 
             "XF86AudioMute".action = {
               spawn = [
-                "~/.config/hyprextra/scripts/volume.sh"
-                "--toggle"
+                "wayle"
+                "audio"
+                "output-mute"
               ];
             };
 
             "XF86AudioMicMute".action = {
               spawn = [
-                "~/.config/hyprextra/scripts/volume.sh"
-                "--toggle-mic"
+                "wayle"
+                "audio"
+                "input-mute"
               ];
             };
 

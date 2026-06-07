@@ -117,9 +117,6 @@ in
         # System tray support
         libappindicator-gtk3
 
-        # Wallpaper
-        hyprpaper
-
         # Misc Wayland utilities
         wev
 
@@ -170,10 +167,6 @@ in
 
       programs.hyprlock.enable = true;
 
-      # ── Wallpaper (hyprpaper) ──────────────────────────────────────────────
-      # Shared hyprpaper config for both Hyprland and Niri.
-      # Cycles through ~/Pictures/Background every 5 minutes in random order.
-      #
       # ── Idle management (hypridle) ─────────────────────────────────────────
       # Single shared hypridle definition for both Hyprland and Niri.
       # DPMS on/off is delegated to dpms.sh, which probes the active compositor
@@ -192,37 +185,6 @@ in
               {
                 time = "18:00";
                 temperature = 5000;
-              }
-            ];
-          };
-        };
-
-        hyprpaper = {
-          enable = true;
-          settings = {
-            splash = false;
-            ipc = true;
-            wallpaper = [
-              {
-                monitor = "";
-                path = "~/Pictures/Background";
-                fit_mode = "cover";
-                timeout = 300;
-                # Walk subdirectories so the source-attributed layout
-                # ($out/share/backgrounds/{orangci,catppuccin,daylin,
-                # cozypixels}/...) populated by the catppuccin-wallpapers
-                # derivation is fully cycled.
-                recursive = true;
-                # Shuffle the resolved file list once at load.  Without
-                # this, hyprpaper steps through the directory in
-                # filesystem iteration order, which on a deep tree
-                # means a single leaf subdir dominates rotation for
-                # many hours before any other subtree is reached.
-                # Note: hyprpaper has a hard-coded cap of 1024 images
-                # per wallpaper entry (see ConfigManager.cpp
-                # `maxImagesCount`); files past that point are dropped
-                # regardless of order.
-                order = "random";
               }
             ];
           };

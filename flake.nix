@@ -119,12 +119,6 @@
     };
 
     # CI: desktop
-    fredbar = {
-      url = "github:FredSystems/fred-bar";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
-    # CI: desktop
     solaar = {
       url = "github:Svenum/Solaar-Flake";
       inputs.nixpkgs.follows = "nixpkgs";

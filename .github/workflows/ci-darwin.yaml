@@ -148,7 +148,6 @@ jobs:
               [catppuccin-stable]="skip"
               [sops-nix-stable]="skip"
               [niri]="skip"
-              [fredbar]="skip"
               [solaar]="skip"
               [walls-catppuccin]="skip"
               [walls-zhichaoh]="skip"

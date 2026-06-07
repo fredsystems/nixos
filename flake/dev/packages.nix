@@ -33,8 +33,8 @@ in
       };
     in
     # The aggregate wallpaper bundle is a Linux-desktop-only asset
-    # (consumed by hyprpaper).  Skip it on Darwin so the 1.4 GB closure
-    # is never built or surfaced there.
+    # (consumed by the wayle wallpaper engine).  Skip it on Darwin so the
+    # 1.4 GB closure is never built or surfaced there.
     lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
       # Aggregate catppuccin wallpaper collection.
       #
@@ -49,8 +49,8 @@ in
       #   cozypixels/   - SleepyCatHey/CozyPixels Catppuccin/ subtree
       #                   (subdirs renamed to remove spaces & ampersands)
       #
-      # Consumers (e.g. hyprpaper) must enable recursive scanning to
-      # walk into the source-attributed subdirectories.
+      # Consumers (e.g. the wayle wallpaper engine) cycle the directory
+      # recursively to reach the source-attributed subdirectories.
       catppuccin-wallpapers = pkgs.stdenvNoCC.mkDerivation {
         pname = "catppuccin-wallpapers";
         version = "2026-05-05";
@@ -120,7 +120,7 @@ in
             fi
           done < <(find "$out_bg/cozypixels" -mindepth 1 -maxdepth 1 -type d -print0)
           # Normalise file extensions: upstream contains DOS-truncated
-          # ".WEB" files (real WebP images) which hyprpaper's extension
+          # ".WEB" files (real WebP images) which an extension-based image
           # filter would skip.  Rename to lowercase ".webp".
           find "$out_bg/cozypixels" -type f -name '*.WEB' -print0 \
             | while IFS= read -r -d "" f; do

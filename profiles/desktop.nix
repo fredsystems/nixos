@@ -79,6 +79,8 @@
       services = {
         blueman.enable = true;
 
+        power-profiles-daemon.enable = true;
+
         solaar = {
           enable = true;
           package = pkgs.solaar;
