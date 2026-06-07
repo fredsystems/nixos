@@ -2,7 +2,9 @@
 
 # shellcheck disable=SC2035
 
-iDIR="$HOME/.config/hyprextra/icons"
+# Brightness changes are surfaced by wayle's built-in transient OSD, which
+# observes the backlight sysfs node directly, so this script only performs
+# the change (no notify-send).
 
 # Get brightness
 get_backlight() {
@@ -10,44 +12,14 @@ get_backlight() {
     echo "${LIGHT}"
 }
 
-# Get icons
-get_icon() {
-    current="$(cat /sys/class/leds/*::kbd_backlight/brightness)"
-
-    if [[ ("$current" -ge "0") && ("$current" -le "1") ]]; then
-        icon="$iDIR/brightness-20.png"
-    elif [[ ("$current" -ge "1") && ("$current" -le "2") ]]; then
-        icon="$iDIR/brightness-60.png"
-    elif [[ ("$current" -ge "2") && ("$current" -le "3") ]]; then
-        icon="$iDIR/brightness-100.png"
-    fi
-}
-
-# Notify
-notify_user() {
-    bright=$(brightnessctl -d '*::kbd_backlight' g)
-    if [[ "$bright" -eq 0 ]]; then
-        icon="$iDIR/brightness-0.png"
-        bright="0%"
-    elif [[ "$bright" -eq 1 ]]; then
-        icon="$iDIR/brightness-40.png"
-        bright="50%"
-    else
-        icon="$iDIR/brightness-100.png"
-        bright="100%"
-    fi
-
-    notify-send -h string:x-canonical-private-synchronous:sys-notify -u low -i "$icon" "Keyboard Brightness : $bright"
-}
-
 # Increase brightness
 inc_backlight() {
-    brightnessctl -d *::kbd_backlight set 33%+ && get_icon && notify_user
+    brightnessctl -d *::kbd_backlight set 33%+
 }
 
 # Decrease brightness
 dec_backlight() {
-    brightnessctl -d *::kbd_backlight set 33%- && get_icon && notify_user
+    brightnessctl -d *::kbd_backlight set 33%-
 }
 
 # Zero brightness

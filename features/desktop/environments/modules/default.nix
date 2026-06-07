@@ -11,7 +11,7 @@ in
     enable = lib.mkEnableOption "Hyprland/Niri desktop modules";
   };
   imports = [
-    ./fredbar
+    ./wayle
     ./clipboard
     ./hyprlandextra
     ./pamixer
@@ -20,7 +20,7 @@ in
 
   config = lib.mkIf cfg.enable {
     desktop.environments.modules = {
-      fredbar.enable = true;
+      wayle.enable = true;
       clipboard.enable = true;
       hyprlandextra.enable = true;
       pamixer.enable = true;

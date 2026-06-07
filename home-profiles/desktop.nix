@@ -1,7 +1,6 @@
 {
   user,
   config,
-  inputs,
   lib,
   ...
 }:
@@ -10,7 +9,6 @@ let
 in
 {
   imports = [
-    inputs.fredbar.homeManagerModules.fredbar
     ../modules/data/sync-hosts.nix
     ../modules/data/nas-mounts.nix
     ../modules/services/sync-compose.nix

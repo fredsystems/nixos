@@ -3,7 +3,6 @@
   config,
   user,
   extraUsers ? [ ],
-  pkgs,
   ...
 }:
 let
@@ -17,23 +16,10 @@ in
 
   config = lib.mkIf cfg.enable {
     home-manager.users = lib.genAttrs allUsers (_: {
-      systemd.user.services.caffeine-inhibit = {
-        Unit = {
-          Description = "Caffeine idle inhibitor";
-        };
-
-        Service = {
-          Type = "simple";
-          ExecStart = ''
-            ${pkgs.systemd}/bin/systemd-inhibit \
-              --what=idle:sleep \
-              --who=caffeine \
-              --why=User-requested-stay-awake \
-              ${pkgs.coreutils}/bin/sleep infinity
-          '';
-        };
-      };
-
+      # Idle inhibition is now handled by wayle's built-in inhibitor
+      # (`wayle idle toggle --indefinite`, bound in the Hyprland keybinds and
+      # surfaced by the bar's idle-inhibit module), so the previous
+      # systemd-inhibit "caffeine" service is no longer needed.
       home.file.".config/hyprextra/" = {
         source = ./hyprextra;
         recursive = true;

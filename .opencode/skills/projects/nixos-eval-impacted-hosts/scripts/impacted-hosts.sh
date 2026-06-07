@@ -107,7 +107,6 @@ declare -A INPUT_CATEGORY=(
   [home-manager]="desktop"
   [catppuccin]="desktop"
   [niri]="desktop"
-  [fredbar]="desktop"
   [freminal]="desktop"
   [solaar]="desktop"
   [apple-fonts]="desktop"
