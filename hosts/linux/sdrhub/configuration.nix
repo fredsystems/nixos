@@ -472,7 +472,7 @@ in
       ###############################################################
       {
         name = "rbfeeder";
-        image = "ghcr.io/sdr-enthusiasts/docker-airnavradar:latest-build-875@sha256:3ce493faeaabdd0eb3097420f9b8e72c9c8b5ce8bbabf8ac7ceb7093fcdb214f";
+        image = "ghcr.io/sdr-enthusiasts/docker-airnavradar:latest-build-877@sha256:bcd5bbb7cee6d52ed1a4bb7d15102daaadcddba1d4f5ea851ac7607d555cf0c3";
 
         restart = "always";
         tty = false;
