@@ -49,8 +49,13 @@ in
       #   cozypixels/   - SleepyCatHey/CozyPixels Catppuccin/ subtree
       #                   (subdirs renamed to remove spaces & ampersands)
       #
-      # Consumers (e.g. the wayle wallpaper engine) cycle the directory
-      # recursively to reach the source-attributed subdirectories.
+      # The source-attributed subdir tree is the browsable, human-facing
+      # layout.  In addition we materialise a FLAT directory at
+      # $out/share/backgrounds-flat/ containing every image copied to the
+      # top level with a collision-safe `<source>-<relpath>` name.  The
+      # wayle wallpaper engine's cycler scans its cycling-directory
+      # NON-recursively (fs::read_dir, not WalkDir), so pointing it at the
+      # nested tree finds zero images; it must be pointed at the flat dir.
       catppuccin-wallpapers = pkgs.stdenvNoCC.mkDerivation {
         pname = "catppuccin-wallpapers";
         version = "2026-05-05";
@@ -147,6 +152,26 @@ in
           find "$out_bg/daylin" -type f -name '*.png.gz' -print0 \
             | while IFS= read -r -d "" f; do
                 gunzip -f "$f"
+              done
+
+          ##################################################################
+          # 5. Flat mirror for the wayle wallpaper cycler.
+          #    wayle scans its cycling-directory non-recursively, so it
+          #    cannot see images nested under the source-attributed subdirs
+          #    above.  Copy every image into one flat directory with a
+          #    collision-safe name derived from its path relative to
+          #    backgrounds/ (slashes -> hyphens).  e.g.
+          #      catppuccin/waves/foo.png -> catppuccin-waves-foo.png
+          ##################################################################
+          out_flat="$out/share/backgrounds-flat"
+          mkdir -p "$out_flat"
+          find "$out_bg" -type f \
+            \( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' \
+               -o -iname '*.webp' -o -iname '*.gif' \) -print0 \
+            | while IFS= read -r -d "" img; do
+                rel="''${img#"$out_bg"/}"
+                flat="''${rel//\//-}"
+                cp "$img" "$out_flat/$flat"
               done
 
           runHook postInstall

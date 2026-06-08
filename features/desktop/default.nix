@@ -41,6 +41,7 @@ in
     ./multiviewer
     ./music
     ./obs
+    ./pinta
     ./print
     ./sqlitebrowser
     ./steam
@@ -84,6 +85,7 @@ in
       yubikey.enable = true;
       thunderbird.enable = true;
       freminal.enable = true;
+      pinta.enable = true;
       music.enable = cfg.enable_extra;
       appimage.enable = cfg.enable_extra;
       discord.enable = cfg.enable_extra;
