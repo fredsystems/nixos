@@ -333,7 +333,7 @@ in
       ###############################################################
       {
         name = "adsbhub";
-        image = "ghcr.io/sdr-enthusiasts/docker-adsbhub:latest-build-523@sha256:5b226741a35c7daf8f1ab1ffb7afa65ec60bb06c5a12710085ca738c7d4b5b58";
+        image = "ghcr.io/sdr-enthusiasts/docker-adsbhub:latest-build-525@sha256:3b4ff1165b8755e3477f6f8534d0cc11e226e5555df217218d20480fcffcd60d";
 
         restart = "always";
         tty = true;
