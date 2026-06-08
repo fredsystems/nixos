@@ -1073,11 +1073,11 @@
         "utils": "utils"
       },
       "locked": {
-        "lastModified": 1779643441,
-        "narHash": "sha256-Rav0sNMoPVp5r7sdyfBDHLNzaqkDCfkXJhlggJ2BZ0A=",
+        "lastModified": 1780933184,
+        "narHash": "sha256-xuqVsDmJf7fhj9Khn1EKDIfhHZ4C7cA6nWVyN1yGlgk=",
         "owner": "Svenum",
         "repo": "Solaar-Flake",
-        "rev": "9535b8870343c54e2c08228949e2377e1fd9bbd7",
+        "rev": "55fe232b6762aada1d12e8cf7d5307004048e3c2",
         "type": "github"
       },
       "original": {
@@ -1238,17 +1238,17 @@
         "flake-utils": "flake-utils_6"
       },
       "locked": {
-        "lastModified": 1738591040,
-        "narHash": "sha256-4WNeriUToshQ/L5J+dTSWC5OJIwT39SEP7V7oylndi8=",
+        "lastModified": 1779563444,
+        "narHash": "sha256-+rEagECcF6BhWfLs8VCkPqsBuxxSSIRxMlgjXj6G8UQ=",
         "owner": "gytis-ivaskevicius",
         "repo": "flake-utils-plus",
-        "rev": "afcb15b845e74ac5e998358709b2b5fe42a948d1",
+        "rev": "a00f6f51907b5c74d2fde086b10b19d446d15717",
         "type": "github"
       },
       "original": {
         "owner": "gytis-ivaskevicius",
         "repo": "flake-utils-plus",
-        "rev": "afcb15b845e74ac5e998358709b2b5fe42a948d1",
+        "rev": "a00f6f51907b5c74d2fde086b10b19d446d15717",
         "type": "github"
       }
     },
