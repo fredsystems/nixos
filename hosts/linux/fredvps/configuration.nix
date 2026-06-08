@@ -182,7 +182,7 @@
       ###############################################################
       {
         name = "acars_router";
-        image = "ghcr.io/sdr-enthusiasts/acars_router:latest-build-577@sha256:d3f993fc829f247b1e56a3454ce4ff55c8a64904379b98e072b26b822f6fb1b1";
+        image = "ghcr.io/sdr-enthusiasts/acars_router:latest-build-582@sha256:3d71d414a990a6dd04b8badd5042a33b43dd6ebe31a82b4a29ae28086e6a24f1";
 
         environmentFiles = [
           config.sops.secrets."docker/fredvps/acars_router.env".path
