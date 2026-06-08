@@ -377,7 +377,7 @@ in
       ###############################################################
       {
         name = "piaware";
-        image = "ghcr.io/sdr-enthusiasts/docker-piaware:latest-build-660@sha256:4eef4dcc01c6eac8e1fe81abe9e0294f28de3fdf6e445b28c02b97a603ee7b36";
+        image = "ghcr.io/sdr-enthusiasts/docker-piaware:latest-build-661@sha256:c8121c209df76e63151b2e428f64f41f48e61c101afa7b146184b72b361e8897";
 
         hostname = "piaware";
         restart = "always";
