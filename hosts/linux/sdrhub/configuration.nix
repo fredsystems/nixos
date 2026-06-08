@@ -402,7 +402,7 @@ in
       ###############################################################
       {
         name = "planefinder";
-        image = "ghcr.io/sdr-enthusiasts/docker-planefinder:latest-build-534@sha256:9a16fe8fae77ae7d5760fd35dbeaca88cdd69496f8678533f798be69a219ca01";
+        image = "ghcr.io/sdr-enthusiasts/docker-planefinder:latest-build-536@sha256:5f0ed13e22c27f6868ff7b25d3d7eb64ad7fe4b9f487623c754b6f62c00dca62";
 
         restart = "always";
         tty = true;
