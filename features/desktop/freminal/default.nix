@@ -37,6 +37,9 @@ in
           cursor = {
             trail = true;
           };
+          keybindings = {
+            fold_previous_command = "Ctrl+Shift+S";
+          };
         };
       };
     });
