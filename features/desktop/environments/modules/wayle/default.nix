@@ -4,7 +4,6 @@
   pkgs,
   user,
   extraUsers ? [ ],
-  inputs,
   isLaptop ? false,
   ...
 }:
@@ -12,20 +11,95 @@ let
   allUsers = [ user ] ++ extraUsers;
   cfg = config.desktop.environments.modules.wayle;
 
-  # Wayle 0.6.0 lives in nixpkgs-stable (26.05); the unstable nixpkgs this
-  # desktop otherwise tracks is still on 0.4.1, whose config schema differs.
-  # The services.wayle home-manager module is byte-for-byte identical between
-  # the unstable and stable home-manager inputs, so we keep the active
-  # (unstable) module and only override the package to the 0.6.0 build.
+  # ── Compositor-aware session actions for the dashboard dropdown ─────────
+  # wayle is compositor-agnostic and its dashboard dropdown runs static
+  # shell commands (`sh -c`). But a correct logout/reboot/poweroff differs by
+  # compositor:
   #
-  # TODO(wayle-unstable): This pulls wayle from nixpkgs-stable purely as a
-  # bridge until nixpkgs-unstable advances to >= 0.6.0 (NixOS PR #526419
-  # landed in 26.05 but has not yet reached the unstable channel this flake
-  # pins). Once unstable carries 0.6.0+, drop this override and let wayle come
-  # from the desktop's normal `pkgs`. Deliberately NOT recategorizing
-  # nixpkgs-stable from `server` -> `global` in CI for this temporary window;
-  # the override is expected to be removed on the next unstable bump.
-  waylePackage = inputs.nixpkgs-stable.legacyPackages.${pkgs.stdenv.hostPlatform.system}.wayle;
+  #   * Hyprland: use `hyprshutdown`, which gracefully asks every app to
+  #     close (and waits) before quitting the compositor, rather than letting
+  #     apps die when Hyprland exits. For reboot/poweroff it runs the
+  #     `systemctl` command via `--post-cmd` *after* the graceful exit, so the
+  #     machine only reboots once apps have cleanly shut down.
+  #   * Niri: `niri msg action quit` cleanly exits the session (and shows
+  #     niri's own confirmation dialog). Reboot/poweroff just call `systemctl`
+  #     directly; the session teardown closes apps.
+  #
+  # Each action is a single dispatch script that detects the running
+  # compositor at runtime ($NIRI_SOCKET when niri is up,
+  # $HYPRLAND_INSTANCE_SIGNATURE when Hyprland is up) so the same wayle config
+  # works on both. hyprshutdown is referenced by bare name (it is installed by
+  # the hyprland module and only present in a Hyprland session); niri is
+  # pinned to its store path.
+  #
+  # hyprshutdown MUST be launched detached from wayle's process tree. wayle's
+  # bar is a layer-shell surface, so hyprshutdown's "close every app" pass
+  # SIGTERMs wayle's own PID. If hyprshutdown is a descendant of wayle (it is,
+  # when wayle spawns the dropdown command via `sh -c`), killing wayle tears
+  # hyprshutdown down with it — before its GUI renders or it issues
+  # `/dispatch exit`. The symptom is exactly "apps close but the compositor
+  # just sits there, and running hyprshutdown by hand works" (a hand-launched
+  # hyprshutdown is not a wayle descendant). `systemd-run --user --scope` runs
+  # hyprshutdown in its own transient scope, fully decoupled from wayle's
+  # process tree and signal propagation, so it survives wayle being killed and
+  # runs to completion (GUI, Hyprland exit, and --post-cmd).
+  niriBin = lib.getExe pkgs.niri;
+  systemdRun = "${pkgs.systemd}/bin/systemd-run";
+  detectCompositor = ''
+    # Returns: prints "hyprland", "niri", or "unknown".
+    detect_compositor() {
+      if [ -n "''${HYPRLAND_INSTANCE_SIGNATURE:-}" ]; then
+        echo hyprland
+      elif [ -n "''${NIRI_SOCKET:-}" ]; then
+        echo niri
+      else
+        case "''${XDG_CURRENT_DESKTOP:-}" in
+          *Hyprland*) echo hyprland ;;
+          *niri*) echo niri ;;
+          *) echo unknown ;;
+        esac
+      fi
+    }
+  '';
+
+  sessionLogout = pkgs.writeShellApplication {
+    name = "wayle-session-logout";
+    # hyprshutdown is intentionally not in runtimeInputs: it is a Hyprland-
+    # only tool installed by the hyprland module and resolved from PATH only
+    # inside a Hyprland session.
+    text = ''
+      ${detectCompositor}
+      case "$(detect_compositor)" in
+        hyprland) exec ${systemdRun} --user --scope --quiet hyprshutdown --no-fork ;;
+        niri)     exec ${niriBin} msg action quit ;;
+        *)        echo "wayle-session-logout: unknown compositor" >&2; exit 1 ;;
+      esac
+    '';
+  };
+
+  sessionReboot = pkgs.writeShellApplication {
+    name = "wayle-session-reboot";
+    text = ''
+      ${detectCompositor}
+      case "$(detect_compositor)" in
+        hyprland) exec ${systemdRun} --user --scope --quiet hyprshutdown --no-fork -t 'Restarting…' --post-cmd 'systemctl reboot' ;;
+        niri)     exec systemctl reboot ;;
+        *)        exec systemctl reboot ;;
+      esac
+    '';
+  };
+
+  sessionPoweroff = pkgs.writeShellApplication {
+    name = "wayle-session-poweroff";
+    text = ''
+      ${detectCompositor}
+      case "$(detect_compositor)" in
+        hyprland) exec ${systemdRun} --user --scope --quiet hyprshutdown --no-fork -t 'Shutting down…' --post-cmd 'systemctl poweroff' ;;
+        niri)     exec systemctl poweroff ;;
+        *)        exec systemctl poweroff ;;
+      esac
+    '';
+  };
 
   # ── NixOS config state indicator (ports fred-bar's waybar-updates.sh) ──
   # Reports, in priority order: a pending reboot (/run/reboot-required), a
@@ -158,11 +232,16 @@ in
 
     wallpaperDirectory = lib.mkOption {
       type = lib.types.str;
-      default = "/home/${user}/Pictures/Background";
+      default = "/home/${user}/Pictures/Background-flat";
       description = ''
         Directory the wayle wallpaper engine cycles through. Populated by the
         catppuccin-wallpapers derivation, symlinked in
         features/desktop/environments/default.nix.
+
+        This MUST be the flat mirror (Background-flat), not the browsable
+        Background tree: wayle's cycler scans its cycling-directory
+        non-recursively (fs::read_dir), so a directory of subdirectories
+        yields zero wallpapers and cycling silently does nothing.
       '';
     };
   };
@@ -188,7 +267,6 @@ in
 
       services.wayle = {
         enable = true;
-        package = waylePackage;
 
         settings = {
           # ── Shell-wide fonts ────────────────────────────────────────────
@@ -210,7 +288,10 @@ in
           # engine-enabled = true pulls in services.awww (the swww-derived
           # backend) automatically via the home-manager module. Cycling
           # mirrors the previous hyprpaper behaviour: shuffle the
-          # ~/Pictures/Background tree, advance every 5 minutes.
+          # ~/Pictures/Background-flat directory, advance every 5 minutes.
+          # The flat directory is required: wayle's cycler reads its
+          # cycling-directory non-recursively, so the nested Background tree
+          # would yield zero images.
           wallpaper = {
             engine-enabled = true;
             cycling-enabled = true;
@@ -283,6 +364,20 @@ in
           };
 
           modules = {
+            # ── Dashboard dropdown (lock / logout / reboot / poweroff) ────
+            # wayle's dropdown actions are static shell commands. Point the
+            # session actions at the compositor-aware dispatch scripts so
+            # logout/reboot/poweroff do the right thing under both Hyprland
+            # (graceful hyprshutdown) and niri (niri msg action quit /
+            # systemctl). Lock stays the generic loginctl call, which works
+            # everywhere. See the script definitions in the `let` block.
+            dashboard = {
+              dropdown-lock-command = "loginctl lock-session";
+              dropdown-logout-command = lib.getExe sessionLogout;
+              dropdown-reboot-command = lib.getExe sessionReboot;
+              dropdown-poweroff-command = lib.getExe sessionPoweroff;
+            };
+
             # ── Clock (24h with seconds, matching fredbar) ────────────────
             clock = {
               format = "%H:%M:%S";

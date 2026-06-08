@@ -26,6 +26,15 @@ in
       xwayland.enable = true;
     };
 
+    # hyprshutdown: graceful Hyprland exit utility. It asks each running app
+    # to close (and waits) before quitting the compositor, instead of letting
+    # apps die when the compositor exits. The wayle dashboard dropdown's
+    # logout/reboot/poweroff actions dispatch to it on Hyprland (see the
+    # compositor-aware wrappers in the wayle module). Reboot/poweroff use its
+    # `--post-cmd` to run `systemctl reboot`/`poweroff` after the graceful
+    # exit completes.
+    environment.systemPackages = [ pkgs.hyprshutdown ];
+
     # xdg-desktop-portal-hyprland segfaults when Hyprland exits (a bug in xdph
     # itself), then restarts 6 times in rapid succession against a dead
     # compositor and hits the burst limit — leaving it permanently dead for the

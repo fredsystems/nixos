@@ -82,7 +82,14 @@ in
     };
 
     home-manager.users = lib.genAttrs allUsers (_: {
+      # Browsable, source-attributed tree (orangci/, catppuccin/<cat>/, …).
       home.file."Pictures/Background".source = "${catppuccinWallpapers}/share/backgrounds";
+      # Flat mirror: every image at the top level with a collision-safe name.
+      # The wayle wallpaper cycler scans its cycling-directory
+      # non-recursively, so it must point here rather than at the nested
+      # Background tree (see flake/dev/packages.nix). Kept as a sibling so
+      # the attributed tree above stays human-browsable.
+      home.file."Pictures/Background-flat".source = "${catppuccinWallpapers}/share/backgrounds-flat";
     });
   };
 }
