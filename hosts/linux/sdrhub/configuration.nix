@@ -178,6 +178,8 @@ in
           "@@||controlplane.tailscale.com^"
           "@@||log.tailscale.io^"
           "@@||tailc21fc7.ts.net^"
+          "@@||protonvpn.net"
+          "@@||protonvpn.com"
         ];
 
         filters =
