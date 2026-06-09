@@ -64,7 +64,7 @@
 
     # CI: desktop
     apple-fonts = {
-      url = "github:Lyndeno/apple-fonts.nix";
+      url = "github:Lyndeno/apple-fonts.nix/pull/36/head";
     };
 
     # CI: desktop
