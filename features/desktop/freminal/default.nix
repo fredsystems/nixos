@@ -40,6 +40,9 @@ in
           keybindings = {
             fold_previous_command = "Ctrl+Shift+S";
           };
+          notifications = {
+            enabled = true;
+          };
         };
       };
     });
