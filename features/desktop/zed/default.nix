@@ -90,6 +90,7 @@ in
           "sql"
           "log"
           "fish"
+          "glsl"
         ];
         mutableUserSettings = false;
         userSettings = {
