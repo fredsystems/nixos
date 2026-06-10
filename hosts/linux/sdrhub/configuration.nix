@@ -465,7 +465,10 @@ in
         ];
 
         volumes = [
+          "/opt/adsb/data/radarvirtuel:/data:rw"
+          "/opt/adsb/data/fake_cpuinfo:/proc/cpuinfo:ro"
           "/etc/localtime:/etc/localtime:ro"
+          "/etc/timezone:/etc/timezone:ro"
         ];
       }
 
