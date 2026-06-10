@@ -70,7 +70,7 @@
     ---- HOST: DAYTONA
     --------------------
 
-    hl.monitor({ output = "", mode = "highres", position = "auto-left", scale = 1 })
+    hl.monitor({ output = "", mode = "highres", position = "auto-right", scale = 1 })
 
     -- Swap external monitor position dynamically
     hl.bind("SUPER + ALT + left",  hl.dsp.exec_cmd("hyprctl eval 'hl.monitor({ output = \"\", mode = \"highres\", position = \"auto-left\", scale = 1 })'"))
