@@ -48,6 +48,15 @@ in
   }
   // lib.optionalAttrs (options.catppuccin ? autoEnable) {
     autoEnable = true;
+  }
+  // lib.optionalAttrs (options.catppuccin ? gemini-cli) {
+    # home-manager renamed `programs.gemini-cli` to `programs.antigravity-cli`.
+    # The release-25.11 catppuccin input used by server hosts still ships the
+    # `gemini-cli` module, which sets the renamed option and trips an
+    # "option has been renamed" evaluation warning (fatal in CI). Disable it
+    # where the option still exists; unstable catppuccin dropped the module
+    # entirely, so the guard keeps this from breaking desktop/darwin builds.
+    gemini-cli.enable = false;
   };
 
   ##########################################################################
