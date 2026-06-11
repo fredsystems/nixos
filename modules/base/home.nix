@@ -12,6 +12,20 @@
 let
   isLinux = !isDarwin;
 
+  # home-manager renamed `programs.gemini-cli` to `programs.antigravity-cli`.
+  # The release-25.11 catppuccin input (server hosts) still ships a functional
+  # `gemini-cli` module that sets the now-renamed `programs.gemini-cli` option,
+  # tripping a fatal "option has been renamed" evaluation warning. Setting
+  # `catppuccin.gemini-cli.enable = false` suppresses it there. The unstable
+  # catppuccin input (desktop/darwin) replaced that module with a
+  # `mkRemovedOptionModule` stub, so *defining* the option there is a fatal
+  # assertion. Detect which variant is present by reading the module source:
+  # the functional module references `programs.gemini-cli`, the stub does not.
+  geminiCliModule = "${catppuccinInput}/modules/home-manager/gemini-cli.nix";
+  catppuccinHasFunctionalGeminiCli =
+    builtins.pathExists geminiCliModule
+    && lib.hasInfix "programs.gemini-cli" (builtins.readFile geminiCliModule);
+
   yubikeyMap = {
     "13380413" = "~/.ssh/id_ed25519_sk.pub";
     "35681557" = "~/.ssh/id_ed25519_sk_github.pub";
@@ -49,13 +63,10 @@ in
   // lib.optionalAttrs (options.catppuccin ? autoEnable) {
     autoEnable = true;
   }
-  // lib.optionalAttrs (options.catppuccin ? gemini-cli) {
-    # home-manager renamed `programs.gemini-cli` to `programs.antigravity-cli`.
-    # The release-25.11 catppuccin input used by server hosts still ships the
-    # `gemini-cli` module, which sets the renamed option and trips an
-    # "option has been renamed" evaluation warning (fatal in CI). Disable it
-    # where the option still exists; unstable catppuccin dropped the module
-    # entirely, so the guard keeps this from breaking desktop/darwin builds.
+  // lib.optionalAttrs catppuccinHasFunctionalGeminiCli {
+    # See `geminiCliModule` note above: only disable where the functional
+    # module exists (stable). On unstable it is a removed-option stub and
+    # defining it would be a fatal assertion.
     gemini-cli.enable = false;
   };
 
