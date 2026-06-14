@@ -526,7 +526,6 @@ in
               inlayHints = true;
               servers = {
                 bashls.enable = true;
-                norg.enable = true;
                 # Spellcheck
                 harper_ls = {
                   enable = false;
