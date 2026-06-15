@@ -54,6 +54,22 @@
         "type": "github"
       }
     },
+    "cargo-bundle-src": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1780169337,
+        "narHash": "sha256-jYSYR430gKJDcKKu+Kmc3VzpuQBvU80ydNRvJBTeFec=",
+        "owner": "burtonageo",
+        "repo": "cargo-bundle",
+        "rev": "739f92c37c789b5511a448a389cbc76fcebd99df",
+        "type": "github"
+      },
+      "original": {
+        "owner": "burtonageo",
+        "repo": "cargo-bundle",
+        "type": "github"
+      }
+    },
     "catppuccin": {
       "inputs": {
         "nixpkgs": [
@@ -353,6 +369,7 @@
     },
     "freminal": {
       "inputs": {
+        "cargo-bundle-src": "cargo-bundle-src",
         "nixpkgs": [
           "nixpkgs"
         ],
@@ -360,11 +377,11 @@
         "rust-overlay": "rust-overlay_2"
       },
       "locked": {
-        "lastModified": 1781214354,
-        "narHash": "sha256-9lzU5222W2ELRvBEwUj3O/76X3l+BPCscBe8V5WOygg=",
+        "lastModified": 1781548589,
+        "narHash": "sha256-60mBTXLBIQ1iGPbIGG91YzNWgHc/RMI7Qa2I/51IFkk=",
         "owner": "FredSystems",
         "repo": "freminal",
-        "rev": "d760f2632bd4debe53b10bc437aa9724fa8c3d9a",
+        "rev": "7a6b7b561be5b3f197e41a8a9f540aa654268cd2",
         "type": "github"
       },
       "original": {
