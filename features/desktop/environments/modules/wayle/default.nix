@@ -401,6 +401,9 @@ in
 
             window-title = {
               label-max-length = 20;
+              icon-mappings = {
+                "freminal" = "freminal";
+              };
             };
 
             media = {

@@ -19,6 +19,7 @@ in
     users.users = lib.genAttrs allUsers (_: {
       packages = with pkgs; [
         appimage-run
+        gearlever
       ];
     });
 
