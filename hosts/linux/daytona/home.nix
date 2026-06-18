@@ -45,6 +45,18 @@
           refresh = 60.0;
         };
       };
+
+      # Portable 4K monitor (15.6"): HiDPI scale, auto-positioned (no
+      # `position` key => niri places it automatically next to eDP-1).
+      "Genesys ATE Inc PM156R1-H" = {
+        scale = 1.5;
+
+        mode = {
+          width = 3840;
+          height = 2160;
+          refresh = 59.982;
+        };
+      };
     };
 
     binds = {
@@ -70,11 +82,18 @@
     ---- HOST: DAYTONA
     --------------------
 
+    -- Default for every monitor: auto-positioned, no scaling.
     hl.monitor({ output = "", mode = "highres", position = "auto-right", scale = 1 })
 
-    -- Swap external monitor position dynamically
-    hl.bind("SUPER + ALT + left",  hl.dsp.exec_cmd("hyprctl eval 'hl.monitor({ output = \"\", mode = \"highres\", position = \"auto-left\", scale = 1 })'"))
-    hl.bind("SUPER + ALT + right", hl.dsp.exec_cmd("hyprctl eval 'hl.monitor({ output = \"\", mode = \"highres\", position = \"auto-right\", scale = 1 })'"))
+    -- Portable 4K monitor (15.6"): HiDPI scale, still auto-positioned.
+    -- This specific desc: rule overrides the wildcard's scale above while
+    -- leaving placement to Hyprland's auto-right.
+    hl.monitor({ output = "desc:Genesys ATE Inc PM156R1-H", mode = "highres", position = "auto-right", scale = 1.5 })
+
+    -- Swap external monitor position dynamically. Re-apply both the wildcard
+    -- (for the position flip) and the 4K-specific rule (so its scale survives).
+    hl.bind("SUPER + ALT + left",  hl.dsp.exec_cmd("hyprctl --batch 'keyword monitor ,highres,auto-left,1 ; keyword monitor desc:Genesys ATE Inc PM156R1-H,highres,auto-left,2'"))
+    hl.bind("SUPER + ALT + right", hl.dsp.exec_cmd("hyprctl --batch 'keyword monitor ,highres,auto-right,1 ; keyword monitor desc:Genesys ATE Inc PM156R1-H,highres,auto-right,2'"))
 
     local scripts = os.getenv("HOME") .. "/.config/hyprextra/scripts"
     hl.bind("XF86MonBrightnessUp",   hl.dsp.exec_cmd(scripts .. "/backlight.sh 64764 --inc"), { locked = true, repeating = true })
