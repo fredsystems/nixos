@@ -85,7 +85,9 @@
 
     # CI: desktop
     niri = {
-      url = "github:sodiboo/niri-flake";
+      # TODO: Watch both of these url's. sodiboo is the OG, but hasn't been updated in a while
+      #url = "github:sodiboo/niri-flake";
+      url = "github:epireyn/niri-flake";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 

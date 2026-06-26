@@ -30,12 +30,14 @@ in
       substituters = [
         "http://192.168.31.14:8080/fred"
         "https://niri.cachix.org"
+        "https://niri-epireyn.cachix.org"
         "https://cache.nixos.org"
       ];
 
       trusted-public-keys = [
         "fred:JjyhvRSvKfkk8r4HS0mS5r5I7dT4GociEFbrR9OgBZ0="
         "niri.cachix.org-1:Wv0OmO7PsuocRKzfDoJ3mulSl7Z6oezYhGhR+3W2964="
+        "niri-epireyn.cachix.org-1:tlVyFN7CtsDT+ZcLPS+ekFWeT1X6X4OqvWqbBMyIzFA="
       ];
 
       trusted-users = [
