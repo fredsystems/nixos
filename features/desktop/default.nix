@@ -71,7 +71,7 @@ in
       zed.enable = true;
       onepassword.enable = true;
       sqlitebrowser.enable = true;
-      sublimetext.enable = true;
+      sublimetext.enable = false;
       wezterm.enable = true;
       alacritty.enable = true;
       stockfish.enable = true;

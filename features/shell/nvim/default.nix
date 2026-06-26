@@ -2,6 +2,7 @@
   user,
   extraUsers ? [ ],
   lib,
+  system,
   ...
 }:
 let
@@ -32,7 +33,22 @@ in
           # Allow unfree-tagged plugins (e.g. git-conflict.nvim) in nixvim's
           # internal pkgs instance. The host's nixpkgs.config does not propagate
           # to nixvim's bundled nixpkgs, so this must be set explicitly here.
-          nixpkgs.config.allowUnfree = true;
+          #
+          # Setting nixpkgs.config forces nixvim to construct its own pkgs from
+          # its bundled nixpkgs (intentional: a host nixpkgs bump must not break
+          # nvim). The home-manager wrapper defaults nixvim's host/buildPlatform
+          # to the host's pkgs.stdenv.{host,build}Platform; on recent
+          # nixos-unstable resolving those re-enters the host evaluation and
+          # causes infinite recursion in the lsp/servers modules. Pin both
+          # platforms to the literal `system` string (not pkgs.stdenv.*, which
+          # would force the host pkgs evaluation that is itself part of the
+          # cycle) to break the recursion while keeping nixvim on its own
+          # nixpkgs.
+          nixpkgs = {
+            config.allowUnfree = true;
+            hostPlatform = system;
+            buildPlatform = system;
+          };
 
           colorscheme = "catppuccin";
           colorschemes.catppuccin = {
