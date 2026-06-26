@@ -29,6 +29,11 @@ in
           hotkey-overlay.skip-at-startup = true;
           xwayland-satellite.path = lib.getExe pkgs.xwayland-satellite;
 
+          # Ask clients to omit their own titlebars (client-side decorations).
+          # Equivalent to Hyprland's no-CSD behaviour. Apps that honour this
+          # (most GTK/libadwaita apps) drop the close/minimize/maximize bar.
+          prefer-no-csd = true;
+
           input = {
             mod-key = "Super";
             focus-follows-mouse = {
