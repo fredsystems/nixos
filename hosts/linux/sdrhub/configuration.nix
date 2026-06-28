@@ -502,7 +502,7 @@ in
       ###############################################################
       {
         name = "opensky";
-        image = "ghcr.io/sdr-enthusiasts/docker-opensky-network:latest-build-831@sha256:29694a86e56e9946c69bc413aab3b13a3ea41e0d83b56a7c25143c572f1be59a";
+        image = "ghcr.io/sdr-enthusiasts/docker-opensky-network:latest-build-833@sha256:d0a0aa79445eea3e79f23b950c061f0dc6bb7a6c9de4a81c035d32331a564644";
 
         restart = "always";
         tty = true;
