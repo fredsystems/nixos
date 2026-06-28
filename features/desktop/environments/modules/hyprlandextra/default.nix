@@ -1,5 +1,6 @@
 {
   lib,
+  pkgs,
   config,
   user,
   extraUsers ? [ ],
@@ -24,6 +25,11 @@ in
         source = ./hyprextra;
         recursive = true;
       };
+
+      # Runtime dependency of scripts/niri-swap-external.sh, which parses
+      # `niri msg --json outputs` to decide which way to flip the external
+      # monitor.
+      home.packages = [ pkgs.jq ];
     });
   };
 }

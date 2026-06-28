@@ -39,6 +39,16 @@
       "eDP-1" = {
         scale = 1.0;
 
+        # Explicit position so the swap keybind (Super+Alt+Right, below) has
+        # a deterministic default to flip against. This is niri's equivalent
+        # of Hyprland's `auto-right`: the built-in panel sits at the origin
+        # and the external monitor is placed to its right (x = 1920, the
+        # logical width of this 1920x1200 @ 1.0 panel).
+        position = {
+          x = 0;
+          y = 0;
+        };
+
         mode = {
           width = 1920;
           height = 1200;
@@ -46,10 +56,21 @@
         };
       };
 
-      # Portable 4K monitor (15.6"): HiDPI scale, auto-positioned (no
-      # `position` key => niri places it automatically next to eDP-1).
+      # Portable 4K monitor (15.6"): HiDPI scale. Placed to the right of
+      # eDP-1 by default (external-right layout). x = 1920 is the built-in
+      # panel's logical width, so the external sits flush against eDP-1's
+      # right edge regardless of the external's own effective scale (niri may
+      # snap the requested scale, which changes the external's logical
+      # width). Super+Alt+Right toggles it to the left at runtime via
+      # scripts/niri-swap-external.sh, which reads the live logical width so
+      # the two outputs stay flush (no cursor-trapping gap) in either layout.
       "Genesys ATE Inc PM156R1-H" = {
         scale = 1.5;
+
+        position = {
+          x = 1920;
+          y = 0;
+        };
 
         mode = {
           width = 3840;
@@ -60,6 +81,14 @@
     };
 
     binds = {
+      # Toggle the portable external monitor between the right and left side
+      # of the built-in panel. niri equivalent of Hyprland's
+      # `SUPER+ALT+left/right` auto-left/auto-right swap; the script flips the
+      # explicit logical x positions on each press.
+      "Mod+Alt+Right".action = {
+        spawn = [ "~/.config/hyprextra/scripts/niri-swap-external.sh" ];
+      };
+
       "XF86MonBrightnessUp".action = {
         spawn = [
           "~/.config/hyprextra/scripts/backlight.sh"
