@@ -5,6 +5,7 @@
 {
   self,
   freminal,
+  frext,
   ...
 }:
 {
@@ -13,6 +14,7 @@
     hmModules = [
       ../../hosts/darwin/Freds-MacBook-Pro/home.nix
       freminal.homeManagerModules.default
+      frext.homeManagerModules.default
     ];
   };
 
@@ -21,6 +23,7 @@
     hmModules = [
       ../../hosts/darwin/Freds-Mac-Studio/home.nix
       freminal.homeManagerModules.default
+      frext.homeManagerModules.default
     ];
   };
 }

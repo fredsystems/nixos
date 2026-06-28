@@ -32,6 +32,7 @@ in
     ./firefox
     ./fonts
     ./freminal
+    ./frext
     ./ghostty
     ./githubdesktop
     ./ladybird
@@ -46,7 +47,6 @@ in
     ./sqlitebrowser
     ./steam
     ./stockfish
-    ./sublimetext
     ./thunderbird
     ./tradingview
     ./trezor
@@ -69,9 +69,9 @@ in
       githubdesktop.enable = true;
       vscode.enable = true;
       zed.enable = true;
+      frext.enable = true;
       onepassword.enable = true;
       sqlitebrowser.enable = true;
-      sublimetext.enable = false;
       wezterm.enable = true;
       alacritty.enable = true;
       stockfish.enable = true;

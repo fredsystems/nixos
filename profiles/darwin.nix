@@ -16,6 +16,7 @@
     ../features/desktop/githubdesktop
     ../features/desktop/ghostty
     ../features/desktop/freminal
+    ../features/desktop/frext
     ../features/desktop/wezterm
     ../features/desktop/zed
     ../features/desktop/yubikey
@@ -61,6 +62,7 @@
 
   desktop = {
     freminal.enable = true;
+    frext.enable = true;
     wezterm.enable = true;
     alacritty.enable = true;
     zed.enable = true;

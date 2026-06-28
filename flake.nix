@@ -140,6 +140,14 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    # CI: desktop
+    frext = {
+      url = "github:FredSystems/frext";
+      #path on disk
+      #url = "git+file:/home/fred/GitHub/frext";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     # wallpapers
 
     # CI: desktop
@@ -199,6 +207,7 @@
       solaar,
       colmena,
       freminal,
+      frext,
       ...
     }:
 
@@ -313,6 +322,7 @@
           walls-zhichaoh
           walls-cozypixels
           freminal
+          frext
           ;
       };
     in

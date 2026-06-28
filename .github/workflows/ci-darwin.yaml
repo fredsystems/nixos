@@ -142,6 +142,7 @@ jobs:
               [nixvim]="darwin"
               [darwin]="darwin"
               [freminal]="darwin"
+              [frext]="darwin"
               [apple-fonts]="darwin"
               [nixpkgs-stable]="skip"
               [home-manager-stable]="skip"

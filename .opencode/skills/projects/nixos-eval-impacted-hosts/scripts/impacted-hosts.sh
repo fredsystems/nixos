@@ -108,6 +108,7 @@ declare -A INPUT_CATEGORY=(
   [catppuccin]="desktop"
   [niri]="desktop"
   [freminal]="desktop"
+  [frext]="desktop"
   [solaar]="desktop"
   [apple-fonts]="desktop"
   [walls-catppuccin]="desktop"

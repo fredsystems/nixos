@@ -18,6 +18,7 @@
   niri,
   solaar,
   freminal,
+  frext,
   ...
 }:
 
@@ -30,6 +31,7 @@
     hmModules = [
       ../../hosts/linux/daytona/home.nix
       freminal.homeManagerModules.default
+      frext.homeManagerModules.default
     ];
     extraModules = [
       niri.nixosModules.niri
@@ -43,6 +45,7 @@
     hmModules = [
       ../../hosts/linux/maranello/home.nix
       freminal.homeManagerModules.default
+      frext.homeManagerModules.default
     ];
     extraModules = [
       niri.nixosModules.niri
