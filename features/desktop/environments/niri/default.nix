@@ -221,7 +221,12 @@ in
             };
 
             "Mod+S".action = {
-              spawn = [ "~/.config/hyprextra/scripts/idleinhibit.sh" ];
+              spawn = [
+                "wayle"
+                "idle"
+                "toggle"
+                "--indefinite"
+              ];
             };
 
             "Alt+Space".action = {
