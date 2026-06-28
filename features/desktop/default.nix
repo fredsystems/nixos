@@ -32,6 +32,7 @@ in
     ./firefox
     ./fonts
     ./freminal
+    ./garmin-express
     ./ghostty
     ./githubdesktop
     ./ladybird
@@ -94,6 +95,7 @@ in
       obs.enable = cfg.enable_streaming;
       ledger.enable = cfg.enable_extra;
       trezor.enable = cfg.enable_extra;
+      garmin-express.enable = cfg.enable_extra;
     };
 
     home-manager.users = lib.genAttrs allUsers (_: {
