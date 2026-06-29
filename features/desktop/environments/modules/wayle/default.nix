@@ -403,6 +403,7 @@ in
               label-max-length = 20;
               icon-mappings = {
                 "freminal" = "freminal";
+                "frext" = "frext";
               };
             };
 

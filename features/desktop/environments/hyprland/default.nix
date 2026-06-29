@@ -35,6 +35,22 @@ in
     # exit completes.
     environment.systemPackages = [ pkgs.hyprshutdown ];
 
+    # xdg-desktop-portal-hyprland does not implement the FileChooser interface,
+    # and the implicit hyprland;gtk fallback chain does not reliably fall
+    # through to the gtk backend for it — leaving rfd/Firefox/Flatpak native
+    # file dialogs broken ("No such interface org.freedesktop.portal.
+    # FileChooser"). Route FileChooser explicitly to the gtk backend (which is
+    # always present via xdg.portal.extraPortals in common.nix) while keeping
+    # screencast/screenshot on the hyprland backend. The `hyprland` config key
+    # matches XDG_CURRENT_DESKTOP under this compositor.
+    xdg.portal.config.hyprland = {
+      default = [
+        "hyprland"
+        "gtk"
+      ];
+      "org.freedesktop.impl.portal.FileChooser" = [ "gtk" ];
+    };
+
     # xdg-desktop-portal-hyprland segfaults when Hyprland exits (a bug in xdph
     # itself), then restarts 6 times in rapid succession against a dead
     # compositor and hits the burst limit — leaving it permanently dead for the
@@ -54,6 +70,22 @@ in
     };
 
     home-manager.users = lib.genAttrs allUsers (_: {
+
+      # The xdg-desktop-portal daemon discovers portal *definition* files
+      # (`*.portal`) by scanning `xdg-desktop-portal/portals` under each
+      # XDG_DATA_DIRS entry, and the per-user profile
+      # (`/etc/profiles/per-user/<user>/share`) is on that path. home-manager's
+      # `wayland.windowManager.hyprland` integration installs only
+      # `xdg-desktop-portal-hyprland` into that profile, so the gtk backend's
+      # `gtk.portal` definition is absent from the user profile. The
+      # system-level `FileChooser=gtk` routing (above) then resolves to a
+      # backend the daemon reports as "Requested gtk.portal is unrecognized",
+      # and rfd/Firefox/Flatpak get "No such interface
+      # org.freedesktop.portal.FileChooser". Installing the gtk portal here
+      # places `gtk.portal` next to `hyprland.portal` in the user profile so
+      # the routing resolves. The system-level `xdg.portal.extraPortals` entry
+      # in common.nix keeps the backend's D-Bus/systemd activation wired up.
+      home.packages = [ pkgs.xdg-desktop-portal-gtk ];
 
       # wayland.windowManager.hyprland generates a broken stub unit at
       # ~/.config/systemd/user/xdg-desktop-portal-hyprland.service that only
