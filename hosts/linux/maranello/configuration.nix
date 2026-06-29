@@ -40,6 +40,8 @@ in
     enable_streaming = true;
   };
 
+  virtualization.libvirt.enable = true;
+
   boot = {
     kernelPackages = pkgs.linuxPackages_latest;
 
