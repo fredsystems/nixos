@@ -10,7 +10,10 @@
     ./media
     ./shell
   ]
-  ++ lib.optional isDesktop ./desktop;
+  ++ lib.optionals isDesktop [
+    ./desktop
+    ./virtualization
+  ];
 
   config = {
     services.xserver.xkb = {
