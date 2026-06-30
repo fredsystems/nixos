@@ -82,11 +82,16 @@
       "done": false,
       "summary": "staging-next autoconf update forced Clang to -std=gnu23, breaking dateutils 0.4.11 (dgrep.c) on aarch64-darwin.",
       "repo": "NixOS/nixpkgs",
-      "check": "issue-closed",
-      "issue": 511329,
-      "tracking": ["https://github.com/NixOS/nixpkgs/issues/511329"],
+      "check": "nixpkgs-pin-contains-commit",
+      "fix_commit": "670c46f746ea46f6a3acab704abff3869a5bcb38",
+      "pin_node": "nixpkgs",
+      "tracking": [
+        "https://github.com/NixOS/nixpkgs/issues/511329",
+        "https://github.com/NixOS/nixpkgs/pull/526257",
+        "https://github.com/hroptatyr/dateutils/commit/b30902c2f46288b570c7fa8de06e17cc7dfd6a37"
+      ],
       "workaround": "overlays/default.nix -- `dateutils` overlay pins `CFLAGS=-std=gnu17` on darwin only.",
-      "revert_action": "#511329 is already closed/completed upstream. Confirm our pinned nixpkgs builds dateutils on aarch64-darwin without the gnu17 pin, then drop the darwin branch of the `dateutils` overlay and set `done: true`. (This entry will flag immediately on first run, which is the intended prompt to test the revert.)"
+      "revert_action": "The real fix is the upstream dateutils patch (hroptatyr commit b30902c) packaged in nixpkgs PR #526257 (merge commit 670c46f, merged to master 2026-06-09; backported to release-26.05 via #530052). It adds flex/bison and substitutes the yyparse declaration -- it does NOT use the gnu17 CFLAGS hack. The umbrella issue #511329 was closed only because the breakage was reduced enough for staging-next to merge, not because dateutils was fixed, so `issue-closed` was a false signal. This entry is now gated on our pinned `nixpkgs` (unstable, the channel the darwin host follows) actually containing 670c46f. Once it does, drop the darwin branch of the `dateutils` overlay and set `done: true`. IMPORTANT verification: a green darwin CI build is NOT sufficient on its own -- dateutils-0.4.11 is substitutable from cache.nixos.org, so confirm CI actually built it from source (or build with `--rebuild`) before trusting the revert."
     },
     {
       "id": "nixpkgs-526476-fwupd-polkit",
