@@ -5,6 +5,11 @@
 #   - nodejs + typescript (for any JS tooling in the repo)
 #   - colmena CLI (matched to the colmenaHive evaluator version)
 #
+# CI builds and pushes this shell to Attic via the `dev-shell` job in
+# ci-linux.yaml / ci-darwin.yaml, gated by `find-devshell`. If you add a
+# tool here that comes from a new flake input, add that input to the
+# `devshell_inputs` list in both workflows so the cache stays warm.
+#
 # Arguments are the flake-level bindings passed in from flake.nix.
 {
   inputs,

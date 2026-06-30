@@ -495,12 +495,162 @@ jobs:
           fi
 
   # =====================================================================
+  # Decide whether the dev shell / dev packages need rebuilding
+  #
+  # The dev shell does NOT share the host input set, so the host filter
+  # would both over- and under-build it. It is fed by:
+  #   - flake/dev/*.nix              (the shell / checks / packages defs)
+  #   - input: nixpkgs               (nodejs, typescript, wallpaper pkgs)
+  #   - input: precommit-base        (statix/nixfmt/deadnix/... hooks)
+  #   - input: colmena               (the colmena CLI in the shell)
+  #   - input: walls-{catppuccin,zhichaoh,cozypixels} (wallpaper sources)
+  # Anything else (host dirs, server modules, docs) leaves it untouched.
+  find-devshell:
+    name: Detect dev-shell changes
+    runs-on: ubuntu-latest
+    needs: [skip-if-clean]
+    if: ${{ needs.skip-if-clean.outputs.skip != 'true' }}
+    outputs:
+      changed: ${{ steps.detect.outputs.changed }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          fetch-depth: 0
+
+      - name: Detect dev-shell-affecting changes
+        id: detect
+        shell: bash
+        run: |
+          set -eo pipefail
+
+          # workflow_dispatch has no diff context — always rebuild.
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            base_sha="${{ github.event.pull_request.base.sha }}"
+          else
+            base_sha="${{ github.event.merge_group.base_sha }}"
+          fi
+
+          changed_files=$(git diff --name-only "$base_sha" HEAD)
+          echo "Changed files:"
+          echo "$changed_files"
+
+          changed=false
+          flake_lock_changed=false
+
+          while IFS= read -r file; do
+            [ -z "$file" ] && continue
+            case "$file" in
+              flake/dev/*.nix)
+                changed=true ;;
+              .github/workflows/ci-linux.yaml|.github/workflows/ci-darwin.yaml)
+                changed=true ;;
+              flake.lock)
+                flake_lock_changed=true ;;
+            esac
+          done <<< "$changed_files"
+
+          # Inputs that actually feed the dev shell / dev packages.
+          devshell_inputs="nixpkgs precommit-base colmena walls-catppuccin walls-zhichaoh walls-cozypixels"
+
+          if [ "$changed" = "false" ] && [ "$flake_lock_changed" = "true" ]; then
+            old_lock=$(git show "${base_sha}:flake.lock" 2>/dev/null || echo '{}')
+            new_lock=$(cat flake.lock)
+            for input in $devshell_inputs; do
+              node_name=$(echo "$new_lock" | jq -r ".nodes.root.inputs.\"$input\" // empty")
+              [ -z "$node_name" ] && continue
+              old_rev=$(echo "$old_lock" | jq -r ".nodes.\"$node_name\".locked.rev // .nodes.\"$node_name\".locked.narHash // empty" 2>/dev/null)
+              new_rev=$(echo "$new_lock" | jq -r ".nodes.\"$node_name\".locked.rev // .nodes.\"$node_name\".locked.narHash // empty")
+              if [ "$old_rev" != "$new_rev" ]; then
+                echo "  dev-shell input changed: $input"
+                changed=true
+                break
+              fi
+            done
+          fi
+
+          echo "changed=$changed" >> "$GITHUB_OUTPUT"
+          echo "dev-shell rebuild needed: $changed"
+
+  # =====================================================================
+  # Build + push the dev shell and dev packages
+  #
+  # The host build jobs only cache system.build.toplevel and the
+  # home-manager activation package. The dev shell (`nix develop`) and the
+  # per-system `packages` outputs (colmena CLI, lint tooling, wallpapers)
+  # are never part of a host closure, so without this job every machine
+  # rebuilds them on first `nix develop`. Build and push them to Attic so
+  # all machines (and this Mac) fetch instead of build.
+  #
+  # Gated on find-devshell so unrelated PRs skip it entirely.
+  #
+  # `--accept-flake-config` is required so the flake's nixConfig
+  # extra-substituters (colmena/catppuccin/niri caches) are honored.
+  dev-shell:
+    name: Build & push dev shell + packages
+    runs-on: [self-hosted, Linux]
+    needs: [skip-if-clean, find-devshell]
+    if: ${{ needs.skip-if-clean.outputs.skip != 'true' && needs.find-devshell.outputs.changed == 'true' }}
+    permissions:
+      id-token: "write"
+      contents: "read"
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
+        with:
+          trust-runner-user: true
+          extra-conf: |
+            access-tokens = github.com=${{ github.token }}
+            substituters = http://192.168.31.14/fred https://colmena.cachix.org https://catppuccin.cachix.org https://niri.cachix.org https://niri-epireyn.cachix.org https://cache.nixos.org/
+            trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= fred:JjyhvRSvKfkk8r4HS0mS5r5I7dT4GociEFbrR9OgBZ0= colmena.cachix.org-1:7BzpDnjjH8ki2CT3f6GdOk7QAzPOl+1t3LvTLXqYcSg= catppuccin.cachix.org-1:noG/4HkbhJb+lUAdKrph6LaozJvAeEEZj4N732IysmU= niri.cachix.org-1:Wv0OmO7PsuocRKzfDoJ3mulSl7Z6oezYhGhR+3W2964= niri-epireyn.cachix.org-1:tlVyFN7CtsDT+ZcLPS+ekFWeT1X6X4OqvWqbBMyIzFA=
+
+      - name: Build & push dev shell + packages
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          system=$(nix eval --raw --impure --expr builtins.currentSystem)
+          echo "Building dev outputs for system: $system"
+
+          echo "Logging in to Attic..."
+          nix shell --inputs-from . nixpkgs#attic-client --command attic login fred http://192.168.31.14:8080 eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjIxNDgyMzMyODksIm5iZiI6MTc2OTU0MjA4OSwic3ViIjoiZnJlZCIsImh0dHBzOi8vand0LmF0dGljLnJzL3YxIjp7ImNhY2hlcyI6eyJmcmVkIjp7InIiOjEsInciOjEsImNjIjoxfX19fQ.WhR5ixdW0j-wV77Tl8VubJPEyEvgQ8nQWYbgJxI8pPiLJN6v4DVaqKPu15mcY0N0B0zKnq9-njG5EOn2Z2-4dMgfx9ttTA-lltxrvPf5nKR9zAXg6hgPYsnGQuRFBvAFzlfPCpcIU2rgEVzMajzjipQgfUnVPDuto9uPU1VG25fncVRYz5dUhOXTfvN_WWpzcgQ7HDHQufbui5IoG-nmFMFWcNkxTCw7XVNs1PYFpadMGn6zAeh9Hi6epYYllr1aTcmTCx6ut3-fbFdQaxGG_HsCyxFiIf9r6GNSQvZOeHbeLcE21RQ6qNrkKZuQiVoOAcQr7ngpQ2jjcWnajw_hCPi6rqByZxdZy8IAbPQ83nm9o5UlfKg99sr6YSV-6ZTBvsOm-ioUX9hSktWm3O7cdH74ygmbUC_QL-os6aYNhbyQjSEMgiOpS65VnFURG58gnnvVHncMvohyDKwZqcWVtiaQApNeL3_LEATtX_zdqlaWdCVXO3t3QlD0ebYVhb4rn2KEg0GOZHGpWPqJnszRSMwXgWM1fG37OF117Qz6O9280BoEMdjLvITr5Cq0kQqS0PzapLdI5maU6ZluyqvAvgqdHzwjey4hDDq3FjITA_JMUStRlH7sMwtaSGTiTTOHQPe7WT9PImqfm4G8Q3urOsHMBE_Au1dqnUz4Lq-yU4M
+
+          echo "Building dev shell..."
+          nix build --accept-flake-config --no-link --print-out-paths \
+            ".#devShells.${system}.default" > devshell.paths
+
+          echo "Building dev packages..."
+          # Enumerate every packages.<system>.* attr; tolerate an empty set.
+          # Emit newline-separated names via Nix itself so this step has no
+          # dependency on jq (not present on the self-hosted runner).
+          pkg_attrs=$(nix eval --raw ".#packages.${system}" \
+            --apply 'ps: builtins.concatStringsSep "\n" (builtins.attrNames ps)')
+          while read -r attr; do
+            [ -z "$attr" ] && continue
+            echo "  building packages.${system}.${attr}"
+            nix build --accept-flake-config --no-link --print-out-paths \
+              ".#packages.${system}.${attr}" >> devshell.paths
+          done <<< "$pkg_attrs"
+
+          echo "Pushing built dev outputs to Attic..."
+          # Push the realised store paths (and their closures) directly.
+          xargs -r nix shell --inputs-from . nixpkgs#attic-client --command \
+            attic push fred --ignore-upstream-cache-filter -j 2 < devshell.paths
+
+  # =====================================================================
   # Required summary check
   # =====================================================================
   build-linux-summary:
     name: Build Linux Summary
     runs-on: ubuntu-latest
-    needs: [skip-if-clean, build-servers, build-desktops]
+    needs: [skip-if-clean, build-servers, build-desktops, dev-shell]
     if: ${{ always() }}
 
     steps:
@@ -514,18 +664,20 @@ jobs:
 
           SERVERS="${{ needs.build-servers.result }}"
           DESKTOPS="${{ needs.build-desktops.result }}"
+          DEVSHELL="${{ needs.dev-shell.result }}"
 
           echo "Servers result:   $SERVERS"
           echo "Desktops result:  $DESKTOPS"
+          echo "Dev shell result: $DEVSHELL"
 
           # A result of "skipped" means the matrix was empty (no systems in
           # scope for this PR) — that is a valid outcome, not a failure.
-          if [ "$SERVERS" = "failure" ] || [ "$DESKTOPS" = "failure" ]; then
+          if [ "$SERVERS" = "failure" ] || [ "$DESKTOPS" = "failure" ] || [ "$DEVSHELL" = "failure" ]; then
             echo "❌ One or more Linux builds failed."
             exit 1
           fi
 
-          if [ "$SERVERS" = "cancelled" ] || [ "$DESKTOPS" = "cancelled" ]; then
+          if [ "$SERVERS" = "cancelled" ] || [ "$DESKTOPS" = "cancelled" ] || [ "$DEVSHELL" = "cancelled" ]; then
             echo "❌ Build job was cancelled — treating as failure."
             exit 1
           fi

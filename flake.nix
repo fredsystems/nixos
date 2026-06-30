@@ -1,6 +1,26 @@
 {
   description = "Fred's NixOS config flake";
 
+  # Extra binary caches for inputs that are deliberately NOT following our
+  # nixpkgs (colmena, catppuccin, niri). Their upstream CI publishes prebuilt
+  # outputs to these caches built against each project's own pinned nixpkgs,
+  # so substitution only works when we keep those inputs' nixpkgs unchanged.
+  # `extra-*` appends to (does not replace) the system / CI substituters.
+  nixConfig = {
+    extra-substituters = [
+      "https://colmena.cachix.org"
+      "https://catppuccin.cachix.org"
+      "https://niri.cachix.org"
+      "https://niri-epireyn.cachix.org"
+    ];
+    extra-trusted-public-keys = [
+      "colmena.cachix.org-1:7BzpDnjjH8ki2CT3f6GdOk7QAzPOl+1t3LvTLXqYcSg="
+      "catppuccin.cachix.org-1:noG/4HkbhJb+lUAdKrph6LaozJvAeEEZj4N732IysmU="
+      "niri.cachix.org-1:Wv0OmO7PsuocRKzfDoJ3mulSl7Z6oezYhGhR+3W2964="
+      "niri-epireyn.cachix.org-1:tlVyFN7CtsDT+ZcLPS+ekFWeT1X6X4OqvWqbBMyIzFA="
+    ];
+  };
+
   inputs = {
     ##########################################################################
     ## CI categories  (see agents.md for the full mapping)                  ##
@@ -50,9 +70,13 @@
     };
 
     # CI: desktop
+    # NOTE: deliberately NOT following our nixpkgs. catppuccin publishes
+    # prebuilt outputs (whiskers, ports) to catppuccin.cachix.org built
+    # against its own pinned nixpkgs. Following our nixpkgs would change
+    # every derivation hash and force local rebuilds (cache miss). Keeping
+    # catppuccin's own nixpkgs lets us substitute from its cache.
     catppuccin = {
       url = "github:catppuccin/nix";
-      inputs.nixpkgs.follows = "nixpkgs";
     };
 
     # CI: server
@@ -84,11 +108,14 @@
     };
 
     # CI: desktop
+    # NOTE: deliberately NOT following our nixpkgs so niri's prebuilt
+    # outputs can be substituted from niri.cachix.org / niri-epireyn.cachix.org
+    # (built against niri's own pinned nixpkgs). Following our nixpkgs would
+    # change the derivation hashes and force a local source build.
     niri = {
       # TODO: Watch both of these url's. sodiboo is the OG, but hasn't been updated in a while
       #url = "github:sodiboo/niri-flake";
       url = "github:epireyn/niri-flake";
-      inputs.nixpkgs.follows = "nixpkgs";
     };
 
     # CI: skip (macOS only)
@@ -126,9 +153,12 @@
     };
 
     # CI: skip (deployment tool, no effect on builds)
+    # NOTE: deliberately NOT following our nixpkgs so the colmena CLI binary
+    # can be substituted from colmena.cachix.org (built against colmena's own
+    # pinned nixpkgs). Following our nixpkgs would change its derivation hash
+    # and force a local source build of the whole Rust closure.
     colmena = {
       url = "github:zhaofengli/colmena";
-      inputs.nixpkgs.follows = "nixpkgs";
     };
 
     # CI: desktop
