@@ -1,0 +1,112 @@
+---
+name: track-upstream-fixes
+
+# Watches upstream fixes we are waiting on (see
+# .github/tracked-upstream-fixes.json) and flags us, via a GitHub issue, when
+# a fix has landed in a way that lets us revert the matching local workaround.
+#
+# Each tracked entry points at the workaround in this repo and the revert
+# action to take. When the checker resolves an entry, this workflow opens (or
+# updates) a single sticky issue listing everything that is now ready to
+# "unfuck", so the config can be cleaned up.
+
+on:
+  schedule:
+    # Weekly, an hour after the flake auto-update run so any release that just
+    # landed in nixpkgs is reflected by the time we look.
+    - cron: "0 6 * * 0"
+  workflow_dispatch:
+  # Re-check whenever the manifest itself changes, so editing the tracker gives
+  # immediate feedback.
+  push:
+    branches: [main]
+    paths:
+      - .github/tracked-upstream-fixes.json
+      - .github/scripts/check-upstream-fixes.sh
+      - .github/workflows/track-upstream-fixes.yaml
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    name: Check tracked upstream fixes
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      # Needed by the `pkgs-min-version` check type, which evaluates the
+      # version of a package as it resolves in this repo's pinned nixpkgs.
+      - uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
+        with:
+          extra-conf: accept-flake-config = true
+
+      - name: Run checker
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          resolved="$(.github/scripts/check-upstream-fixes.sh)"
+          # Compact to a single line for the step output.
+          echo "resolved=$(jq -c . <<<"$resolved")" >> "$GITHUB_OUTPUT"
+          count="$(jq 'length' <<<"$resolved")"
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+          echo "Resolved $count tracked fix(es)." >&2
+
+      - name: Build issue body
+        if: steps.check.outputs.count != '0'
+        id: body
+        env:
+          RESOLVED: ${{ steps.check.outputs.resolved }}
+        run: |
+          {
+            echo "body<<'EOF_BODY'"
+            echo "One or more upstream fixes we were waiting on have landed."
+            echo "Each item below is ready to have its local workaround reverted."
+            echo
+            jq -r '.[] |
+              "## \(.id)\n\n" +
+              "- **What:** \(.summary)\n" +
+              "- **Upstream repo:** `\(.repo)`\n" +
+              "- **Evidence:** \(.evidence)\n" +
+              "- **Tracking:** \((.tracking // []) | join(", "))\n" +
+              "- **Workaround location:** \(.workaround)\n" +
+              "- **Revert action:** \(.revert_action)\n" +
+              "\nAfter reverting, set `\"done\": true` for `\(.id)` in " +
+              "`.github/tracked-upstream-fixes.json` (or remove the entry).\n"' \
+              <<<"$RESOLVED"
+            echo
+            echo "<!-- track-upstream-fixes:sticky -->"
+            echo "EOF_BODY"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Open or update tracking issue
+        if: steps.check.outputs.count != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          BODY: ${{ steps.body.outputs.body }}
+        run: |
+          title="Upstream fix(es) landed - revert local workaround(s)"
+          # Find an existing open sticky issue (idempotent: update rather than
+          # spam a new one each run).
+          existing="$(gh issue list \
+            --repo "$REPO" \
+            --state open \
+            --search 'in:body "track-upstream-fixes:sticky"' \
+            --json number \
+            --jq '.[0].number' || true)"
+
+          if [[ -n "$existing" && "$existing" != "null" ]]; then
+            echo "Updating existing tracking issue #$existing" >&2
+            gh issue edit "$existing" --repo "$REPO" \
+              --title "$title" --body "$BODY"
+          else
+            echo "Opening new tracking issue" >&2
+            gh issue create --repo "$REPO" \
+              --title "$title" --body "$BODY"
+          fi
