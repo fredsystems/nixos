@@ -225,6 +225,7 @@ jobs:
         with:
           extra-conf: |
             access-tokens = github.com=${{ github.token }}
+            accept-flake-config = true
 
       - name: Enable Magic Nix Cache
         uses: DeterminateSystems/magic-nix-cache-action@908b263ff629f4cc17666315b7fd3ec127c6244d # v14
@@ -384,6 +385,7 @@ jobs:
           trust-runner-user: true
           extra-conf: |
             access-tokens = github.com=${{ github.token }}
+            accept-flake-config = true
             substituters = http://192.168.31.14/fred https://niri.cachix.org https://niri-epireyn.cachix.org https://cache.nixos.org/
             trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= fred:JjyhvRSvKfkk8r4HS0mS5r5I7dT4GociEFbrR9OgBZ0= niri.cachix.org-1:Wv0OmO7PsuocRKzfDoJ3mulSl7Z6oezYhGhR+3W2964= niri-epireyn.cachix.org-1:tlVyFN7CtsDT+ZcLPS+ekFWeT1X6X4OqvWqbBMyIzFA=
 
@@ -451,6 +453,7 @@ jobs:
           trust-runner-user: true
           extra-conf: |
             access-tokens = github.com=${{ github.token }}
+            accept-flake-config = true
             substituters = http://192.168.31.14/fred https://niri.cachix.org https://niri-epireyn.cachix.org https://cache.nixos.org/
             trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= fred:JjyhvRSvKfkk8r4HS0mS5r5I7dT4GociEFbrR9OgBZ0= niri.cachix.org-1:Wv0OmO7PsuocRKzfDoJ3mulSl7Z6oezYhGhR+3W2964= niri-epireyn.cachix.org-1:tlVyFN7CtsDT+ZcLPS+ekFWeT1X6X4OqvWqbBMyIzFA=
 
@@ -588,14 +591,15 @@ jobs:
   #
   # Gated on find-devshell so unrelated PRs skip it entirely.
   #
-  # The colmena/catppuccin/niri caches are provided via the installer's
-  # extra-conf below (written to /etc/nix/nix.conf as root, i.e. trusted
-  # daemon config). We deliberately do NOT pass --accept-flake-config: on
-  # the self-hosted runner the build user is not a nix trusted-user, so a
-  # flake-injected (client-specified) trusted-public-keys would be
-  # rejected with a noisy warning. extra-conf already lists every cache,
-  # so the flag would be redundant anyway. The flake's nixConfig still
-  # serves interactive use on dev machines where the user is trusted.
+  # The colmena/catppuccin/niri caches are listed explicitly in the
+  # installer's extra-conf below (written to /etc/nix/nix.conf as root,
+  # i.e. trusted daemon config) so they work regardless of the flake.
+  # We do NOT pass the --accept-flake-config *client flag*: the runner
+  # build user is not a nix trusted-user, so a client-injected
+  # trusted-public-keys would be rejected. Instead extra-conf sets
+  # `accept-flake-config = true` as trusted daemon config, which honors
+  # the flake's nixConfig without the rejection and silences the
+  # "ignoring untrusted flake configuration setting" warning.
   dev-shell:
     name: Build & push dev shell + packages
     runs-on: [self-hosted, Linux]
@@ -614,6 +618,7 @@ jobs:
           trust-runner-user: true
           extra-conf: |
             access-tokens = github.com=${{ github.token }}
+            accept-flake-config = true
             substituters = http://192.168.31.14/fred https://colmena.cachix.org https://catppuccin.cachix.org https://niri.cachix.org https://niri-epireyn.cachix.org https://cache.nixos.org/
             trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= fred:JjyhvRSvKfkk8r4HS0mS5r5I7dT4GociEFbrR9OgBZ0= colmena.cachix.org-1:7BzpDnjjH8ki2CT3f6GdOk7QAzPOl+1t3LvTLXqYcSg= catppuccin.cachix.org-1:noG/4HkbhJb+lUAdKrph6LaozJvAeEEZj4N732IysmU= niri.cachix.org-1:Wv0OmO7PsuocRKzfDoJ3mulSl7Z6oezYhGhR+3W2964= niri-epireyn.cachix.org-1:tlVyFN7CtsDT+ZcLPS+ekFWeT1X6X4OqvWqbBMyIzFA=
 
