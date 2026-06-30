@@ -29,6 +29,8 @@ in
     settings = {
       substituters = [
         "http://192.168.31.14:8080/fred"
+        "https://colmena.cachix.org"
+        "https://catppuccin.cachix.org"
         "https://niri.cachix.org"
         "https://niri-epireyn.cachix.org"
         "https://cache.nixos.org"
@@ -36,6 +38,8 @@ in
 
       trusted-public-keys = [
         "fred:JjyhvRSvKfkk8r4HS0mS5r5I7dT4GociEFbrR9OgBZ0="
+        "colmena.cachix.org-1:7BzpDnjjH8ki2CT3f6GdOk7QAzPOl+1t3LvTLXqYcSg="
+        "catppuccin.cachix.org-1:noG/4HkbhJb+lUAdKrph6LaozJvAeEEZj4N732IysmU="
         "niri.cachix.org-1:Wv0OmO7PsuocRKzfDoJ3mulSl7Z6oezYhGhR+3W2964="
         "niri-epireyn.cachix.org-1:tlVyFN7CtsDT+ZcLPS+ekFWeT1X6X4OqvWqbBMyIzFA="
       ];
