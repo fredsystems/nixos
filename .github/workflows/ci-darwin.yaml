@@ -208,6 +208,7 @@ jobs:
         with:
           extra-conf: |
             access-tokens = github.com=${{ github.token }}
+            accept-flake-config = true
 
       - name: Enable Magic Nix Cache
         uses: DeterminateSystems/magic-nix-cache-action@908b263ff629f4cc17666315b7fd3ec127c6244d # v14
@@ -291,6 +292,7 @@ jobs:
           trust-runner-user: true
           extra-conf: |
             access-tokens = github.com=${{ github.token }}
+            accept-flake-config = true
             substituters = http://192.168.31.14/fred https://cache.nixos.org/
             trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= fred:JjyhvRSvKfkk8r4HS0mS5r5I7dT4GociEFbrR9OgBZ0=
 
@@ -419,8 +421,9 @@ jobs:
   # Mirrors the dev-shell job in ci-linux.yaml so the Mac fetches the dev
   # shell (`nix develop`) and per-system packages from Attic instead of
   # rebuilding them locally. Gated on find-devshell so unrelated PRs skip.
-  # `--accept-flake-config` honors the flake's nixConfig extra-substituters
-  # (colmena/catppuccin/niri caches).
+  # Caches are listed in extra-conf below; `accept-flake-config = true`
+  # there (trusted daemon config) honors the flake's nixConfig without the
+  # client-flag rejection. See the ci-linux.yaml dev-shell comment.
   dev-shell-darwin:
     name: Build & push dev shell + packages (Darwin)
     runs-on: [self-hosted, macOS]
@@ -439,6 +442,7 @@ jobs:
           trust-runner-user: true
           extra-conf: |
             access-tokens = github.com=${{ github.token }}
+            accept-flake-config = true
             substituters = http://192.168.31.14/fred https://colmena.cachix.org https://catppuccin.cachix.org https://niri.cachix.org https://niri-epireyn.cachix.org https://cache.nixos.org/
             trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= fred:JjyhvRSvKfkk8r4HS0mS5r5I7dT4GociEFbrR9OgBZ0= colmena.cachix.org-1:7BzpDnjjH8ki2CT3f6GdOk7QAzPOl+1t3LvTLXqYcSg= catppuccin.cachix.org-1:noG/4HkbhJb+lUAdKrph6LaozJvAeEEZj4N732IysmU= niri.cachix.org-1:Wv0OmO7PsuocRKzfDoJ3mulSl7Z6oezYhGhR+3W2964= niri-epireyn.cachix.org-1:tlVyFN7CtsDT+ZcLPS+ekFWeT1X6X4OqvWqbBMyIzFA=
 
@@ -454,7 +458,7 @@ jobs:
           nix shell --inputs-from . nixpkgs#attic-client --command attic login fred http://192.168.31.14:8080 eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjIxNDgyMzMyODksIm5iZiI6MTc2OTU0MjA4OSwic3ViIjoiZnJlZCIsImh0dHBzOi8vand0LmF0dGljLnJzL3YxIjp7ImNhY2hlcyI6eyJmcmVkIjp7InIiOjEsInciOjEsImNjIjoxfX19fQ.WhR5ixdW0j-wV77Tl8VubJPEyEvgQ8nQWYbgJxI8pPiLJN6v4DVaqKPu15mcY0N0B0zKnq9-njG5EOn2Z2-4dMgfx9ttTA-lltxrvPf5nKR9zAXg6hgPYsnGQuRFBvAFzlfPCpcIU2rgEVzMajzjipQgfUnVPDuto9uPU1VG25fncVRYz5dUhOXTfvN_WWpzcgQ7HDHQufbui5IoG-nmFMFWcNkxTCw7XVNs1PYFpadMGn6zAeh9Hi6epYYllr1aTcmTCx6ut3-fbFdQaxGG_HsCyxFiIf9r6GNSQvZOeHbeLcE21RQ6qNrkKZuQiVoOAcQr7ngpQ2jjcWnajw_hCPi6rqByZxdZy8IAbPQ83nm9o5UlfKg99sr6YSV-6ZTBvsOm-ioUX9hSktWm3O7cdH74ygmbUC_QL-os6aYNhbyQjSEMgiOpS65VnFURG58gnnvVHncMvohyDKwZqcWVtiaQApNeL3_LEATtX_zdqlaWdCVXO3t3QlD0ebYVhb4rn2KEg0GOZHGpWPqJnszRSMwXgWM1fG37OF117Qz6O9280BoEMdjLvITr5Cq0kQqS0PzapLdI5maU6ZluyqvAvgqdHzwjey4hDDq3FjITA_JMUStRlH7sMwtaSGTiTTOHQPe7WT9PImqfm4G8Q3urOsHMBE_Au1dqnUz4Lq-yU4M
 
           echo "Building dev shell..."
-          nix build --accept-flake-config --no-link --print-out-paths \
+          nix build --no-link --print-out-paths \
             ".#devShells.${system}.default" > devshell.paths
 
           echo "Building dev packages..."
@@ -466,7 +470,7 @@ jobs:
           while read -r attr; do
             [ -z "$attr" ] && continue
             echo "  building packages.${system}.${attr}"
-            nix build --accept-flake-config --no-link --print-out-paths \
+            nix build --no-link --print-out-paths \
               ".#packages.${system}.${attr}" >> devshell.paths
           done <<< "$pkg_attrs"
 
