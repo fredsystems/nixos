@@ -79,7 +79,7 @@
     },
     {
       "id": "nixpkgs-511329-dateutils-darwin",
-      "done": false,
+      "done": true,
       "summary": "staging-next autoconf update forced Clang to -std=gnu23, breaking dateutils 0.4.11 (dgrep.c) on aarch64-darwin.",
       "repo": "NixOS/nixpkgs",
       "check": "issue-closed",

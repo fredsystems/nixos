@@ -30,20 +30,6 @@ final: prev: {
     }
   );
 
-  # Workaround for the staging-next autoconf update that forces Clang to
-  # `-std=gnu23`, breaking C code that isn't C23-compliant.  See upstream
-  # tracking issue: https://github.com/NixOS/nixpkgs/issues/511329.
-  # `dateutils` 0.4.11 fails to compile `dgrep.c` under C23 on aarch64-darwin
-  # (Clang is the default C compiler on macOS, so this only affects darwin).
-  # Pin CFLAGS back to the previous default of gnu17 via configureFlags.
-  dateutils =
-    if prev.stdenv.isDarwin then
-      prev.dateutils.overrideAttrs (old: {
-        configureFlags = (old.configureFlags or [ ]) ++ [ "CFLAGS=-std=gnu17" ];
-      })
-    else
-      prev.dateutils;
-
   # `direnv`'s checkPhase runs `make test-go test-bash test-fish test-zsh`.
   # On darwin, the fish test suite hangs indefinitely (CI hits the 6h max
   # execution time with no output).  Tracked upstream:
