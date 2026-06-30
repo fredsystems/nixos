@@ -150,6 +150,31 @@ The full input-to-category mapping (the source of truth shared between
 script) is in the `nixos-input-category-sync` skill. When changing it,
 load that skill.
 
+Both `ci-linux.yaml` and `ci-darwin.yaml` also carry a `dev-shell`
+build-and-push job (one per OS, on the self-hosted runners). The host
+matrix only caches `toplevel` + home-manager activation, so the dev
+shell (`nix develop`) and the per-system `packages.*` outputs (colmena
+CLI, lint tooling, wallpapers) would otherwise be rebuilt locally on
+every machine. The job builds `.#devShells.<system>.default` and every
+`.#packages.<system>.*` and pushes them to Attic. It is **gated by its
+own `find-devshell` detection job**, which is independent of the host
+filter because the dev shell has a different input set: it rebuilds only
+when `flake/dev/*.nix`, a CI workflow file, or one of the inputs that
+actually feed the shell changes -- `nixpkgs`, `precommit-base`,
+`colmena`, or the `walls-*` wallpaper inputs. Note that `precommit-base`
+and `colmena` are `skip` for the host filter but **do** trigger the dev
+shell. Keep that `devshell_inputs` list in sync (in both workflows) when
+the dev shell's dependencies change.
+
+Three inputs deliberately do **not** follow our `nixpkgs` so their
+prebuilt outputs can be substituted from the projects' own caches:
+`colmena` (colmena.cachix.org), `catppuccin` (catppuccin.cachix.org),
+and `niri` (niri.cachix.org / niri-epireyn.cachix.org). Those caches are
+wired both into `flake.nix`'s `nixConfig` (for ad-hoc builds) and into
+`modules/base/system.nix` (so every host's `/etc/nix/nix.conf` uses them
+during normal `nixos-rebuild` / `nix develop`). Following our `nixpkgs`
+would change their derivation hashes and force local source builds.
+
 ## Update workflows
 
 - **`update-flakes.yaml`** runs weekly, opens one PR per input via
