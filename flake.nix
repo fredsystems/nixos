@@ -117,7 +117,6 @@
     # CI: skip (dev tooling only)
     precommit-base = {
       url = "github:FredSystems/pre-commit-checks";
-      inputs.nixpkgs.follows = "nixpkgs";
     };
 
     # CI: desktop
