@@ -495,6 +495,88 @@ jobs:
           fi
 
   # =====================================================================
+  # Decide whether the dev shell / dev packages need rebuilding
+  #
+  # The dev shell does NOT share the host input set, so the host filter
+  # would both over- and under-build it. It is fed by:
+  #   - flake/dev/*.nix              (the shell / checks / packages defs)
+  #   - input: nixpkgs               (nodejs, typescript, wallpaper pkgs)
+  #   - input: precommit-base        (statix/nixfmt/deadnix/... hooks)
+  #   - input: colmena               (the colmena CLI in the shell)
+  #   - input: walls-{catppuccin,zhichaoh,cozypixels} (wallpaper sources)
+  # Anything else (host dirs, server modules, docs) leaves it untouched.
+  find-devshell:
+    name: Detect dev-shell changes
+    runs-on: ubuntu-latest
+    needs: [skip-if-clean]
+    if: ${{ needs.skip-if-clean.outputs.skip != 'true' }}
+    outputs:
+      changed: ${{ steps.detect.outputs.changed }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          fetch-depth: 0
+
+      - name: Detect dev-shell-affecting changes
+        id: detect
+        shell: bash
+        run: |
+          set -eo pipefail
+
+          # workflow_dispatch has no diff context — always rebuild.
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            base_sha="${{ github.event.pull_request.base.sha }}"
+          else
+            base_sha="${{ github.event.merge_group.base_sha }}"
+          fi
+
+          changed_files=$(git diff --name-only "$base_sha" HEAD)
+          echo "Changed files:"
+          echo "$changed_files"
+
+          changed=false
+          flake_lock_changed=false
+
+          while IFS= read -r file; do
+            [ -z "$file" ] && continue
+            case "$file" in
+              flake/dev/*.nix)
+                changed=true ;;
+              .github/workflows/ci-linux.yaml|.github/workflows/ci-darwin.yaml)
+                changed=true ;;
+              flake.lock)
+                flake_lock_changed=true ;;
+            esac
+          done <<< "$changed_files"
+
+          # Inputs that actually feed the dev shell / dev packages.
+          devshell_inputs="nixpkgs precommit-base colmena walls-catppuccin walls-zhichaoh walls-cozypixels"
+
+          if [ "$changed" = "false" ] && [ "$flake_lock_changed" = "true" ]; then
+            old_lock=$(git show "${base_sha}:flake.lock" 2>/dev/null || echo '{}')
+            new_lock=$(cat flake.lock)
+            for input in $devshell_inputs; do
+              node_name=$(echo "$new_lock" | jq -r ".nodes.root.inputs.\"$input\" // empty")
+              [ -z "$node_name" ] && continue
+              old_rev=$(echo "$old_lock" | jq -r ".nodes.\"$node_name\".locked.rev // .nodes.\"$node_name\".locked.narHash // empty" 2>/dev/null)
+              new_rev=$(echo "$new_lock" | jq -r ".nodes.\"$node_name\".locked.rev // .nodes.\"$node_name\".locked.narHash // empty")
+              if [ "$old_rev" != "$new_rev" ]; then
+                echo "  dev-shell input changed: $input"
+                changed=true
+                break
+              fi
+            done
+          fi
+
+          echo "changed=$changed" >> "$GITHUB_OUTPUT"
+          echo "dev-shell rebuild needed: $changed"
+
+  # =====================================================================
   # Build + push the dev shell and dev packages
   #
   # The host build jobs only cache system.build.toplevel and the
@@ -504,13 +586,15 @@ jobs:
   # rebuilds them on first `nix develop`. Build and push them to Attic so
   # all machines (and this Mac) fetch instead of build.
   #
+  # Gated on find-devshell so unrelated PRs skip it entirely.
+  #
   # `--accept-flake-config` is required so the flake's nixConfig
   # extra-substituters (colmena/catppuccin/niri caches) are honored.
   dev-shell:
     name: Build & push dev shell + packages
     runs-on: [self-hosted, Linux]
-    needs: [skip-if-clean]
-    if: ${{ needs.skip-if-clean.outputs.skip != 'true' }}
+    needs: [skip-if-clean, find-devshell]
+    if: ${{ needs.skip-if-clean.outputs.skip != 'true' && needs.find-devshell.outputs.changed == 'true' }}
     permissions:
       id-token: "write"
       contents: "read"
@@ -544,13 +628,16 @@ jobs:
 
           echo "Building dev packages..."
           # Enumerate every packages.<system>.* attr; tolerate an empty set.
-          pkg_attrs=$(nix eval --json ".#packages.${system}" --apply builtins.attrNames)
-          echo "$pkg_attrs" | jq -r '.[]' | while read -r attr; do
+          # Emit newline-separated names via Nix itself so this step has no
+          # dependency on jq (not present on the self-hosted runner).
+          pkg_attrs=$(nix eval --raw ".#packages.${system}" \
+            --apply 'ps: builtins.concatStringsSep "\n" (builtins.attrNames ps)')
+          while read -r attr; do
             [ -z "$attr" ] && continue
             echo "  building packages.${system}.${attr}"
             nix build --accept-flake-config --no-link --print-out-paths \
               ".#packages.${system}.${attr}" >> devshell.paths
-          done
+          done <<< "$pkg_attrs"
 
           echo "Pushing built dev outputs to Attic..."
           # Push the realised store paths (and their closures) directly.
