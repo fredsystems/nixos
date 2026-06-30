@@ -145,19 +145,31 @@ pushcache() {
     echo "  HM root: $HM_ROOT"
     attic push fred "$HM_PATH" \
         --ignore-upstream-cache-filter \
-        -j "$jobs" || { echo "Failed to push home-manager cache" >&2; _shell_func_opts_off; return 1; }
+        -j "$jobs" || {
+        echo "Failed to push home-manager cache" >&2
+        _shell_func_opts_off
+        return 1
+    }
 
     echo
     echo "Pushing per-user cache to attic..."
     attic push fred "$USER_PROFILE" \
         --ignore-upstream-cache-filter \
-        -j "$jobs" || { echo "Failed to push per-user cache" >&2; _shell_func_opts_off; return 1; }
+        -j "$jobs" || {
+        echo "Failed to push per-user cache" >&2
+        _shell_func_opts_off
+        return 1
+    }
 
     echo
     echo "Pushing current-system cache to attic..."
     attic push fred "$SYS_PROFILE" \
         --ignore-upstream-cache-filter \
-        -j "$jobs" || { echo "Failed to push system cache" >&2; _shell_func_opts_off; return 1; }
+        -j "$jobs" || {
+        echo "Failed to push system cache" >&2
+        _shell_func_opts_off
+        return 1
+    }
 
     _shell_func_opts_off
 }
@@ -290,4 +302,48 @@ gcnoverify() {
     local rc=$?
     popd >/dev/null || true
     return $rc
+}
+
+update_dev() {
+    echo "Building dev shell..."
+    system=$(nix eval --raw --impure --expr builtins.currentSystem)
+    nix build --no-link --print-out-paths \
+        ".#devShells.${system}.default" >devshell.paths
+
+    echo "Building dev packages..."
+    # Enumerate every packages.<system>.* attr; tolerate a flake that has
+    # no `packages` output (or no entry for this system) at all.
+    #
+    # NOTE: `nix eval ".#packages.${system}"` cannot be used here. When the
+    # flake has no `packages` output, the flake-installable resolver fails
+    # *before* `--apply` runs, with a doubled-path error like
+    #   does not provide attribute 'packages.<sys>.packages.<sys>'
+    # The `packages or {}` default is never reached because resolution of
+    # the selector itself is what fails. So we evaluate the whole flake's
+    # outputs via `nix flake show --json` (no jq dependency) and pick out
+    # packages.<system> with Nix-side defaults.
+    local pkg_attrs show_json
+    show_json="$(mktemp)"
+    if nix flake show --json . >"$show_json" 2>/dev/null; then
+        pkg_attrs=$(nix eval --raw --impure --expr "
+            let j = builtins.fromJSON (builtins.readFile $show_json);
+            in builtins.concatStringsSep \"\n\"
+                 (builtins.attrNames ((j.packages or {}).\"${system}\" or {}))")
+    else
+        pkg_attrs=""
+    fi
+    rm -f "$show_json"
+    while read -r attr; do
+        [ -z "$attr" ] && continue
+        echo "  building packages.${system}.${attr}"
+        nix build --no-link --print-out-paths \
+            ".#packages.${system}.${attr}" >>devshell.paths
+    done <<<"$pkg_attrs"
+
+    echo "Pushing built dev outputs to Attic..."
+    # Push the realised store paths (and their closures) directly.
+    xargs -r nix shell --inputs-from . nixpkgs#attic-client --command \
+        attic push fred --ignore-upstream-cache-filter -j 2 <devshell.paths
+
+    rm devshell.paths
 }
