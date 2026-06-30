@@ -79,14 +79,18 @@
     },
     {
       "id": "nixpkgs-511329-dateutils-darwin",
-      "done": false,
+      "done": true,
       "summary": "staging-next autoconf update forced Clang to -std=gnu23, breaking dateutils 0.4.11 (dgrep.c) on aarch64-darwin.",
       "repo": "NixOS/nixpkgs",
       "check": "issue-closed",
       "issue": 511329,
-      "tracking": ["https://github.com/NixOS/nixpkgs/issues/511329"],
+      "tracking": [
+        "https://github.com/NixOS/nixpkgs/issues/511329",
+        "https://github.com/NixOS/nixpkgs/pull/526257",
+        "https://github.com/hroptatyr/dateutils/commit/b30902c2f46288b570c7fa8de06e17cc7dfd6a37"
+      ],
       "workaround": "overlays/default.nix -- `dateutils` overlay pins `CFLAGS=-std=gnu17` on darwin only.",
-      "revert_action": "#511329 is already closed/completed upstream. Confirm our pinned nixpkgs builds dateutils on aarch64-darwin without the gnu17 pin, then drop the darwin branch of the `dateutils` overlay and set `done: true`. (This entry will flag immediately on first run, which is the intended prompt to test the revert.)"
+      "revert_action": "DONE. The umbrella issue #511329 closing was not itself the signal -- it closed once staging-next breakage was reduced enough to merge, not because dateutils was fixed. The actual fix is nixpkgs PR #526257 (merge commit 670c46f, backported to release-26.05 via #530052), which applies the upstream dateutils patch (hroptatyr b30902c) and adds flex/bison instead of the gnu17 CFLAGS hack. Verified our pinned nixpkgs (rev b5aa0fbd, which the darwin host evaluates via the nixpkgs_8 node) contains 670c46f and that pkgs.dateutils on the darwin host carries the b30902c patch + flex/bison. The patched, no-gnu17 dateutils for aarch64-darwin is already built on cache.nixos.org by upstream Hydra (store path ir1k1nb...-dateutils-0.4.11), so the from-source build is confirmed good. Overlay darwin branch removed."
     },
     {
       "id": "nixpkgs-526476-fwupd-polkit",
