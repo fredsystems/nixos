@@ -40,7 +40,7 @@
   "fixes": [
     {
       "id": "gh-dash-829-browser-stderr",
-      "done": false,
+      "done": true,
       "summary": "gh-dash leaks browser launcher stderr into the TUI (GTK theme warnings corrupt the display).",
       "repo": "dlvhdr/gh-dash",
       "check": "release-contains-commit",
@@ -50,7 +50,22 @@
         "https://github.com/dlvhdr/gh-dash/pull/861"
       ],
       "workaround": "features/shell/gh-dash/default.nix -- `keybindings` block overriding the `o` key with a detached/silenced opener (search FIXME(gh-dash-829)).",
-      "revert_action": "Delete the `keybindings` block (and `openDetached` / unused `pkgs` arg) once pkgs.gh-dash ships a release containing the fix commit; let the builtin `o` handle opening again."
+      "revert_action": "DONE. gh-dash v4.25.0 (the version our pinned nixpkgs now resolves) is `ahead` of the fix commit ae6e94a, so the upstream io.Discard fix is present. Removed the `keybindings` block, the `openDetached` helper, and the now-unused `pkgs` arg from features/shell/gh-dash/default.nix; the builtin `o` handles opening again."
+    },
+    {
+      "id": "nix-darwin-1817-toc-depth",
+      "done": false,
+      "summary": "nixpkgs dropped `--toc-depth`/`--chunk-toc-depth` from `nixos-render-docs manual html` (use `--sidebar-depth`), but the nix-darwin pin we follow still passes the old flags, so `darwin-manual-html` fails and breaks every Darwin build on a nixpkgs bump.",
+      "repo": "nix-darwin/nix-darwin",
+      "check": "issue-closed",
+      "issue": 1817,
+      "tracking": [
+        "https://github.com/nix-darwin/nix-darwin/issues/1817",
+        "https://github.com/nix-darwin/nix-darwin/pull/1819",
+        "https://github.com/nix-darwin/nix-darwin/pull/1818"
+      ],
+      "workaround": "profiles/darwin.nix -- BOTH `documentation.doc.enable = false;` AND `system.tools.darwin-uninstaller.enable = false;` (see FIXME(nix-darwin-1817-toc-depth)). Disabling docs alone is insufficient: the darwin-uninstaller package evaluates a second inner nix-darwin system that rebuilds the broken HTML manual with docs re-enabled, so it must be disabled too.",
+      "revert_action": "Once #1819/#1818 merges (issue #1817 closes) and the `darwin` flake input is bumped to a commit containing the `--sidebar-depth` fix, delete BOTH the `documentation.doc.enable = false;` and `system.tools.darwin-uninstaller.enable = false;` lines from profiles/darwin.nix and their FIXME, confirm a Darwin build passes in CI (this repo has no local Darwin builder), then set `done: true`. NOTE: `issue-closed` is the weakest signal; the actual precondition is that our `darwin` input pins a commit with the fix, so verify the input revision before reverting."
     },
     {
       "id": "nix-15638-opencode-darwin",
