@@ -40,7 +40,7 @@
   "fixes": [
     {
       "id": "gh-dash-829-browser-stderr",
-      "done": false,
+      "done": true,
       "summary": "gh-dash leaks browser launcher stderr into the TUI (GTK theme warnings corrupt the display).",
       "repo": "dlvhdr/gh-dash",
       "check": "release-contains-commit",
@@ -50,7 +50,7 @@
         "https://github.com/dlvhdr/gh-dash/pull/861"
       ],
       "workaround": "features/shell/gh-dash/default.nix -- `keybindings` block overriding the `o` key with a detached/silenced opener (search FIXME(gh-dash-829)).",
-      "revert_action": "Delete the `keybindings` block (and `openDetached` / unused `pkgs` arg) once pkgs.gh-dash ships a release containing the fix commit; let the builtin `o` handle opening again."
+      "revert_action": "DONE. gh-dash v4.25.0 (the version our pinned nixpkgs now resolves) is `ahead` of the fix commit ae6e94a, so the upstream io.Discard fix is present. Removed the `keybindings` block, the `openDetached` helper, and the now-unused `pkgs` arg from features/shell/gh-dash/default.nix; the builtin `o` handles opening again."
     },
     {
       "id": "nix-darwin-1817-toc-depth",
