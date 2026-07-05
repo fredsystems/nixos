@@ -18,12 +18,12 @@ in
   };
 
   imports = [
-    ./hyprland
-    ./niri
+    ./common.nix
     ./cosmic
     ./gnome
+    ./hyprland
     ./modules
-    ./common.nix
+    ./niri
   ];
 
   config = lib.mkIf cfg.enable {
@@ -75,10 +75,10 @@ in
 
     desktop.environments = {
       common.enable = true;
-      hyprland.enable = true;
-      niri.enable = true;
       cosmic.enable = false;
       gnome.enable = false;
+      hyprland.enable = true;
+      niri.enable = true;
     };
 
     home-manager.users = lib.genAttrs allUsers (_: {
