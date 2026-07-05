@@ -11,20 +11,20 @@ in
     enable = lib.mkEnableOption "Hyprland/Niri desktop modules";
   };
   imports = [
-    ./wayle
     ./clipboard
     ./hyprlandextra
     ./pamixer
     ./vicinae
+    ./wayle
   ];
 
   config = lib.mkIf cfg.enable {
     desktop.environments.modules = {
-      wayle.enable = true;
       clipboard.enable = true;
       hyprlandextra.enable = true;
       pamixer.enable = true;
       vicinae.enable = true;
+      wayle.enable = true;
     };
   };
 }
