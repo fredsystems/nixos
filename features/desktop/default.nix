@@ -35,6 +35,7 @@ in
     ./frext
     ./ghostty
     ./githubdesktop
+    ./kitty
     ./ladybird
     ./ledger-live
     ./libreoffice
@@ -74,6 +75,7 @@ in
       sqlitebrowser.enable = true;
       wezterm.enable = true;
       alacritty.enable = true;
+      kitty.enable = true;
       stockfish.enable = true;
       libreoffice.enable = true;
       vlc.enable = true;
