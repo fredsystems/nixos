@@ -100,15 +100,11 @@ in
 
     home-manager.users = lib.genAttrs allUsers (_: {
       catppuccin.cursors.enable = true;
-      # FIXME(catppuccin-nix-cursors-pointerCursor-enable): WORKAROUND, not a
-      # fix. The catppuccin cursors home-manager module sets `home.pointerCursor`
-      # (name/package) without setting `home.pointerCursor.enable`, so
-      # home-manager falls back to its deprecated "non-null implies enabled"
-      # path and emits an `evaluation warning:` that fails our CI. Setting
-      # `.enable` explicitly here silences it. Upstream fix in flight:
-      # catppuccin/nix#1003. Delete this line once that lands in a catppuccin
-      # release our flake follows. Tracked by
-      # .github/workflows/track-upstream-fixes.yaml.
+      # The catppuccin cursors module sets `home.pointerCursor` (name/package)
+      # but not `home.pointerCursor.enable`, so home-manager falls back to its
+      # deprecated "non-null implies enabled" path and emits an
+      # `evaluation warning:` that fails our CI. home-manager expects this key
+      # to be set explicitly, so we do so here regardless of upstream.
       home.pointerCursor.enable = true;
     });
   };
