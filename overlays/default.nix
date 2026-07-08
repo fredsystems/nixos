@@ -46,6 +46,52 @@ final: prev: {
     else
       prev.direnv;
 
+  # FIXME(nixpkgs-sbomnix-nix231-pin): WORKAROUND, not a fix.
+  #
+  # nixpkgs' sbomnix package wrapper hard-prepends `nixVersions.nix_2_31`
+  # to sbomnix's PATH (pkgs/by-name/sb/sbomnix/package.nix, with a stale
+  # `# TODO: remove once sbomnix support new JSON format` referencing
+  # https://github.com/tiiuae/sbomnix/issues/267).  That pin is now
+  # self-defeating: Nix 2.31 emits the LEGACY `nix derivation show` JSON
+  # (top-level `inputDrvs`/`inputSrcs`), but sbomnix 1.8.0 already parses
+  # the NEW format (`inputs.drvs`/`inputs.srcs`, schema `version` 4) AND
+  # explicitly rejects the legacy fields:
+  #
+  #   CRITICAL Unexpected JSON from `nix derivation show`: unsupported
+  #   legacy `inputDrvs` ... refusing to continue.
+  #
+  # So every sbomnix invocation aborts, which broke the entire weekly
+  # cve-scan.yaml (all hosts red).  sbomnix issue #267 is CLOSED (the
+  # parser was updated in 1.8.0); the remaining bug is purely the stale
+  # nixpkgs wrapper pin.  Re-point the wrapper's PATH at a Nix that emits
+  # the modern format (Nix >= 2.34 in our pin emits schema version 4).
+  #
+  # Revert: once nixpkgs' sbomnix wrapper stops pinning nix_2_31 (drops
+  # it or bumps it to a version emitting the new format), delete this
+  # overlay and its FIXME.  See
+  # .github/workflows/track-upstream-fixes.yaml.
+  #
+  # Only meaningful on Linux (cve-scan runs on the self-hosted Linux
+  # runners); guarded so it is a no-op on darwin.
+  sbomnix =
+    if prev.stdenv.isDarwin then
+      prev.sbomnix
+    else
+      prev.sbomnix.overrideAttrs (_: {
+        makeWrapperArgs = [
+          "--prefix PATH : ${
+            prev.lib.makeBinPath [
+              final.git
+              final.nixVersions.nix_2_34
+              final.python3.pkgs.graphviz
+              final.nix-visualize
+              final.vulnix
+              final.grype
+            ]
+          }"
+        ];
+      });
+
   # Shadow the deprecated top-level `pkgs.hostPlatform` warnAlias (added
   # 2025-10-28 in nixpkgs aliases.nix) with the real value so that packages
   # which still reference `pkgs.hostPlatform` (e.g. the Flutter build

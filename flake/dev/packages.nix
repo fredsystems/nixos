@@ -20,7 +20,10 @@ in
   packages = forAllSystems (
     system:
     let
-      pkgs = import nixpkgs { inherit system; };
+      pkgs = import nixpkgs {
+        inherit system;
+        overlays = [ (import ../../overlays) ];
+      };
       inherit (pkgs) lib;
 
       # Pinned release tarball of procedurally-generated catppuccin
@@ -36,6 +39,14 @@ in
     # (consumed by the wayle wallpaper engine).  Skip it on Darwin so the
     # 1.4 GB closure is never built or surfaced there.
     lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
+      # sbomnix with the nix_2_31 PATH pin overridden (see the
+      # `sbomnix` overlay in overlays/default.nix and
+      # FIXME(nixpkgs-sbomnix-nix231-pin)).  cve-scan.yaml builds and
+      # invokes THIS package (`.#sbomnix`) rather than `nixpkgs#sbomnix`
+      # so the weekly CVE scan gets the fixed wrapper; a raw
+      # `nixpkgs#sbomnix` would bypass our overlay and re-break.
+      inherit (pkgs) sbomnix;
+
       # Aggregate catppuccin wallpaper collection.
       #
       # Layout under $out/share/backgrounds/:
