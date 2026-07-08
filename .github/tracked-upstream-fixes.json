@@ -135,21 +135,6 @@
       "tracking": ["https://github.com/NixOS/nixpkgs/pull/526476"],
       "workaround": "features/common/system/default.nix -- second `polkit.addRule` block granting fwupd refresh actions to the fwupd-refresh user (see the comment referencing NixOS/nixpkgs#526476).",
       "revert_action": "Once the merge commit of #526476 is contained in our pinned nixpkgs, remove the fwupd-refresh polkit rule block from features/common/system/default.nix and set `done: true`. NOTE: gated on the `nixpkgs` (unstable) input where the fix merged; if the affected hosts are on a different channel, retarget `pin_node` and confirm the fix is present there too."
-    },
-    {
-      "id": "catppuccin-nix-cursors-pointerCursor-enable",
-      "done": false,
-      "summary": "catppuccin's cursors home-manager module sets `home.pointerCursor` (name/package) without `home.pointerCursor.enable`, so home-manager falls back to its deprecated non-null-implies-enabled path and emits an `evaluation warning:` that fails our CI on desktops.",
-      "repo": "catppuccin/nix",
-      "check": "release-contains-commit",
-      "fix_commit": "0000000000000000000000000000000000000000",
-      "tracking": [
-        "https://github.com/catppuccin/nix/pull/1003",
-        "https://github.com/catppuccin/nix/pull/1000",
-        "https://github.com/catppuccin/nix/pull/1001"
-      ],
-      "workaround": "features/desktop/default.nix -- `home.pointerCursor.enable = true;` added to the per-user home-manager block alongside `catppuccin.cursors.enable = true;` (see FIXME(catppuccin-nix-cursors-pointerCursor-enable)).",
-      "revert_action": "BLOCKED intentionally until the fix ships. The fix is proposed in catppuccin/nix#1003 (head 5843e4f: sets `home.pointerCursor.enable = true;` in the cursors module's `config` block; verified locally against ~/GitHub/catnix to silence the warning on both desktops). It is NOT yet merged. `fix_commit` is a zero placeholder so `release-contains-commit` can never falsely resolve. WHEN #1003 MERGES: set `fix_commit` to its merge commit sha; the checker then resolves once catppuccin's latest release contains it. THEN delete the `home.pointerCursor.enable = true;` line + its FIXME from features/desktop/default.nix, eval the desktop hosts to confirm no `evaluation warning:`, and set `done: true`. History: the earlier attempt #1000 was reverted by #1001 and never set `.enable` regardless."
     }
   ]
 }
