@@ -90,8 +90,13 @@
       automerge: true,
     },
     {
+      // Upstream switched from `latest-build-N` tags (last seen:
+      // latest-build-210) to semver release tags (v0.0.5, v0.0.6, ...)
+      // some months ago. The old regex versioning never matched the new
+      // `vX.Y.Z` currentValue, so Renovate silently treated the current
+      // version as unparseable and never proposed an update.
       matchDatasources: ["docker"],
-      versioning: "regex:^(trixie-)?latest-build-(?<major>\\d+)?$",
+      versioning: "semver",
       matchPackageNames: ["ghcr.io/plane-watch/{/,}**"],
       automerge: true,
     },
