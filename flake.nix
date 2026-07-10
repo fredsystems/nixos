@@ -102,6 +102,11 @@
       url = "github:numtide/flake-utils";
     };
 
+    # CI: desktop
+    nix-flatpak = {
+      url = "github:gmodena/nix-flatpak?ref=v0.7.0"; # unstable branch. Use github:gmodena/nix-flatpak/?ref=<tag> to pin releases.
+    };
+
     # CI: global
     nixvim = {
       url = "github:nix-community/nixvim";
@@ -228,6 +233,7 @@
       sops-nix-stable,
       apple-fonts,
       nixvim,
+      nix-flatpak,
       niri,
       darwin,
       walls-catppuccin,
@@ -352,6 +358,7 @@
           walls-cozypixels
           freminal
           frext
+          nix-flatpak
           ;
       };
     in

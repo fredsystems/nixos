@@ -30,6 +30,7 @@ in
     ./brave
     ./discord
     ./firefox
+    ./flatpak
     ./fonts
     ./freminal
     ./frext
@@ -68,6 +69,7 @@ in
       discord.enable = cfg.enable_extra;
       environments.enable = true;
       firefox.enable = true;
+      flatpak.enable = true;
       fonts.enable = true;
       freminal.enable = true;
       frext.enable = true;
