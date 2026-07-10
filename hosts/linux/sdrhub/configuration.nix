@@ -428,7 +428,7 @@ in
       ###############################################################
       {
         name = "planewatch";
-        image = "ghcr.io/plane-watch/docker-plane-watch:v0.0.6@sha256:a7e4e13af03852900624f1a6bd193d697ae3c9d684bfeb3b817dcc680db2656f";
+        image = "ghcr.io/plane-watch/docker-plane-watch:v0.0.8@sha256:f98637421cc8a61fc90bc59d92682ffc8a64a087c6db5f6657edb922d1e8874f";
 
         restart = "always";
         tty = true;
