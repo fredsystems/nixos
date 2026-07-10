@@ -104,7 +104,7 @@ jobs:
                 global=true ;;
               flake.lock)
                 flake_lock_changed=true ;;
-              modules/*|profiles/*|home-profiles/*|dotfiles/*)
+              modules/*|profiles/*|home-profiles/*|dotfiles/*|overlays/*)
                 global=true ;;
               features/desktop/*)
                 desktop_global=true ;;

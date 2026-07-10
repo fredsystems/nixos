@@ -1,0 +1,133 @@
+---
+name: update-opencode
+
+# overlays/opencode.nix pins opencode to a specific upstream tag instead of
+# nixpkgs' (frequently stale) version — see that file for why. Renovate
+# can't maintain it: bumping requires recomputing the `node_modules`
+# fixed-output-derivation hash, which means actually running a Nix build,
+# not just a version-string/hash lookup. This workflow does that dance
+# daily (opencode ships multiple releases a week) and only opens a PR if
+# the resulting package actually builds.
+
+on:
+  schedule:
+    - cron: "30 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-opencode:
+    name: Update opencode overlay
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          # PAT (not GITHUB_TOKEN) so the pushed branch triggers CI on the
+          # resulting PR — see the same note in renovate-relock.yaml.
+          token: ${{ secrets.PAT }}
+          persist-credentials: true
+
+      - uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
+        with:
+          extra-conf: accept-flake-config = true
+
+      - name: Configure Git identity
+        run: |
+          git config --global user.email "noreply@github.com"
+          git config --global user.name "github[bot]"
+
+      - name: Check for a newer opencode release
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          current_version=$(sed -n 's/^\s*version = "\(.*\)";/\1/p' overlays/opencode.nix | head -1)
+          latest_tag=$(gh api repos/anomalyco/opencode/releases/latest --jq .tag_name)
+          latest_version="${latest_tag#v}"
+
+          echo "current: $current_version"
+          echo "latest:  $latest_version"
+
+          if [ "$current_version" = "$latest_version" ]; then
+            echo "already up to date"
+            echo "update=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "update=true" >> "$GITHUB_OUTPUT"
+          echo "version=$latest_version" >> "$GITHUB_OUTPUT"
+
+      - name: Bump version and source hash
+        if: steps.check.outputs.update == 'true'
+        env:
+          NEW_VERSION: ${{ steps.check.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          sed -i "s/^\(\s*version = \)\".*\";/\1\"${NEW_VERSION}\";/" overlays/opencode.nix
+
+          src_hash=$(nix run nixpkgs#nix-prefetch-github -- anomalyco opencode --rev "v${NEW_VERSION}" \
+            | jq -r .hash)
+
+          # Unambiguous: the `src` fetch uses the `hash` key, while
+          # node_modules (updated in the next step) uses `outputHash`.
+          # `|` delimiter: SRI base64 hashes can contain `/`, which would
+          # break a `/`-delimited sed substitution.
+          sed -i "s|hash = \"sha256-.*\";|hash = \"${src_hash}\";|" overlays/opencode.nix
+
+      - name: Recompute node_modules fixed-output hash
+        if: steps.check.outputs.update == 'true'
+        run: |
+          set -euo pipefail
+
+          # Force a hash mismatch to learn the real one, mirroring the
+          # manual bump procedure documented in overlays/opencode.nix.
+          sed -i 's/outputHash = "sha256-.*";/outputHash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";/' \
+            overlays/opencode.nix
+
+          build_log=$(nix build '.#nixosConfigurations.Daytona.pkgs.opencode.node_modules' --no-link 2>&1) && {
+            echo "expected a hash mismatch but the build succeeded outright" >&2
+            exit 1
+          }
+
+          real_hash=$(echo "$build_log" | grep -oP 'got:\s+\K\S+' || true)
+          if [ -z "$real_hash" ]; then
+            echo "$build_log" >&2
+            echo "could not extract the real node_modules hash from the build log above" >&2
+            exit 1
+          fi
+
+          sed -i "s|outputHash = \"sha256-.*\";|outputHash = \"${real_hash}\";|" overlays/opencode.nix
+
+      - name: Verify the full package builds
+        if: steps.check.outputs.update == 'true'
+        run: nix build '.#nixosConfigurations.Daytona.pkgs.opencode' --no-link
+
+      - name: Commit, push, and open a PR
+        if: steps.check.outputs.update == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.PAT }}
+          NEW_VERSION: ${{ steps.check.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          branch="update-opencode-${NEW_VERSION}"
+          git checkout -b "$branch"
+          git add overlays/opencode.nix
+          git commit -m "chore(opencode): update overlay to v${NEW_VERSION}"
+          git push origin "$branch" --force
+
+          gh pr create \
+            --title "chore(opencode): update overlay to v${NEW_VERSION}" \
+            --body "Automated bump of the opencode overlay (see overlays/opencode.nix) to the latest upstream release. Verified locally: \`nix build .#nixosConfigurations.Daytona.pkgs.opencode\` succeeds." \
+            --base main \
+            --head "$branch" \
+          || echo "PR already open for this branch"
+
+          gh pr merge "$branch" --auto --squash \
+          || echo "auto-merge not enabled or not mergeable yet; leaving PR for manual merge"

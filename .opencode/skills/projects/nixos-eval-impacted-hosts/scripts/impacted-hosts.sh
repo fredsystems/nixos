@@ -75,7 +75,7 @@ while IFS= read -r path; do
     flake.lock)
       LOCK_CHANGED=1
       ;;
-    modules/*|profiles/*|home-profiles/*|dotfiles/*)
+    modules/*|profiles/*|home-profiles/*|dotfiles/*|overlays/*)
       GLOBAL=1
       ;;
     features/desktop/*)
