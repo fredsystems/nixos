@@ -76,7 +76,9 @@ jobs:
 
           # Unambiguous: the `src` fetch uses the `hash` key, while
           # node_modules (updated in the next step) uses `outputHash`.
-          sed -i "s/hash = \"sha256-.*\";/hash = \"${src_hash}\";/" overlays/opencode.nix
+          # `|` delimiter: SRI base64 hashes can contain `/`, which would
+          # break a `/`-delimited sed substitution.
+          sed -i "s|hash = \"sha256-.*\";|hash = \"${src_hash}\";|" overlays/opencode.nix
 
       - name: Recompute node_modules fixed-output hash
         if: steps.check.outputs.update == 'true'
@@ -93,14 +95,14 @@ jobs:
             exit 1
           }
 
-          real_hash=$(echo "$build_log" | grep -oP 'got:\s+\K\S+')
+          real_hash=$(echo "$build_log" | grep -oP 'got:\s+\K\S+' || true)
           if [ -z "$real_hash" ]; then
             echo "$build_log" >&2
             echo "could not extract the real node_modules hash from the build log above" >&2
             exit 1
           fi
 
-          sed -i "s/outputHash = \"sha256-.*\";/outputHash = \"${real_hash}\";/" overlays/opencode.nix
+          sed -i "s|outputHash = \"sha256-.*\";|outputHash = \"${real_hash}\";|" overlays/opencode.nix
 
       - name: Verify the full package builds
         if: steps.check.outputs.update == 'true'
