@@ -19,6 +19,7 @@
   solaar,
   freminal,
   frext,
+  nix-flatpak,
   ...
 }:
 
@@ -36,6 +37,7 @@
     extraModules = [
       niri.nixosModules.niri
       solaar.nixosModules.default
+      nix-flatpak.nixosModules.nix-flatpak
     ];
   };
 
@@ -50,6 +52,7 @@
     extraModules = [
       niri.nixosModules.niri
       solaar.nixosModules.default
+      nix-flatpak.nixosModules.nix-flatpak
     ];
   };
 }
