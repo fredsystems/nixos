@@ -89,6 +89,10 @@ in
       enable = true;
 
       settings = {
+        remote-control = {
+          control-enable = true;
+        };
+
         server = {
           interface = [ "127.0.0.1" ];
           port = 5335;
