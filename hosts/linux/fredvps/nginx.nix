@@ -1,3 +1,18 @@
+{ pkgs, ... }:
+let
+  # Self-signed throwaway cert for the catch-all default vhost below.
+  # There's no real domain to get an ACME cert for "_" / unmatched SNI --
+  # the point is just to stop leaking a *real* vhost's cert (acarshub.app)
+  # to clients presenting a Host/SNI we don't recognize.
+  snakeoilCert =
+    pkgs.runCommand "nginx-default-snakeoil-cert" { nativeBuildInputs = [ pkgs.openssl ]; }
+      ''
+        mkdir -p "$out"
+        openssl req -x509 -nodes -newkey rsa:2048 -days 36500 \
+          -keyout "$out/key.pem" -out "$out/cert.pem" \
+          -subj "/CN=invalid"
+      '';
+in
 {
   networking.firewall.allowedTCPPorts = [
     80
@@ -173,6 +188,31 @@
         locations."/" = {
           proxyPass = "http://127.0.0.1:8078/";
         };
+      };
+
+      # Explicit catch-all default: without this, nginx (and the NixOS
+      # module) fall back to whichever vhost happens to sort first
+      # alphabetically (attrsets are always key-sorted) as the *implicit*
+      # default_server for any Host/SNI that doesn't match a declared
+      # vhost -- serving that vhost's content AND its TLS cert to totally
+      # unrelated domains. That's exactly how a typo'd/unlisted domain
+      # (flipaholic.pro) ended up being served acarshub.app's cert. This
+      # block makes "no match" fail closed instead of silently leaking
+      # whatever happens to be alphabetically first.
+      "_" = {
+        default = true;
+        serverName = "_";
+        # addSSL (not forceSSL/onlySSL): serve the catch-all on *both*
+        # plain :80 and :443 as default_server, using the throwaway
+        # self-signed cert above -- forceSSL/enableACME would need a
+        # real domain to issue for, and onlySSL would drop the :80
+        # default, leaving port 80's implicit-default bug unfixed.
+        addSSL = true;
+        sslCertificate = "${snakeoilCert}/cert.pem";
+        sslCertificateKey = "${snakeoilCert}/key.pem";
+        extraConfig = ''
+          return 444;
+        '';
       };
     };
   };
