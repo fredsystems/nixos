@@ -164,6 +164,16 @@
         serverAliases = [ "www.acarshub.com" ];
         globalRedirect = "acarshub.app";
       };
+
+      "flipaholics.pro" = {
+        forceSSL = true;
+        enableACME = true;
+        serverAliases = [ "www.flipaholics.pro" ];
+
+        locations."/" = {
+          proxyPass = "http://127.0.0.1:8078/";
+        };
+      };
     };
   };
 }

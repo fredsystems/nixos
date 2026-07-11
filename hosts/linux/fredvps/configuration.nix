@@ -1,5 +1,6 @@
 {
   lib,
+  pkgs,
   stateVersion,
   config,
   ...
@@ -9,7 +10,9 @@
     ./hardware-configuration.nix
     ../../../profiles/adsb-hub.nix
     ../../../modules/services/tailscale
+    ../../../modules/services/python-venv-app.nix
     ./nginx.nix
+    ./discord-backup.nix
   ];
 
   # Tailscale MagicDNS name — fill in your tailnet name, e.g. "fredvps.tail1234.ts.net"
@@ -38,7 +41,10 @@
     useNetworkd = true;
     useDHCP = false;
     networkmanager.enable = lib.mkForce false;
-    firewall.allowedTCPPorts = [ 2269 ];
+    firewall.allowedTCPPorts = [
+      2269
+      8078
+    ];
   };
 
   systemd.network = {
@@ -111,6 +117,31 @@
         port = "2269";
         filter = "sshd";
         maxretry = 3;
+      };
+    };
+
+    ###################################################################
+    # Python venv services — code is manually `git clone`d to
+    # /home/nik/<app>, dependencies are pinned in each app's
+    # requirements.txt far behind what nixpkgs ships, so pip (not
+    # nixpkgs) resolves them into a venv scoped to that directory.
+    # See modules/services/python-venv-app.nix.
+    ###################################################################
+    pythonVenvApps = {
+      test-site = {
+        path = "/home/nik/test_site";
+        user = "nik";
+        # scipy==1.10.1 (pinned in requirements.txt) has no cp312+ wheel.
+        python = pkgs.python311;
+        execStart = "$VENV/bin/uvicorn app.main:app --host 0.0.0.0 --port 8078 --workers 2";
+      };
+
+      discord-bot = {
+        path = "/home/nik/discord-bot";
+        user = "nik";
+        # matplotlib==3.7.5 (pinned in requirements.txt) has no cp313 wheel.
+        python = pkgs.python312;
+        execStart = "$VENV/bin/python main-discord.py";
       };
     };
 
