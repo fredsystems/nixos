@@ -40,17 +40,20 @@
   "fixes": [
     {
       "id": "gh-dash-829-browser-stderr",
-      "done": true,
-      "summary": "gh-dash leaks browser launcher stderr into the TUI (GTK theme warnings corrupt the display).",
+      "done": false,
+      "summary": "gh-dash leaks browser launcher stderr into the TUI (GTK theme warnings corrupt the display). Upstream io.Discard fix (PR #861 / commit ae6e94a, in v4.25.0) shipped but did NOT actually resolve the corruption in practice, so the local workaround has been reinstated.",
       "repo": "dlvhdr/gh-dash",
-      "check": "release-contains-commit",
-      "fix_commit": "ae6e94aeadead9bdea3fac14d139a2adc3500d51",
+      "check": "pkgs-min-version",
+      "package": "gh-dash",
+      "eval_host": "Daytona",
+      "min_version": null,
+      "upstream_pr": null,
       "tracking": [
         "https://github.com/dlvhdr/gh-dash/issues/829",
         "https://github.com/dlvhdr/gh-dash/pull/861"
       ],
       "workaround": "features/shell/gh-dash/default.nix -- `keybindings` block overriding the `o` key with a detached/silenced opener (search FIXME(gh-dash-829)).",
-      "revert_action": "DONE. gh-dash v4.25.0 (the version our pinned nixpkgs now resolves) is `ahead` of the fix commit ae6e94a, so the upstream io.Discard fix is present. Removed the `keybindings` block, the `openDetached` helper, and the now-unused `pkgs` arg from features/shell/gh-dash/default.nix; the builtin `o` handles opening again."
+      "revert_action": "BLOCKED. The obvious upstream signal (io.Discard patch ae6e94a in v4.25.0) was verified NOT to fix this in practice -- we reverted the workaround in PR #1942 / commit e385adbf and had to restore it. A `release-contains-commit` check on ae6e94a would falsely resolve immediately, so this entry is intentionally in the `pkgs-min-version` BLOCKED-by-null state (min_version=null, upstream_pr=null) and will never auto-resolve until a new signal is filed. TODO: file a new upstream issue documenting that PR #861 was insufficient, then update `tracking`, set `upstream_pr` to that new PR, and set `min_version` to the gh-dash release that actually carries the real fix. Only then revert the workaround (delete the `keybindings` block, `openDetached` helper, and `pkgs` arg from features/shell/gh-dash/default.nix), verify the TUI is clean on `o`, and set `done: true`."
     },
     {
       "id": "nix-darwin-1817-toc-depth",
