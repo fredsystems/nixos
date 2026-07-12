@@ -40,21 +40,24 @@
   "fixes": [
     {
       "id": "gh-dash-829-browser-stderr",
-      "done": true,
-      "summary": "gh-dash leaks browser launcher stderr into the TUI (GTK theme warnings corrupt the display).",
+      "done": false,
+      "summary": "gh-dash leaks browser launcher stderr into the TUI (GTK theme warnings corrupt the display). Upstream io.Discard fix (PR #861 / commit ae6e94a, in v4.25.0) shipped but did NOT actually resolve the corruption in practice, so the local workaround has been reinstated.",
       "repo": "dlvhdr/gh-dash",
-      "check": "release-contains-commit",
-      "fix_commit": "ae6e94aeadead9bdea3fac14d139a2adc3500d51",
+      "check": "pkgs-min-version",
+      "package": "gh-dash",
+      "eval_host": "Daytona",
+      "min_version": null,
+      "upstream_pr": null,
       "tracking": [
         "https://github.com/dlvhdr/gh-dash/issues/829",
         "https://github.com/dlvhdr/gh-dash/pull/861"
       ],
       "workaround": "features/shell/gh-dash/default.nix -- `keybindings` block overriding the `o` key with a detached/silenced opener (search FIXME(gh-dash-829)).",
-      "revert_action": "DONE. gh-dash v4.25.0 (the version our pinned nixpkgs now resolves) is `ahead` of the fix commit ae6e94a, so the upstream io.Discard fix is present. Removed the `keybindings` block, the `openDetached` helper, and the now-unused `pkgs` arg from features/shell/gh-dash/default.nix; the builtin `o` handles opening again."
+      "revert_action": "BLOCKED. The obvious upstream signal (io.Discard patch ae6e94a in v4.25.0) was verified NOT to fix this in practice -- we reverted the workaround in PR #1942 / commit e385adbf and had to restore it. A `release-contains-commit` check on ae6e94a would falsely resolve immediately, so this entry is intentionally in the `pkgs-min-version` BLOCKED-by-null state (min_version=null, upstream_pr=null) and will never auto-resolve until a new signal is filed. TODO: file a new upstream issue documenting that PR #861 was insufficient, then update `tracking`, set `upstream_pr` to that new PR, and set `min_version` to the gh-dash release that actually carries the real fix. Only then revert the workaround (delete the `keybindings` block, `openDetached` helper, and `pkgs` arg from features/shell/gh-dash/default.nix), verify the TUI is clean on `o`, and set `done: true`."
     },
     {
       "id": "nix-darwin-1817-toc-depth",
-      "done": false,
+      "done": true,
       "summary": "nixpkgs dropped `--toc-depth`/`--chunk-toc-depth` from `nixos-render-docs manual html` (use `--sidebar-depth`), but the nix-darwin pin we follow still passes the old flags, so `darwin-manual-html` fails and breaks every Darwin build on a nixpkgs bump.",
       "repo": "nix-darwin/nix-darwin",
       "check": "issue-closed",
@@ -65,7 +68,7 @@
         "https://github.com/nix-darwin/nix-darwin/pull/1818"
       ],
       "workaround": "profiles/darwin.nix -- BOTH `documentation.doc.enable = false;` AND `system.tools.darwin-uninstaller.enable = false;` (see FIXME(nix-darwin-1817-toc-depth)). Disabling docs alone is insufficient: the darwin-uninstaller package evaluates a second inner nix-darwin system that rebuilds the broken HTML manual with docs re-enabled, so it must be disabled too.",
-      "revert_action": "Once #1819/#1818 merges (issue #1817 closes) and the `darwin` flake input is bumped to a commit containing the `--sidebar-depth` fix, delete BOTH the `documentation.doc.enable = false;` and `system.tools.darwin-uninstaller.enable = false;` lines from profiles/darwin.nix and their FIXME, confirm a Darwin build passes in CI (this repo has no local Darwin builder), then set `done: true`. NOTE: `issue-closed` is the weakest signal; the actual precondition is that our `darwin` input pins a commit with the fix, so verify the input revision before reverting."
+      "revert_action": "DONE. Issue #1817 closed 2026-07-07; PR #1818 (`manualHTML: adopt to nixos/nixpkgs#537810`, merge commit 08920bcf) applied the `--toc-depth` -> `--sidebar-depth` swap in doc/manual/default.nix. Our `darwin` input now pins `d5bd9cd7` which is 2 commits ahead of 08920bcf and contains the fix. Removed both `documentation.doc.enable = false;` and `system.tools.darwin-uninstaller.enable = false;` (plus the FIXME block) from profiles/darwin.nix; the HTML manual and the uninstaller build again. Darwin build verification happens in ci-darwin.yaml (this repo has no local Darwin builder)."
     },
     {
       "id": "nix-15638-opencode-darwin",
