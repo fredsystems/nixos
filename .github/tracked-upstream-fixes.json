@@ -57,7 +57,7 @@
     },
     {
       "id": "nix-darwin-1817-toc-depth",
-      "done": false,
+      "done": true,
       "summary": "nixpkgs dropped `--toc-depth`/`--chunk-toc-depth` from `nixos-render-docs manual html` (use `--sidebar-depth`), but the nix-darwin pin we follow still passes the old flags, so `darwin-manual-html` fails and breaks every Darwin build on a nixpkgs bump.",
       "repo": "nix-darwin/nix-darwin",
       "check": "issue-closed",
@@ -68,7 +68,7 @@
         "https://github.com/nix-darwin/nix-darwin/pull/1818"
       ],
       "workaround": "profiles/darwin.nix -- BOTH `documentation.doc.enable = false;` AND `system.tools.darwin-uninstaller.enable = false;` (see FIXME(nix-darwin-1817-toc-depth)). Disabling docs alone is insufficient: the darwin-uninstaller package evaluates a second inner nix-darwin system that rebuilds the broken HTML manual with docs re-enabled, so it must be disabled too.",
-      "revert_action": "Once #1819/#1818 merges (issue #1817 closes) and the `darwin` flake input is bumped to a commit containing the `--sidebar-depth` fix, delete BOTH the `documentation.doc.enable = false;` and `system.tools.darwin-uninstaller.enable = false;` lines from profiles/darwin.nix and their FIXME, confirm a Darwin build passes in CI (this repo has no local Darwin builder), then set `done: true`. NOTE: `issue-closed` is the weakest signal; the actual precondition is that our `darwin` input pins a commit with the fix, so verify the input revision before reverting."
+      "revert_action": "DONE. Issue #1817 closed 2026-07-07; PR #1818 (`manualHTML: adopt to nixos/nixpkgs#537810`, merge commit 08920bcf) applied the `--toc-depth` -> `--sidebar-depth` swap in doc/manual/default.nix. Our `darwin` input now pins `d5bd9cd7` which is 2 commits ahead of 08920bcf and contains the fix. Removed both `documentation.doc.enable = false;` and `system.tools.darwin-uninstaller.enable = false;` (plus the FIXME block) from profiles/darwin.nix; the HTML manual and the uninstaller build again. Darwin build verification happens in ci-darwin.yaml (this repo has no local Darwin builder)."
     },
     {
       "id": "nix-15638-opencode-darwin",
