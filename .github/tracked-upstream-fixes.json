@@ -128,6 +128,41 @@
       "revert_action": "sbomnix#267 is already CLOSED (the parser was fixed in 1.8.0); the residual bug is purely nixpkgs' stale wrapper pin, for which no upstream issue exists yet. `pkgs-min-version` with `min_version: null` keeps this BLOCKED (never falsely resolved) — it is a reminder to re-check manually. When a future nixpkgs sbomnix update drops the nix_2_31 PATH pin (verify pkgs/by-name/sb/sbomnix/package.nix in our pinned nixpkgs no longer references nixVersions.nix_2_31), delete the `sbomnix` overlay from overlays/default.nix and its FIXME, revert flake/dev/packages.nix to `import nixpkgs { inherit system; }` with no overlays and drop the `inherit (pkgs) sbomnix;` line, revert cve-scan.yaml to `nix shell --inputs-from . nixpkgs#sbomnix --command sbomnix`, confirm a manual `workflow_dispatch` CVE scan is green, then set `done: true`. If it becomes urgent, file a nixpkgs issue to establish a real `issue-closed`/`nixpkgs-pin-contains-commit` signal and retarget this entry."
     },
     {
+      "id": "nixpkgs-536365-ld64-mac-notification-sys",
+      "done": false,
+      "summary": "nixpkgs' classic ld64 (cctools-binutils-darwin-1010.6) crashes in its stubs pass with `Trace/BPT trap: 5` when linking any Rust binary that pulls `mac-notification-sys` via `notify-rust`. This kills the aarch64-darwin build of freminal 0.11.1 (and previously killed cargo-watch, since removed).",
+      "repo": "NixOS/nixpkgs",
+      "check": "nixpkgs-pin-contains-commit",
+      "fix_commit": "0000000000000000000000000000000000000000",
+      "pin_node": "nixpkgs",
+      "tracking": [
+        "https://github.com/NixOS/nixpkgs/pull/536365",
+        "https://github.com/NixOS/nixpkgs/pull/540463",
+        "https://github.com/NixOS/nixpkgs/issues/540450"
+      ],
+      "workaround": "features/desktop/freminal/default.nix -- darwin-only `overrideAttrs` on the freminal flake package adding `llvmPackages.lld` to nativeBuildInputs and setting `env.NIX_CFLAGS_LINK = \"-fuse-ld=lld\"` (see FIXME(nixpkgs-536365-ld64-mac-notification-sys)). Mirrors the per-package hotfix nixpkgs applied to starship in PR #540463.",
+      "revert_action": "The root fix is nixpkgs#536365 (\"ld64: disable hardening again\"), still OPEN against `staging`. `fix_commit` is a zero placeholder because the merge commit is unknown until #536365 merges; `nixpkgs-pin-contains-commit` with a zero sha keeps this BLOCKED (never falsely resolved). Once #536365 (or an equivalent root ld64 fix) merges, update `fix_commit` to the merge commit sha; when a subsequent nixpkgs bump brings that commit into our pinned `nixpkgs` node, delete the freminal `overrideAttrs` block from features/desktop/freminal/default.nix and its FIXME, confirm the Darwin builds pass in CI (this repo has no local Darwin builder), then set `done: true`. NOTE: if nixpkgs ships a different, more targeted fix (e.g. widening the starship-style workaround to a stdenv hook) before #536365 lands, retarget this entry to that commit.",
+      "$comment": "The upstream conversation on issue #540450 identifies #536365 as the root fix; #540463 is the starship-only hotfix we cargo-cult here for freminal."
+    },
+    {
+      "id": "nixpkgs-540439-dfdiskcache-pandas3",
+      "done": false,
+      "summary": "nixpkgs bumped pandas to 3.0.4 but df-diskcache still pins `pandas<3` in its v0.1.0 requirements, so the pythonRuntimeDepsCheckHook aborts the dfdiskcache build; this transitively breaks sbomnix (which depends on dfdiskcache), taking out the weekly CVE scan and the `.#sbomnix` dev-shell package.",
+      "repo": "NixOS/nixpkgs",
+      "check": "pkgs-min-version",
+      "package": "python3Packages.dfdiskcache",
+      "eval_host": "fredhub",
+      "min_version": null,
+      "upstream_pr": 540439,
+      "tracking": [
+        "https://github.com/NixOS/nixpkgs/pull/540439",
+        "https://github.com/thombashi/df-diskcache/blob/v0.1.0/requirements/requirements.txt"
+      ],
+      "workaround": "overlays/default.nix -- `pythonPackagesExtensions` block that appends `pandas` to `dfdiskcache`'s `pythonRelaxDeps` (see FIXME(nixpkgs-540439-dfdiskcache-pandas3)). Applies globally since the overlay is imported by both mk-system.nix and flake/dev/packages.nix, so both `nixosConfigurations.*.pkgs.sbomnix` and the standalone `.#sbomnix` package build.",
+      "revert_action": "The dfdiskcache package version does not change with the fix -- it's a `pythonRelaxDeps` addition to the same v0.1.0 build -- so `pkgs-min-version` with `min_version: null` keeps this BLOCKED (never falsely resolved) and the checker will report when PR #540439 has merged upstream. Once #540439 (or an equivalent) is contained in our pinned nixpkgs, delete the `pythonPackagesExtensions` block from overlays/default.nix and its FIXME, run `nix build .#sbomnix` on fredhub to confirm the sbomnix build succeeds without the overlay, then set `done: true`.",
+      "$comment": "`package` is `python3Packages.dfdiskcache` for diagnostic purposes only; the null `min_version` means pkg_version_in_pin is never actually evaluated against a target."
+    },
+    {
       "id": "nixpkgs-526476-fwupd-polkit",
       "done": false,
       "summary": "fwupd-refresh.service fails with 'Failed to obtain auth' on every timer fire because the fwupd-refresh user has no seat; we grant the refresh polkit actions by username instead.",

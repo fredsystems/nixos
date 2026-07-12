@@ -89,7 +89,6 @@
         delta
         dateutils
         gnuplot
-        cargo-watch
         zeromq
         rrdtool
       ];

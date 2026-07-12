@@ -97,6 +97,30 @@ final: prev: {
         ];
       });
 
+  # FIXME(nixpkgs-540439-dfdiskcache-pandas3): WORKAROUND, not a fix.
+  #
+  # nixpkgs bumped pandas to 3.0.4, which trips df-diskcache's pinned
+  # `pandas<3,>=1` runtime dependency check.  Upstream still pins
+  # `pandas<3` as of the v0.1.0 tag, but the package itself works fine
+  # against pandas 3.x.  df-diskcache is a transitive runtime dep of
+  # `sbomnix`, so the failed dependency check aborts the sbomnix build
+  # (both `nixpkgs#sbomnix` and this repo's `.#sbomnix` override, since
+  # the overlay only re-wraps sbomnix and does not rebuild dfdiskcache).
+  #
+  # The fix is a one-line `pythonRelaxDeps = [ "pandas" ];` on the
+  # dfdiskcache package, mirroring NixOS/nixpkgs PR #540439.
+  #
+  # Revert: once #540439 (or an equivalent upstream fix) lands in our
+  # pinned nixpkgs, delete this `pythonPackagesExtensions` block and
+  # its FIXME.  See .github/workflows/track-upstream-fixes.yaml.
+  pythonPackagesExtensions = prev.pythonPackagesExtensions or [ ] ++ [
+    (_pyFinal: pyPrev: {
+      dfdiskcache = pyPrev.dfdiskcache.overridePythonAttrs (old: {
+        pythonRelaxDeps = (old.pythonRelaxDeps or [ ]) ++ [ "pandas" ];
+      });
+    })
+  ];
+
   # Shadow the deprecated top-level `pkgs.hostPlatform` warnAlias (added
   # 2025-10-28 in nixpkgs aliases.nix) with the real value so that packages
   # which still reference `pkgs.hostPlatform` (e.g. the Flutter build
