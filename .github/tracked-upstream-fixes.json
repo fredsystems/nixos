@@ -173,6 +173,21 @@
       "tracking": ["https://github.com/NixOS/nixpkgs/pull/526476"],
       "workaround": "features/common/system/default.nix -- second `polkit.addRule` block granting fwupd refresh actions to the fwupd-refresh user (see the comment referencing NixOS/nixpkgs#526476).",
       "revert_action": "Once the merge commit of #526476 is contained in our pinned nixpkgs, remove the fwupd-refresh polkit rule block from features/common/system/default.nix and set `done: true`. NOTE: gated on the `nixpkgs` (unstable) input where the fix merged; if the affected hosts are on a different channel, retarget `pin_node` and confirm the fix is present there too."
+    },
+    {
+      "id": "vicinae-468-printer-icon",
+      "done": false,
+      "summary": "Vicinae (our app launcher) fails to resolve the freedesktop icon name \"printer\" via QIcon::fromTheme, showing a \"?\" placeholder for system-config-printer's launcher entry, even though the exact same icon theme resolves every other icon we tested (including other printing-related ones like `cups`) and a standalone QIcon::fromTheme(\"printer\") call succeeds outside of vicinae. Confirmed live on maranello: neither a valid icon theme name nor \"auto\" changes the outcome, ruling out theme/config causes.",
+      "repo": "vicinaehq/vicinae",
+      "check": "pkgs-min-version",
+      "package": "vicinae",
+      "eval_host": "Daytona",
+      "min_version": null,
+      "upstream_pr": null,
+      "tracking": ["https://github.com/vicinaehq/vicinae/discussions/468"],
+      "workaround": "features/desktop/print/default.nix -- `system-config-printer-iconfix` overrides system-config-printer's .desktop `Icon=printer` to an absolute path pointing at the package's own bundled `i-network-printer.png`, bypassing icon-theme-name resolution entirely (see FIXME(vicinae-468-printer-icon)).",
+      "revert_action": "No upstream PR/issue exists yet for this specific \"printer\" name bug (only the linked discussion, where multiple reporters hit the identical symptom, unresolved as of Oct 2025) so `min_version` stays null (BLOCKED) until one is filed and a fix version is known. Once vicinae ships a fix and our pinned nixpkgs' `vicinae` package version reflects it, set `min_version` accordingly (or `done: true` after manually confirming `Icon=printer` renders correctly in vicinae), then delete `system-config-printer-iconfix` and its FIXME from features/desktop/print/default.nix, reverting to a plain `programs.system-config-printer.enable = true;`.",
+      "$comment": "No upstream_pr recorded yet -- if one is opened for this specific bug, add its number here so the checker nudges once merged."
     }
   ]
 }
