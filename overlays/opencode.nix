@@ -27,13 +27,13 @@
 }:
 opencode.overrideAttrs (
   _finalAttrs: prevAttrs: rec {
-    version = "1.18.2";
+    version = "1.18.3";
 
     src = fetchFromGitHub {
       owner = "anomalyco";
       repo = "opencode";
       tag = "v${version}";
-      hash = "sha256-dtokh2AJCnrp07jtx+0vOYjQzfxNA+3pajIFFNYuI24=";
+      hash = "sha256-Wdkzms59oHw3M/Em2RH7BPhZME8AtLmtNFSnsUxO1V4=";
     };
 
     node_modules = prevAttrs.node_modules.overrideAttrs (_: {
