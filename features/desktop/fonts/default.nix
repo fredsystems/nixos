@@ -48,7 +48,7 @@ in
         # corefonts
         # cifs-utils
         # dina-font
-        # liberation_ttf
+        liberation_ttf
         # mplus-outline-fonts.githubRelease
         # powerline-fonts
         # proggyfonts
