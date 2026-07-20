@@ -5,6 +5,7 @@
   user,
   extraUsers ? [ ],
   isLaptop ? false,
+  wayleMonitor ? null,
   ...
 }:
 let
@@ -304,10 +305,16 @@ in
           };
 
           # ── On-screen display (replaces volume.sh / kbbacklight OSD) ─────
+          # wayle isn't focus-aware, so on multi-monitor hosts the OSD would
+          # otherwise default to wayle's own "primary" output regardless of
+          # which monitor the user is actually looking at. `wayleMonitor`
+          # (set per-host in flake/hosts/nixos.nix, e.g. "DP-3" on maranello)
+          # pins it to a fixed connector instead.
           osd = {
             enabled = true;
             position = "top";
-          };
+          }
+          // lib.optionalAttrs (wayleMonitor != null) { monitor = wayleMonitor; };
 
           # ── Bar layout (mirrors fredbar) ────────────────────────────────
           # Left: dashboard button (distro icon → lock/logout/reboot/power
@@ -449,13 +456,16 @@ in
 
             # ── Notification centre + popups ──────────────────────────────
             # Bar icon shows unread count; left-click opens history, right
-            # click toggles DND. Popups anchor top-right (single-monitor
-            # desktops use the default "primary" popup-monitor).
+            # click toggles DND. Popups anchor top-right. Like the OSD above,
+            # wayle isn't focus-aware, so `wayleMonitor` pins popups to a
+            # fixed connector on multi-monitor hosts instead of relying on
+            # wayle's default "primary" output.
             notifications = {
               popup-position = "top-right";
               popup-margin-x = 8.0;
               popup-margin-y = 8.0;
-            };
+            }
+            // lib.optionalAttrs (wayleMonitor != null) { popup-monitor = wayleMonitor; };
           };
         };
       };

@@ -41,6 +41,12 @@
 #                               from isDesktop, which only means "runs the
 #                               desktop environment" (a desktop tower has
 #                               isDesktop = true but isLaptop = false).
+#   wayleMonitor     = null   – Wayland connector name (e.g. "DP-3") that
+#                               wayle should pin its OSD and notification
+#                               popups to. wayle is not focus-aware, so on
+#                               multi-monitor hosts without an explicit
+#                               value it falls back to its own "primary"
+#                               default. null means "let wayle decide".
 {
   inputs,
   self,
@@ -70,6 +76,7 @@
   kernelPkgsInput ? inputs.nixpkgs-kernel,
   isDesktop ? false,
   isLaptop ? false,
+  wayleMonitor ? null,
 }:
 let
   isDarwin = pkgsInput.lib.hasSuffix "darwin" system;
@@ -92,6 +99,7 @@ let
       desktopScrapeMap
       isDesktop
       isLaptop
+      wayleMonitor
       catppuccinInput
       sopsNixInput
       kernelPkgsInput
