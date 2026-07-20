@@ -250,6 +250,10 @@ in
           ---- KEYBINDS   ----
           --------------------
 
+          hl.bind("SUPER + SHIFT + X", function()
+              hl.dispatch(hl.dsp.window.float({ action = "toggle" }))
+          end)
+
           hl.bind(mainMod .. " + F",         hl.dsp.exec_cmd("firefox"))
           hl.bind(mainMod .. " + E",         hl.dsp.exec_cmd(email))
           hl.bind(mainMod .. " + T",         hl.dsp.exec_cmd(terminal))
