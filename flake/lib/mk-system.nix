@@ -32,6 +32,7 @@
 #   hmInput          = inputs.home-manager     (unstable)
 #   catppuccinInput  = inputs.catppuccin       (unstable)
 #   sopsNixInput     = inputs.sops-nix         (unstable)
+#   nixYaziPluginsInput = inputs.nix-yazi-plugins (unstable)
 #   kernelPkgsInput  = inputs.nixpkgs-kernel   (server kernel pin source;
 #                                               unused on desktops)
 #   isDesktop        = false  – gates the desktop package tree
@@ -73,6 +74,7 @@
   hmInput ? inputs.home-manager,
   catppuccinInput ? inputs.catppuccin,
   sopsNixInput ? inputs.sops-nix,
+  nixYaziPluginsInput ? inputs.nix-yazi-plugins,
   kernelPkgsInput ? inputs.nixpkgs-kernel,
   isDesktop ? false,
   isLaptop ? false,
@@ -102,6 +104,7 @@ let
       wayleMonitor
       catppuccinInput
       sopsNixInput
+      nixYaziPluginsInput
       kernelPkgsInput
       isDarwin
       ;
@@ -173,6 +176,7 @@ let
             github_email
             github_signing_key
             catppuccinInput
+            nixYaziPluginsInput
             stateVersion
             isDarwin
             ;

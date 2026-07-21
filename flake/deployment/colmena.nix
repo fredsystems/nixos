@@ -43,6 +43,7 @@ let
     nixpkgs
     catppuccin-stable
     sops-nix-stable
+    nix-yazi-plugins-stable
     nixpkgs-kernel
     ;
 
@@ -124,19 +125,21 @@ let
         extraUsers = [ ];
         catppuccinInput = catppuccin-stable;
         sopsNixInput = sops-nix-stable;
+        nixYaziPluginsInput = nix-yazi-plugins-stable;
         kernelPkgsInput = nixpkgs-kernel;
         catppuccinWallpapers = self.packages."x86_64-linux".catppuccin-wallpapers;
       };
 
       # Per-node overrides derived from the serverNodes table.
-      # Channel-sensitive args (catppuccinInput, sopsNixInput) are read from
-      # the node entry so they stay in sync with the nixosConfigurations
-      # channel selection automatically.
+      # Channel-sensitive args (catppuccinInput, sopsNixInput,
+      # nixYaziPluginsInput) are read from the node entry so they stay in
+      # sync with the nixosConfigurations channel selection automatically.
       nodeSpecialArgs = builtins.mapAttrs (_: node: {
         stateVersion = node.stateVersion or "24.11";
         extraUsers = node.extraUsers or [ ];
         catppuccinInput = node.catppuccinInput or catppuccin-stable;
         sopsNixInput = node.sopsNixInput or sops-nix-stable;
+        nixYaziPluginsInput = node.nixYaziPluginsInput or nix-yazi-plugins-stable;
       }) serverNodes;
     };
   }

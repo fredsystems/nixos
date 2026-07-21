@@ -5,7 +5,8 @@
 # Arguments closed over from flake.nix:
 #   self          — the flake itself (for self.lib.mkSystem)
 #   inputs        — all flake inputs (for solaar)
-#   nixpkgs-stable, home-manager-stable, catppuccin-stable, sops-nix-stable
+#   nixpkgs-stable, home-manager-stable, catppuccin-stable, sops-nix-stable,
+#   nix-yazi-plugins-stable
 #                 — stable-channel inputs used as defaults for server nodes
 #   serverNodes   — the canonical server table defined in hosts/servers.nix
 {
@@ -14,6 +15,7 @@
   home-manager-stable,
   catppuccin-stable,
   sops-nix-stable,
+  nix-yazi-plugins-stable,
   serverNodes,
   niri,
   solaar,
@@ -73,6 +75,7 @@
     hmInput = node.hmInput or home-manager-stable;
     catppuccinInput = node.catppuccinInput or catppuccin-stable;
     sopsNixInput = node.sopsNixInput or sops-nix-stable;
+    nixYaziPluginsInput = node.nixYaziPluginsInput or nix-yazi-plugins-stable;
     hmModules = node.hmModules or [ ];
     extraModules = node.extraModules or [ ];
   }

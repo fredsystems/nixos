@@ -13,6 +13,7 @@
   darwin,
   home-manager,
   catppuccin,
+  nix-yazi-plugins,
   nixvim,
   user,
   verbose_name,
@@ -49,6 +50,7 @@ darwin.lib.darwinSystem {
     inherit isDarwin;
     sopsNixInput = inputs.sops-nix;
     catppuccinInput = catppuccin;
+    nixYaziPluginsInput = nix-yazi-plugins;
     extraUsers = [ ];
   };
 
@@ -96,6 +98,7 @@ darwin.lib.darwinSystem {
             isDarwin
             ;
           catppuccinInput = catppuccin;
+          nixYaziPluginsInput = nix-yazi-plugins;
         };
       };
 
