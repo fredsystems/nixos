@@ -3,6 +3,8 @@
   user,
   extraUsers ? [ ],
   lib,
+  system,
+  nixYaziPluginsInput,
   ...
 }:
 let
@@ -11,6 +13,15 @@ in
 {
   config = {
     home-manager.users = lib.genAttrs allUsers (_: {
+      # nix-yazi-plugins's home-manager module — used for plugins that need
+      # more than a static plugin-directory link (e.g. starship.yazi's
+      # require("starship"):setup() call in init.lua). Plugins that are
+      # just a directory link (clipboard, piper above) go straight through
+      # home-manager's own `programs.yazi.plugins`/`settings` instead.
+      imports = [
+        nixYaziPluginsInput.legacyPackages.${system}.homeManagerModules.default
+      ];
+
       home.packages = with pkgs; [
         # plugins for yazi
         ffmpeg
@@ -50,6 +61,23 @@ in
           # configured below in `settings.plugin`.
           # https://github.com/yazi-rs/plugins/tree/main/piper.yazi
           piper = pkgs.yaziPlugins.piper;
+        };
+
+        yaziPlugins = {
+          enable = true;
+          plugins = {
+            # Rolv-Apneseth/starship.yazi: shows the starship prompt
+            # (already enabled repo-wide in features/shell/starship) as
+            # yazi's header. Handles generating the
+            # require("starship"):setup() init.lua call for us.
+            starship.enable = true;
+
+            # yazi-rs/plugins:smart-filter — continuous filtering,
+            # auto-enters a uniquely-matched directory, opens the file on
+            # submit. Default keybind ("F") comes from the plugin's own
+            # hm-module, merged into keymap.mgr.prepend_keymap below.
+            smart-filter.enable = true;
+          };
         };
 
         settings.plugin = {
