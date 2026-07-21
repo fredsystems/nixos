@@ -5,6 +5,7 @@
   lib,
   system,
   nixYaziPluginsInput,
+  isDarwin ? false,
   ...
 }:
 let
@@ -22,23 +23,35 @@ in
         nixYaziPluginsInput.legacyPackages.${system}.homeManagerModules.default
       ];
 
-      home.packages = with pkgs; [
-        # plugins for yazi
-        ffmpeg
-        p7zip
-        jq
-        poppler
-        fd
-        ripgrep
-        fzf
-        zoxide
-        imagemagick
-        # piper.yazi previewers below shell out to these
-        gnutar
-        glow
-        hexyl
-        sqlite
-      ];
+      home.packages =
+        (with pkgs; [
+          # plugins for yazi
+          ffmpeg
+          p7zip
+          jq
+          poppler
+          fd
+          ripgrep
+          fzf
+          zoxide
+          imagemagick
+          # piper.yazi previewers below shell out to these. bat/eza are
+          # already installed repo-wide (features/shell/bat,
+          # features/shell/eza) and glow/hexyl/sqlite have no other
+          # provider, but all five are declared explicitly here so this
+          # file's dependencies are correct on their own, regardless of
+          # what else is enabled elsewhere.
+          bat
+          eza
+          glow
+          hexyl
+          sqlite
+        ])
+        # gnutar also backs the tar previewer above, but its `bin/tar`
+        # collides with the `toybox` package profiles/darwin.nix already
+        # installs for Darwin hosts (pkgs.buildEnv: conflicting subpath).
+        # Darwin's toybox-provided `tar` covers the same previewer command.
+        ++ lib.optionals (!isDarwin) [ pkgs.gnutar ];
 
       programs.yazi = {
         enable = true;
