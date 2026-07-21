@@ -87,6 +87,18 @@
     };
 
     # CI: desktop
+    nix-yazi-plugins = {
+      url = "github:lordkekz/nix-yazi-plugins";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+    # CI: server
+    nix-yazi-plugins-stable = {
+      url = "github:lordkekz/nix-yazi-plugins";
+      inputs.nixpkgs.follows = "nixpkgs-stable";
+    };
+
+    # CI: desktop
     apple-fonts = {
       url = "github:Lyndeno/apple-fonts.nix";
     };
@@ -243,6 +255,8 @@
       colmena,
       freminal,
       frext,
+      nix-yazi-plugins,
+      nix-yazi-plugins-stable,
       ...
     }:
 
@@ -343,10 +357,12 @@
           home-manager-stable
           catppuccin-stable
           sops-nix-stable
+          nix-yazi-plugins-stable
           # Flake inputs required by lib functions / modules
           nixpkgs
           home-manager
           catppuccin
+          nix-yazi-plugins
           darwin
           nixvim
           niri

@@ -156,6 +156,8 @@ jobs:
               [home-manager-stable]="server"
               [catppuccin-stable]="server"
               [sops-nix-stable]="server"
+              [nix-yazi-plugins]="desktop"
+              [nix-yazi-plugins-stable]="server"
               [nixos-needsreboot]="global"
               [darwin]="skip"
               [colmena]="skip"

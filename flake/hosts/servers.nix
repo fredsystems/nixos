@@ -17,6 +17,7 @@
 #   hmInput              = home-manager-stable   (from inputs)
 #   catppuccinInput      = catppuccin-stable      (from inputs)
 #   sopsNixInput         = sops-nix-stable        (from inputs)
+#   nixYaziPluginsInput  = nix-yazi-plugins-stable (from inputs)
 #   targetHost           = "<name>.local"         (colmena SSH target)
 #   targetPort           = 22                     (colmena SSH port)
 #   tags                 = []                     (colmena node tags)
