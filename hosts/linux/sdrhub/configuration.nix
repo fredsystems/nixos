@@ -662,7 +662,7 @@ in
 
       {
         name = "degoog-postgres";
-        image = "postgres:17-alpine@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193";
+        image = "postgres:19beta2-trixie@sha256:d510f71d65ab7c944d566d5845826aa68a72e20321ccd2974245c93d0308c414";
 
         restart = "always";
 
