@@ -644,7 +644,7 @@ in
 
       {
         name = "degoog-valkey";
-        image = "valkey/valkey:8-alpine";
+        image = "valkey/valkey:9.1.1@sha256:3acc0687f2a2e1091fae6450d7842dd658c941338cf0a873ddd9e14b9e4ea4dd";
 
         restart = "always";
 
