@@ -76,6 +76,8 @@ in
     firewall = {
       allowedTCPPorts = [
         80
+        6379
+        5432
       ];
       allowedUDPPorts = [ 53 ];
     };
@@ -625,6 +627,10 @@ in
         environment = {
           PUID = "1000";
           PGID = "1000";
+          DEGOOG_SETTINGS_PASSWORDS = "fred";
+          DEGOOG_PUBLIC_INSTANCE = "false";
+          DEGOOG_VALKEY_URL = "redis://192.168.31.20:6379";
+          DEGOOG_POSTGRES = "postgresql://degoog:changeme@192.168.31.20:5432/degoog";
         };
 
         ports = [
@@ -633,6 +639,47 @@ in
 
         volumes = [
           "/opt/adsb/degoog:/app/data"
+        ];
+      }
+
+      {
+        name = "degoog-valkey";
+        image = "valkey/valkey:8-alpine";
+
+        restart = "always";
+
+        ports = [
+          "6379:6379"
+        ];
+
+        # 0.10.0 entrypoint starts as root, chowns /app/data, then drops
+        # to PUID/PGID.  Do NOT pass --user; let the entrypoint handle it.
+        environment = {
+          PUID = "1000";
+          PGID = "1000";
+        };
+      }
+
+      {
+        name = "degoog-postgres";
+        image = "postgres:17-alpine";
+
+        restart = "always";
+
+        ports = [
+          "5432:5432"
+        ];
+
+        environment = {
+          PUID = "70";
+          PGID = "70";
+          POSTGRES_DB = "degoog";
+          POSTGRES_USER = "degoog";
+          POSTGRES_PASSWORD = "changeme";
+        };
+
+        volumes = [
+          "/opt/adsb/postgres-data:/var/lib/postgresql/data"
         ];
       }
 
