@@ -10,7 +10,7 @@
 }:
 let
   agentHosts = agentNodes;
-  desktopHosts = desktopNodes;
+  desktopHosts = builtins.filter (h: h != "Daytona") desktopNodes;
 
 in
 {
@@ -132,6 +132,7 @@ in
       extraFlags = [
         "--storage.tsdb.retention.time=90d"
         "--web.enable-admin-api"
+        "--web.enable-remote-write-receiver"
       ];
 
       globalConfig = {
