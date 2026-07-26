@@ -37,6 +37,7 @@
   networking = {
     hostName = "Daytona";
     networkmanager.wifi.scanRandMacAddress = false;
+    firewall.allowedTCPPorts = [ 12345 ];
   };
 
   system.activationScripts.sddm-hyprland-config = ''
@@ -47,6 +48,91 @@
   '';
 
   services = {
+    alloy = {
+      enable = true;
+      configPath = pkgs.writeText "daytona.alloy" ''
+        // Journal source: tail systemd journal and emit Loki entries.
+        loki.source.journal "journal" {
+          path          = "/var/log/journal"
+          forward_to    = [loki.write.default.receiver]
+          relabel_rules = loki.relabel.journal.rules
+          labels        = {
+            job      = "journal",
+            hostname = "Daytona",
+            host     = "Daytona",
+          }
+        }
+
+        // Relabel journal metadata into stable Loki labels.
+        loki.relabel "journal" {
+          forward_to = []
+
+          rule {
+            source_labels = ["__journal__systemd_unit"]
+            target_label  = "unit"
+          }
+          rule {
+            source_labels = ["__journal__container_name"]
+            target_label  = "container"
+          }
+          rule {
+            source_labels = ["__journal__container_id"]
+            target_label  = "container_id"
+          }
+        }
+
+        // Push logs to the central Loki master.
+        loki.write "default" {
+          endpoint {
+            url       = "http://192.168.31.20:5678/loki/api/v1/push"
+            tenant_id = "default"
+          }
+        }
+
+        // Scrape local node_exporter
+        prometheus.scrape "node_exporter" {
+          targets = [
+            {"__address__" = "localhost:9100"},
+          ]
+          forward_to = [prometheus.relabel.node_exporter.receiver]
+          scrape_interval = "15s"
+        }
+
+        // Ensure proper labels for metrics
+        prometheus.relabel "node_exporter" {
+          forward_to = [prometheus.remote_write.default.receiver]
+
+          rule {
+            target_label = "hostname"
+            replacement  = "Daytona"
+          }
+          rule {
+            target_label = "role"
+            replacement  = "desktop"
+          }
+          rule {
+            target_label = "exporter"
+            replacement  = "node"
+          }
+          rule {
+            target_label = "job"
+            replacement  = "node"
+          }
+          rule {
+            target_label = "instance"
+            replacement  = "Daytona.local:9100"
+          }
+        }
+
+        // Push metrics to central Prometheus master
+        prometheus.remote_write "default" {
+          endpoint {
+            url = "http://192.168.31.20:9090/api/v1/write"
+          }
+        }
+      '';
+    };
+
     displayManager = {
       defaultSession = "hyprland";
       sddm = {
