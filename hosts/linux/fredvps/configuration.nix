@@ -169,7 +169,7 @@
       ###############################################################
       {
         name = "imageapi";
-        image = "ghcr.io/sdr-enthusiasts/sdre-image-api:latest-build-6@sha256:bf85238e6fc21ebe9a298c77507163a6a44d2c960c6322209bb6f9c579f4cf87";
+        image = "ghcr.io/sdr-enthusiasts/sdre-image-api:latest-build-7@sha256:38df445fe37101648032e849a477ee3221ce8517cebd72983e21d9e1ba8dfbff";
 
         volumes = [
           "/opt/adsb/imageapi/data:/opt/api"
