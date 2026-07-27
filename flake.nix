@@ -115,6 +115,7 @@
     };
 
     # CI: desktop
+    # renovate: datasource=git-refs depName=nix-flatpak packageName=https://github.com/gmodena/nix-flatpak versioning=regex:^release-(?<major>\d+)\.(?<minor>\d+)$
     nix-flatpak = {
       url = "github:gmodena/nix-flatpak?ref=v0.7.0"; # unstable branch. Use github:gmodena/nix-flatpak/?ref=<tag> to pin releases.
     };

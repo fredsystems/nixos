@@ -115,6 +115,7 @@
       matchManagers: ["custom.regex"],
       matchDepNames: [
         "nixpkgs-stable",
+        "nix-flatpak",
         "home-manager-stable",
         "catppuccin-stable",
       ],
