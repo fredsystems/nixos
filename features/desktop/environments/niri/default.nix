@@ -2,6 +2,7 @@
   lib,
   pkgs,
   config,
+  options,
   user,
   extraUsers ? [ ],
   ...
@@ -19,6 +20,50 @@ in
 
     programs.niri = {
       enable = true;
+
+      # FIXME(niri-libdisplay-info-0-4): WORKAROUND, not a fix.
+      #
+      # niri.nixosModules.niri (from niri-flake) defaults `programs.niri.package`
+      # to a fresh build against *our own* ambient `pkgs` (see niri-flake's
+      # `make-package-set pkgs` / `make-niri`'s `libdisplay-info` arg) rather
+      # than a pin of its own. Once our nixpkgs pin carries `libdisplay-info`
+      # 0.4.0, every niri build fails:
+      #
+      #   pkg-config exited with status code 1
+      #   Requested 'libdisplay-info < 0.4.0' but version of libdisplay-info is 0.4.0
+      #
+      # because niri (niri-wm/niri) still pins its `libdisplay-info` Rust
+      # crate (Smithay/libdisplay-info-rs) to "0.3.0", whose build.rs
+      # enforces that upper bound via pkg-config.
+      #
+      # nixpkgs hit the identical wall with its own `niri` package and
+      # worked around it by pinning to a new generic `libdisplay-info_0_3`
+      # package (NixOS/nixpkgs#546004, closes
+      # https://github.com/NixOS/nixpkgs/issues/545976). That fix doesn't
+      # reach us because niri-flake's builder never touches nixpkgs' `niri`
+      # derivation -- it builds niri itself from niri-wm/niri sources against
+      # whatever `libdisplay-info` our own `pkgs` provides.
+      #
+      # Work around it the same way nixpkgs did: override *just* niri's
+      # `libdisplay-info` build input back to 0.3.0. Scoped to niri's package
+      # override only (via `options...default.override`) -- does not touch
+      # the system-wide `pkgs.libdisplay-info` used by anything else.
+      #
+      # Revert: once niri (niri-wm/niri) or Smithay/libdisplay-info-rs bumps
+      # to support libdisplay-info >= 0.4, delete this `package` override
+      # and the FIXME. See .github/workflows/track-upstream-fixes.yaml.
+      package = options.programs.niri.package.default.override {
+        libdisplay-info = pkgs.libdisplay-info.overrideAttrs (finalAttrs: {
+          version = "0.3.0";
+          src = pkgs.fetchFromGitLab {
+            domain = "gitlab.freedesktop.org";
+            owner = "emersion";
+            repo = "libdisplay-info";
+            rev = finalAttrs.version;
+            hash = "sha256-nXf2KGovNKvcchlHlzKBkAOeySMJXgxMpbi5z9gLrdc=";
+          };
+        });
+      };
     };
     programs.xwayland.enable = true;
 
