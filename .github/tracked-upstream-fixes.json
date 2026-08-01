@@ -188,22 +188,6 @@
       "workaround": "features/desktop/print/default.nix -- `system-config-printer-iconfix` overrides system-config-printer's .desktop `Icon=printer` to an absolute path pointing at the package's own bundled `i-network-printer.png`, bypassing icon-theme-name resolution entirely (see FIXME(vicinae-468-printer-icon)).",
       "revert_action": "No upstream PR/issue exists yet for this specific \"printer\" name bug (only the linked discussion, where multiple reporters hit the identical symptom, unresolved as of Oct 2025) so `min_version` stays null (BLOCKED) until one is filed and a fix version is known. Once vicinae ships a fix and our pinned nixpkgs' `vicinae` package version reflects it, set `min_version` accordingly (or `done: true` after manually confirming `Icon=printer` renders correctly in vicinae), then delete `system-config-printer-iconfix` and its FIXME from features/desktop/print/default.nix, reverting to a plain `programs.system-config-printer.enable = true;`.",
       "$comment": "No upstream_pr recorded yet -- if one is opened for this specific bug, add its number here so the checker nudges once merged."
-    },
-    {
-      "id": "niri-libdisplay-info-0-4",
-      "done": false,
-      "summary": "niri (built by niri-flake's `make-niri` against our own ambient `pkgs`, not a pin of its own) fails to build once our nixpkgs pin carries `libdisplay-info` 0.4.0: niri's Rust crate dependency (Smithay/libdisplay-info-rs) still pins `libdisplay-info = \"0.3.0\"` and its build.rs enforces `libdisplay-info < 0.4.0` via pkg-config. nixpkgs hit the identical wall with its own `niri` package (NixOS/nixpkgs#545976) and worked around it with a new generic `libdisplay-info_0_3` package (NixOS/nixpkgs#546004), but that fix never reaches us since niri-flake doesn't use nixpkgs' `niri` derivation.",
-      "repo": "Smithay/libdisplay-info-rs",
-      "check": "release-contains-commit",
-      "fix_commit": "3911e0344bb2db5839f2c646d25e8c2a8b5223d9",
-      "tracking": [
-        "https://github.com/NixOS/nixpkgs/issues/545976",
-        "https://github.com/NixOS/nixpkgs/pull/546004",
-        "https://github.com/Smithay/libdisplay-info-rs/pull/20"
-      ],
-      "workaround": "features/desktop/environments/niri/default.nix -- `programs.niri.package` override that reconstructs the default package (`options.programs.niri.package.default`) with its `libdisplay-info` build input overridden back to 0.3.0 via `fetchFromGitLab` (see FIXME(niri-libdisplay-info-0-4)).",
-      "revert_action": "This is a 3-hop upstream chain: (1) Smithay/libdisplay-info-rs PR #20 (tracked here, adds 0.4.0 support) merges and ships in a release -- this is what `release-contains-commit` actually detects; (2) niri-wm/niri then needs to bump its own `libdisplay-info` Cargo dependency past \"0.3.0\" to pick that release up; (3) niri-flake (epireyn's fork, our `niri` input) needs to bump its `niri-stable`/`niri-unstable` source pin to a niri release/commit that contains that bump. When this entry resolves, DO NOT immediately delete the workaround -- first check niri-wm/niri's Cargo.toml (or run `nix eval .#nixosConfigurations.maranello.config.programs.niri.package.buildInputs` after bumping the `niri` flake input) to confirm libdisplay-info's upper bound has actually moved past 0.4.0 before removing the `package` override and its FIXME from features/desktop/environments/niri/default.nix, then set `done: true`.",
-      "$comment": "release-contains-commit is checked against Smithay/libdisplay-info-rs's own releases (hop 1 only); hops 2-3 require a manual follow-up check as described in revert_action before it's actually safe to delete the workaround."
     }
   ]
 }
