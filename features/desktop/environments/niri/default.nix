@@ -9,6 +9,7 @@
 let
   allUsers = [ user ] ++ extraUsers;
   cfg = config.desktop.environments.niri;
+  inherit (config.desktop.environments.common) gtkThemeName;
 in
 {
   options.desktop.environments.niri = {
@@ -52,7 +53,7 @@ in
                 "sh"
                 "-c"
                 "gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark' && \
-                 gsettings set org.gnome.desktop.interface gtk-theme 'Catppuccin-GTK-Mauve-Dark'"
+                 gsettings set org.gnome.desktop.interface gtk-theme '${gtkThemeName}'"
               ];
             }
 
