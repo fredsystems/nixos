@@ -495,11 +495,11 @@
         "rust-overlay": "rust-overlay_2"
       },
       "locked": {
-        "lastModified": 1785346782,
-        "narHash": "sha256-FmCEtAXxafRgTHD3IyOmBaUUujwCRz6godjGApS9iRg=",
+        "lastModified": 1785439785,
+        "narHash": "sha256-Kh3nHlyc2E/pKKnhbQyrS0urqjusHma3ZFOugnhR5+g=",
         "owner": "FredSystems",
         "repo": "freminal",
-        "rev": "f8ebd17a91e54437cffc89ca6621a9cbbe5fbca0",
+        "rev": "fd976acd33c88e3f59571dcfde1b2330a9ba437f",
         "type": "github"
       },
       "original": {
