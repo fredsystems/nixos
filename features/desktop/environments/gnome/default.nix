@@ -10,6 +10,7 @@
 let
   allUsers = [ user ] ++ extraUsers;
   cfg = config.desktop.environments.gnome;
+  inherit (config.desktop.environments.common) gtkThemeName;
 in
 {
   options.desktop.environments.gnome = {
@@ -110,7 +111,7 @@ in
         };
 
         "org/gnome/shell/extensions/user-theme" = {
-          name = "Catppuccin-GTK-Mauve-Dark";
+          name = gtkThemeName;
         };
 
         "org/gnome/shell/extensions/arcmenu" = {

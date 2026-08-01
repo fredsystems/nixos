@@ -14,11 +14,20 @@ let
   # Shared theme definition used for both gtk.theme (GTK3) and
   # gtk.gtk4.theme.  Home-manager >=26.05 no longer auto-inherits the GTK3
   # theme for GTK4, so we set both explicitly.
+  #
+  # Upstream catppuccin/gtk build. This replaces `magnetic-catppuccin-gtk`,
+  # which was removed from nixpkgs because it depended on
+  # `gtk-engine-murrine` (unmaintained, GTK 2 only). The derivation names
+  # its output directory `<theme>-<flavor>-<accent>-<size>`, hence
+  # `catppuccin-mocha-mauve-standard`; keep `catppuccinGtkThemeName` and
+  # the override arguments in sync.
+  catppuccinGtkThemeName = "catppuccin-mocha-mauve-standard";
   catppuccinGtkTheme = {
-    name = "Catppuccin-GTK-Mauve-Dark";
-    package = pkgs.magnetic-catppuccin-gtk.override {
-      accent = [ "mauve" ];
-      shade = "dark";
+    name = catppuccinGtkThemeName;
+    package = pkgs.catppuccin-gtk.override {
+      accents = [ "mauve" ];
+      variant = "mocha";
+      size = "standard";
     };
   };
 in
@@ -33,6 +42,16 @@ in
       readOnly = true;
       default = "${lib.getExe' pkgs.bash "bash"} -c 'until [ -S \"$\{XDG_RUNTIME_DIR}/wayland-1\" ]; do sleep 0.5; done'";
       description = "Shell command that blocks until the Wayland socket exists.";
+    };
+
+    # Exposed so compositor modules (and the GNOME shell user-theme) can name
+    # the GTK theme without duplicating the string that has to match the
+    # directory produced by the `catppuccin-gtk` derivation.
+    gtkThemeName = lib.mkOption {
+      type = lib.types.str;
+      readOnly = true;
+      default = catppuccinGtkThemeName;
+      description = "Directory name of the catppuccin GTK theme installed for desktop users.";
     };
   };
 

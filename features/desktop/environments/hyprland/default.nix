@@ -10,7 +10,7 @@
 let
   allUsers = [ user ] ++ extraUsers;
   cfg = config.desktop.environments.hyprland;
-  inherit (config.desktop.environments.common) waitForWayland;
+  inherit (config.desktop.environments.common) waitForWayland gtkThemeName;
 in
 {
   options.desktop.environments.hyprland = {
@@ -234,7 +234,7 @@ in
           hl.on("hyprland.start", function()
             hl.exec_cmd("systemctl restart --user polkit-gnome-authentication-agent-1")
             hl.exec_cmd("gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark'")
-            hl.exec_cmd("gsettings set org.gnome.desktop.interface gtk-theme 'Catppuccin-GTK-Mauve-Dark'")
+            hl.exec_cmd("gsettings set org.gnome.desktop.interface gtk-theme '${gtkThemeName}'")
             hl.exec_cmd("systemctl restart --user wayle")
             hl.exec_cmd("systemctl restart --user sway-audio-idle-inhibit")
             hl.exec_cmd("systemctl restart --user hypridle")
