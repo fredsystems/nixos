@@ -47,10 +47,7 @@ let
   # Use the same niri package the system actually installs
   # (config.programs.niri.package, from niri.nixosModules.niri) rather than
   # nixpkgs' own `pkgs.niri`. They're different derivations; referencing
-  # nixpkgs' `pkgs.niri` here forced an extra, entirely separate niri build
-  # (which independently hits the libdisplay-info 0.4.0 break -- see
-  # FIXME(niri-libdisplay-info-0-4) in features/desktop/environments/niri/default.nix)
-  # even after niri-flake's package was fixed.
+  # nixpkgs' `pkgs.niri` here forced an extra, entirely separate niri build.
   niriBin = lib.getExe config.programs.niri.package;
   systemdRun = "${pkgs.systemd}/bin/systemd-run";
   detectCompositor = ''
