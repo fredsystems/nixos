@@ -208,7 +208,7 @@ in
       ###############################################################
       {
         name = "dozzle";
-        image = "amir20/dozzle:v10.6.12@sha256:e4a8955e22dd02b7329df66354d6ffcb5010d3e1dc850e99ea8f39122daf3cbd";
+        image = "amir20/dozzle:v10.6.14@sha256:1c1060cfb5402093c4e0f03f3534d7deaffeb0a6f6dd034e7c5f244603f35fb3";
 
         restart = "always";
 
