@@ -75,7 +75,7 @@
     #
     # renovate: datasource=git-refs depName=nixpkgs-kernel packageName=https://github.com/NixOS/nixpkgs versioning=regex:^nixos-(?<major>\d+)\.(?<minor>\d+)-small$
     nixpkgs-kernel = {
-      url = "github:nixos/nixpkgs/nixos-25.11-small";
+      url = "github:nixos/nixpkgs/nixos-26.05-small";
     };
 
     # CI: server
