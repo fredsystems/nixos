@@ -17,8 +17,16 @@
   // and `nixos-25.11-small`).  The custom regex manager below keys off
   // explicit `# renovate:` annotations and matches each input with full
   // URL context, so no collision is possible.  Inputs without an
-  // annotation (e.g. nixpkgs-kernel) are not tracked by Renovate and are
-  // updated by the weekly/monthly update-flakes workflow instead.
+  // annotation are not tracked by Renovate at all and are updated by the
+  // weekly/monthly update-flakes workflow instead.
+  //
+  // Caveat learned the hard way: "not tracked by Renovate" plus "the
+  // update-flakes job only ever runs `nix flake update`" means nothing
+  // watches the channel *name*.  `nix flake update` follows a ref and
+  // structurally cannot change it, so when a channel goes EOL the job
+  // keeps succeeding with an empty diff and no PR.  Any input pinned to
+  // a dated channel ref needs an annotation here, even if its lockfile
+  // cadence is manual.
   timezone: "Etc/UTC",
   schedule: ["* 12 * * 0"],
   enabledManagers: ["custom.regex", "github-actions"],
@@ -108,15 +116,23 @@
     {
       // Group the stable-channel flake inputs into a single PR so the
       // NixOS release bump (e.g. 25.11 → 26.05) lands atomically.
-      // nixpkgs-kernel is intentionally excluded; it is bumped by hand
-      // at release time via .github/workflows/update-flakes.yaml's
-      // monthly manual-merge job.  Major bumps are NOT auto-merged —
-      // a NixOS release is a planned event that warrants human review.
+      // Major bumps are NOT auto-merged — a NixOS release is a planned
+      // event that warrants human review.
+      //
+      // nixpkgs-kernel belongs in this group even though its *lockfile*
+      // cadence is manual/monthly: the old `-small` channel stops
+      // receiving commits precisely because the new release happened, so
+      // renaming it is part of the same atomic event.  Renovate only
+      // proposes the channel rename in flake.nix here; intra-channel
+      // commit bumps remain owned by update-flakes.yaml, since Renovate
+      // never touches flake.lock (lockFileMaintenance is omitted above).
+      // renovate-relock.yaml re-locks the PR branch afterwards.
       matchManagers: ["custom.regex"],
       matchDepNames: [
         "nixpkgs-stable",
         "home-manager-stable",
         "catppuccin-stable",
+        "nixpkgs-kernel",
       ],
       groupName: "nixos stable channel",
       groupSlug: "nixos-stable-channel",

@@ -53,11 +53,27 @@
     # linuxPackages_6_18 from this input via
     # modules/system/kernel-pin.nix.
     #
-    # NOT tracked by Renovate: no `# renovate:` annotation, so the
-    # custom regex manager in .github/renovate.json5 ignores it.  The
-    # monthly update-flakes job advances flake.lock for this input via
-    # `nix flake lock --update-input`; the channel name itself is bumped
-    # by hand at NixOS release time.
+    # Two separate cadences act on this input, and they do not overlap:
+    #   * COMMITS within the channel -> flake.lock only, advanced by the
+    #     monthly manual-merge job in update-flakes.yaml.  Renovate never
+    #     touches flake.lock (lockFileMaintenance is deliberately off).
+    #   * The CHANNEL NAME itself (e.g. nixos-25.11-small ->
+    #     nixos-26.05-small) -> flake.nix, proposed by Renovate via the
+    #     annotation below and grouped into the "nixos stable channel"
+    #     PR so the release bump lands atomically with nixpkgs-stable.
+    #
+    # The versioning regex MUST keep the `-small` suffix: a channel ref
+    # that does not match is treated by Renovate as an unparseable
+    # currentValue and silently never updated.
+    #
+    # The ref below is knowingly stale -- nixos-25.11-small stopped
+    # receiving commits on 2026-06-30 when 25.11 went EOL.  It is left
+    # in place deliberately so the newly-added annotation has something
+    # to act on: the next Renovate run should open the grouped "nixos
+    # stable channel" PR moving this to nixos-26.05-small.  Do not bump
+    # it by hand before that PR lands, or the fix goes untested.
+    #
+    # renovate: datasource=git-refs depName=nixpkgs-kernel packageName=https://github.com/NixOS/nixpkgs versioning=regex:^nixos-(?<major>\d+)\.(?<minor>\d+)-small$
     nixpkgs-kernel = {
       url = "github:nixos/nixpkgs/nixos-25.11-small";
     };

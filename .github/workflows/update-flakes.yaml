@@ -90,6 +90,83 @@ jobs:
           ')
           echo "flakes={\"include\": $flakes}" >> "$GITHUB_OUTPUT"
 
+      - name: Warn on channel refs that have stopped moving
+        # `nix flake update <input>` follows a ref; it can never change
+        # the ref.  So when a channel goes EOL upstream, every future run
+        # of this workflow succeeds with an empty diff and opens no PR --
+        # "up to date" and "pinned to a corpse" look identical from the
+        # outside.  nixpkgs-kernel sat on the dead nixos-25.11-small
+        # branch for a month exactly this way.
+        #
+        # This step makes that state visible.  It is deliberately NOT an
+        # opt-out blanket age check: inputs pinned to a release tag
+        # (nix-flatpak) or backed by low-churn repos (the walls-* /
+        # wallpaper inputs) are legitimately old and would drown the
+        # signal.  Only inputs that track a dated channel ref -- where
+        # "frozen" genuinely means "EOL" -- are listed here.
+        #
+        # Non-fatal by design: the point is a visible annotation on the
+        # run, not a broken update pipeline.  Renovate owns the actual
+        # remediation (renaming the ref in flake.nix); this is the
+        # backstop for when Renovate is misconfigured, which is how the
+        # nixpkgs-kernel case escaped notice.
+        #
+        # Threshold sizing: the age measured is that of the LOCKED commit,
+        # so it grows with our own pull cadence, not just upstream
+        # silence.  A weekly-updated input can legitimately reach ~7 days
+        # right before its run; nixpkgs-kernel updates monthly, so it can
+        # legitimately reach ~31.  Every threshold must therefore exceed
+        # its input's update period, plus slack for a skipped run.  Hence
+        # 45 for the monthly input and ~2-3x the weekly period for the
+        # rest.  A healthy `-small` channel actually moves several times
+        # a day, so anything near these numbers is genuinely dead.
+        env:
+          STALE_MAX_AGE_DAYS: '{"nixpkgs":14,"nixpkgs-stable":21,"nixpkgs-kernel":45,"home-manager-stable":21}'
+        run: |
+          stale=$(jq -r \
+            --argjson t "$STALE_MAX_AGE_DAYS" \
+            --argjson now "$(date -u +%s)" '
+            .nodes as $n
+            | .nodes.root.inputs as $ri
+            | $t
+            | to_entries[]
+            | . as $e
+            | ($ri[$e.key] // empty)
+            | (if type == "array" then .[-1] else . end) as $node
+            | ($n[$node].locked.lastModified // empty) as $lm
+            | ((($now - $lm) / 86400) | floor) as $age
+            | select($age > $e.value)
+            | "\($e.key)|\($age)|\($n[$node].original.ref // "-")|\($e.value)"
+          ' flake.lock)
+
+          if [[ -z "$stale" ]]; then
+            echo "All tracked channel refs have moved within their expected window."
+            exit 0
+          fi
+
+          {
+            echo "### Stale channel refs"
+            echo
+            echo "| Input | Ref | Age (days) | Max |"
+            echo "| ----- | --- | ---------- | --- |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          while IFS='|' read -r name age ref max; do
+            [[ -z "$name" ]] && continue
+            msg="${name} is pinned to '${ref}', which has not moved in"
+            msg="${msg} ${age} days (max ${max}). The channel is probably"
+            msg="${msg} EOL -- rename the ref in flake.nix."
+            echo "::warning title=Stale flake input::${msg}"
+            echo "| \`$name\` | \`$ref\` | $age | $max |" >> "$GITHUB_STEP_SUMMARY"
+          done <<< "$stale"
+
+          {
+            echo
+            echo "\`nix flake update\` follows a ref and cannot rename it."
+            echo "Bump the channel name in \`flake.nix\` (Renovate should"
+            echo "propose this automatically via the \`# renovate:\` annotation)."
+          } >> "$GITHUB_STEP_SUMMARY"
+
   update-flake:
     name: update-flake (${{ matrix.name }})
     runs-on: ubuntu-latest
