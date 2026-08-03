@@ -28,12 +28,21 @@
 let
   yamlFormat = pkgs.formats.yaml { };
 
-  # Decoder containers that emit a periodic liveness line. The heartbeat
-  # cadence is five minutes, and over a 48h sample it arrived 575 times out of
-  # 576, so a 20 minute absence window is ~4 missed beats and is not noisy.
+  # Decoder containers that emit a periodic liveness line.
   #
   # `pattern` null means "any log line at all" -- used for hfdlobserver, which
   # has no single stable heartbeat string but logs continuously.
+  #
+  # `window` defaults to 20m, which suits the five-minute heartbeat that the
+  # acarsdec/dumpvdl2/dumphfdl containers emit (over a 48h sample it arrived 575
+  # times out of 576, so 20m is ~4 missed beats). dump978 is on a different
+  # mechanism with a 30 minute cadence and overrides it.
+  #
+  # These rules are traffic-independent by construction: they check that the
+  # heartbeat line exists, not what value it carries. A receiver sitting on a
+  # genuinely silent frequency still emits its heartbeat, so no quiet-hours
+  # scoping is needed here. Scoping only matters for throughput rules, which are
+  # deliberately not in this file yet -- see the Phase 6 baselines.
   #
   # This list must track the services.adsb.containers definitions in
   # hosts/linux/*/configuration.nix.
@@ -93,28 +102,48 @@ let
       unit = "docker-hfdlobserver.service";
       pattern = null;
     }
+    {
+      # dump978 has no decoder stats line. Its liveness signal is the built-in
+      # message monitor, which logs every 30 minutes -- verified emitting
+      # 10-13 lines in every one of the 24 hours across a 5 day sample, so it
+      # is genuinely round-the-clock and its absence means the container is
+      # wedged rather than the band being quiet.
+      #
+      # 90m is three missed runs. Anything tighter would false-positive on a
+      # single skipped cycle.
+      host = "sdrhub";
+      unit = "docker-dump978.service";
+      pattern = "\\[message-monitor\\]";
+      window = "90m";
+    }
   ];
 
   # absent_over_time returns 1 only when the selector matched nothing in the
   # window, and carries the selector's labels through, so each unit needs its
   # own rule to be individually identifiable.
-  heartbeatRules = map (d: {
-    alert = "DecoderHeartbeatMissing";
-    expr =
-      if d.pattern == null then
-        ''absent_over_time({host="${d.host}", unit="${d.unit}"}[20m])''
-      else
-        ''absent_over_time({host="${d.host}", unit="${d.unit}"} |~ `${d.pattern}` [20m])'';
-    for = "5m";
-    labels = {
-      severity = "critical";
-      inherit (d) host unit;
-    };
-    annotations = {
-      summary = "Decoder ${d.unit} on ${d.host} has stopped logging";
-      description = "No heartbeat line for 20 minutes. The container is running but wedged, or its journal has stopped reaching Loki. This is independent of how much traffic the receiver should be decoding.";
-    };
-  }) decoderUnits;
+  heartbeatRules = map (
+    d:
+    let
+      window = d.window or "20m";
+    in
+    {
+      alert = "DecoderHeartbeatMissing";
+      expr =
+        if d.pattern == null then
+          ''absent_over_time({host="${d.host}", unit="${d.unit}"}[${window}])''
+        else
+          ''absent_over_time({host="${d.host}", unit="${d.unit}"} |~ `${d.pattern}` [${window}])'';
+      for = "5m";
+      labels = {
+        severity = "critical";
+        inherit (d) host unit;
+      };
+      annotations = {
+        summary = "Decoder ${d.unit} on ${d.host} has stopped logging";
+        description = "No heartbeat line for ${window}. The container is running but wedged, or its journal has stopped reaching Loki. This is independent of how much traffic the receiver should be decoding, so it is not a quiet-band false positive.";
+      };
+    }
+  ) decoderUnits;
 
   # Hosts that ship journal logs to Loki. Desktops are excluded: maranello
   # runs no Alloy, and Daytona is a roaming laptop that is legitimately
@@ -238,9 +267,19 @@ let
 
           {
             # The dump978 image restarts its own decoder when it sees no
-            # messages. At this site UAT is genuinely quiet, so it has been
-            # bouncing the decoder roughly twenty times a day. Alert on the
-            # container giving up rather than on the staleness warning.
+            # messages, and alerting on that rather than on the staleness
+            # warning gets quiet-hours scoping for free: the container only
+            # restarts inside its own 0800-1800 "Adjustment Timeframe", and
+            # outside it logs "No action is taken" instead. Verified over a 5
+            # day sample -- "Restarting the" appears only in hours 08-17, and
+            # the no-action line only in 00-07 and 18-23, an exact complement.
+            # So this fires only during hours when UAT traffic is expected,
+            # with no time functions in the query.
+            #
+            # Was running at roughly twenty restarts a day, caused by the
+            # receiver being unable to claim its device. After the usbfs
+            # ceiling fix: 0 restarts in 12h, against 54 in the preceding 3
+            # days, and the monitor now reports OK more often than stale.
             alert = "ContainerSelfRestartingReceiver";
             expr = ''sum by (host, unit) (count_over_time({unit=~"docker-.*"} |= `[message-monitor]` |= `Restarting the` [2h])) > 3'';
             for = "10m";

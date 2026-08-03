@@ -226,7 +226,6 @@ in
           "9999:8080"
         ];
 
-        requires = [ "network-online.target" ];
         after = [ "network-online.target" ];
       }
 

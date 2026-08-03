@@ -65,7 +65,6 @@ in
           "/opt/adsb/hfdlobserver:/run/hfdlobserver"
         ];
 
-        requires = [ "network-online.target" ];
       }
 
     ];
