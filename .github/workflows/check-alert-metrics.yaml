@@ -21,13 +21,33 @@ on:
       - ".github/workflows/check-alert-metrics.yaml"
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   check-alert-metrics:
     name: Referenced metrics exist
     runs-on: [self-hosted, Linux]
+
+    # This repository is public, and this job runs a script from the checked-out
+    # pull-request head on a persistent self-hosted runner that can reach the
+    # monitoring LAN. Without this guard a fork could edit
+    # scripts/check-alert-metrics.sh and get code execution on that runner.
+    #
+    # Written as "not a pull_request, or a same-repo pull_request" so
+    # workflow_dispatch keeps working. Every self-hosted job in this repository
+    # carries the same guard.
+    if: >-
+      ${{ github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The workspace persists between jobs on a self-hosted runner, so the
+          # default behaviour would leave the token in .git/config on disk.
+          persist-credentials: false
 
       - name: Check referenced metrics resolve
         run: ./scripts/check-alert-metrics.sh

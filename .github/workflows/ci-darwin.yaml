@@ -274,7 +274,7 @@ jobs:
     name: Build Darwin systems
     runs-on: [self-hosted, macOS]
     needs: [skip-if-clean, find-darwin]
-    if: ${{ needs.skip-if-clean.outputs.skip != 'true' && needs.find-darwin.outputs.systems != '[]' }}
+    if: ${{ needs.skip-if-clean.outputs.skip != 'true' && needs.find-darwin.outputs.systems != '[]' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     permissions:
       id-token: "write"
       contents: "read"
@@ -428,7 +428,7 @@ jobs:
     name: Build & push dev shell + packages (Darwin)
     runs-on: [self-hosted, macOS]
     needs: [skip-if-clean, find-devshell]
-    if: ${{ needs.skip-if-clean.outputs.skip != 'true' && needs.find-devshell.outputs.changed == 'true' }}
+    if: ${{ needs.skip-if-clean.outputs.skip != 'true' && needs.find-devshell.outputs.changed == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     permissions:
       id-token: "write"
       contents: "read"
