@@ -1,0 +1,249 @@
+# promtool unit tests for the Prometheus alerting rules.
+#
+# Run with:
+#   nix build .#checks.x86_64-linux.prometheus-alert-rules
+#
+# These exist because every defect found in this rule set was of the same
+# shape: a rule that is syntactically valid, is reported health=ok by
+# Prometheus, and can never fire. An empty result is not an error, so nothing
+# surfaced them. Only evaluating a rule against known input catches that.
+#
+# When adding an alert, add a case here that proves it fires on the condition
+# it claims to detect. A rule with no test is a rule nobody has verified.
+rule_files:
+  - ../alert-rules.yaml
+  - ../docker-rules.yaml
+  - ../meta-alerts.yaml
+  - ../sdr-alerts.yaml
+  - ../system-alerts.yaml
+
+evaluation_interval: 1m
+
+tests:
+  # Regression test for the sum()/count() defect.
+  #
+  # The rule was `sum by (job, instance) (up{...} == 0) > 0`. The `== 0`
+  # filter keeps only series valued zero, so the sum is always zero and
+  # `> 0` is never true. Two targets were down in production for an extended
+  # period and this alert never fired.
+  - interval: 1m
+    name: PrometheusTargetDown fires when a target is down
+    input_series:
+      - series: 'up{job="ultrafeeder", instance="sdrhub.local:9274", role="master"}'
+        values: "0+0x10"
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: PrometheusTargetDown
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: ultrafeeder
+              instance: sdrhub.local:9274
+            exp_annotations:
+              summary: "Targets for ultrafeeder are DOWN"
+              description: "Prometheus cannot scrape sdrhub.local:9274 for >2 minutes."
+
+  - interval: 1m
+    name: PrometheusTargetDown stays silent when targets are up
+    input_series:
+      - series: 'up{job="ultrafeeder", instance="sdrhub.local:9274", role="master"}'
+        values: "1+0x10"
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: PrometheusTargetDown
+        exp_alerts: []
+
+  # Desktops sleep, so they must never trigger this.
+  - interval: 1m
+    name: PrometheusTargetDown ignores desktops
+    input_series:
+      - series: 'up{job="node", instance="maranello.local:9100", role="desktop"}'
+        values: "0+0x10"
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: PrometheusTargetDown
+        exp_alerts: []
+
+  # container_health_state uses -1 for "image defines no HEALTHCHECK". A
+  # naive `!= 1` fires for all 17 such containers in the fleet.
+  - interval: 1m
+    name: ContainerUnhealthy ignores containers with no healthcheck
+    input_series:
+      - series: 'container_health_state{name="acars_router", hostname="sdrhub"}'
+        values: "-1+0x20"
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: ContainerUnhealthy
+        exp_alerts: []
+
+  - interval: 1m
+    name: ContainerUnhealthy fires on a genuinely unhealthy container
+    input_series:
+      - series: 'container_health_state{name="ultrafeeder", hostname="sdrhub"}'
+        values: "0+0x20"
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: ContainerUnhealthy
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              name: ultrafeeder
+              hostname: sdrhub
+            exp_annotations:
+              summary: "Container ultrafeeder on sdrhub reports unhealthy"
+              description: "The container's own HEALTHCHECK has been failing for 10 minutes."
+
+  - interval: 1m
+    name: ContainerUnhealthy stays silent on a healthy container
+    input_series:
+      - series: 'container_health_state{name="ultrafeeder", hostname="sdrhub"}'
+        values: "1+0x20"
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: ContainerUnhealthy
+        exp_alerts: []
+
+  # These selected readsb_stats_* names, which the exporter does not emit.
+  - interval: 1m
+    name: UltrafeederNotReceiving fires on zero valid messages
+    input_series:
+      - series: 'readsb_messages_valid{job="ultrafeeder", hostname="sdrhub"}'
+        values: "0+0x20"
+    alert_rule_test:
+      - eval_time: 18m
+        alertname: UltrafeederNotReceiving
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: ultrafeeder
+              hostname: sdrhub
+            exp_annotations:
+              summary: "Ultrafeeder receiving no RF messages on sdrhub"
+              description: "readsb has processed zero valid messages for 15 minutes. The SDR hardware is likely disconnected, crashed, or the decoder has stopped."
+
+  - interval: 1m
+    name: UltrafeederNoAircraft fires when nothing is tracked
+    input_series:
+      - series: 'readsb_aircraft_with_position{job="ultrafeeder", hostname="sdrhub"}'
+        values: "0+0x40"
+    alert_rule_test:
+      - eval_time: 35m
+        alertname: UltrafeederNoAircraft
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: ultrafeeder
+              hostname: sdrhub
+            exp_annotations:
+              summary: "Ultrafeeder tracking no aircraft on sdrhub"
+              description: "No aircraft with position have been tracked for 30 minutes. Possible SDR hardware failure, antenna issue, or decoder problem."
+
+  - interval: 1m
+    name: Ultrafeeder alerts stay silent under normal traffic
+    input_series:
+      - series: 'readsb_messages_valid{job="ultrafeeder", hostname="sdrhub"}'
+        values: "9000+100x40"
+      - series: 'readsb_aircraft_with_position{job="ultrafeeder", hostname="sdrhub"}'
+        values: "220+1x40"
+    alert_rule_test:
+      - eval_time: 35m
+        alertname: UltrafeederNotReceiving
+        exp_alerts: []
+      - eval_time: 35m
+        alertname: UltrafeederNoAircraft
+        exp_alerts: []
+
+  # Requires --collector.systemd.enable-restarts-metrics on node_exporter.
+  - interval: 1m
+    name: DockerUnitFlapping fires on a restart loop
+    input_series:
+      - series: 'node_systemd_unit_restart_total{name="docker-dumpvdl2-3.service", hostname="vdlmhub"}'
+        values: "0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19"
+    alert_rule_test:
+      - eval_time: 16m
+        alertname: DockerUnitFlapping
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              name: docker-dumpvdl2-3.service
+              hostname: vdlmhub
+            exp_annotations:
+              summary: "Docker systemd unit docker-dumpvdl2-3.service is restarting repeatedly"
+              description: "Systemd restarted docker-dumpvdl2-3.service more than 3 times in 10 minutes."
+
+  - interval: 1m
+    name: DockerUnitFlapping stays silent for a stable unit
+    input_series:
+      - series: 'node_systemd_unit_restart_total{name="docker-ultrafeeder.service", hostname="sdrhub"}'
+        values: "2+0x20"
+    alert_rule_test:
+      - eval_time: 16m
+        alertname: DockerUnitFlapping
+        exp_alerts: []
+
+  # The Watchdog must fire unconditionally; the deadman depends on it.
+  - interval: 1m
+    name: Watchdog always fires
+    input_series:
+      - series: 'up{job="prometheus"}'
+        values: "1+0x10"
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: Watchdog
+        exp_alerts:
+          - exp_labels:
+              severity: none
+            exp_annotations:
+              summary: "Alerting pipeline is alive"
+              description: "This alert always fires. Its absence downstream means Prometheus or Alertmanager has stopped."
+
+  - interval: 1m
+    name: DockerDaemonDown fires when dockerd is inactive
+    input_series:
+      - series: 'node_systemd_unit_state{state="active", name="docker.service", hostname="vdlmhub"}'
+        values: "0+0x10"
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: DockerDaemonDown
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              state: active
+              name: docker.service
+              hostname: vdlmhub
+            exp_annotations:
+              summary: "Docker daemon is not running on vdlmhub"
+              description: "dockerd is not active. Every container on this host is down."
+
+  # NixOSNotOnMain previously matched host!~"daytona|maranello", which never
+  # excluded Daytona because the host label is "Daytona" and PromQL regexes
+  # are case-sensitive.
+  - interval: 1m
+    name: NixOSNotOnMain ignores desktops regardless of hostname casing
+    input_series:
+      - series: 'nixos_branch{host="Daytona", hostname="Daytona", role="desktop"}'
+        values: "0+0x500"
+      - series: 'nixos_branch{host="maranello", hostname="maranello", role="desktop"}'
+        values: "0+0x500"
+    alert_rule_test:
+      - eval_time: 7h
+        alertname: NixOSNotOnMain
+        exp_alerts: []
+
+  - interval: 1m
+    name: NixOSNotOnMain fires for a server off main
+    input_series:
+      - series: 'nixos_branch{host="vdlmhub", hostname="vdlmhub", role="agent"}'
+        values: "0+0x500"
+    alert_rule_test:
+      - eval_time: 7h
+        alertname: NixOSNotOnMain
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              host: vdlmhub
+              hostname: vdlmhub
+              role: agent
+            exp_annotations:
+              summary: "NixOS repo not on main branch"
+              description: "The NixOS configuration on vdlmhub is not checked out on main for more than 6 hours."
