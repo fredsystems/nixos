@@ -12,3 +12,29 @@ groups:
         annotations:
           summary: "Docker systemd unit {{ $labels.name }} is restarting repeatedly"
           description: "Systemd restarted {{ $labels.name }} more than 3 times in 10 minutes."
+
+      # cAdvisor exposes the health state produced by the image's own
+      # HEALTHCHECK. The value encoding matters:
+      #
+      #   1  healthy
+      #  -1  no healthcheck defined in the image
+      #
+      # A naive `!= 1` therefore fires for every container that simply has no
+      # healthcheck -- currently 17 of them, including acars_router, sdrmap
+      # and all the dozzle agents. Both clauses are required.
+      #
+      # This is a supplementary signal only. Coverage is inversely correlated
+      # with failure rate: dumphfdl and hfdlobserver are the containers
+      # actually observed crashing and neither ships a healthcheck, so they
+      # are covered by the Loki ruler's s6wrap detection instead.
+      - alert: ContainerUnhealthy
+        expr: |
+          container_health_state{name!=""} != 1
+            and
+          container_health_state{name!=""} != -1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Container {{ $labels.name }} on {{ $labels.hostname }} reports unhealthy"
+          description: "The container's own HEALTHCHECK has been failing for 10 minutes."
