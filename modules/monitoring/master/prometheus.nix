@@ -341,7 +341,7 @@ in
               # it would otherwise generate (unit failures, container restarts, etc.)
               source_matchers = [ "alertname = \"NodeDown\"" ];
               target_matchers = [
-                "alertname =~ \"SystemdUnitFailed|SystemdUnitFlapping|GithubRunnerCrashLoop|ContainerRestarting|ContainerOOM|DockerUnitFlapping|SDRServiceFailure|FeederUpstreamFailure|UltrafeederNoAircraft|UltrafeederNotReceiving|AdGuardHomeDown|AtticServerDown\""
+                "alertname =~ \"SystemdUnitFailed|SystemdUnitFlapping|GithubRunnerCrashLoop|ContainerRestarting|ContainerOOM|DockerUnitFlapping|UltrafeederNoAircraft|UltrafeederNotReceiving|AdGuardHomeDown|AtticServerDown\""
               ];
               equal = [ "hostname" ];
             }

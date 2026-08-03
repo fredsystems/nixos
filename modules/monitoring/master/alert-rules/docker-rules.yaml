@@ -1,6 +1,9 @@
 groups:
   - name: docker-alerts
     rules:
+      # Requires --collector.systemd.enable-restarts-metrics on node_exporter,
+      # without which this metric does not exist. See
+      # modules/monitoring/agent/node_exporter.nix.
       - alert: DockerUnitFlapping
         expr: increase(node_systemd_unit_restart_total{name=~"docker-.*"}[10m]) > 3
         for: 5m
@@ -9,21 +12,3 @@ groups:
         annotations:
           summary: "Docker systemd unit {{ $labels.name }} is restarting repeatedly"
           description: "Systemd restarted {{ $labels.name }} more than 3 times in 10 minutes."
-
-      - alert: SDRServiceFailure
-        expr: rate(promtail_custom_sdr_service_failure_total[10m]) > 0
-        for: 5m
-        labels:
-          severity: critical
-        annotations:
-          summary: "SDR-related service failure on {{ $labels.host }}"
-          description: "Repeated SDR initialization or USB errors detected (unit {{ $labels.unit }})."
-
-      - alert: FeederUpstreamFailure
-        expr: rate(promtail_custom_feeder_upstream_failure_total[10m]) > 0
-        for: 10m
-        labels:
-          severity: warning
-        annotations:
-          summary: "Feeder upstream connectivity issue on {{ $labels.host }}"
-          description: "Repeated upstream connection failures for at least 10 minutes."
