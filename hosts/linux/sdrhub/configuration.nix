@@ -312,7 +312,20 @@ in
       ###############################################################
       {
         name = "dump978";
-        image = "ghcr.io/sdr-enthusiasts/docker-dump978:latest-build-801@sha256:9c04879d1b4003b2586ad63476612b0ec3f80c486a0bdf0861dba86c369f32cc";
+        # telegraf-build-801, not latest-build-801: the same application build,
+        # but the `latest-*` variant does not ship the telegraf binary, and both
+        # the telegraf and telegraf_socat s6 services `sleep infinity` without
+        # it. That made ENABLE_PROMETHEUS / PROMETHEUSPORT / PROMETHEUSPATH
+        # silently inert -- the s6 services reported "up" while nothing listened
+        # on 9275, so the published port accepted connections via docker-proxy
+        # and immediately reset them.
+        #
+        # With the binary present, /etc/s6-overlay/scripts/04-telegraf generates
+        # outputs_prometheus.conf from those same env vars, which are already
+        # set correctly below, so no other change is needed.
+        #
+        # Cost: the telegraf binary is ~310 MB uncompressed.
+        image = "ghcr.io/sdr-enthusiasts/docker-dump978:telegraf-build-801@sha256:9f52599c4651f91ad6b00e4589cd18fc0e6914a20e0c8b6b56a7b0d5884d9fca";
 
         hostname = "dump978";
         restart = "always";
