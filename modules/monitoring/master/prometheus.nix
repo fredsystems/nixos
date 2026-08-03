@@ -402,8 +402,21 @@ in
                 matchers = [ ''alertname="Watchdog"'' ];
                 receiver = "watchdog";
                 group_wait = "0s";
+
+                # Effective ping cadence is 2 minutes, and stating
+                # repeat_interval = 2m makes the config match what actually
+                # happens rather than looking like it produces 1m.
+                #
+                # Alertmanager only re-evaluates whether to notify on each
+                # group_interval tick, and its dedup stage sends only when
+                # `lastNotify < now - repeat_interval`. With repeat_interval
+                # equal to group_interval, the tick at exactly one interval
+                # fails that test by a hair and the notification slips to the
+                # next tick. So any repeat_interval >= group_interval yields a
+                # real cadence of 2 x group_interval. Measured against the
+                # healthchecks.io ping log: 09:25, 09:27, 09:29.
                 group_interval = "1m";
-                repeat_interval = "1m";
+                repeat_interval = "2m";
               }
               {
                 matchers = [ ''severity="critical"'' ];

@@ -32,9 +32,21 @@ Deployed and verified in production:
 - **Pushover** replaced ntfy; `alertmanager-ntfy` removed from the critical
   path. Critical alerts use emergency priority and re-alert until
   acknowledged.
-- **Deadman** pings healthchecks.io. Recommended schedule: period 5m, grace
-  5m. `repeat_interval` is 1m so pings arrive every ~60s; tighter than that
-  false-alarms whenever a `nixos-rebuild` restarts Alertmanager.
+- **Deadman** pings healthchecks.io every 2 minutes. Schedule: **period 5m,
+  grace 10m**, giving ~15 minutes to detect total alerting failure.
+
+  The 2-minute cadence is not a typo for 1 minute. Alertmanager only
+  re-evaluates whether to notify on each `group_interval` tick, and its dedup
+  stage sends only when `lastNotify < now - repeat_interval`. With
+  `repeat_interval` equal to `group_interval`, the tick at exactly one interval
+  fails that test by a hair and slips to the next tick, so any
+  `repeat_interval >= group_interval` yields a real cadence of
+  `2 x group_interval`. Confirmed against the ping log: 09:25, 09:27, 09:29.
+
+  Grace is 10m rather than 5m so a reboot of sdrhub (1-3 minutes) does not
+  trip it. For planned maintenance longer than ~15 minutes, pause the check in
+  the healthchecks.io UI rather than widening the window permanently -- a
+  deadman with a 25-hour detection time is decoration.
 
 A trap worth knowing about, since it will recur on any new host: the nixpkgs
 smartctl module's udev rule is gated on `ACTION=="add"`, so it fires at boot
