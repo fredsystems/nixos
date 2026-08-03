@@ -155,6 +155,7 @@ in
         ./alert-rules/firmware-alerts.yaml
         ./alert-rules/system-alerts.yaml
         ./alert-rules/sdr-alerts.yaml
+        ./alert-rules/meta-alerts.yaml
       ];
 
       scrapeConfigs = [
@@ -261,6 +262,48 @@ in
             }
           ];
         }
+
+        # The monitoring stack monitored everything except itself. Without
+        # these, a failure of Alertmanager or Loki produces silence, which is
+        # indistinguishable from health.
+        {
+          job_name = "alertmanager";
+          static_configs = [
+            {
+              targets = [ "127.0.0.1:9093" ];
+              labels = {
+                hostname = "sdrhub";
+                role = "master";
+              };
+            }
+          ];
+        }
+
+        {
+          job_name = "loki";
+          static_configs = [
+            {
+              targets = [ "127.0.0.1:5678" ];
+              labels = {
+                hostname = "sdrhub";
+                role = "master";
+              };
+            }
+          ];
+        }
+
+        {
+          job_name = "grafana";
+          static_configs = [
+            {
+              targets = [ "127.0.0.1:3333" ];
+              labels = {
+                hostname = "sdrhub";
+                role = "master";
+              };
+            }
+          ];
+        }
         {
           job_name = "pushgateway";
           # honor_labels lets pushed metrics keep their own hostname/role if
@@ -354,6 +397,18 @@ in
             # the alertmanager-ntfy expressions above. Splitting here controls
             # how insistently each tier repeats.
             routes = [
+              # The deadman must never reach ntfy: it fires permanently by
+              # design. It is dispatched to its own receiver, which is a
+              # blackhole until an external heartbeat URL is configured.
+              # Matched first so it cannot fall through to a severity route
+              # or to the parent receiver.
+              {
+                matchers = [ ''alertname="Watchdog"'' ];
+                receiver = "watchdog";
+                group_wait = "0s";
+                group_interval = "1m";
+                repeat_interval = "1m";
+              }
               {
                 matchers = [ ''severity="critical"'' ];
                 receiver = "ntfy";
@@ -399,6 +454,16 @@ in
               target_matchers = [ ''alertname!="NodeDown"'' ];
               equal = [ "hostname" ];
             }
+            {
+              # A dockerd failure otherwise produces one alert per container
+              # on the host -- eighteen of them on sdrhub. Page for the cause
+              # and suppress the consequences.
+              source_matchers = [ ''alertname="DockerDaemonDown"'' ];
+              target_matchers = [
+                ''alertname=~"ContainerRestarting|ContainerOOM|ContainerUnhealthy|DockerUnitFlapping|SDRDecoderCrashed|DecoderHeartbeatMissing|UltrafeederNoAircraft|UltrafeederNotReceiving"''
+              ];
+              equal = [ "hostname" ];
+            }
           ];
 
           receivers = [
@@ -411,6 +476,21 @@ in
                   send_resolved = true;
                 }
               ];
+            }
+
+            # Deadman sink. Intentionally has no notification config, so the
+            # permanently-firing Watchdog alert is dispatched here and
+            # discarded instead of reaching ntfy.
+            #
+            # TO ACTIVATE THE DEADMAN: add a webhook_configs entry pointing at
+            # an external heartbeat monitor that lives outside this stack --
+            # a healthchecks.io ping URL, or an Uptime Kuma push URL hosted on
+            # fredvps, which is off-site and would survive a whole-house
+            # outage. The monitor alarms when the heartbeat stops, which is
+            # the only way to distinguish "nothing is wrong" from "the
+            # alerting pipeline is dead". Until then this rule is inert.
+            {
+              name = "watchdog";
             }
           ];
         };

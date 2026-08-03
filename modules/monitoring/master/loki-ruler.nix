@@ -116,12 +116,49 @@ let
     };
   }) decoderUnits;
 
+  # Hosts that ship journal logs to Loki. Desktops are excluded: maranello
+  # runs no Alloy, and Daytona is a roaming laptop that is legitimately
+  # offline for long stretches.
+  loggingHosts = [
+    "sdrhub"
+    "fredhub"
+    "fredvps"
+    "acarshub"
+    "vdlmhub"
+    "hfdlhub1"
+    "hfdlhub2"
+  ];
+
+  # Per-host log-shipping deadman. Prometheus cannot express this: the
+  # distributor's ingestion counter is labelled by tenant only, with no
+  # per-source dimension. Here the host label exists on the stream itself.
+  hostLogRules = map (h: {
+    alert = "HostLogsMissing";
+    expr = ''absent_over_time({host="${h}"}[30m])'';
+    for = "10m";
+    labels = {
+      severity = "warning";
+      host = h;
+      hostname = h;
+    };
+    annotations = {
+      summary = "No logs received from ${h} for 30 minutes";
+      description = "Alloy on ${h} has stopped shipping, or the host is unreachable. Every log-derived alert for this host is silently inoperative until it returns.";
+    };
+  }) loggingHosts;
+
   rules = {
     groups = [
       {
         name = "decoder-liveness";
         interval = "1m";
         rules = heartbeatRules;
+      }
+
+      {
+        name = "log-shipping-liveness";
+        interval = "1m";
+        rules = hostLogRules;
       }
 
       {

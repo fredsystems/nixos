@@ -1,0 +1,118 @@
+groups:
+  # Alerts about the monitoring stack itself. Everything else in this
+  # directory assumes Prometheus, Alertmanager and the notification bridge are
+  # working; these are the rules that notice when they are not.
+  - name: monitoring-pipeline
+    rules:
+      # Deadman switch. Always firing by construction, so its ARRIVAL at an
+      # external heartbeat monitor is the signal. If Prometheus stops
+      # evaluating, Alertmanager stops dispatching, or the host dies, the
+      # heartbeat stops and the external monitor raises the alarm through a
+      # path that shares no infrastructure with this stack.
+      #
+      # severity: none keeps it out of the critical/warning/info ntfy routes.
+      # It is dispatched by a dedicated Alertmanager route -- see the
+      # watchdog receiver in prometheus.nix. Until a heartbeat URL is
+      # configured that receiver blackholes it, so this rule is inert but
+      # harmless.
+      - alert: Watchdog
+        expr: vector(1)
+        labels:
+          severity: none
+        annotations:
+          summary: "Alerting pipeline is alive"
+          description: "This alert always fires. Its absence downstream means Prometheus or Alertmanager has stopped."
+
+      - alert: AlertmanagerNotificationsFailing
+        expr: rate(alertmanager_notifications_failed_total[15m]) > 0
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Alertmanager cannot deliver notifications"
+          description: "Delivery to {{ $labels.integration }} has been failing for 10 minutes. Alerts are being raised but not reaching a phone."
+
+      - alert: PrometheusNotificationsDropped
+        expr: rate(prometheus_notifications_dropped_total[15m]) > 0
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Prometheus is dropping alert notifications"
+          description: "Prometheus cannot hand alerts to Alertmanager."
+
+      - alert: PrometheusRuleEvaluationFailing
+        expr: rate(prometheus_rule_evaluation_failures_total[15m]) > 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Prometheus rule evaluation failing in group {{ $labels.rule_group }}"
+          description: "A recording or alerting rule is erroring. Alerts derived from it are not being evaluated."
+
+      - alert: PrometheusTSDBWALCorruption
+        expr: increase(prometheus_tsdb_wal_corruptions_total[1h]) > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Prometheus TSDB write-ahead log corruption"
+          description: "The WAL reported corruption in the last hour. Metric history may be incomplete."
+
+      - alert: PrometheusScrapeNearTimeout
+        expr: |
+          scrape_duration_seconds > 8
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Scrape of {{ $labels.job }} on {{ $labels.instance }} is slow"
+          description: "Scrape duration has exceeded 8s against a 10s timeout for 15 minutes. The target is about to start failing."
+
+  - name: log-pipeline
+    rules:
+      # Whole-pipeline stoppage. loki_distributor_lines_received_total is
+      # labelled by tenant only, with no per-source-host dimension, so this
+      # can only detect that ingestion has stopped entirely. Per-host
+      # detection is done by the Loki ruler's HostLogsMissing rules, which
+      # can use absent_over_time against a host-scoped stream selector.
+      - alert: LogIngestionStopped
+        expr: rate(loki_distributor_lines_received_total[15m]) == 0
+        for: 30m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Loki has stopped receiving any log lines"
+          description: "No log lines have reached Loki for 30 minutes. Every log-derived alert is inoperative. Alloy has failed fleet-wide, or the network path to Loki is broken."
+
+      - alert: LokiDown
+        expr: up{job="loki"} == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Loki is down"
+          description: "All log-derived alerting, including decoder crash and heartbeat detection, is inoperative while Loki is down."
+
+      - alert: AlertmanagerDown
+        expr: up{job="alertmanager"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Alertmanager is down"
+          description: "Prometheus is still evaluating rules but no alert can be delivered."
+
+  - name: docker-daemon
+    rules:
+      # A dockerd failure otherwise produces one alert per container. This
+      # fires first so the cause is visible, and the inhibit rule keyed on it
+      # suppresses the downstream noise.
+      - alert: DockerDaemonDown
+        expr: node_systemd_unit_state{state="active", name="docker.service"} == 0
+        for: 3m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Docker daemon is not running on {{ $labels.hostname }}"
+          description: "dockerd is not active. Every container on this host is down."
