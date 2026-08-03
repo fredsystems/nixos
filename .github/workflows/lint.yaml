@@ -66,6 +66,14 @@ jobs:
         # same hooks at build time without that dependency.
         run: nix build --no-link --print-build-logs .#checks.x86_64-linux.pre-commit-check
 
+      - name: Validate Prometheus alerting rules
+        # Runs `promtool check rules` plus the promtool unit tests. Built
+        # explicitly rather than relying on `nix flake check`, which this
+        # workflow does not run -- without this step the alert-rule test suite
+        # would never execute in CI, which is how five permanently-silent
+        # rules accumulated in the first place.
+        run: nix build --no-link --print-build-logs .#checks.x86_64-linux.prometheus-alert-rules
+
   # =====================================================================
   # Required Check Summary
   # =====================================================================
