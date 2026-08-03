@@ -588,14 +588,30 @@ The notification path was a single unmonitored point of failure: if Alertmanager
 
 ### Phase 5 -- CI and container hygiene
 
-- [x] `promtool test rules` wired into `flake/dev/checks.nix`
-- [x] CI gate asserting every metric referenced in `alert-rules/*.yaml` returns a non-empty result
-- [ ] `promtool check rules` in pre-commit
-- [ ] Add `runbook_url` annotations to every alert
-- [ ] Raise dump978's internal `message-monitor` threshold; it currently restarts its own decoder about 20 times a day because UAT is legitimately quiet at this site
+- [x] `promtool check rules` and `promtool test rules` wired into `flake/dev/checks.nix`
+- [x] The flake check is actually executed by CI. It was not: `lint.yaml` builds
+      `pre-commit-check` directly and never runs `nix flake check`, so the rule
+      tests would have passed by never running -- the same failure mode they
+      exist to catch.
+- [x] CI gate asserting every metric referenced in `alert-rules/*.yaml` resolves
 - [x] Blackbox exporter for certificate expiry and external endpoint probes
 - [x] Disk fill-rate prediction, systemd timer staleness, network errors, load saturation
 - [x] smartctl exporter for SMART pre-failure attributes
+- [x] dump978 self-restart loop. **Resolved by the usbfs fix, not by changing
+      the container's threshold.** It was bouncing its own decoder because it
+      could not claim its device: 136 restarts in 7 days, 16 in the last 24
+      hours, and 0 in the last 6 hours. It now reports "Receiver is OK" as often
+      as "appears stale" (6 vs 6 in 6 hours) against 1 vs 334 beforehand. No
+      container config change is needed; the underlying fault is gone.
+- [ ] `promtool check rules` as a *pre-commit* hook specifically. Deliberately
+      not done. The check runs in CI, so this would only move detection ~30
+      seconds earlier, and `precommit-base`'s `mkCheck` exposes no `extraHooks`
+      argument, so it would require changing that repo.
+- [ ] `runbook_url` annotations. Partially delivered by other means: Pushover
+      notifications carry a tappable link to the alert's `GeneratorURL`, which
+      was the concrete payoff wanted from `runbook_url` (open the graph rather
+      than just read a name). Actual runbook prose does not exist yet, so a
+      literal `runbook_url` would point at nothing.
 
 ### Phase 6 -- throughput baselines
 
