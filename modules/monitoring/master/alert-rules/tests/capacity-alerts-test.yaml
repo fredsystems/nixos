@@ -1,0 +1,382 @@
+# promtool unit tests for the capacity / saturation alerting rules.
+#
+# Run with:
+#   nix build .#checks.x86_64-linux.prometheus-alert-rules
+#
+# Same rationale as alert-rules-test.yaml: a rule that is syntactically valid
+# and reported health=ok by Prometheus can still be incapable of ever firing,
+# because an empty query result is not an error. Every alert here has both a
+# firing case and a non-firing case, and the non-firing cases are chosen to be
+# the specific false-positive traps that each rule's guards exist to prevent.
+#
+# Note on series length: input_series must extend past eval_time, and far
+# enough to cover the rule's `for:` duration plus its range-vector window,
+# otherwise the series goes stale mid-evaluation and the test fails for
+# reasons unrelated to the rule logic.
+#
+# Note on `interval:`, which cost real debugging time here. Rules are evaluated
+# at the top-level `evaluation_interval` (1m), but input samples are spaced at
+# each test's `interval`. If that spacing exceeds Prometheus' 5m lookback
+# delta, the series is stale at most evaluation steps, so any rule with a
+# `for:` clause never accumulates a continuous pending period and silently
+# fails to fire. The SystemdTimerStale tests originally used `interval: 10m`
+# and failed for exactly this reason -- the expression was correct. Keep every
+# `interval:` here at 5m or below.
+rule_files:
+  - ../capacity-alerts.yaml
+
+evaluation_interval: 1m
+
+tests:
+  # ---------------------------------------------------------------------------
+  # DiskFillPredicted
+  # ---------------------------------------------------------------------------
+
+  # 100 GB filesystem, 25 GB free (25%), losing 25 MB/min. That trend empties
+  # the disk in well under 24h, and it is already below the 30% guard.
+  - interval: 5m
+    name: DiskFillPredicted fires on a disk that is low and draining
+    input_series:
+      - series: 'node_filesystem_avail_bytes{device="/dev/nvme0n1p2", fstype="ext4", mountpoint="/", hostname="vdlmhub", instance="vdlmhub.local:9100", job="node", role="agent"}'
+        values: "25000000000-125000000x100"
+      - series: 'node_filesystem_size_bytes{device="/dev/nvme0n1p2", fstype="ext4", mountpoint="/", hostname="vdlmhub", instance="vdlmhub.local:9100", job="node", role="agent"}'
+        values: "100000000000+0x100"
+    alert_rule_test:
+      - eval_time: 7h
+        alertname: DiskFillPredicted
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              device: /dev/nvme0n1p2
+              fstype: ext4
+              mountpoint: /
+              hostname: vdlmhub
+              instance: vdlmhub.local:9100
+              job: node
+              role: agent
+            exp_annotations:
+              summary: "Disk predicted to fill within 24h on vdlmhub (/)"
+              description: "Filesystem / on vdlmhub is below 30% free and, at its current 6h fill rate, is projected to run out of space within 24 hours."
+
+  # The reason the <30% guard exists. This filesystem is draining fast enough
+  # that predict_linear projects it negative inside 24h, but it still has 33%
+  # free. predict_linear on its own would fire here; that is the exact false
+  # positive we refuse to ship (a write burst on a roomy disk).
+  - interval: 5m
+    name: DiskFillPredicted stays silent when free space is still above the guard
+    input_series:
+      - series: 'node_filesystem_avail_bytes{device="/dev/nvme0n1p2", fstype="ext4", mountpoint="/", hostname="sdrhub", instance="sdrhub.local:9100", job="node", role="master"}'
+        values: "50000000000-200000000x100"
+      - series: 'node_filesystem_size_bytes{device="/dev/nvme0n1p2", fstype="ext4", mountpoint="/", hostname="sdrhub", instance="sdrhub.local:9100", job="node", role="master"}'
+        values: "100000000000+0x100"
+    alert_rule_test:
+      - eval_time: 7h
+        alertname: DiskFillPredicted
+        exp_alerts: []
+
+  # A healthy, stable filesystem: low on space but not trending anywhere.
+  - interval: 5m
+    name: DiskFillPredicted stays silent on a low but stable filesystem
+    input_series:
+      - series: 'node_filesystem_avail_bytes{device="/dev/sda2", fstype="ext4", mountpoint="/", hostname="fredvps", instance="fredvps.tailc21fc7.ts.net:9100", job="node", role="agent"}'
+        values: "25000000000+0x100"
+      - series: 'node_filesystem_size_bytes{device="/dev/sda2", fstype="ext4", mountpoint="/", hostname="fredvps", instance="fredvps.tailc21fc7.ts.net:9100", job="node", role="agent"}'
+        values: "100000000000+0x100"
+    alert_rule_test:
+      - eval_time: 7h
+        alertname: DiskFillPredicted
+        exp_alerts: []
+
+  # Desktops are out of scope; they churn disk constantly.
+  - interval: 5m
+    name: DiskFillPredicted ignores desktops
+    input_series:
+      - series: 'node_filesystem_avail_bytes{device="/dev/nvme1n1p2", fstype="ext4", mountpoint="/", hostname="maranello", instance="maranello.local:9100", job="node", role="desktop"}'
+        values: "25000000000-125000000x100"
+      - series: 'node_filesystem_size_bytes{device="/dev/nvme1n1p2", fstype="ext4", mountpoint="/", hostname="maranello", instance="maranello.local:9100", job="node", role="desktop"}'
+        values: "100000000000+0x100"
+    alert_rule_test:
+      - eval_time: 7h
+        alertname: DiskFillPredicted
+        exp_alerts: []
+
+  # tmpfs "fills" routinely and is excluded by fstype.
+  - interval: 5m
+    name: DiskFillPredicted ignores tmpfs
+    input_series:
+      - series: 'node_filesystem_avail_bytes{device="tmpfs", fstype="tmpfs", mountpoint="/run", hostname="vdlmhub", instance="vdlmhub.local:9100", job="node", role="agent"}'
+        values: "25000000000-125000000x100"
+      - series: 'node_filesystem_size_bytes{device="tmpfs", fstype="tmpfs", mountpoint="/run", hostname="vdlmhub", instance="vdlmhub.local:9100", job="node", role="agent"}'
+        values: "100000000000+0x100"
+    alert_rule_test:
+      - eval_time: 7h
+        alertname: DiskFillPredicted
+        exp_alerts: []
+
+  # ---------------------------------------------------------------------------
+  # SystemdTimerStale
+  # ---------------------------------------------------------------------------
+
+  # last_trigger pinned at t=1s while the clock runs to 80h, so the timer looks
+  # ~80h stale, comfortably past the 72h threshold.
+  - interval: 5m
+    name: SystemdTimerStale fires on a timer that stopped triggering
+    input_series:
+      - series: 'node_systemd_timer_last_trigger_seconds{name="nix-gc.timer", hostname="vdlmhub", instance="vdlmhub.local:9100", job="node", role="agent"}'
+        values: "1+0x1000"
+    alert_rule_test:
+      - eval_time: 80h
+        alertname: SystemdTimerStale
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              name: nix-gc.timer
+              hostname: vdlmhub
+              instance: vdlmhub.local:9100
+              job: node
+              role: agent
+            exp_annotations:
+              summary: "Systemd timer nix-gc.timer is stale on vdlmhub"
+              description: "The timer nix-gc.timer on vdlmhub has not triggered in over 72 hours. Every non-weekly timer in this fleet runs at least every 36 hours, so this timer has almost certainly stopped firing."
+
+  # Regression test for the epoch artefact. node_exporter reports 0 for a timer
+  # that has not triggered since boot, so `time() - 0` looks like ~56 years of
+  # staleness. Without the `> 0` guard every freshly booted host would page for
+  # logrotate.timer and systemd-tmpfiles-clean.timer immediately.
+  - interval: 5m
+    name: SystemdTimerStale ignores timers that have never triggered since boot
+    input_series:
+      - series: 'node_systemd_timer_last_trigger_seconds{name="logrotate.timer", hostname="acarshub", instance="acarshub.local:9100", job="node", role="agent"}'
+        values: "0+0x1000"
+    alert_rule_test:
+      - eval_time: 80h
+        alertname: SystemdTimerStale
+        exp_alerts: []
+
+  # Weekly timers are excluded by name. This also proves the regex escaping in
+  # the rule (`fstrim\\.timer`) survives YAML and PromQL parsing -- if the
+  # escape were wrong the exclusion would silently stop matching and fstrim
+  # would page every week.
+  - interval: 5m
+    name: SystemdTimerStale ignores the known weekly timers
+    input_series:
+      - series: 'node_systemd_timer_last_trigger_seconds{name="fstrim.timer", hostname="hfdlhub1", instance="hfdlhub1.local:9100", job="node", role="agent"}'
+        values: "1+0x1000"
+      - series: 'node_systemd_timer_last_trigger_seconds{name="ollama-model-updater.timer", hostname="fredhub", instance="fredhub.local:9100", job="node", role="agent"}'
+        values: "1+0x1000"
+    alert_rule_test:
+      - eval_time: 80h
+        alertname: SystemdTimerStale
+        exp_alerts: []
+
+  # A daily timer that is merely late (24h since last trigger) is fine; the
+  # fleet's worst legitimate gap is ~36h.
+  - interval: 5m
+    name: SystemdTimerStale stays silent for a timer within its normal period
+    input_series:
+      - series: 'node_systemd_timer_last_trigger_seconds{name="docker-prune.timer", hostname="sdrhub", instance="sdrhub.local:9100", job="node", role="agent"}'
+        values: "1+0x1000"
+    alert_rule_test:
+      - eval_time: 24h
+        alertname: SystemdTimerStale
+        exp_alerts: []
+
+  # Desktops sleep and power off, so their timers legitimately go stale.
+  - interval: 5m
+    name: SystemdTimerStale ignores desktops
+    input_series:
+      - series: 'node_systemd_timer_last_trigger_seconds{name="nix-gc.timer", hostname="maranello", instance="maranello.local:9100", job="node", role="desktop"}'
+        values: "1+0x1000"
+    alert_rule_test:
+      - eval_time: 80h
+        alertname: SystemdTimerStale
+        exp_alerts: []
+
+  # ---------------------------------------------------------------------------
+  # NodeNetworkErrors
+  # ---------------------------------------------------------------------------
+
+  # 5 receive errors per minute => ~75 per 15m window, far past the >10 floor.
+  - interval: 1m
+    name: NodeNetworkErrors fires on rising receive errors
+    input_series:
+      - series: 'node_network_receive_errs_total{device="enp1s0", hostname="vdlmhub", instance="vdlmhub.local:9100", job="node", role="agent"}'
+        values: "0+5x60"
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: NodeNetworkErrors
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              device: enp1s0
+              hostname: vdlmhub
+              instance: vdlmhub.local:9100
+              job: node
+              role: agent
+            exp_annotations:
+              summary: "Network errors on vdlmhub (enp1s0)"
+              description: "Interface enp1s0 on vdlmhub has recorded more than 10 receive or transmit errors in 15 minutes. Fleet baseline for this counter is zero, so this indicates a cable, port, or link-layer fault."
+
+  # Covers the right-hand side of the `or`, which would otherwise be untested.
+  - interval: 1m
+    name: NodeNetworkErrors fires on rising transmit errors
+    input_series:
+      - series: 'node_network_transmit_errs_total{device="wlo1", hostname="acarshub", instance="acarshub.local:9100", job="node", role="agent"}'
+        values: "0+5x60"
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: NodeNetworkErrors
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              device: wlo1
+              hostname: acarshub
+              instance: acarshub.local:9100
+              job: node
+              role: agent
+            exp_annotations:
+              summary: "Network errors on acarshub (wlo1)"
+              description: "Interface wlo1 on acarshub has recorded more than 10 receive or transmit errors in 15 minutes. Fleet baseline for this counter is zero, so this indicates a cable, port, or link-layer fault."
+
+  # The normal fleet state: error counters flat at zero.
+  - interval: 1m
+    name: NodeNetworkErrors stays silent on a clean interface
+    input_series:
+      - series: 'node_network_receive_errs_total{device="enp1s0", hostname="hfdlhub1", instance="hfdlhub1.local:9100", job="node", role="agent"}'
+        values: "0+0x60"
+      - series: 'node_network_transmit_errs_total{device="enp1s0", hostname="hfdlhub1", instance="hfdlhub1.local:9100", job="node", role="agent"}'
+        values: "0+0x60"
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: NodeNetworkErrors
+        exp_alerts: []
+
+  # Virtual interfaces are excluded. Without the device filter, docker0, the
+  # veth pairs, the docker user bridges, tailscale0 and virbr0 would all be
+  # eligible -- 50 of the fleet's 57 network devices are virtual.
+  - interval: 1m
+    name: NodeNetworkErrors ignores virtual interfaces
+    input_series:
+      - series: 'node_network_receive_errs_total{device="lo", hostname="vdlmhub", instance="vdlmhub.local:9100", job="node", role="agent"}'
+        values: "0+50x60"
+      - series: 'node_network_receive_errs_total{device="docker0", hostname="vdlmhub", instance="vdlmhub.local:9100", job="node", role="agent"}'
+        values: "0+50x60"
+      - series: 'node_network_receive_errs_total{device="veth594c8bd", hostname="vdlmhub", instance="vdlmhub.local:9100", job="node", role="agent"}'
+        values: "0+50x60"
+      - series: 'node_network_receive_errs_total{device="br-3bd5a620116b", hostname="vdlmhub", instance="vdlmhub.local:9100", job="node", role="agent"}'
+        values: "0+50x60"
+      - series: 'node_network_receive_errs_total{device="tailscale0", hostname="vdlmhub", instance="vdlmhub.local:9100", job="node", role="agent"}'
+        values: "0+50x60"
+      - series: 'node_network_transmit_errs_total{device="virbr0", hostname="vdlmhub", instance="vdlmhub.local:9100", job="node", role="agent"}'
+        values: "0+50x60"
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: NodeNetworkErrors
+        exp_alerts: []
+
+  # One error every 2 minutes is ~7.5 per 15m, under the >10 floor, so an
+  # isolated transient does not page.
+  - interval: 2m
+    name: NodeNetworkErrors stays silent below the error floor
+    input_series:
+      - series: 'node_network_receive_errs_total{device="enp191s0", hostname="fredhub", instance="fredhub.local:9100", job="node", role="agent"}'
+        values: "0+1x60"
+    alert_rule_test:
+      - eval_time: 40m
+        alertname: NodeNetworkErrors
+        exp_alerts: []
+
+  # ---------------------------------------------------------------------------
+  # NodeHighLoad
+  # ---------------------------------------------------------------------------
+
+  # 4 cores, load15 of 20 => ratio 5, past the 4x threshold. This case also
+  # proves the `on (hostname) group_left ()` join works at all: with plain `/`
+  # the two sides share no label set and the result is empty, which is the
+  # can-never-fire defect class this branch exists to eliminate.
+  - interval: 1m
+    name: NodeHighLoad fires on sustained saturation
+    input_series:
+      - series: 'node_load15{hostname="hfdlhub1", instance="hfdlhub1.local:9100", job="node", role="agent"}'
+        values: "20+0x40"
+      - series: 'node_cpu_seconds_total{cpu="0", mode="idle", hostname="hfdlhub1", role="agent"}'
+        values: "100+1x40"
+      - series: 'node_cpu_seconds_total{cpu="1", mode="idle", hostname="hfdlhub1", role="agent"}'
+        values: "100+1x40"
+      - series: 'node_cpu_seconds_total{cpu="2", mode="idle", hostname="hfdlhub1", role="agent"}'
+        values: "100+1x40"
+      - series: 'node_cpu_seconds_total{cpu="3", mode="idle", hostname="hfdlhub1", role="agent"}'
+        values: "100+1x40"
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: NodeHighLoad
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              hostname: hfdlhub1
+              instance: hfdlhub1.local:9100
+              job: node
+              role: agent
+            exp_annotations:
+              summary: "Sustained high load on hfdlhub1"
+              description: "The 15-minute load average on hfdlhub1 has been more than 4x its CPU count for 15 minutes. The run queue is growing faster than the host can drain it."
+
+  # hfdlhub1's actual steady state: load15 ~10 on 4 cores, ratio 2.5, which is
+  # its 30-day average. A threshold of 2 would have this host permanently
+  # alerting (89.7% of the last 30 days), so this must stay silent.
+  - interval: 1m
+    name: NodeHighLoad stays silent at the normal HFDL decoder baseline
+    input_series:
+      - series: 'node_load15{hostname="hfdlhub1", instance="hfdlhub1.local:9100", job="node", role="agent"}'
+        values: "10+0x40"
+      - series: 'node_cpu_seconds_total{cpu="0", mode="idle", hostname="hfdlhub1", role="agent"}'
+        values: "100+1x40"
+      - series: 'node_cpu_seconds_total{cpu="1", mode="idle", hostname="hfdlhub1", role="agent"}'
+        values: "100+1x40"
+      - series: 'node_cpu_seconds_total{cpu="2", mode="idle", hostname="hfdlhub1", role="agent"}'
+        values: "100+1x40"
+      - series: 'node_cpu_seconds_total{cpu="3", mode="idle", hostname="hfdlhub1", role="agent"}'
+        values: "100+1x40"
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: NodeHighLoad
+        exp_alerts: []
+
+  # Proves the normalisation by core count. An absolute load of 20 is alarming
+  # on a 4-core box and unremarkable on fredhub's 32 cores (ratio 0.625).
+  - interval: 1m
+    name: NodeHighLoad normalises by CPU count on a large host
+    input_series:
+      - series: 'node_load15{hostname="fredhub", instance="fredhub.local:9100", job="node", role="agent"}'
+        values: "20+0x40"
+      - series: 'node_cpu_seconds_total{cpu="0", mode="idle", hostname="fredhub", role="agent"}'
+        values: "100+1x40"
+      - series: 'node_cpu_seconds_total{cpu="1", mode="idle", hostname="fredhub", role="agent"}'
+        values: "100+1x40"
+      - series: 'node_cpu_seconds_total{cpu="2", mode="idle", hostname="fredhub", role="agent"}'
+        values: "100+1x40"
+      - series: 'node_cpu_seconds_total{cpu="3", mode="idle", hostname="fredhub", role="agent"}'
+        values: "100+1x40"
+      - series: 'node_cpu_seconds_total{cpu="4", mode="idle", hostname="fredhub", role="agent"}'
+        values: "100+1x40"
+      - series: 'node_cpu_seconds_total{cpu="5", mode="idle", hostname="fredhub", role="agent"}'
+        values: "100+1x40"
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: NodeHighLoad
+        exp_alerts: []
+
+  # Desktops spike load legitimately (compiles, games) and are excluded.
+  - interval: 1m
+    name: NodeHighLoad ignores desktops
+    input_series:
+      - series: 'node_load15{hostname="maranello", instance="maranello.local:9100", job="node", role="desktop"}'
+        values: "100+0x40"
+      - series: 'node_cpu_seconds_total{cpu="0", mode="idle", hostname="maranello", role="desktop"}'
+        values: "100+1x40"
+      - series: 'node_cpu_seconds_total{cpu="1", mode="idle", hostname="maranello", role="desktop"}'
+        values: "100+1x40"
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: NodeHighLoad
+        exp_alerts: []

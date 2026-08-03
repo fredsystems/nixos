@@ -156,6 +156,7 @@ in
         ./alert-rules/system-alerts.yaml
         ./alert-rules/sdr-alerts.yaml
         ./alert-rules/meta-alerts.yaml
+        ./alert-rules/capacity-alerts.yaml
       ];
 
       scrapeConfigs = [

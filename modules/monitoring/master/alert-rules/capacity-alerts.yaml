@@ -1,0 +1,190 @@
+# Capacity / saturation alerts.
+#
+# Every metric and every threshold in this file was verified against the live
+# Prometheus at http://192.168.31.20:9090 before being committed. Thresholds
+# are not guesses -- each one is annotated with the empirical fleet baseline
+# (30 days of retained data) that justifies it.
+#
+# Fleet shape that these thresholds assume:
+#   - 7 servers: mini PCs, 15 GB RAM, 3-8 CPUs (fredhub is the outlier at 32)
+#   - 2 desktops (Daytona, maranello) which sleep and shut down regularly and
+#     are therefore excluded from anything that measures sustained behaviour.
+groups:
+  - name: capacity-alerts
+    rules:
+      # Predictive disk alert. Complements the static NodeDiskLow (10%) and
+      # NodeDiskWarning (20%) rules in alert-rules.yaml by catching a fast
+      # linear fill *before* it crosses those floors.
+      #
+      # Two halves, ANDed:
+      #   1. predict_linear over a 6h window projects avail_bytes 24h ahead and
+      #      fires if the projection goes negative.
+      #   2. A guard requiring free space to already be under 30%.
+      #
+      # The guard is the important part. predict_linear alone is a false-
+      # positive generator: a 6h window that happens to catch a container image
+      # pull or a Prometheus snapshot on an otherwise 90%-free 1 TB disk
+      # produces a steep negative slope and "fills in 24h" is technically true
+      # but operationally meaningless. Requiring <30% free means the disk must
+      # genuinely be running out AND trending the wrong way.
+      #
+      # 30% was chosen because the fullest real filesystem in the fleet today
+      # is fredvps / at 34.0% free, so the guard sits just below the current
+      # high-water mark: it is armed for the host that is actually closest to
+      # trouble, and gives runway above the existing 20% warning threshold.
+      #
+      # fstype exclusions match the existing disk rules so that tmpfs, overlay
+      # and friends (which "fill" constantly and harmlessly) are ignored.
+      #
+      # Labels preserved by the AND: device, fstype, hostname, instance, job,
+      # mountpoint, role. Verified live -- hostname and mountpoint are both
+      # safe to template.
+      - alert: DiskFillPredicted
+        expr: |
+          predict_linear(
+            node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs|devtmpfs|ramfs|autofs", role!="desktop"}[6h],
+            24 * 3600
+          ) < 0
+          and
+          (node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs|devtmpfs|ramfs|autofs", role!="desktop"}
+           / node_filesystem_size_bytes{fstype!~"tmpfs|overlay|squashfs|devtmpfs|ramfs|autofs", role!="desktop"}) < 0.30
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Disk predicted to fill within 24h on {{ $labels.hostname }} ({{ $labels.mountpoint }})"
+          description: "Filesystem {{ $labels.mountpoint }} on {{ $labels.hostname }} is below 30% free and, at its current 6h fill rate, is projected to run out of space within 24 hours."
+
+      # A systemd timer that has stopped triggering. Silent timer failure is
+      # invisible otherwise: the timer unit stays "active (waiting)", so
+      # SystemdUnitFailed never fires, yet backups/GC/cert renewal have
+      # quietly stopped.
+      #
+      # node_systemd_timer_last_trigger_seconds is confirmed present in live
+      # Prometheus (116 series across 8 hosts). It does NOT need an extra
+      # node_exporter flag -- it ships with the default systemd collector.
+      #
+      # The `> 0` guard is mandatory, not cosmetic. node_exporter reports 0 for
+      # a timer that has not triggered since boot. Without the guard, `time() -
+      # 0` is ~56 years of "staleness" and every freshly-booted host instantly
+      # pages for logrotate.timer, systemd-tmpfiles-clean.timer and friends.
+      # This was confirmed in the retained data: those timers show a max
+      # observed staleness of 496033h, which is exactly the epoch artefact.
+      #
+      # Threshold: 72h. Empirical max staleness per timer over 30 days, after
+      # discarding the epoch artefact, is:
+      #   fstrim.timer                  168.9h  (weekly)
+      #   ollama-model-updater.timer    169.9h  (weekly)
+      #   acme-renew-*.timer          <= 36.7h  (daily + jitter/backoff)
+      #   nix-optimise / fwupd-refresh   34.4h
+      #   everything else              <= 24.0h
+      # The two weekly timers are excluded by name; every remaining timer in
+      # the fleet is daily-or-faster with a worst observed gap of 36.7h, so 72h
+      # is ~2x the real high-water mark. That is enough headroom for
+      # RandomizedDelaySec and post-reboot catch-up, while still catching a
+      # genuinely dead daily timer within three days.
+      #
+      # Desktops are excluded: they sleep and power off, so their timers
+      # legitimately go long stretches without triggering.
+      #
+      # Labels preserved: exporter, hostname, instance, job, name, role.
+      # Verified live -- hostname and name are both safe to template.
+      - alert: SystemdTimerStale
+        expr: |
+          (
+            time() - (node_systemd_timer_last_trigger_seconds{
+              role!="desktop",
+              name!~"fstrim\\.timer|ollama-model-updater\\.timer"
+            } > 0)
+          ) > 72 * 3600
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Systemd timer {{ $labels.name }} is stale on {{ $labels.hostname }}"
+          description: "The timer {{ $labels.name }} on {{ $labels.hostname }} has not triggered in over 72 hours. Every non-weekly timer in this fleet runs at least every 36 hours, so this timer has almost certainly stopped firing."
+
+      # Rising error counters on a physical NIC -- bad cable, dying port,
+      # duplex mismatch, or a failing wifi link.
+      #
+      # Only *_errs_total is used, deliberately NOT *_drop_total. Drops are
+      # routine on this fleet and would make the rule useless: over 30 days the
+      # peak 15m rx_drop increase was 103530 on hfdlhub2 enp1s0, with nonzero
+      # drops on 7 of the 15 physical interfaces. Errors, by contrast, are
+      # exactly 0 across every physical interface for the entire 30-day
+      # retention window, so a nonzero error rate is genuinely anomalous.
+      #
+      # Threshold: >10 errors in 15m, sustained 10m. Given a fleet baseline of
+      # flat zero, 10 is simply a floor that ignores a lone transient CRC error
+      # while a real link fault (which produces errors continuously, in the
+      # thousands) trips it immediately.
+      #
+      # Interface exclusions cover the virtual devices: lo, docker0, veth*,
+      # br-* (docker user bridges), tailscale0, and virbr* (libvirt). That
+      # narrows 57 devices down to the 7 real ones. virbr* is included in the
+      # exclusion list because it is a virtual bridge like br-*; error counters
+      # on it do not correspond to any physical link.
+      #
+      # Note on `or`: if a device somehow had both rx and tx errors rising, the
+      # `or` yields a single series for it rather than two, because both sides
+      # carry identical label sets. That is the desired behaviour -- one alert
+      # per faulty interface -- which is why the wording below does not claim a
+      # direction.
+      #
+      # Labels preserved: device, exporter, hostname, instance, job, role.
+      # Verified live -- hostname and device are both safe to template.
+      - alert: NodeNetworkErrors
+        expr: |
+          increase(node_network_receive_errs_total{device!~"lo|docker.*|veth.*|br-.*|tailscale.*|virbr.*"}[15m]) > 10
+          or
+          increase(node_network_transmit_errs_total{device!~"lo|docker.*|veth.*|br-.*|tailscale.*|virbr.*"}[15m]) > 10
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Network errors on {{ $labels.hostname }} ({{ $labels.device }})"
+          description: "Interface {{ $labels.device }} on {{ $labels.hostname }} has recorded more than 10 receive or transmit errors in 15 minutes. Fleet baseline for this counter is zero, so this indicates a cable, port, or link-layer fault."
+
+      # Sustained run-queue saturation, normalised by CPU count so that a
+      # 3-core VPS and a 32-core box use the same threshold.
+      #
+      # The division needs `on (hostname) group_left ()` because the left side
+      # (node_load15) carries exporter/instance/job/role while the right side,
+      # after `count by (hostname)`, carries only hostname. Without explicit
+      # matching the two sides share no common label set and the division
+      # returns empty -- a rule that can never fire. group_left keeps the left
+      # side's labels, so hostname and instance both survive. Verified live.
+      #
+      # node_cpu_seconds_total is filtered to mode="idle" so that count()
+      # yields one series per core rather than one per core-per-mode.
+      #
+      # Threshold: 4x CPU count. This is set from measured fleet behaviour, not
+      # from the textbook "load > cores" rule, because hfdlhub1 runs multiple
+      # dumphfdl decoders on 4 cores and its *normal* state is oversubscribed.
+      # Load15/cores over 30 days on hfdlhub1: avg 2.53, p95 3.19, max 3.73.
+      # Fraction of the last 30 days spent above each candidate threshold:
+      #   >2    89.7% of the time   (would be permanently firing -- useless)
+      #   >3    16.7% of the time   (still far too noisy)
+      #   >3.5   0.4% of the time
+      #   >4     0.0% of the time
+      # 4 is the first threshold with zero false positives against real fleet
+      # data while remaining a genuine saturation signal: a 15-minute load
+      # average at 4x core count means work is queueing faster than it drains.
+      #
+      # node_load15 is already a 15-minute average, so `for: 15m` requires the
+      # condition to hold across two independent windows before alerting.
+      #
+      # Desktops are excluded: interactive workloads (compiles, games) spike
+      # load legitimately and nobody needs to be told.
+      - alert: NodeHighLoad
+        expr: |
+          node_load15{role!="desktop"}
+            / on (hostname) group_left ()
+          count by (hostname) (node_cpu_seconds_total{mode="idle", role!="desktop"})
+          > 4
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Sustained high load on {{ $labels.hostname }}"
+          description: "The 15-minute load average on {{ $labels.hostname }} has been more than 4x its CPU count for 15 minutes. The run queue is growing faster than the host can drain it."
