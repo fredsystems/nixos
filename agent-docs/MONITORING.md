@@ -84,29 +84,48 @@ applies the ACL explicitly via a oneshot ordered before the exporter.
 
 Daytona is excluded from pull-based scraping at `modules/monitoring/master/prometheus.nix:13` and instead pushes via `prometheus.remote_write` and `loki.write` from a bespoke Alloy config at `hosts/linux/daytona/configuration.nix:51-134`.
 
-Versions in use: Prometheus 3.12.0, Loki 3.7.4, Alloy 1.16.0. Prometheus retention 90d, Loki retention 30d.
+Versions in use: Prometheus 3.12.0, Alertmanager 0.31.1, Loki 3.7.4, Alloy 1.16.0. Prometheus retention 90d, Loki retention 30d.
+
+sdrhub additionally runs the Loki ruler (29 rules across 6 groups) and a blackbox exporter; every agent runs a smartctl exporter.
 
 ### Scrape configuration
 
 Defined at `modules/monitoring/master/prometheus.nix:160-262`. Global `scrape_interval` and `evaluation_interval` are both 15s.
 
-| Job         | Targets                                              | Labels attached           |
-| ----------- | ---------------------------------------------------- | ------------------------- |
-| node        | all agents + desktops + sdrhub on :9100              | hostname, role, exporter  |
-| cadvisor    | all agents + sdrhub on :4567                         | hostname, role, exporter  |
-| ultrafeeder | sdrhub.local:9273, sdrhub.local:9274                 | none                      |
-| dump978     | sdrhub.local:9275                                    | none                      |
-| acarshub    | sdrhub.local:8085                                    | none                      |
-| prometheus  | 127.0.0.1:9090                                       | none                      |
-| pushgateway | 127.0.0.1:9091                                       | none                      |
+14 jobs, 49 targets, all healthy. The blackbox and smartctl jobs are defined by
+their own modules rather than here: `scrapeConfigs` and `ruleFiles` are both
+`listOf` options that merge across modules, so an exporter can be self-contained.
 
-Alertmanager routes every severity to a single `ntfy` receiver on topic `fred-sdrhub-alerts` at `high` priority when firing. Nothing scrapes Alertmanager, Grafana, or Loki.
+| Job                     | Targets                                   | Labels attached          |
+| ----------------------- | ----------------------------------------- | ------------------------ |
+| node                    | all agents + desktops + sdrhub on :9100   | hostname, role, exporter |
+| cadvisor                | all agents + sdrhub on :4567 (7)          | hostname, role, exporter |
+| smartctl                | 6 SMART-capable hosts on :9633            | hostname, role, exporter |
+| ultrafeeder             | sdrhub.local:9274                         | hostname, role           |
+| acarshub                | sdrhub.local:8085                         | hostname, role           |
+| prometheus              | 127.0.0.1:9090                            | hostname, role           |
+| alertmanager            | 127.0.0.1:9093                            | hostname, role           |
+| loki                    | 127.0.0.1:5678                            | hostname, role           |
+| grafana                 | 127.0.0.1:3333                            | hostname, role           |
+| pushgateway             | 127.0.0.1:9091 (honor_labels)             | hostname, role           |
+| blackbox-exporter       | 127.0.0.1:9115 (the exporter itself)      | none                     |
+| blackbox-https          | 3 public HTTPS endpoints, must be 2xx     | instance, job            |
+| blackbox-https-redirect | 11 apex domains, must be 3xx              | instance, job            |
+| blackbox-http-internal  | 6 internal vhosts via the nginx proxy     | instance, job            |
+
+`dump978` was removed: nothing inside the container listens on the published
+port 9275, so it was a permanently-down phantom target. Its metrics are served
+by the container's own nginx, which currently 404s on `/metrics`.
+
+Alertmanager routes by severity to three Pushover receivers, plus a `watchdog` receiver that pings healthchecks.io. Alertmanager, Grafana and Loki are all scraped. See [Notification transport](#notification-transport).
 
 ## Verified defects
 
 ### Dead alert rules
 
-Five of the twenty-two rules reference metrics with no active series. Prometheus reports all of them as `health=ok`, because a rule evaluating to an empty vector is considered healthy. They have never fired and cannot fire.
+**All defects in this section are fixed.** They are retained because the evidence explains why the current shape is what it is, and because the failure mode recurs.
+
+Five of the then-twenty-two rules referenced metrics with no active series. Prometheus reported all of them as `health=ok`, because a rule evaluating to an empty vector is considered healthy. They had never fired and could not fire. The rule set is now 49 alerts across 9 files, all covered by `promtool` unit tests and by `scripts/check-alert-metrics.sh`.
 
 | Rule                    | Location             | Missing metric                                | Cause                                                     |
 | ----------------------- | -------------------- | --------------------------------------------- | --------------------------------------------------------- |
@@ -438,7 +457,7 @@ What genuinely does depend on hardware: the number of independent USB host contr
 Thresholds cannot be derived from first principles. The deliverable is a tuning platform with defensible starting baselines, not a set of correct numbers.
 
 - Alerts **fire immediately** rather than running in shadow mode, so real-time notifications provide the evidence for whether a threshold is right. See [Decisions log](#decisions-log).
-- Severity routing must land **before** the throughput alerts, so tuning noise goes to a different ntfy topic from `NodeDown`. Without it the channel that matters gets trained into background noise.
+- Severity routing lands **before** the throughput alerts, so tuning noise arrives at a different Pushover priority from `NodeDown`. Without it the channel that matters gets trained into background noise. Decoder throughput alerts are `info`, which is Pushover priority -1: delivered silently, no sound.
 - Persist baselines as recording rules so a Grafana panel can show actual against baseline against threshold per receiver. Tuning then means reading a graph and changing one number.
 - Keep thresholds in a Nix attrset, not inline in YAML, so a change is a one-line edit next to the container definition where the frequency list already lives.
 
@@ -448,12 +467,12 @@ Thresholds cannot be derived from first principles. The deliverable is a tuning 
 
 ### Current path and its gaps
 
-Alertmanager routes every severity to a single `ntfy` receiver on topic `fred-sdrhub-alerts` at `high` priority via the `alertmanager-ntfy` bridge on `127.0.0.1:8000`.
+For the record, the path this replaced: every severity went to a single `ntfy` receiver on one public topic at `high` priority, via the `alertmanager-ntfy` bridge on `127.0.0.1:8000`.
 
 - Every severity shares one topic at one priority, so `FwupdUpdatesAvailable` (info, 24h) arrives as urgently as `NodeDown`. No transport change fixes this; it is a routing problem.
 - No acknowledgement and no escalation. An unseen alert is simply lost.
-- `alertmanager-ntfy` is a third-party bridge process in the critical path, and nothing monitors it. If it dies the result is silence, which is indistinguishable from health.
-- The topic is on **public ntfy.sh with no authentication**. Anyone who knows or guesses `fred-sdrhub-alerts` can subscribe and read hostnames, unit names, and failure detail. This is the one item worth mitigating independently of any migration, since it is cheap: rename to an unguessable topic, or self-host with auth.
+- `alertmanager-ntfy` was a third-party bridge process in the critical path that nothing monitored. If it died the result was silence, which is indistinguishable from health. Removed.
+- The topic was on **public ntfy.sh with no authentication**, and a ntfy topic name is effectively a password. Anyone who knew or guessed it could read hostnames, unit names and failure detail. Resolved by the migration: Pushover credentials live in sops.
 
 ### Constraints captured
 
@@ -482,18 +501,43 @@ Alertmanager routes every severity to a single `ntfy` receiver on topic `fred-sd
 | Alerta                          | `services.alerta`       | Alert database with deduplication, correlation, and history                       |
 | Uptime Kuma                     | `services.uptime-kuma`  | Blackbox checks and deadman hosting rather than an Alertmanager console           |
 
-All four are present in the pinned nixpkgs. Alertmanager is 0.33.1, ntfy-sh is 2.26.0.
+All four are present in the pinned nixpkgs. Karma remains the recommended triage console and is not yet deployed.
 
-### Proposed target state
+### Deployed state
 
-If and when this is picked up:
+- Critical severity to **Pushover** at priority 2 (emergency): re-alerts until
+  acknowledged and bypasses quiet hours, with `retry 2m` / `expire 1h` and the
+  `siren` sound. This acknowledgement behaviour is the main reason for leaving
+  ntfy -- an unseen critical was previously just lost.
+- Warning to Pushover at priority 0, resolved notifications sent.
+- Info to Pushover at priority -1 (silent, no sound), resolved notifications
+  suppressed. This is the tier decoder throughput alerts land in while their
+  thresholds are unproven.
+- Notifications carry a tappable link to the alert's `GeneratorURL`, so tapping
+  opens the Prometheus graph for that alert.
+- Credentials via `token_file` / `user_key_file`, sourced from sops through
+  `LoadCredential`. Alertmanager runs `DynamicUser=yes` so there is no stable
+  uid for sops to chown to. Using the `_file` variants also preserves build-time
+  `amtool` validation, which an envsubst placeholder would have forced off.
+- Deadman pings healthchecks.io from the `watchdog` receiver.
 
-- Critical severity to **Pushover** with emergency priority, using the native receiver so `alertmanager-ntfy` leaves the critical path.
-- Warning and info to **ntfy** on a private authenticated topic as a digest with a long `repeat_interval`.
-- **Karma** on sdrhub for triage, plus the Alertmanager datasource in Grafana since it costs nothing.
-- Deadman switch on a **different provider and a different host** -- fredvps is off-site, so a deadman there survives a whole-house outage. A deadman sharing infrastructure with the thing it watches is decorative.
+**Alertmanager requires both `token` and `user_key`.** It calls
+`api.pushover.net` directly rather than being a hosted "Pushover-powered
+service", so it supplies the application identity as well as the recipient.
+Pushover's own docs say "just supply your user key", but that addresses users of
+a hosted service which already holds its own application token.
 
-Two independent providers also means a single provider outage does not blind the fleet.
+**Caveat worth remembering: `amtool check-config` does not validate notifier
+templates.** An unterminated `{{ if }}` injected into the critical title was
+accepted without complaint. The templates were therefore syntax-checked and
+rendered separately against a representative alert group. Any future template
+edit needs the same treatment.
+
+Not yet deployed: **Karma** for triage, recommended on fredvps bound to
+Tailscale rather than exposed publicly. Karma manages silences, so it is a
+control plane, not a read-only view -- a bad actor could silence every alert.
+Tailscale satisfies the off-LAN access requirement with no internet-facing
+attack surface.
 
 - [x] Decide whether to adopt this proposal
 - [x] Independently of the above: move off the unauthenticated public ntfy.sh topic
@@ -514,9 +558,9 @@ No tuning risk; all of these are outright bugs.
 
 ### Phase 2 -- severity routing
 
-Prerequisite for anything noisy. **Transport-agnostic** -- this is entirely achievable on the existing ntfy setup and does not depend on the deferred [Notification transport](#notification-transport) proposal.
+Prerequisite for anything noisy. Was implemented on ntfy first and carried over to Pushover unchanged, since the routing tree is transport-agnostic.
 
-- [x] Split ntfy topics by severity; critical to a priority topic, warning and info to a digest
+- [x] Route by severity (implemented on ntfy topics, now Pushover priorities)
 - [x] Set a long `repeat_interval` for the tuning tier
 - [x] Expand inhibit rules: docker daemon down suppresses container alerts; decoder crash suppresses its own throughput alert
 
@@ -533,7 +577,7 @@ Deployable immediately, nothing to tune.
 
 ### Phase 4 -- monitoring stack resilience
 
-The notification path is currently a single unmonitored point of failure. If Alertmanager, alertmanager-ntfy, or ntfy.sh dies, silence is indistinguishable from health.
+The notification path was a single unmonitored point of failure: if Alertmanager or the delivery bridge died, silence was indistinguishable from health. Now monitored, and the deadman covers total failure.
 
 - [x] Deadman's switch: always-firing alert to a separate receiver backed by an external heartbeat monitor
 - [x] Scrape Alertmanager, Grafana, and Loki
@@ -610,5 +654,5 @@ Large regex alternations over a seven-day range will drop the Loki connection. N
 | Explicit `1000` rather than `0`                              | `0` is valid and means the 2047 MB hard maximum, but a bounded value states intent and avoids an effectively unlimited pin budget.            |
 | usbfs enabled on four hosts, not five                        | hfdlhub2 has no USB SDR hardware; hfdlobserver drives network web888/KiwiSDR receivers. It cannot go in `profiles/adsb-hub.nix`, which is also imported by fredvps, fredhub, and hfdlhub2. |
 | Container healthchecks are a supplement, never a backbone    | Coverage is inversely correlated with failure rate -- the only containers observed crashing, dumphfdl and hfdlobserver, ship no healthcheck.  |
-| Notification transport change deferred                       | The evaluation is recorded under [Notification transport](#notification-transport) but no migration is scheduled. Severity routing is the actual blocker and is transport-agnostic, so it proceeds on the existing ntfy path. |
+| Migrated ntfy to Pushover                                    | Acknowledgement was the deciding factor: Pushover priority 2 re-alerts until acked, so an unseen critical is not lost. Also removes the unmonitored `alertmanager-ntfy` bridge from the critical path and moves credentials into sops. |
 | Grafana OnCall OSS excluded permanently                      | Archived 2026-03-24; Cloud Connection for mobile push, SMS, and voice is disabled. Recorded so it is not re-evaluated.                        |
