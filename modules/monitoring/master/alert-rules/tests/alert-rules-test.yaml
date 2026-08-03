@@ -71,18 +71,24 @@ tests:
     input_series:
       - series: 'container_health_state{name="acars_router", hostname="sdrhub"}'
         values: "-1+0x20"
+      - series: 'container_start_time_seconds{name="acars_router", hostname="sdrhub"}'
+        values: "0+0x20"
     alert_rule_test:
       - eval_time: 15m
         alertname: ContainerUnhealthy
         exp_alerts: []
 
-  - interval: 1m
+  # start_time 0 against an eval_time of 3h means the container has been up
+  # longer than the 2h30m gate, so the state is genuinely unhealthy.
+  - interval: 5m
     name: ContainerUnhealthy fires on a genuinely unhealthy container
     input_series:
       - series: 'container_health_state{name="ultrafeeder", hostname="sdrhub"}'
-        values: "0+0x20"
+        values: "0+0x60"
+      - series: 'container_start_time_seconds{name="ultrafeeder", hostname="sdrhub"}'
+        values: "0+0x60"
     alert_rule_test:
-      - eval_time: 15m
+      - eval_time: 3h
         alertname: ContainerUnhealthy
         exp_alerts:
           - exp_labels:
@@ -91,15 +97,36 @@ tests:
               hostname: sdrhub
             exp_annotations:
               summary: "Container ultrafeeder on sdrhub reports unhealthy"
-              description: "The container's own HEALTHCHECK has been failing for 10 minutes."
+              description: "The container's own HEALTHCHECK has been failing for 10 minutes, and it started long enough ago that this is not its start_period."
 
-  - interval: 1m
+  - interval: 5m
     name: ContainerUnhealthy stays silent on a healthy container
     input_series:
       - series: 'container_health_state{name="ultrafeeder", hostname="sdrhub"}'
-        values: "1+0x20"
+        values: "1+0x60"
+      - series: 'container_start_time_seconds{name="ultrafeeder", hostname="sdrhub"}'
+        values: "0+0x60"
     alert_rule_test:
-      - eval_time: 15m
+      - eval_time: 3h
+        alertname: ContainerUnhealthy
+        exp_alerts: []
+
+  # Regression test for the start_period false positive. cAdvisor reports 0 for
+  # both "unhealthy" and "still starting", and piaware's start_period is 2h, so
+  # without the start-time gate this fired ~10 minutes after every deploy and
+  # stayed firing for two hours. Observed happening on piaware in production.
+  #
+  # start_time 0 with an eval_time of 1h means the container is 1h old, inside
+  # the 2h30m gate, so a health state of 0 must be treated as "starting".
+  - interval: 5m
+    name: ContainerUnhealthy ignores a container still inside its start_period
+    input_series:
+      - series: 'container_health_state{name="piaware", hostname="sdrhub"}'
+        values: "0+0x30"
+      - series: 'container_start_time_seconds{name="piaware", hostname="sdrhub"}'
+        values: "0+0x30"
+    alert_rule_test:
+      - eval_time: 1h
         alertname: ContainerUnhealthy
         exp_alerts: []
 
