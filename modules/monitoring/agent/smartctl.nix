@@ -45,6 +45,7 @@
 {
   config,
   lib,
+  pkgs,
   agentNodes,
   agentScrapeMap,
   ...
@@ -101,6 +102,53 @@ in
       networking.firewall.allowedTCPPorts = [
         port # smartctl_exporter
       ];
+
+      # The nixpkgs module ships a udev rule that setfacl's
+      # g:smartctl-exporter-access:rw onto /dev/nvme[0-9]*, but it is gated on
+      # ACTION=="add". That fires when the kernel creates the device node at
+      # boot, and never again -- so deploying this module to a running system
+      # leaves /dev/nvme0 as crw------- root root, the exporter gets EACCES,
+      # and it serves `smartctl_devices 1` with no device metrics at all while
+      # its scrape target still reports up.
+      #
+      # Capabilities do not help: the unit has CAP_SYS_RAWIO and CAP_SYS_ADMIN,
+      # but neither bypasses DAC permission checks (only CAP_DAC_OVERRIDE
+      # would, which is a far bigger grant than an ACL on one device node).
+      #
+      # So apply the ACL explicitly, ordered before the exporter. Idempotent,
+      # and it makes the exporter work on the deploy that enables it rather
+      # than only after the next reboot.
+      systemd.services.smartctl-exporter-device-acl = {
+        description = "Grant smartctl_exporter read access to NVMe control devices";
+        wantedBy = [ "multi-user.target" ];
+        before = [ "prometheus-smartctl-exporter.service" ];
+
+        serviceConfig = {
+          Type = "oneshot";
+          RemainAfterExit = true;
+        };
+
+        script = ''
+          shopt -s nullglob
+          for dev in /dev/nvme[0-9]*; do
+            # Only the controller character devices (/dev/nvme0). The namespace
+            # block devices (/dev/nvme0n1) are a different subsystem and are
+            # not what smartctl opens.
+            [ -c "$dev" ] || continue
+            ${pkgs.acl}/bin/setfacl -m g:smartctl-exporter-access:rw "$dev"
+          done
+        '';
+      };
+
+      # Ordering alone is not enough on a live deploy: without an explicit
+      # dependency the exporter unit is unchanged and systemd has no reason to
+      # restart it, so it keeps its cached "device not found" state. Requiring
+      # the ACL unit changes the exporter's definition, which makes activation
+      # restart it after the ACL is in place.
+      systemd.services.prometheus-smartctl-exporter = {
+        requires = [ "smartctl-exporter-device-acl.service" ];
+        after = [ "smartctl-exporter-device-acl.service" ];
+      };
     })
 
     (lib.mkIf isMaster {
