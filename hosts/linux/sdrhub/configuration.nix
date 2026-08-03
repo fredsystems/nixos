@@ -17,6 +17,7 @@ let
     "tar1090.sdrhub" = "192.168.31.20";
     "dump978.sdrhub" = "192.168.31.20";
     "piaware.sdrhub" = "192.168.31.20";
+    "jellyfin.sdrhub" = "192.168.31.20";
     "acarshub" = "192.168.31.24";
     "fredhub" = "192.168.31.14";
     "fredvps" = "5.161.253.151";
@@ -822,6 +823,12 @@ in
           serverAliases = [ "ai.sdrhub.local" ];
           locations."/" = {
             proxyPass = "http://192.168.31.14:8889";
+          };
+        };
+        "jellyfin.sdrhub.lan" = {
+          serverAliases = [ "jellyfin.sdrhub.local" ];
+          locations."/" = {
+            proxyPass = "http://192.168.31.14:8096";
           };
         };
         "search.sdrhub.lan" = {

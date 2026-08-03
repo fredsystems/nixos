@@ -60,6 +60,11 @@
             font-family: FontAwesome;
             color: #a6e3a1;
           }
+          li.tv::before {
+            content: "\f26c "; /* FontAwesome Unicode */
+            font-family: FontAwesome;
+            color: #a6e3a1;
+          }
       }
         }
     </style>
@@ -68,6 +73,7 @@
   <body>
     <h1>Welcome to Fred's ADSB Hub!</h1>
     <ul>
+      <li class="tv"><a href="http://jellyfin.sdrhub.lan">Jellyfin</a></li>
       <li><a href="http://search.sdrhub.lan/">Search</a></li>
       <li><a href="http://ai.sdrhub.lan/">AI Interface (fredhub)</a></li>
       <li><a href="http://localhost:8889/">AI Interface (local)</a></li>
