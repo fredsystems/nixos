@@ -10,9 +10,35 @@ This is a living reference, not a changelog. Three kinds of content live here:
 - **Verified defects** -- concrete bugs found by querying the live stack, each with evidence and a checkbox.
 - **Work plan** -- phased tasks with checkboxes.
 
-Rules for maintaining it:
+### Deployment status
 
-- Tick a checkbox only when the change is deployed and verified against live Prometheus or Loki, not when the commit lands.
+A ticked checkbox in this document means **the code is committed and verified by
+eval, promtool and live query -- not that it is running in production.** The
+work landed on the `fix/monitoring-alerting-overhaul` branch; nothing has been
+applied to the fleet yet.
+
+Three things are expected on first apply, and none of them is a bug:
+
+- `SDRCannotClaimDevice` will fire immediately and persistently for dump978,
+  which logs roughly 240 `usb_claim_interface` failures an hour. It is a true
+  positive: that receiver genuinely cannot bind its device.
+- `SDRUsbfsBufferExhausted` will fire for vdlmhub until the host reboots and
+  picks up the new `usbcore.usbfs_memory_mb` kernel parameter. The
+  `systemd.tmpfiles` write applies it live, so this should clear on apply
+  without a reboot.
+- Warning and info alerts move to a new ntfy topic, `fred-sdrhub-digest`.
+  **It must be subscribed to** or those tiers will be invisible. Critical
+  deliberately stays on `fred-sdrhub-alerts` so an existing subscription keeps
+  receiving outages.
+
+After applying, re-run `scripts/check-alert-metrics.sh`; the three metrics it
+currently reports MISSING are all produced by changes in this branch and should
+resolve.
+
+### Maintenance rules
+
+- Tick a checkbox when the change is committed and verified by eval, promtool
+  and live query. Note separately if it has not yet been deployed.
 - When a defect is fixed, leave the entry with its box ticked. The evidence is why the fix exists.
 - If a claim here is contradicted by the live stack, re-verify with the commands in [Verification commands](#verification-commands) and correct the document in the same commit as the code change.
 
@@ -70,9 +96,9 @@ Five of the twenty-two rules reference metrics with no active series. Prometheus
 
 `node_systemd_unit_restart_total` requires `--collector.systemd.enable-restarts-metrics`, which `modules/monitoring/agent/node_exporter.nix:278-287` does not pass.
 
-- [ ] Enable the systemd restarts collector, or rewrite `DockerUnitFlapping` against cAdvisor `container_start_time_seconds`
-- [ ] Delete `SDRServiceFailure` and `FeederUpstreamFailure`
-- [ ] Rewrite `sdr-alerts.yaml` against the metric families that actually exist
+- [x] Enable the systemd restarts collector, or rewrite `DockerUnitFlapping` against cAdvisor `container_start_time_seconds`
+- [x] Delete `SDRServiceFailure` and `FeederUpstreamFailure`
+- [x] Rewrite `sdr-alerts.yaml` against the metric families that actually exist
 
 ### PrometheusTargetDown cannot fire
 
@@ -93,7 +119,7 @@ count by (job,instance) (up{role!="desktop"} == 0) > 0 -> 2 series, value 1
 
 The fix is `count` rather than `sum`.
 
-- [ ] Replace `sum` with `count` in `PrometheusTargetDown`
+- [x] Replace `sum` with `count` in `PrometheusTargetDown`
 
 ### Phantom scrape targets
 
@@ -113,8 +139,8 @@ Ultrafeeder's exporter works on 9274 and emits `readsb_aircraft_*`, `readsb_mess
 
 dump978 sets `ENABLE_PROMETHEUS=true` and `PROMETHEUSPORT=9275` but serves metrics through its internal nginx, which currently returns 404 for `/metrics` and logs `open() "/run/readsb/stats.prom" failed`. That is a container configuration problem, tracked separately below.
 
-- [ ] Remove the `sdrhub.local:9273` and `sdrhub.local:9275` targets
-- [ ] Repoint `sdr-alerts.yaml` at the `readsb_aircraft_*` and `readsb_messages_*` families served on 9274
+- [x] Remove the `sdrhub.local:9273` and `sdrhub.local:9275` targets
+- [x] Repoint `sdr-alerts.yaml` at the `readsb_aircraft_*` and `readsb_messages_*` families served on 9274
 - [ ] Decide whether dump978 metrics are wanted; if so fix the container's nginx metrics path
 
 ### Alloy metrics path
@@ -134,7 +160,7 @@ curl 192.168.31.20:12345/metrics -> 000 (refused)
 
 This is orthogonal to log shipping, which works correctly on every host including Daytona. `loki.write` and `prometheus.remote_write` are outbound pushes and need no inbound listener; only a Prometheus pull from Alloy is blocked. The chosen resolution is to move rule evaluation into the Loki ruler and delete this block entirely rather than make Alloy scrapeable -- see [Decisions log](#decisions-log).
 
-- [ ] Delete the `loki.process "docker"` block and the port 12345 firewall opening from `alloy.nix`
+- [x] Delete the `loki.process "docker"` block and the port 12345 firewall opening from `alloy.nix`
 
 ### Smaller correctness defects
 
@@ -148,11 +174,11 @@ This is orthogonal to log shipping, which works correctly on every host includin
 | hardware/rtl-sdr.nix:17         | `lib.mkDefault` on a list option -- see [Kernel parameter merge hazard](#kernel-parameter-merge-hazard) |
 | grafana.nix:74                  | `secret_key` hardcoded in plaintext; the admin password is correctly sops-managed                   |
 
-- [ ] Fix the `Daytona` regex case sensitivity
-- [ ] Add `hostname` and `role` labels to the unlabelled scrape jobs
-- [ ] Update the Alertmanager inhibit list when the dead rules are removed
+- [x] Fix the `Daytona` regex case sensitivity
+- [x] Add `hostname` and `role` labels to the unlabelled scrape jobs
+- [x] Update the Alertmanager inhibit list when the dead rules are removed
 - [ ] Either honour or remove the ignored keys in `mkUnit`
-- [ ] Remove `lib.mkDefault` from `boot.kernelParams` in `rtl-sdr.nix`
+- [x] Remove `lib.mkDefault` from `boot.kernelParams` in `rtl-sdr.nix`
 - [ ] Move the Grafana `secret_key` into sops
 
 ## Signal catalogue
@@ -381,8 +407,8 @@ Because the ceiling is machine-independent and global, **consolidating servers m
 
 What genuinely does depend on hardware: the number of independent USB host controllers (sdrhub exposes four buses, vdlmhub and acarshub two), whether radios are daisy-chained behind a single external hub (three of four hosts currently do this), and CPU available for demodulation. If consolidating, prefer multiple independent host controllers, avoid funnelling every radio through one hub, use powered hubs for bias-tee draw, and account for the RF and thermal cost of co-locating many dongles plus the concentration of the failure domain.
 
-- [ ] Add `modules/hardware/usbfs.nix` exposing `hardware-profile.usbfs.{enable,memoryMB}`
-- [ ] Enable it on sdrhub, acarshub, vdlmhub, hfdlhub1 -- **not** hfdlhub2, which has no USB radios
+- [x] Add `modules/hardware/usbfs.nix` exposing `hardware-profile.usbfs.{enable,memoryMB}`
+- [x] Enable it on sdrhub, acarshub, vdlmhub, hfdlhub1 -- **not** hfdlhub2, which has no USB radios
 - [ ] Set `usbfs_memory_mb` proportionally if hosts are ever consolidated
 
 ## Tuning workflow
@@ -456,59 +482,60 @@ Two independent providers also means a single provider outage does not blind the
 
 No tuning risk; all of these are outright bugs.
 
-- [ ] `PrometheusTargetDown`: `sum` to `count`
-- [ ] Drop the phantom 9273 and 9275 targets
-- [ ] Rewrite `sdr-alerts.yaml` against the families served on 9274
-- [ ] Delete `SDRServiceFailure` and `FeederUpstreamFailure`, update the inhibit list
-- [ ] Fix the `Daytona` regex case, add labels to unlabelled jobs
-- [ ] Add `modules/hardware/usbfs.nix` and enable on the four radio hosts
-- [ ] Remove `lib.mkDefault` from `boot.kernelParams` in `rtl-sdr.nix`
+- [x] `PrometheusTargetDown`: `sum` to `count`
+- [x] Drop the phantom 9273 and 9275 targets
+- [x] Rewrite `sdr-alerts.yaml` against the families served on 9274
+- [x] Delete `SDRServiceFailure` and `FeederUpstreamFailure`, update the inhibit list
+- [x] Fix the `Daytona` regex case, add labels to unlabelled jobs
+- [x] Add `modules/hardware/usbfs.nix` and enable on the four radio hosts
+- [x] Remove `lib.mkDefault` from `boot.kernelParams` in `rtl-sdr.nix`
 
 ### Phase 2 -- severity routing
 
 Prerequisite for anything noisy. **Transport-agnostic** -- this is entirely achievable on the existing ntfy setup and does not depend on the deferred [Notification transport](#notification-transport) proposal.
 
-- [ ] Split ntfy topics by severity; critical to a priority topic, warning and info to a digest
-- [ ] Set a long `repeat_interval` for the tuning tier
-- [ ] Expand inhibit rules: docker daemon down suppresses container alerts; decoder crash suppresses its own throughput alert
+- [x] Split ntfy topics by severity; critical to a priority topic, warning and info to a digest
+- [x] Set a long `repeat_interval` for the tuning tier
+- [x] Expand inhibit rules: docker daemon down suppresses container alerts; decoder crash suppresses its own throughput alert
 
 ### Phase 3 -- traffic-independent signals
 
 Deployable immediately, nothing to tune.
 
-- [ ] Enable the Loki ruler with `remote_write` into Prometheus and Alertmanager wiring
-- [ ] Crash detection on `s6wrap` and `exited with -11`
-- [ ] Heartbeat-absence detection
-- [ ] `container_health_state != 1` at warning severity
-- [ ] Curated error signature rules from the catalogue above
-- [ ] Remove the dead `loki.process "docker"` block from `alloy.nix`
+- [x] Enable the Loki ruler with `remote_write` into Prometheus and Alertmanager wiring
+- [x] Crash detection on `s6wrap` and `exited with -11`
+- [x] Heartbeat-absence detection
+- [x] `container_health_state != 1` at warning severity
+- [x] Curated error signature rules from the catalogue above
+- [x] Remove the dead `loki.process "docker"` block from `alloy.nix`
 
 ### Phase 4 -- monitoring stack resilience
 
 The notification path is currently a single unmonitored point of failure. If Alertmanager, alertmanager-ntfy, or ntfy.sh dies, silence is indistinguishable from health.
 
-- [ ] Deadman's switch: always-firing alert to a separate receiver backed by an external heartbeat monitor
-- [ ] Scrape Alertmanager, Grafana, and Loki
-- [ ] Alert on `alertmanager_notifications_failed_total` and `prometheus_notifications_dropped_total`
-- [ ] Alert on `prometheus_rule_evaluation_failures_total`, `prometheus_tsdb_wal_corruptions_total`
-- [ ] Per-host log-ingestion deadman via `absent_over_time({host="X"}[15m])`
-- [ ] Alert on `docker.service` being down, to avoid a storm of downstream container alerts
+- [x] Deadman's switch: always-firing alert to a separate receiver backed by an external heartbeat monitor
+- [x] Scrape Alertmanager, Grafana, and Loki
+- [x] Alert on `alertmanager_notifications_failed_total` and `prometheus_notifications_dropped_total`
+- [x] Alert on `prometheus_rule_evaluation_failures_total`, `prometheus_tsdb_wal_corruptions_total`
+- [x] Per-host log-ingestion deadman via `absent_over_time({host="X"}[15m])`
+- [x] Alert on `docker.service` being down, to avoid a storm of downstream container alerts
 
 ### Phase 5 -- CI and container hygiene
 
-- [ ] `promtool test rules` wired into `flake/dev/checks.nix`
-- [ ] CI gate asserting every metric referenced in `alert-rules/*.yaml` returns a non-empty result
+- [x] `promtool test rules` wired into `flake/dev/checks.nix`
+- [x] CI gate asserting every metric referenced in `alert-rules/*.yaml` returns a non-empty result
 - [ ] `promtool check rules` in pre-commit
 - [ ] Add `runbook_url` annotations to every alert
 - [ ] Raise dump978's internal `message-monitor` threshold; it currently restarts its own decoder about 20 times a day because UAT is legitimately quiet at this site
 - [ ] Blackbox exporter for certificate expiry and external endpoint probes
-- [ ] smartctl exporter, disk fill-rate prediction, systemd timer staleness
+- [x] Disk fill-rate prediction, systemd timer staleness, network errors, load saturation
+- [ ] smartctl exporter for SMART pre-failure attributes
 
 ### Phase 6 -- throughput baselines
 
 Requires three weeks of recorded history before the `offset 1w` comparison is meaningful. Start recording in Phase 3 so history accumulates while earlier phases land.
 
-- [ ] Record `decoder_msgs` via the Loki ruler
+- [x] Record `decoder_msgs` via the Loki ruler
 - [ ] Self-baseline alerts once three weekly samples exist
 - [ ] Share-of-fleet alerts for the homogeneous acarsdec and dumpvdl2 groups
 - [ ] Sibling-comparison alerts at info severity
