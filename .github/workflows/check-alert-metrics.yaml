@@ -1,0 +1,33 @@
+---
+# Assert that every metric referenced by a Prometheus alerting rule actually
+# has series in Prometheus.
+#
+# Prometheus reports a rule matching nothing as health=ok, so a rule pointing
+# at a metric that does not exist never fires and never complains. Five such
+# rules accumulated here before anyone noticed. promtool cannot catch it --
+# the PromQL is valid -- so this is the backstop.
+#
+# Runs on the self-hosted Linux runner because it needs to reach the
+# monitoring LAN. The script exits 0 with a SKIPPED notice if Prometheus is
+# unreachable, so this never fails spuriously.
+name: Check Alert Metrics
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - "modules/monitoring/master/alert-rules/**"
+      - "scripts/check-alert-metrics.sh"
+      - ".github/workflows/check-alert-metrics.yaml"
+  workflow_dispatch:
+
+jobs:
+  check-alert-metrics:
+    name: Referenced metrics exist
+    runs-on: [self-hosted, Linux]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Check referenced metrics resolve
+        run: ./scripts/check-alert-metrics.sh
