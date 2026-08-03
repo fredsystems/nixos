@@ -113,9 +113,9 @@ their own modules rather than here: `scrapeConfigs` and `ruleFiles` are both
 | blackbox-https-redirect | 11 apex domains, must be 3xx              | instance, job            |
 | blackbox-http-internal  | 6 internal vhosts via the nginx proxy     | instance, job            |
 
-`dump978` was removed: nothing inside the container listens on the published
-port 9275, so it was a permanently-down phantom target. Its metrics are served
-by the container's own nginx, which currently 404s on `/metrics`.
+`dump978` is scraped on 9275, but only because the container now runs the
+`telegraf-*` image variant -- see below. It carries `metric_relabel_configs`,
+which no other job needs.
 
 Alertmanager routes by severity to three Pushover receivers, plus a `watchdog` receiver that pings healthchecks.io. Alertmanager, Grafana and Loki are all scraped. See [Notification transport](#notification-transport).
 
@@ -178,11 +178,63 @@ inside dump978:     dump978-fa on 30978-30979, readsb on 37981/37982, nginx on 8
 
 Ultrafeeder's exporter works on 9274 and emits `readsb_aircraft_*`, `readsb_messages_*`, `readsb_position_count_*`, and `readsb_signal_*`. The `readsb_stats_*` names used by the alert rules exist only in Loki's historical label index.
 
-dump978 sets `ENABLE_PROMETHEUS=true` and `PROMETHEUSPORT=9275` but serves metrics through its internal nginx, which currently returns 404 for `/metrics` and logs `open() "/run/readsb/stats.prom" failed`. That is a container configuration problem, tracked separately below.
+dump978 also appeared broken this way, but for a different reason -- see [dump978 telegraf variant](#dump978-telegraf-variant). Resolved.
 
 - [x] Remove the `sdrhub.local:9273` and `sdrhub.local:9275` targets
 - [x] Repoint `sdr-alerts.yaml` at the `readsb_aircraft_*` and `readsb_messages_*` families served on 9274
-- [ ] Decide whether dump978 metrics are wanted; if so fix the container's nginx metrics path
+- [x] dump978 metrics: root-caused to the image variant, fixed, and scraped
+
+### dump978 telegraf variant
+
+dump978 had `ENABLE_PROMETHEUS=true`, `PROMETHEUSPORT=9275` and
+`PROMETHEUSPATH=/metrics` all set correctly, and still served nothing.
+
+The `latest-*` image variant does not ship the telegraf binary, and both s6
+services degrade silently without it:
+
+```bash
+# /etc/s6-overlay/scripts/telegraf
+if [[ ! -f /usr/bin/telegraf ]]; then
+  sleep infinity
+fi
+```
+
+So `s6-svstat` reported `telegraf` and `telegraf_socat` as up for 55425 seconds
+while both slept, `/etc/telegraf/telegraf.d` never existed, and the published
+port accepted connections through docker-proxy only to reset them.
+
+Fixed by switching to `telegraf-build-801` -- the same application build number,
+so no version drift, with the binary included. `04-telegraf` then generates the
+prometheus output from the env vars that were already set. Cost: the telegraf
+binary adds roughly 310 MB uncompressed, and `mkUnit` runs `docker pull` in
+`ExecStartPre` on every unit restart.
+
+**The per-aircraft metrics are a cardinality bomb and must stay suppressed.**
+telegraf emits 23 metric families keyed on aircraft `address`, `callsign` and
+`flightplan_id` -- one set per aircraft, observed growing from 230 to 286 series
+within an hour. With 90d retention every aircraft ever seen would leave 23
+series behind permanently, and none of it answers a monitoring question;
+per-aircraft state is what tar1090 and skyaware978 are for.
+
+| Family         | Series | Cardinality               |
+| -------------- | ------ | ------------------------- |
+| `aircraft_`    | 286    | unbounded -- suppressed   |
+| `stats_`       | 21     | fixed -- this is the useful part |
+| `polar_range_` | 72     | fixed, bearing buckets    |
+| `go_`/`process_` | 44   | fixed, telegraf's runtime |
+
+Suppressed in two places deliberately: `INFLUXDB_SKIP_AIRCRAFT=true` on the
+container stops collection at source, and a `metric_relabel_configs` drop on
+`aircraft_.*` means Prometheus still refuses them if that env var is ever lost
+or a future image ignores it.
+
+The job also drops the `host` label, which telegraf sets to the container id.
+Left in place it would churn the whole series set on every container recreate
+and break continuity of the counters the job exists to watch.
+
+No UAT throughput alert yet: UAT is genuinely quiet at this site, so a
+zero-messages rule would repeat the quiet-frequency trap. It belongs with the
+Phase 6 baselines.
 
 ### Alloy metrics path
 
@@ -452,6 +504,27 @@ What genuinely does depend on hardware: the number of independent USB host contr
 - [x] Enable it on sdrhub, acarshub, vdlmhub, hfdlhub1 -- **not** hfdlhub2, which has no USB radios
 - [ ] Set `usbfs_memory_mb` proportionally if hosts are ever consolidated
 
+## Watchdog on the dashboards
+
+The Watchdog fires permanently by design, which made the fleet dashboard's
+`Active Alerts` panel read 1 forever. Two changes:
+
+- `Active Alerts` now excludes it: `count(ALERTS{alertstate="firing", alertname!="Watchdog"})`.
+- A separate **Alerting Pipeline** stat panel inverts it: FIRING is healthy and
+  renders `OK`, absence renders `DOWN`, and no data renders `NO DATA`, all red
+  except `OK`.
+
+**That panel is not a substitute for the external deadman.** If Prometheus or
+Grafana is down it shows `NO DATA` -- it is as blind as the alerting stack it
+watches. It only covers the narrower case where Prometheus is up but has
+stopped evaluating the rule. healthchecks.io remains authoritative.
+
+Karma's `filters.default` hides it for the same reason.
+
+The stat block is split across two rows: at `w=2`/`w=3` the panel titles were
+truncated on a narrow viewport. Row 1 is node state at `w=6`, row 2 is
+operational state at `w>=4`.
+
 ## Tuning workflow
 
 Thresholds cannot be derived from first principles. The deliverable is a tuning platform with defensible starting baselines, not a set of correct numbers.
@@ -533,11 +606,23 @@ accepted without complaint. The templates were therefore syntax-checked and
 rendered separately against a representative alert group. Any future template
 edit needs the same treatment.
 
-Not yet deployed: **Karma** for triage, recommended on fredvps bound to
-Tailscale rather than exposed publicly. Karma manages silences, so it is a
-control plane, not a read-only view -- a bad actor could silence every alert.
-Tailscale satisfies the off-LAN access requirement with no internet-facing
-attack surface.
+**Karma** is deployed on sdrhub, bound to `127.0.0.1:8090` and reached through
+the existing nginx proxy at `http://karma.sdrhub.lan/` (with a `.local` alias
+and AdGuard rewrites for both). No firewall port of its own, and `/karma/` on
+the landing vhost is a 302 to it rather than a sub-path proxy, because Karma
+serves assets from absolute paths.
+
+Loopback-only is deliberate. Karma creates and expires silences, so it is a
+control plane rather than a read-only view: anyone reaching the UI can silence
+every alert in the fleet, and the result is indistinguishable from a healthy
+quiet fleet. If it is ever published it needs auth in front of it (Karma has
+`authentication.basicAuth` and `authorization.acl`) or the Alertmanager entry
+set `readonly = true`. Off-LAN access, if wanted later, should be Tailscale
+rather than an internet-facing port.
+
+`filters.default` excludes the Watchdog, which fires permanently by design and
+would otherwise sit at the top of the UI forever, training the eye to ignore a
+non-empty dashboard. It is a default, not a restriction.
 
 - [x] Decide whether to adopt this proposal
 - [x] Independently of the above: move off the unauthenticated public ntfy.sh topic
@@ -603,10 +688,14 @@ The notification path was a single unmonitored point of failure: if Alertmanager
       hours, and 0 in the last 6 hours. It now reports "Receiver is OK" as often
       as "appears stale" (6 vs 6 in 6 hours) against 1 vs 334 beforehand. No
       container config change is needed; the underlying fault is gone.
-- [ ] `promtool check rules` as a *pre-commit* hook specifically. Deliberately
-      not done. The check runs in CI, so this would only move detection ~30
-      seconds earlier, and `precommit-base`'s `mkCheck` exposes no `extraHooks`
-      argument, so it would require changing that repo.
+- [x] `promtool check rules` + `test rules` as a pre-commit hook. `mkCheck`
+      exposes no `extraHooks` argument, but it is only a wrapper: `mkBaseCheck`
+      returns a composable `{ hooks, excludes, passthru }` module and
+      git-hooks' `run` consumes the merge, so a repo-local hook can be merged in
+      without touching `precommit-base`. `git-hooks` is reached through
+      `precommit-base`'s own inputs, avoiding a new flake input and the
+      four-place input-category sync. Verified with teeth: reintroducing the
+      sum()/count() bug fails the `pre-commit-check` build.
 - [ ] `runbook_url` annotations. Partially delivered by other means: Pushover
       notifications carry a tappable link to the alert's `GeneratorURL`, which
       was the concrete payoff wanted from `runbook_url` (open the graph rather
