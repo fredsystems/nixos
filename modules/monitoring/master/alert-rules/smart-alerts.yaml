@@ -1,0 +1,133 @@
+# SMART disk health alerts.
+#
+# Metric names verified against the smartctl_exporter source rather than
+# guessed: prometheus-community/smartctl_exporter exposes
+# smartctl_device_{smart_status,critical_warning,media_errors,percentage_used,
+# available_spare,available_spare_threshold,temperature,smartctl_exit_status}.
+#
+# Fleet baseline, read off the drives with smartctl 7.5 on 2026-08-03:
+#
+#   host      device   %used  spare  spare_thresh  media_err  TB written
+#   sdrhub    nvme0       54    100            10          0        37.8
+#   hfdlhub1  nvme0        5    100            10          0
+#   hfdlhub2  nvme0        5    100            10          0
+#   acarshub  nvme0        1    100            50          0
+#   vdlmhub   nvme0        1    100            50          0
+#   fredhub   nvme0        2    100            10          0
+#
+# Two facts drive the thresholds below, both verified directly:
+#
+#   1. sdrhub is at 54% of its rated write endurance with 37.8 TB written.
+#      Every host runs a single NVMe with no redundancy and the decoders write
+#      continuously, so endurance exhaustion is the realistic failure mode.
+#   2. acarshub and vdlmhub report an Available Spare Threshold of 50%, not the
+#      10% the other four report. A hardcoded "spare < 10%" rule would be
+#      wrong for those two, so SmartAvailableSpareLow compares against the
+#      drive's own reported threshold instead of a constant.
+#
+# fredvps is excluded at the exporter level: it is a QEMU guest whose virtual
+# disk reports "SMART support is: Unavailable - device lacks SMART capability".
+#
+# scripts/check-alert-metrics.sh will report every metric here as MISSING until
+# the exporter is deployed. That is expected, and the script's own failure text
+# says so.
+groups:
+  - name: smart-alerts
+    rules:
+      # The drive's own overall verdict. 1 is passing, 0 is failing. When a
+      # drive says it is failing, that is not a threshold to tune.
+      - alert: SmartDeviceFailing
+        expr: smartctl_device_smart_status == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "SMART self-assessment FAILED on {{ $labels.hostname }} ({{ $labels.device }})"
+          description: "The drive reports its own overall health as failing. Replace it. This host has a single NVMe with no redundancy."
+
+      # NVMe critical warning is a bitfield: spare below threshold, temperature
+      # excursion, degraded reliability, read-only mode, failed volatile memory
+      # backup. Any bit set is actionable, so alert on non-zero rather than
+      # decoding individual bits.
+      - alert: SmartCriticalWarning
+        expr: smartctl_device_critical_warning > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "NVMe critical warning on {{ $labels.hostname }} ({{ $labels.device }})"
+          description: "The controller has raised a critical warning bitfield (value {{ $value }}). Causes include available spare below threshold, temperature excursion, degraded reliability, or the drive having gone read-only."
+
+      # Uncorrectable data-integrity errors. Fleet baseline is exactly 0 on
+      # every drive, so any increase is genuinely anomalous rather than a
+      # threshold that needs tuning.
+      - alert: SmartMediaErrors
+        expr: increase(smartctl_device_media_errors[1h]) > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Media errors increasing on {{ $labels.hostname }} ({{ $labels.device }})"
+          description: "The drive has recorded new uncorrectable data-integrity errors in the last hour. Fleet baseline for this counter is zero across all drives."
+
+      # Spare blocks compared against the DRIVE'S OWN reported threshold, not a
+      # constant -- acarshub and vdlmhub report 50% where the others report 10%.
+      # Crossing the manufacturer's own threshold is what sets the
+      # corresponding critical_warning bit, so this is a pre-failure signal.
+      - alert: SmartAvailableSpareLow
+        expr: |
+          smartctl_device_available_spare
+            <= on (hostname, device) group_left ()
+          smartctl_device_available_spare_threshold
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Spare blocks exhausted on {{ $labels.hostname }} ({{ $labels.device }})"
+          description: "Available spare has fallen to or below the drive's own reported threshold. The controller is running out of blocks to remap failures onto."
+
+      # Write endurance. percentage_used is the controller's own estimate of
+      # rated lifetime consumed; 100 means the endurance rating is spent, and
+      # it can exceed 100.
+      #
+      # Warning at 80: sdrhub is at 54% after 24878 power-on hours (2.8 years),
+      # so it is tracking toward roughly 19 bytes per byte of remaining life.
+      # 80 gives many months of notice at that rate -- long enough to order a
+      # replacement without urgency.
+      #
+      # Critical at 95 rather than 100, because the point is to replace the
+      # drive before the rating is exhausted, not after.
+      - alert: SmartWearoutWarning
+        expr: smartctl_device_percentage_used >= 80 and smartctl_device_percentage_used < 95
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Disk wear at {{ $value }}% on {{ $labels.hostname }} ({{ $labels.device }})"
+          description: "The drive reports {{ $value }}% of its rated write endurance consumed. Plan a replacement. Single NVMe, no redundancy."
+
+      - alert: SmartWearoutCritical
+        expr: smartctl_device_percentage_used >= 95
+        for: 1h
+        labels:
+          severity: critical
+        annotations:
+          summary: "Disk endurance nearly exhausted on {{ $labels.hostname }} ({{ $labels.device }})"
+          description: "The drive reports {{ $value }}% of its rated write endurance consumed. Replace it now."
+
+      # The exporter forks smartctl per device; a non-zero exit means it could
+      # not read the drive. Without this the SMART rules above would go quiet
+      # rather than firing, which is the silent-failure mode this whole
+      # alerting overhaul exists to eliminate.
+      #
+      # Bit 0 (value 1) means a command-line or device-open failure. The higher
+      # bits are SMART status flags that the dedicated rules above already
+      # cover, so this deliberately matches only the low bit.
+      - alert: SmartctlCannotReadDevice
+        expr: (smartctl_device_smartctl_exit_status % 2) == 1
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "smartctl cannot read {{ $labels.device }} on {{ $labels.hostname }}"
+          description: "The exporter's smartctl invocation is failing to open the device, so no SMART data is being collected for it. Every SMART alert for this drive is inoperative until this is resolved."
