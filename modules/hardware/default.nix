@@ -6,5 +6,6 @@
     ./u2f.nix
     ./rtl-sdr.nix
     ./logitech.nix
+    ./usbfs.nix
   ];
 }

@@ -365,7 +365,7 @@ jobs:
     name: Build server systems
     runs-on: [self-hosted, Linux]
     needs: [skip-if-clean, find-systems]
-    if: ${{ needs.skip-if-clean.outputs.skip != 'true' && needs.find-systems.outputs.servers != '[]' }}
+    if: ${{ needs.skip-if-clean.outputs.skip != 'true' && needs.find-systems.outputs.servers != '[]' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     permissions:
       id-token: "write"
       contents: "read"
@@ -438,7 +438,7 @@ jobs:
     name: Build desktop systems
     runs-on: [self-hosted, Linux]
     needs: [skip-if-clean, find-systems]
-    if: ${{ needs.skip-if-clean.outputs.skip != 'true' && needs.find-systems.outputs.desktops != '[]' }}
+    if: ${{ needs.skip-if-clean.outputs.skip != 'true' && needs.find-systems.outputs.desktops != '[]' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     permissions:
       id-token: "write"
       contents: "read"
@@ -607,7 +607,7 @@ jobs:
     name: Build & push dev shell + packages
     runs-on: [self-hosted, Linux]
     needs: [skip-if-clean, find-devshell]
-    if: ${{ needs.skip-if-clean.outputs.skip != 'true' && needs.find-devshell.outputs.changed == 'true' }}
+    if: ${{ needs.skip-if-clean.outputs.skip != 'true' && needs.find-devshell.outputs.changed == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     permissions:
       id-token: "write"
       contents: "read"

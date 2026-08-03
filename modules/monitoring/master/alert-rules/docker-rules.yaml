@@ -1,8 +1,11 @@
 groups:
   - name: docker-alerts
     rules:
+      # Requires --collector.systemd.enable-restarts-metrics on node_exporter,
+      # without which this metric does not exist. See
+      # modules/monitoring/agent/node_exporter.nix.
       - alert: DockerUnitFlapping
-        expr: increase(node_systemd_unit_restart_total{name=~"docker-.*"}[10m]) > 3
+        expr: increase(node_systemd_service_restart_total{name=~"docker-.*"}[10m]) > 3
         for: 5m
         labels:
           severity: critical
@@ -10,20 +13,48 @@ groups:
           summary: "Docker systemd unit {{ $labels.name }} is restarting repeatedly"
           description: "Systemd restarted {{ $labels.name }} more than 3 times in 10 minutes."
 
-      - alert: SDRServiceFailure
-        expr: rate(promtail_custom_sdr_service_failure_total[10m]) > 0
-        for: 5m
-        labels:
-          severity: critical
-        annotations:
-          summary: "SDR-related service failure on {{ $labels.host }}"
-          description: "Repeated SDR initialization or USB errors detected (unit {{ $labels.unit }})."
-
-      - alert: FeederUpstreamFailure
-        expr: rate(promtail_custom_feeder_upstream_failure_total[10m]) > 0
+      # cAdvisor exposes the health state produced by the image's own
+      # HEALTHCHECK. The value encoding matters, and has two traps:
+      #
+      #   1  healthy
+      #  -1  no healthcheck defined in the image
+      #   0  unhealthy  OR  still inside its start_period
+      #
+      # Trap 1: a naive `!= 1` fires for every container that simply has no
+      # healthcheck -- 34 of them, including acars_router, sdrmap and all the
+      # dozzle agents. Hence the second clause.
+      #
+      # Trap 2: cAdvisor does not distinguish Docker's "starting" from
+      # "unhealthy" -- both are 0. These images use long start periods, because
+      # their healthchecks assert on message counts over the past hour or two:
+      #
+      #   piaware, dump978                       2h
+      #   acarsdec, dumpvdl2, acarshub, feeders  1h
+      #   ultrafeeder, fr24                      10m
+      #
+      # So without the start-time gate this fires ~10 minutes after every
+      # restart and stays firing for up to two hours, i.e. on every single
+      # deploy. Observed doing exactly that on piaware. The gate is 2h30m, a
+      # margin over the longest start_period in the fleet; anything still
+      # reporting 0 by then is genuinely unhealthy rather than starting.
+      #
+      # A slow gate is acceptable because this is a supplementary signal. The
+      # fast detectors are elsewhere and do not depend on healthchecks:
+      # DecoderHeartbeatMissing (20m), the Loki s6wrap crash rules,
+      # DockerUnitFlapping and ContainerRestarting. Coverage here is in fact
+      # inversely correlated with failure rate -- dumphfdl and hfdlobserver are
+      # the containers actually observed crashing and neither ships a
+      # healthcheck at all.
+      - alert: ContainerUnhealthy
+        expr: |
+          container_health_state{name!=""} != 1
+            and
+          container_health_state{name!=""} != -1
+            and
+          (time() - container_start_time_seconds{name!=""}) > 9000
         for: 10m
         labels:
           severity: warning
         annotations:
-          summary: "Feeder upstream connectivity issue on {{ $labels.host }}"
-          description: "Repeated upstream connection failures for at least 10 minutes."
+          summary: "Container {{ $labels.name }} on {{ $labels.hostname }} reports unhealthy"
+          description: "The container's own HEALTHCHECK has been failing for 10 minutes, and it started long enough ago that this is not its start_period."

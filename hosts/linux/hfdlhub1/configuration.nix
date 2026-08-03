@@ -7,9 +7,14 @@
   imports = [
     ./hardware-configuration.nix
     ../../../profiles/adsb-hub.nix
+    ../../../modules/hardware/usbfs.nix
   ];
 
   networking.hostName = "hfdlhub1";
+
+  # This host has USB SDR hardware attached; raise the global usbfs
+  # transfer-buffer ceiling above the 16 MB kernel default.
+  hardware-profile.usbfs.enable = true;
 
   system.stateVersion = stateVersion;
 
@@ -63,7 +68,6 @@
           "/opt/adsb/data/dumphfdl1-scanner:/opt/scanner"
         ];
 
-        requires = [ "network-online.target" ];
       }
 
       ###############################################################
@@ -76,11 +80,11 @@
         tty = true;
         restart = "always";
 
-        depends_on = {
-          "dumphfdl-1" = {
-            condition = "service_started";
-          };
-        };
+        # Serialise startup against the sibling decoders: all three share
+        # the sdrplay_apiService and three RSP1a devices, and starting in
+        # parallel races for them. Previously written as Compose's
+        # `depends_on`, which this module never read.
+        dependsOn = [ "dumphfdl-1" ];
 
         environmentFiles = [
           config.sops.secrets."docker/hfdlhub1/dumphfdl2.env".path
@@ -113,14 +117,10 @@
         tty = true;
         restart = "always";
 
-        depends_on = {
-          "dumphfdl-1" = {
-            condition = "service_started";
-          };
-          "dumphfdl-2" = {
-            condition = "service_started";
-          };
-        };
+        dependsOn = [
+          "dumphfdl-1"
+          "dumphfdl-2"
+        ];
 
         environmentFiles = [
           config.sops.secrets."docker/hfdlhub1/dumphfdl3.env".path

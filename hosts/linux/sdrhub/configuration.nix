@@ -13,6 +13,7 @@ let
     "sdrhub" = "192.168.31.20";
     "ai.sdrhub" = "192.168.31.20";
     "search.sdrhub" = "192.168.31.20";
+    "karma.sdrhub" = "192.168.31.20";
     "tar1090.sdrhub" = "192.168.31.20";
     "dump978.sdrhub" = "192.168.31.20";
     "piaware.sdrhub" = "192.168.31.20";
@@ -49,9 +50,14 @@ in
     ../../../modules/monitoring/master
     ../../../modules/monitoring/agent
     ../../../modules/services/tailscale
+    ../../../modules/hardware/usbfs.nix
   ];
 
   deployment.role = "monitoring-master";
+
+  # This host has USB SDR hardware attached; raise the global usbfs
+  # transfer-buffer ceiling above the 16 MB kernel default.
+  hardware-profile.usbfs.enable = true;
 
   sops_secrets.enable_secrets.enable = true;
 
@@ -220,7 +226,6 @@ in
           "9999:8080"
         ];
 
-        requires = [ "network-online.target" ];
         after = [ "network-online.target" ];
       }
 
@@ -306,7 +311,20 @@ in
       ###############################################################
       {
         name = "dump978";
-        image = "ghcr.io/sdr-enthusiasts/docker-dump978:latest-build-801@sha256:9c04879d1b4003b2586ad63476612b0ec3f80c486a0bdf0861dba86c369f32cc";
+        # telegraf-build-801, not latest-build-801: the same application build,
+        # but the `latest-*` variant does not ship the telegraf binary, and both
+        # the telegraf and telegraf_socat s6 services `sleep infinity` without
+        # it. That made ENABLE_PROMETHEUS / PROMETHEUSPORT / PROMETHEUSPATH
+        # silently inert -- the s6 services reported "up" while nothing listened
+        # on 9275, so the published port accepted connections via docker-proxy
+        # and immediately reset them.
+        #
+        # With the binary present, /etc/s6-overlay/scripts/04-telegraf generates
+        # outputs_prometheus.conf from those same env vars, which are already
+        # set correctly below, so no other change is needed.
+        #
+        # Cost: the telegraf binary is ~310 MB uncompressed.
+        image = "ghcr.io/sdr-enthusiasts/docker-dump978:telegraf-build-801@sha256:9f52599c4651f91ad6b00e4589cd18fc0e6914a20e0c8b6b56a7b0d5884d9fca";
 
         hostname = "dump978";
         restart = "always";
@@ -315,6 +333,22 @@ in
         environmentFiles = [
           config.sops.secrets."docker/sdrhub/dump978.env".path
         ];
+
+        # Suppress telegraf's per-aircraft socket listener.
+        #
+        # Without this, telegraf emits 23 metric families keyed on `address`,
+        # `callsign` and `flightplan_id` -- one set per aircraft seen. That is
+        # unbounded cardinality: observed growing from 230 to 286 series within
+        # an hour, and with 90d retention every aircraft ever seen would leave
+        # 23 series behind permanently. It is also useless for monitoring;
+        # per-aircraft state is what tar1090 and skyaware978 are for.
+        #
+        # The aggregate inputs (stats_*, polar_range_*) are unaffected and are
+        # what the scrape job actually wants: total_accepted_messages,
+        # total_tracks, tracks_with_position, avg_accepted_rssi, max_distance_m.
+        environment = {
+          INFLUXDB_SKIP_AIRCRAFT = "true";
+        };
 
         deviceCgroupRules = [
           "c 189:* rwm"
@@ -730,6 +764,17 @@ in
               return = "302 http://192.168.31.20:8087/";
             };
 
+            # Karma serves its assets from absolute paths, so a sub-path proxy
+            # would break them. Redirect to the dedicated vhost instead, the
+            # same approach used for fr24 and planefinder above.
+            "/karma/" = {
+              return = "302 http://karma.sdrhub.lan/";
+            };
+
+            "/karma" = {
+              return = "302 http://karma.sdrhub.lan/";
+            };
+
             "/planefinder" = {
               return = "302 http://192.168.31.20:8087/";
             };
@@ -783,6 +828,25 @@ in
           serverAliases = [ "search.sdrhub.local" ];
           locations."/" = {
             proxyPass = "http://127.0.0.1:4444";
+          };
+        };
+
+        # Karma alert dashboard. Bound to loopback by
+        # modules/monitoring/master/karma.nix and reached only through here, so
+        # it needs no firewall port of its own. The port is read from the
+        # service definition rather than hardcoded.
+        #
+        # Karma pushes live alert updates over a websocket, hence the upgrade
+        # headers (the $connection_upgrade map is defined in appendHttpConfig).
+        "karma.sdrhub.lan" = {
+          serverAliases = [ "karma.sdrhub.local" ];
+          locations."/" = {
+            proxyPass = "http://127.0.0.1:${toString config.services.karma.settings.listen.port}";
+            extraConfig = ''
+              proxy_http_version 1.1;
+              proxy_set_header Upgrade $http_upgrade;
+              proxy_set_header Connection $connection_upgrade;
+            '';
           };
         };
       };

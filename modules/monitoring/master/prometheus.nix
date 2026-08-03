@@ -1,4 +1,5 @@
 {
+  config,
   lib,
   pkgs,
   agentNodes,
@@ -12,10 +13,50 @@ let
   agentHosts = agentNodes;
   desktopHosts = builtins.filter (h: h != "Daytona") desktopNodes;
 
+  # Shared Pushover message body.
+  #
+  # Iterates .Alerts rather than using .CommonAnnotations: group_by is
+  # [alertname, hostname], so a group can contain several alerts that differ
+  # only by unit or device -- DecoderHeartbeatMissing across four dumpvdl2
+  # instances, or the SMART rules across devices. Those have no common
+  # description, and .CommonAnnotations.description would render empty.
+  #
+  # Pushover truncates at 1024 characters. Grouping by alertname and hostname
+  # keeps groups small enough that this is not a practical concern.
+  pushoverMessage = ''
+    {{ range .Alerts }}{{ .Annotations.description }}
+    {{ end }}'';
 in
 {
   environment.systemPackages = [
     pkgs.prometheus.cli
+  ];
+
+  #######################################
+  # Deadman heartbeat endpoint
+  #######################################
+  # The healthchecks.io ping URL. Left owned by root: the alertmanager unit
+  # runs with DynamicUser=yes, so there is no stable uid to chown to, and
+  # LoadCredential below is the systemd-native way to hand a root-owned file
+  # to such a service.
+  # Alertmanager requires BOTH pushover values: it calls api.pushover.net
+  # directly rather than being a hosted "Pushover-powered service", so it
+  # supplies the application identity (api_token) as well as the recipient
+  # (user_key).
+  sops.secrets = {
+    "healthchecks.io/endpoint" = { };
+    "pushover/api_token" = { };
+    "pushover/user_key" = { };
+  };
+
+  # The alertmanager unit runs with DynamicUser=yes, so there is no stable uid
+  # for sops to chown these to. LoadCredential reads them as root at unit
+  # start and exposes them to the service user under a deterministic path,
+  # which is exactly what it exists for.
+  systemd.services.alertmanager.serviceConfig.LoadCredential = [
+    "hc-endpoint:${config.sops.secrets."healthchecks.io/endpoint".path}"
+    "pushover-token:${config.sops.secrets."pushover/api_token".path}"
+    "pushover-user-key:${config.sops.secrets."pushover/user_key".path}"
   ];
 
   system.activationScripts.prometheus_activation = {
@@ -155,21 +196,34 @@ in
         ./alert-rules/firmware-alerts.yaml
         ./alert-rules/system-alerts.yaml
         ./alert-rules/sdr-alerts.yaml
+        ./alert-rules/meta-alerts.yaml
+        ./alert-rules/capacity-alerts.yaml
       ];
 
       scrapeConfigs = [
+        # Ultrafeeder serves metrics on :9274 only. Docker also publishes 9273,
+        # but nothing inside the container listens on it, so docker-proxy
+        # accepts the connection and immediately resets it -- it was a
+        # permanently down target and is not scraped.
         {
           job_name = "ultrafeeder";
           static_configs = [
             {
               targets = [
-                "sdrhub.local:9273"
                 "sdrhub.local:9274"
               ];
+              labels = {
+                hostname = "sdrhub";
+                role = "master";
+              };
             }
           ];
         }
 
+        # dump978 UAT decoder. Serves telegraf's prometheus_client output on
+        # 9275, which only works on the `telegraf-*` image variant -- the
+        # `latest-*` variant omits the telegraf binary and its s6 services
+        # silently sleep, which is why this target was previously down.
         {
           job_name = "dump978";
           static_configs = [
@@ -177,6 +231,34 @@ in
               targets = [
                 "sdrhub.local:9275"
               ];
+              labels = {
+                hostname = "sdrhub";
+                role = "master";
+              };
+            }
+          ];
+
+          metric_relabel_configs = [
+            # Belt and braces against the per-aircraft cardinality bomb.
+            # INFLUXDB_SKIP_AIRCRAFT=true on the container stops telegraf
+            # collecting these at all, which is the real fix; this drop means
+            # that if the env var is ever lost or a future image ignores it,
+            # Prometheus still refuses to ingest 23 unbounded families keyed on
+            # aircraft address, callsign and flightplan id.
+            {
+              source_labels = [ "__name__" ];
+              regex = "aircraft_.*";
+              action = "drop";
+            }
+
+            # telegraf tags everything with host=<container id>, which changes
+            # every time the container is recreated. Left in place it would
+            # churn the series set on each restart and break continuity of the
+            # very counters this job exists to watch. hostname comes from the
+            # static labels above instead.
+            {
+              regex = "host";
+              action = "labeldrop";
             }
           ];
         }
@@ -188,6 +270,10 @@ in
               targets = [
                 "sdrhub.local:8085"
               ];
+              labels = {
+                hostname = "sdrhub";
+                role = "master";
+              };
             }
           ];
         }
@@ -249,49 +335,75 @@ in
         {
           job_name = "prometheus";
           static_configs = [
-            { targets = [ "127.0.0.1:9090" ]; }
+            {
+              targets = [ "127.0.0.1:9090" ];
+              labels = {
+                hostname = "sdrhub";
+                role = "master";
+              };
+            }
+          ];
+        }
+
+        # The monitoring stack monitored everything except itself. Without
+        # these, a failure of Alertmanager or Loki produces silence, which is
+        # indistinguishable from health.
+        {
+          job_name = "alertmanager";
+          static_configs = [
+            {
+              targets = [ "127.0.0.1:9093" ];
+              labels = {
+                hostname = "sdrhub";
+                role = "master";
+              };
+            }
+          ];
+        }
+
+        {
+          job_name = "loki";
+          static_configs = [
+            {
+              targets = [ "127.0.0.1:5678" ];
+              labels = {
+                hostname = "sdrhub";
+                role = "master";
+              };
+            }
+          ];
+        }
+
+        {
+          job_name = "grafana";
+          static_configs = [
+            {
+              targets = [ "127.0.0.1:3333" ];
+              labels = {
+                hostname = "sdrhub";
+                role = "master";
+              };
+            }
           ];
         }
         {
           job_name = "pushgateway";
+
+          # honor_labels keeps whatever labels the pusher supplied. Deliberately
+          # NO static hostname/role here: with honor_labels those are only a
+          # fallback, so a series pushed from another machine that omitted
+          # hostname would silently inherit hostname="sdrhub", role="master" and
+          # be attributed to the wrong host. A missing hostname is easier to
+          # notice than a wrong one.
+          #
+          # Nothing pushes to the gateway today; whatever starts doing so should
+          # set its own hostname.
           honor_labels = true;
           static_configs = [
             { targets = [ "127.0.0.1:9091" ]; }
           ];
         }
       ];
-
-      alertmanager-ntfy = {
-        enable = true;
-        settings = {
-          http = {
-            addr = "127.0.0.1:8000";
-          };
-          ntfy = {
-            baseurl = "https://ntfy.sh";
-            notification = {
-              topic = "fred-sdrhub-alerts";
-              priority = ''
-                status == "firing" ? "high" : "default"
-              '';
-              tags = [
-                {
-                  tag = "+1";
-                  condition = ''status == "resolved"'';
-                }
-                {
-                  tag = "rotating_light";
-                  condition = ''status == "firing"'';
-                }
-              ];
-              templates = {
-                title = ''{{ if eq .Status "resolved" }}Resolved: {{ end }}{{ index .Annotations "summary" }}'';
-                description = ''{{ index .Annotations "description" }}'';
-              };
-            };
-          };
-        };
-      };
 
       #######################################
       # Alertmanager
@@ -308,7 +420,8 @@ in
           };
 
           route = {
-            receiver = "ntfy";
+            # Fallback for any alert without a matching severity child route.
+            receiver = "pushover-warning";
             group_by = [
               "alertname"
               "hostname"
@@ -316,28 +429,213 @@ in
             group_wait = "30s";
             group_interval = "5m";
             repeat_interval = "4h";
+
+            # Per-severity pacing. All three land on the same receiver; the
+            # Each severity has its own Pushover receiver, which is where the
+            # priority, sound and retry behaviour is set. Splitting here controls
+            # how insistently each tier repeats.
+            routes = [
+              # The deadman must never reach Pushover: it fires permanently by
+              # design. It is dispatched to its own receiver, which is a
+              # blackhole until an external heartbeat URL is configured.
+              # Matched first so it cannot fall through to a severity route
+              # or to the parent receiver.
+              {
+                matchers = [ ''alertname="Watchdog"'' ];
+                receiver = "watchdog";
+                group_wait = "0s";
+
+                # Effective ping cadence is 2 minutes, and stating
+                # repeat_interval = 2m makes the config match what actually
+                # happens rather than looking like it produces 1m.
+                #
+                # Alertmanager only re-evaluates whether to notify on each
+                # group_interval tick, and its dedup stage sends only when
+                # `lastNotify < now - repeat_interval`. With repeat_interval
+                # equal to group_interval, the tick at exactly one interval
+                # fails that test by a hair and the notification slips to the
+                # next tick. So any repeat_interval >= group_interval yields a
+                # real cadence of 2 x group_interval. Measured against the
+                # healthchecks.io ping log: 09:25, 09:27, 09:29.
+                group_interval = "1m";
+                repeat_interval = "2m";
+              }
+              {
+                matchers = [ ''severity="critical"'' ];
+                receiver = "pushover-critical";
+                group_wait = "30s";
+                group_interval = "5m";
+                repeat_interval = "1h";
+              }
+              {
+                matchers = [ ''severity="warning"'' ];
+                receiver = "pushover-warning";
+                group_wait = "2m";
+                group_interval = "30m";
+                repeat_interval = "12h";
+              }
+              {
+                # Informational tier. Deliberately slow: this is where decoder
+                # throughput alerts land while their thresholds are unproven.
+                matchers = [ ''severity="info"'' ];
+                receiver = "pushover-info";
+                group_wait = "5m";
+                group_interval = "1h";
+                repeat_interval = "24h";
+              }
+            ];
           };
 
           inhibit_rules = [
             {
-              # When a node is completely down, suppress all the downstream alerts
-              # it would otherwise generate (unit failures, container restarts, etc.)
-              source_matchers = [ "alertname = \"NodeDown\"" ];
+              # When a node is down, everything else observed on that node is a
+              # consequence, so suppress all of it and page once for the cause.
+              #
+              # Matching on "not NodeDown" rather than an explicit alertname
+              # list is deliberate: the previous list had to be edited by hand
+              # for every new alert, and had already gone stale, still naming
+              # two rules that no longer exist. It also omitted
+              # PrometheusTargetDown, which a downed node always triggers.
+              #
+              # Alerts with no hostname label (the Watchdog deadman, for
+              # example) are never inhibited by this rule: `equal` requires the
+              # label to match, and NodeDown always carries a non-empty
+              # hostname from the node job.
+              source_matchers = [ ''alertname="NodeDown"'' ];
+              target_matchers = [ ''alertname!="NodeDown"'' ];
+              equal = [ "hostname" ];
+            }
+            {
+              # A dockerd failure otherwise produces one alert per container
+              # on the host -- eighteen of them on sdrhub. Page for the cause
+              # and suppress the consequences.
+              source_matchers = [ ''alertname="DockerDaemonDown"'' ];
               target_matchers = [
-                "alertname =~ \"SystemdUnitFailed|SystemdUnitFlapping|GithubRunnerCrashLoop|ContainerRestarting|ContainerOOM|DockerUnitFlapping|SDRServiceFailure|FeederUpstreamFailure|UltrafeederNoAircraft|UltrafeederNotReceiving|AdGuardHomeDown|AtticServerDown\""
+                ''alertname=~"ContainerRestarting|ContainerOOM|ContainerUnhealthy|DockerUnitFlapping|SDRDecoderCrashed|DecoderHeartbeatMissing|UltrafeederNoAircraft|UltrafeederNotReceiving"''
               ];
               equal = [ "hostname" ];
             }
           ];
 
           receivers = [
+            # Pushover, one receiver per severity rather than one receiver with
+            # a templated priority. Pushover's emergency priority requires
+            # retry/expire, and each tier wants a different sound and repeat
+            # behaviour, so separate receivers are clearer than nested
+            # conditionals in a template.
+            #
+            # Both credentials come from sops via LoadCredential: the
+            # alertmanager unit runs DynamicUser=yes so there is no stable uid
+            # to chown to, and *_file keeps the secrets out of the Nix store
+            # while preserving build-time amtool validation.
+            #
+            # Alertmanager requires BOTH token and user_key. It talks to
+            # api.pushover.net directly rather than being a hosted
+            # "Pushover-powered service", so it supplies the application
+            # identity as well as the recipient.
             {
-              name = "ntfy";
+              name = "pushover-critical";
+
+              pushover_configs = [
+                {
+                  token_file = "/run/credentials/alertmanager.service/pushover-token";
+                  user_key_file = "/run/credentials/alertmanager.service/pushover-user-key";
+                  send_resolved = true;
+
+                  # Priority 2 is emergency: Pushover re-alerts until the
+                  # notification is acknowledged, and it bypasses quiet hours.
+                  # This is the capability the previous ntfy setup did not
+                  # have -- an unseen critical alert was simply lost.
+                  priority = "2";
+                  retry = "2m";
+                  expire = "1h";
+                  sound = "siren";
+
+                  title = ''{{ if eq .Status "resolved" }}RESOLVED: {{ end }}{{ .CommonLabels.alertname }}{{ if .CommonLabels.hostname }} on {{ .CommonLabels.hostname }}{{ end }}'';
+                  message = pushoverMessage;
+                  url = "{{ (index .Alerts 0).GeneratorURL }}";
+                  url_title = "Open in Prometheus";
+                }
+              ];
+            }
+
+            {
+              name = "pushover-warning";
+
+              pushover_configs = [
+                {
+                  token_file = "/run/credentials/alertmanager.service/pushover-token";
+                  user_key_file = "/run/credentials/alertmanager.service/pushover-user-key";
+                  send_resolved = true;
+
+                  # Normal priority: notifies, respects quiet hours, no retry.
+                  priority = "0";
+
+                  title = ''{{ if eq .Status "resolved" }}RESOLVED: {{ end }}{{ .CommonLabels.alertname }}{{ if .CommonLabels.hostname }} on {{ .CommonLabels.hostname }}{{ end }}'';
+                  message = pushoverMessage;
+                  url = "{{ (index .Alerts 0).GeneratorURL }}";
+                  url_title = "Open in Prometheus";
+                }
+              ];
+            }
+
+            {
+              name = "pushover-info";
+
+              pushover_configs = [
+                {
+                  token_file = "/run/credentials/alertmanager.service/pushover-token";
+                  user_key_file = "/run/credentials/alertmanager.service/pushover-user-key";
+                  # Informational alerts do not need a resolved notification;
+                  # this is the tier decoder throughput lands in while its
+                  # thresholds are unproven and it would double the volume.
+                  send_resolved = false;
+
+                  # Priority -1 is low: delivered silently, no sound or
+                  # vibration. Visible when the phone is picked up.
+                  priority = "-1";
+
+                  title = "{{ .CommonLabels.alertname }}{{ if .CommonLabels.hostname }} on {{ .CommonLabels.hostname }}{{ end }}";
+                  message = pushoverMessage;
+                  url = "{{ (index .Alerts 0).GeneratorURL }}";
+                  url_title = "Open in Prometheus";
+                }
+              ];
+            }
+
+            # Deadman sink.
+            #
+            # The Watchdog alert fires permanently by design, so its ARRIVAL at
+            # healthchecks.io is the signal, not its content. healthchecks.io
+            # expects a ping on a schedule and alarms when one stops arriving,
+            # over infrastructure and a network path that share nothing with
+            # this stack.
+            #
+            # This is the only check that covers the delivery path itself. A
+            # successful ping proves Prometheus is evaluating rules, can reach
+            # Alertmanager, that Alertmanager is dispatching and its routing
+            # tree resolves, and that this host has working outbound DNS and
+            # network. Every other alert in this repo assumes all of that.
+            #
+            # It cannot be done from inside: AlertmanagerDown and friends are
+            # evaluated by Prometheus and delivered by Alertmanager, so they
+            # catch partial failure but never total failure -- the component
+            # that would report it is the one that is broken.
+            #
+            # url_file rather than url keeps the ping URL out of the Nix store.
+            # It reads from the systemd credential directory rather than
+            # /run/secrets directly because the alertmanager unit runs with
+            # DynamicUser=yes, so there is no static uid for sops to chown to.
+            # LoadCredential (below) copies it in as root at unit start and
+            # exposes it to the service user at a deterministic path.
+            {
+              name = "watchdog";
 
               webhook_configs = [
                 {
-                  url = "http://127.0.0.1:8000/hook";
-                  send_resolved = true;
+                  url_file = "/run/credentials/alertmanager.service/hc-endpoint";
+                  # Watchdog never resolves, so there is nothing to send.
+                  send_resolved = false;
                 }
               ];
             }

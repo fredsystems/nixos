@@ -1,0 +1,123 @@
+# Alerting rules for the prometheus-blackbox-exporter probes defined in
+# modules/monitoring/master/blackbox.nix.
+#
+# SCOPE
+#
+# Three probe jobs feed these rules:
+#
+#   blackbox-https           public HTTPS vhosts on fredvps that must answer 2xx
+#   blackbox-https-redirect  public HTTPS vhosts that must answer 3xx
+#   blackbox-http-internal   LAN-only nginx vhosts on sdrhub
+#
+# LABELS AVAILABLE HERE -- read this before adding an annotation
+#
+# Blackbox series are labelled `instance` (the probed URL, set by the job's
+# relabel_configs) and `job`. They do NOT carry `hostname` or `role`, because
+# the thing being probed is a URL, not one of our nodes. Templating
+# `{{ $labels.hostname }}` on these series renders empty, which has already
+# produced a useless alert body once in this repo. Only `instance` and `job`
+# are safe below.
+#
+# The absence of `hostname` also means Alertmanager's NodeDown inhibit rule
+# (`equal: [hostname]`) never suppresses these. That is correct: a probe of
+# fredvps from sdrhub is not a consequence of any node being down.
+#
+# EXPECTED "MISSING METRIC" REPORT
+#
+# scripts/check-alert-metrics.sh will report probe_success,
+# probe_ssl_earliest_cert_expiry and probe_duration_seconds as MISSING until
+# this configuration is actually deployed to sdrhub and the exporter has been
+# scraped at least once. That is expected and not a defect -- the script only
+# knows what Prometheus has series for, and it explains this in its own header.
+# Re-run it after deploying; the metrics must resolve then.
+#
+# Unit tests: alert-rules/tests/blackbox-alerts-test.yaml
+groups:
+  - name: blackbox-availability
+    rules:
+      - alert: BlackboxProbeFailed
+        # probe_success is 0 when the prober ran and the target did not
+        # satisfy the module (connection refused, DNS failure, TLS chain
+        # rejected, or a status code outside the module's valid set).
+        #
+        # This is distinct from `up == 0` on this job, which would mean the
+        # exporter itself is unreachable -- that case is covered by the
+        # existing PrometheusTargetDown rule via the blackbox-exporter job.
+        #
+        # 5m at a 60s scrape_interval is five consecutive failed probes.
+        # Enough to ride out a single nginx reload or an ACME renewal
+        # restart; short enough to be actionable.
+        expr: probe_success == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Endpoint {{ $labels.instance }} is failing its probe"
+          description: "Blackbox job {{ $labels.job }} has been unable to get a valid response from {{ $labels.instance }} for 5 minutes."
+
+      - alert: BlackboxSlowProbe
+        # Measured baseline from sdrhub (connect + TLS handshake + response):
+        #
+        #   public HTTPS vhosts     ~0.20s
+        #   flipaholics.pro         ~0.62s  (slowest backend; consistently so)
+        #   LAN nginx vhosts        0.007s - 0.03s
+        #
+        # Worst single observation across all 20 targets was 1.03s, on a cold
+        # first probe. 5s is roughly a 5x margin over that and an 8x margin
+        # over the slowest steady-state target, so this cannot fire on normal
+        # variance -- only on genuine degradation.
+        #
+        # Deliberately below the module timeout (10s) and the job's
+        # scrape_timeout (15s), so a slow-but-working endpoint surfaces here
+        # as a warning rather than eventually flipping BlackboxProbeFailed.
+        #
+        # 15m, not 5m: a slow endpoint is not an outage and does not warrant
+        # the faster pacing.
+        expr: probe_duration_seconds > 5
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Endpoint {{ $labels.instance }} is responding slowly"
+          description: "Blackbox job {{ $labels.job }} has taken more than 5s to probe {{ $labels.instance }} for 15 minutes. Measured baseline is 0.007s-0.03s for LAN vhosts and 0.20s-0.62s for the public HTTPS vhosts."
+
+  - name: blackbox-tls
+    rules:
+      # probe_ssl_earliest_cert_expiry is an absolute unix timestamp, so the
+      # remaining lifetime is `metric - time()` in seconds. Thresholds are
+      # written as arithmetic rather than as magic seconds so they can be read.
+      #
+      # The two rules are mutually exclusive by construction: the warning
+      # carries a >= 7d floor. Without it both would fire below 7 days and
+      # Alertmanager would deliver the same certificate twice on two different
+      # severities and two different repeat intervals.
+      - alert: BlackboxCertExpiringSoon
+        # 21 days. All of these are ACME certs on a 90-day lifetime, which the
+        # NixOS acme module renews at 30 days remaining. 21 days therefore
+        # means renewal has already been attempted and has not succeeded --
+        # there is a real fault, with three weeks of slack to fix it.
+        expr: |
+          (probe_ssl_earliest_cert_expiry - time()) < (21 * 24 * 60 * 60)
+          and
+          (probe_ssl_earliest_cert_expiry - time()) >= (7 * 24 * 60 * 60)
+        # 1h: cert expiry is a slowly-moving fact, not an event. A long `for`
+        # costs nothing here and makes the alert immune to a single bad scrape.
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "TLS certificate for {{ $labels.instance }} expires in under 21 days"
+          description: "The certificate served by {{ $labels.instance }} has less than 21 days of validity left, so ACME renewal (which should have run at 30 days) is not succeeding. Check acme-*.service on the host terminating this vhost."
+
+      - alert: BlackboxCertExpiryCritical
+        # 7 days. Past this point renewal has been failing for three weeks and
+        # the remaining margin is smaller than a weekend plus a work week.
+        # Fires for already-expired certificates too, since the difference
+        # simply goes negative.
+        expr: (probe_ssl_earliest_cert_expiry - time()) < (7 * 24 * 60 * 60)
+        for: 1h
+        labels:
+          severity: critical
+        annotations:
+          summary: "TLS certificate for {{ $labels.instance }} expires in under 7 days"
+          description: "The certificate served by {{ $labels.instance }} has less than 7 days of validity left. Browsers will start refusing this endpoint. Fix ACME renewal on the host terminating this vhost now."

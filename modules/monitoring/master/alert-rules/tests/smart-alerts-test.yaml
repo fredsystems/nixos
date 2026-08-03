@@ -1,0 +1,237 @@
+# promtool unit tests for the SMART disk health rules.
+#
+# Gotcha, learned the hard way in this directory: rules evaluate at the
+# top-level evaluation_interval, but samples are spaced at each test's own
+# `interval`. If `interval` exceeds Prometheus' 5m lookback delta the series is
+# stale at most evaluation steps and a `for:` clause never accumulates a
+# continuous pending period. Keep every interval <= 5m and make input_series
+# long enough to cover the rule's `for:` plus eval_time.
+rule_files:
+  - ../smart-alerts.yaml
+
+evaluation_interval: 1m
+
+tests:
+  - interval: 1m
+    name: SmartDeviceFailing fires when the drive reports failure
+    input_series:
+      - series: 'smartctl_device_smart_status{hostname="sdrhub", device="nvme0", role="master"}'
+        values: "0+0x20"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: SmartDeviceFailing
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              hostname: sdrhub
+              device: nvme0
+              role: master
+            exp_annotations:
+              summary: "SMART self-assessment FAILED on sdrhub (nvme0)"
+              description: "The drive reports its own overall health as failing. Replace it. This host has a single NVMe with no redundancy."
+
+  - interval: 1m
+    name: SmartDeviceFailing silent on a passing drive
+    input_series:
+      - series: 'smartctl_device_smart_status{hostname="sdrhub", device="nvme0"}'
+        values: "1+0x20"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: SmartDeviceFailing
+        exp_alerts: []
+
+  - interval: 1m
+    name: SmartCriticalWarning fires on any bit set
+    input_series:
+      - series: 'smartctl_device_critical_warning{hostname="vdlmhub", device="nvme0"}'
+        values: "1+0x20"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: SmartCriticalWarning
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              hostname: vdlmhub
+              device: nvme0
+            exp_annotations:
+              summary: "NVMe critical warning on vdlmhub (nvme0)"
+              description: "The controller has raised a critical warning bitfield (value 1). Causes include available spare below threshold, temperature excursion, degraded reliability, or the drive having gone read-only."
+
+  - interval: 1m
+    name: SmartCriticalWarning silent when clear
+    input_series:
+      - series: 'smartctl_device_critical_warning{hostname="vdlmhub", device="nvme0"}'
+        values: "0+0x20"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: SmartCriticalWarning
+        exp_alerts: []
+
+  - interval: 1m
+    name: SmartMediaErrors fires when the counter increases
+    input_series:
+      # Flat at 0 then climbing, so increase() over 1h is positive.
+      - series: 'smartctl_device_media_errors{hostname="hfdlhub1", device="nvme0"}'
+        values: "0+0x30 1+1x40"
+    alert_rule_test:
+      - eval_time: 70m
+        alertname: SmartMediaErrors
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              hostname: hfdlhub1
+              device: nvme0
+            exp_annotations:
+              summary: "Media errors increasing on hfdlhub1 (nvme0)"
+              description: "The drive has recorded new uncorrectable data-integrity errors in the last hour. Fleet baseline for this counter is zero across all drives."
+
+  - interval: 1m
+    name: SmartMediaErrors silent at the fleet baseline of zero
+    input_series:
+      - series: 'smartctl_device_media_errors{hostname="hfdlhub1", device="nvme0"}'
+        values: "0+0x80"
+    alert_rule_test:
+      - eval_time: 70m
+        alertname: SmartMediaErrors
+        exp_alerts: []
+
+  # The spare rule compares against the drive's own threshold. acarshub reports
+  # 50 where sdrhub reports 10, so a constant would be wrong for one of them.
+  - interval: 1m
+    name: SmartAvailableSpareLow respects a 50 percent threshold drive
+    input_series:
+      - series: 'smartctl_device_available_spare{hostname="acarshub", device="nvme0"}'
+        values: "50+0x30"
+      - series: 'smartctl_device_available_spare_threshold{hostname="acarshub", device="nvme0"}'
+        values: "50+0x30"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: SmartAvailableSpareLow
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              hostname: acarshub
+              device: nvme0
+            exp_annotations:
+              summary: "Spare blocks exhausted on acarshub (nvme0)"
+              description: "Available spare has fallen to or below the drive's own reported threshold. The controller is running out of blocks to remap failures onto."
+
+  - interval: 1m
+    name: SmartAvailableSpareLow silent when spare is above a 50 percent threshold
+    input_series:
+      - series: 'smartctl_device_available_spare{hostname="acarshub", device="nvme0"}'
+        values: "51+0x30"
+      - series: 'smartctl_device_available_spare_threshold{hostname="acarshub", device="nvme0"}'
+        values: "50+0x30"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: SmartAvailableSpareLow
+        exp_alerts: []
+
+  # 40% spare would trip a naive "< 10" constant check but is healthy for a
+  # drive whose own threshold is 10. This is the case a hardcoded rule gets
+  # wrong in the other direction.
+  - interval: 1m
+    name: SmartAvailableSpareLow silent at 40 percent on a 10 percent threshold drive
+    input_series:
+      - series: 'smartctl_device_available_spare{hostname="sdrhub", device="nvme0"}'
+        values: "40+0x30"
+      - series: 'smartctl_device_available_spare_threshold{hostname="sdrhub", device="nvme0"}'
+        values: "10+0x30"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: SmartAvailableSpareLow
+        exp_alerts: []
+
+  # sdrhub's real current value. Must not alert.
+  - interval: 5m
+    name: SmartWearout silent at the current fleet worst case of 54 percent
+    input_series:
+      - series: 'smartctl_device_percentage_used{hostname="sdrhub", device="nvme0"}'
+        values: "54+0x30"
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: SmartWearoutWarning
+        exp_alerts: []
+      - eval_time: 90m
+        alertname: SmartWearoutCritical
+        exp_alerts: []
+
+  - interval: 5m
+    name: SmartWearoutWarning fires at 80 percent and does not double up as critical
+    input_series:
+      - series: 'smartctl_device_percentage_used{hostname="sdrhub", device="nvme0"}'
+        values: "80+0x30"
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: SmartWearoutWarning
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              hostname: sdrhub
+              device: nvme0
+            exp_annotations:
+              summary: "Disk wear at 80% on sdrhub (nvme0)"
+              description: "The drive reports 80% of its rated write endurance consumed. Plan a replacement. Single NVMe, no redundancy."
+      - eval_time: 90m
+        alertname: SmartWearoutCritical
+        exp_alerts: []
+
+  - interval: 5m
+    name: SmartWearoutCritical fires at 95 percent and warning does not
+    input_series:
+      - series: 'smartctl_device_percentage_used{hostname="sdrhub", device="nvme0"}'
+        values: "95+0x30"
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: SmartWearoutCritical
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              hostname: sdrhub
+              device: nvme0
+            exp_annotations:
+              summary: "Disk endurance nearly exhausted on sdrhub (nvme0)"
+              description: "The drive reports 95% of its rated write endurance consumed. Replace it now."
+      - eval_time: 90m
+        alertname: SmartWearoutWarning
+        exp_alerts: []
+
+  - interval: 1m
+    name: SmartctlCannotReadDevice fires on exit status low bit set
+    input_series:
+      - series: 'smartctl_device_smartctl_exit_status{hostname="fredhub", device="nvme0"}'
+        values: "1+0x30"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: SmartctlCannotReadDevice
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              hostname: fredhub
+              device: nvme0
+            exp_annotations:
+              summary: "smartctl cannot read nvme0 on fredhub"
+              description: "The exporter's smartctl invocation is failing to open the device, so no SMART data is being collected for it. Every SMART alert for this drive is inoperative until this is resolved."
+
+  # Exit status 4 has the low bit clear: those are SMART status flags the
+  # dedicated rules cover, not a device-open failure.
+  - interval: 1m
+    name: SmartctlCannotReadDevice ignores non-open-failure exit codes
+    input_series:
+      - series: 'smartctl_device_smartctl_exit_status{hostname="fredhub", device="nvme0"}'
+        values: "4+0x30"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: SmartctlCannotReadDevice
+        exp_alerts: []
+
+  - interval: 1m
+    name: SmartctlCannotReadDevice silent on clean exit
+    input_series:
+      - series: 'smartctl_device_smartctl_exit_status{hostname="fredhub", device="nvme0"}'
+        values: "0+0x30"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: SmartctlCannotReadDevice
+        exp_alerts: []

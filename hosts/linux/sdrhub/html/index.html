@@ -50,6 +50,16 @@
             font-family: FontAwesome;
             color: #a6e3a1;
           }
+          li.bell::before {
+            content: "\f0f3 "; /* FontAwesome Unicode */
+            font-family: FontAwesome;
+            color: #a6e3a1;
+          }
+          li.chart::before {
+            content: "\e473 "; /* FontAwesome Unicode */
+            font-family: FontAwesome;
+            color: #a6e3a1;
+          }
       }
         }
     </style>
@@ -72,6 +82,12 @@
       </li>
       <li class="history">
         <a href="http://sdrhub.lan/dozzle/">Dozzle</a>
+      </li>
+      <li class="bell">
+        <a href="http://karma.sdrhub.lan/">Karma (alert dashboard)</a>
+      </li>
+      <li class="chart">
+        <a href="http://sdrhub.lan:3333/">Grafana</a>
       </li>
       <li class="ad">
         <a href="http://192.168.31.20:3000">Ad Guard Home</a>

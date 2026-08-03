@@ -1,0 +1,246 @@
+# promtool unit tests for the blackbox-exporter alerting rules.
+#
+# Run with:
+#   cd modules/monitoring/master/alert-rules/tests
+#   promtool test rules blackbox-alerts-test.yaml
+#
+# Modelled on alert-rules-test.yaml, including the relative rule_files paths --
+# promtool resolves them against the directory containing the test file, which
+# is why these tests must be run from this directory.
+#
+# TWO TIMING TRAPS THIS FILE IS BUILT AROUND
+#
+# 1. Rules are evaluated at the top-level `evaluation_interval`, but samples are
+#    laid down at each test's own `interval`. If `interval` exceeds Prometheus'
+#    5m lookback delta, the series is stale at most evaluation points, the
+#    expression yields nothing, and a `for:` clause can never accumulate -- the
+#    test then "passes" for a rule that never fired. Every `interval` below is
+#    therefore <= 5m, and every `input_series` is long enough to cover the
+#    rule's `for:` plus the evaluation time being asserted.
+#
+# 2. `time()` inside a unit test is the test's own clock, which starts at epoch
+#    0. So `probe_ssl_earliest_cert_expiry` values here are "seconds of
+#    remaining validity measured from the start of the test", not real
+#    timestamps. At eval_time 90m the clock reads 5400, so a series valued
+#    864000 has 858600s (~9.94 days) left. The values below were chosen so the
+#    5400s of elapsed test time cannot push any case across a threshold.
+rule_files:
+  - ../blackbox-alerts.yaml
+
+evaluation_interval: 1m
+
+tests:
+  #############################################################
+  # BlackboxProbeFailed
+  #############################################################
+
+  # The core reason blackbox exists: catch an endpoint that is unreachable even
+  # though every exporter on every node reports itself perfectly healthy.
+  - interval: 1m
+    name: BlackboxProbeFailed fires for a public HTTPS endpoint that stops responding
+    input_series:
+      - series: 'probe_success{job="blackbox-https", instance="https://acarshub.app/"}'
+        values: "0+0x15"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: BlackboxProbeFailed
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: blackbox-https
+              instance: https://acarshub.app/
+            exp_annotations:
+              summary: "Endpoint https://acarshub.app/ is failing its probe"
+              description: "Blackbox job blackbox-https has been unable to get a valid response from https://acarshub.app/ for 5 minutes."
+
+  # The internal job must be covered too: this is the only check that exercises
+  # the nginx reverse-proxy layer on sdrhub.
+  - interval: 1m
+    name: BlackboxProbeFailed fires for an internal LAN vhost
+    input_series:
+      - series: 'probe_success{job="blackbox-http-internal", instance="http://tar1090.sdrhub.local/"}'
+        values: "0+0x15"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: BlackboxProbeFailed
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: blackbox-http-internal
+              instance: http://tar1090.sdrhub.local/
+            exp_annotations:
+              summary: "Endpoint http://tar1090.sdrhub.local/ is failing its probe"
+              description: "Blackbox job blackbox-http-internal has been unable to get a valid response from http://tar1090.sdrhub.local/ for 5 minutes."
+
+  - interval: 1m
+    name: BlackboxProbeFailed stays silent while probes succeed
+    input_series:
+      - series: 'probe_success{job="blackbox-https", instance="https://acarshub.app/"}'
+        values: "1+0x15"
+      - series: 'probe_success{job="blackbox-https-redirect", instance="https://sdr-e.org/"}'
+        values: "1+0x15"
+      - series: 'probe_success{job="blackbox-http-internal", instance="http://sdrhub.local/"}'
+        values: "1+0x15"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: BlackboxProbeFailed
+        exp_alerts: []
+
+  # A single failed probe must not page. `for: 5m` at a 60s scrape interval
+  # means five consecutive failures; this proves one is absorbed.
+  - interval: 1m
+    name: BlackboxProbeFailed absorbs a single transient failure
+    input_series:
+      - series: 'probe_success{job="blackbox-https", instance="https://fredclausen.com/"}'
+        values: "1 1 0 1 1 1 1 1 1 1 1 1"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: BlackboxProbeFailed
+        exp_alerts: []
+
+  #############################################################
+  # BlackboxSlowProbe
+  #############################################################
+
+  - interval: 1m
+    name: BlackboxSlowProbe fires on a sustained slow endpoint
+    input_series:
+      - series: 'probe_duration_seconds{job="blackbox-https", instance="https://fredclausen.com/"}'
+        values: "7.5+0x25"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: BlackboxSlowProbe
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: blackbox-https
+              instance: https://fredclausen.com/
+            exp_annotations:
+              summary: "Endpoint https://fredclausen.com/ is responding slowly"
+              description: "Blackbox job blackbox-https has taken more than 5s to probe https://fredclausen.com/ for 15 minutes. Measured baseline is 0.007s-0.03s for LAN vhosts and 0.20s-0.62s for the public HTTPS vhosts."
+
+  # Guards the threshold against the real measured latencies, including the
+  # slowest steady-state target (flipaholics.pro at ~0.62s) and the worst
+  # single cold-probe observation seen while validating this config (1.03s).
+  # If someone lowers the 5s threshold to something like 1s, this test breaks
+  # instead of production paging.
+  - interval: 1m
+    name: BlackboxSlowProbe stays silent at the measured baseline latency
+    input_series:
+      - series: 'probe_duration_seconds{job="blackbox-https", instance="https://fredclausen.com/"}'
+        values: "0.2+0x25"
+      - series: 'probe_duration_seconds{job="blackbox-https", instance="https://flipaholics.pro/"}'
+        values: "0.62+0x25"
+      - series: 'probe_duration_seconds{job="blackbox-http-internal", instance="http://sdrhub.local/"}'
+        values: "0.007+0x25"
+      - series: 'probe_duration_seconds{job="blackbox-https-redirect", instance="https://sdr-e.org/"}'
+        values: "1.03+0x25"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: BlackboxSlowProbe
+        exp_alerts: []
+
+  #############################################################
+  # BlackboxCertExpiringSoon (warning, < 21d with a >= 7d floor)
+  #############################################################
+
+  # 864000 = 10 days of remaining validity at test time 0. At eval_time 90m the
+  # test clock reads 5400, leaving 858600s -- comfortably inside the 7d..21d
+  # band, so the arithmetic cannot be the reason this passes or fails.
+  - interval: 5m
+    name: BlackboxCertExpiringSoon fires at 10 days remaining
+    input_series:
+      - series: 'probe_ssl_earliest_cert_expiry{job="blackbox-https", instance="https://acarshub.app/"}'
+        values: "864000+0x24"
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: BlackboxCertExpiringSoon
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: blackbox-https
+              instance: https://acarshub.app/
+            exp_annotations:
+              summary: "TLS certificate for https://acarshub.app/ expires in under 21 days"
+              description: "The certificate served by https://acarshub.app/ has less than 21 days of validity left, so ACME renewal (which should have run at 30 days) is not succeeding. Check acme-*.service on the host terminating this vhost."
+      # The critical rule must NOT also fire at 10 days.
+      - eval_time: 90m
+        alertname: BlackboxCertExpiryCritical
+        exp_alerts: []
+
+  # 5184000 = 60 days. A freshly renewed ACME cert. Nothing may fire.
+  - interval: 5m
+    name: Cert expiry alerts stay silent on a freshly renewed certificate
+    input_series:
+      - series: 'probe_ssl_earliest_cert_expiry{job="blackbox-https", instance="https://acarshub.app/"}'
+        values: "5184000+0x24"
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: BlackboxCertExpiringSoon
+        exp_alerts: []
+      - eval_time: 90m
+        alertname: BlackboxCertExpiryCritical
+        exp_alerts: []
+
+  # Boundary: 30 days remaining is exactly when the NixOS acme module renews.
+  # Nothing may fire yet, or every certificate in the fleet alerts on schedule
+  # every 60 days.
+  - interval: 5m
+    name: BlackboxCertExpiringSoon stays silent at the 30 day renewal point
+    input_series:
+      - series: 'probe_ssl_earliest_cert_expiry{job="blackbox-https-redirect", instance="https://sdr-e.org/"}'
+        values: "2592000+0x24"
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: BlackboxCertExpiringSoon
+        exp_alerts: []
+
+  #############################################################
+  # BlackboxCertExpiryCritical (critical, < 7d)
+  #############################################################
+
+  # 432000 = 5 days remaining. Critical must fire; warning must not, because of
+  # its >= 7d floor. Without that floor Alertmanager would deliver the same
+  # certificate on two severities with two repeat intervals.
+  - interval: 5m
+    name: BlackboxCertExpiryCritical fires at 5 days remaining and suppresses the warning
+    input_series:
+      - series: 'probe_ssl_earliest_cert_expiry{job="blackbox-https-redirect", instance="https://sdr-e.org/"}'
+        values: "432000+0x24"
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: BlackboxCertExpiryCritical
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: blackbox-https-redirect
+              instance: https://sdr-e.org/
+            exp_annotations:
+              summary: "TLS certificate for https://sdr-e.org/ expires in under 7 days"
+              description: "The certificate served by https://sdr-e.org/ has less than 7 days of validity left. Browsers will start refusing this endpoint. Fix ACME renewal on the host terminating this vhost now."
+      - eval_time: 90m
+        alertname: BlackboxCertExpiringSoon
+        exp_alerts: []
+
+  # An already-expired certificate. `metric - time()` simply goes negative, so
+  # the same `< 7d` comparison must still catch it. A rule that only handled
+  # positive remaining time would go silent at the exact moment it matters most.
+  - interval: 5m
+    name: BlackboxCertExpiryCritical fires for an already expired certificate
+    input_series:
+      - series: 'probe_ssl_earliest_cert_expiry{job="blackbox-https", instance="https://flipaholics.pro/"}'
+        values: "-86400+0x24"
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: BlackboxCertExpiryCritical
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: blackbox-https
+              instance: https://flipaholics.pro/
+            exp_annotations:
+              summary: "TLS certificate for https://flipaholics.pro/ expires in under 7 days"
+              description: "The certificate served by https://flipaholics.pro/ has less than 7 days of validity left. Browsers will start refusing this endpoint. Fix ACME renewal on the host terminating this vhost now."
+      - eval_time: 90m
+        alertname: BlackboxCertExpiringSoon
+        exp_alerts: []

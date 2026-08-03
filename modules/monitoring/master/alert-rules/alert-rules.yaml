@@ -113,7 +113,11 @@ groups:
     rules:
       - alert: PrometheusTargetDown
         # Desktops sleep regularly; exclude their scrape targets from this alert.
-        expr: sum by (job, instance) (up{role!="desktop"} == 0) > 0
+        #
+        # Must be count(), not sum(). `up == 0` filters to series whose value
+        # is zero, so summing them always yields zero and `> 0` can never be
+        # true. count() yields the number of matching series instead.
+        expr: count by (job, instance) (up{role!="desktop"} == 0) > 0
         for: 2m
         labels:
           severity: critical
