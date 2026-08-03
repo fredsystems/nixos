@@ -158,24 +158,19 @@ in
       ];
 
       scrapeConfigs = [
+        # Only :9274 serves metrics.  Docker publishes 9273 and 9275 but no
+        # process inside the ultrafeeder / dump978 containers listens on them,
+        # so docker-proxy accepts the connection and immediately resets it.
+        # Both were permanently down targets.  dump978 exposes its metrics
+        # through the container's own nginx, which currently 404s on /metrics
+        # (it reads /run/readsb/stats.prom, which does not exist), so there is
+        # nothing to scrape for it at all until that is fixed container-side.
         {
           job_name = "ultrafeeder";
           static_configs = [
             {
               targets = [
-                "sdrhub.local:9273"
                 "sdrhub.local:9274"
-              ];
-            }
-          ];
-        }
-
-        {
-          job_name = "dump978";
-          static_configs = [
-            {
-              targets = [
-                "sdrhub.local:9275"
               ];
             }
           ];
