@@ -1,4 +1,5 @@
 {
+  config,
   lib,
   pkgs,
   agentNodes,
@@ -16,6 +17,19 @@ in
 {
   environment.systemPackages = [
     pkgs.prometheus.cli
+  ];
+
+  #######################################
+  # Deadman heartbeat endpoint
+  #######################################
+  # The healthchecks.io ping URL. Left owned by root: the alertmanager unit
+  # runs with DynamicUser=yes, so there is no stable uid to chown to, and
+  # LoadCredential below is the systemd-native way to hand a root-owned file
+  # to such a service.
+  sops.secrets."healthchecks.io/endpoint" = { };
+
+  systemd.services.alertmanager.serviceConfig.LoadCredential = [
+    "hc-endpoint:${config.sops.secrets."healthchecks.io/endpoint".path}"
   ];
 
   system.activationScripts.prometheus_activation = {
@@ -479,19 +493,41 @@ in
               ];
             }
 
-            # Deadman sink. Intentionally has no notification config, so the
-            # permanently-firing Watchdog alert is dispatched here and
-            # discarded instead of reaching ntfy.
+            # Deadman sink.
             #
-            # TO ACTIVATE THE DEADMAN: add a webhook_configs entry pointing at
-            # an external heartbeat monitor that lives outside this stack --
-            # a healthchecks.io ping URL, or an Uptime Kuma push URL hosted on
-            # fredvps, which is off-site and would survive a whole-house
-            # outage. The monitor alarms when the heartbeat stops, which is
-            # the only way to distinguish "nothing is wrong" from "the
-            # alerting pipeline is dead". Until then this rule is inert.
+            # The Watchdog alert fires permanently by design, so its ARRIVAL at
+            # healthchecks.io is the signal, not its content. healthchecks.io
+            # expects a ping on a schedule and alarms when one stops arriving,
+            # over infrastructure and a network path that share nothing with
+            # this stack.
+            #
+            # This is the only check that covers the delivery path itself. A
+            # successful ping proves Prometheus is evaluating rules, can reach
+            # Alertmanager, that Alertmanager is dispatching and its routing
+            # tree resolves, and that this host has working outbound DNS and
+            # network. Every other alert in this repo assumes all of that.
+            #
+            # It cannot be done from inside: AlertmanagerDown and friends are
+            # evaluated by Prometheus and delivered by Alertmanager, so they
+            # catch partial failure but never total failure -- the component
+            # that would report it is the one that is broken.
+            #
+            # url_file rather than url keeps the ping URL out of the Nix store.
+            # It reads from the systemd credential directory rather than
+            # /run/secrets directly because the alertmanager unit runs with
+            # DynamicUser=yes, so there is no static uid for sops to chown to.
+            # LoadCredential (below) copies it in as root at unit start and
+            # exposes it to the service user at a deterministic path.
             {
               name = "watchdog";
+
+              webhook_configs = [
+                {
+                  url_file = "/run/credentials/alertmanager.service/hc-endpoint";
+                  # Watchdog never resolves, so there is nothing to send.
+                  send_resolved = false;
+                }
+              ];
             }
           ];
         };
