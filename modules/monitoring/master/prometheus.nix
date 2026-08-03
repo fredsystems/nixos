@@ -13,6 +13,19 @@ let
   agentHosts = agentNodes;
   desktopHosts = builtins.filter (h: h != "Daytona") desktopNodes;
 
+  # Shared Pushover message body.
+  #
+  # Iterates .Alerts rather than using .CommonAnnotations: group_by is
+  # [alertname, hostname], so a group can contain several alerts that differ
+  # only by unit or device -- DecoderHeartbeatMissing across four dumpvdl2
+  # instances, or the SMART rules across devices. Those have no common
+  # description, and .CommonAnnotations.description would render empty.
+  #
+  # Pushover truncates at 1024 characters. Grouping by alertname and hostname
+  # keeps groups small enough that this is not a practical concern.
+  pushoverMessage = ''
+    {{ range .Alerts }}{{ .Annotations.description }}
+    {{ end }}'';
 in
 {
   environment.systemPackages = [
@@ -26,10 +39,24 @@ in
   # runs with DynamicUser=yes, so there is no stable uid to chown to, and
   # LoadCredential below is the systemd-native way to hand a root-owned file
   # to such a service.
-  sops.secrets."healthchecks.io/endpoint" = { };
+  # Alertmanager requires BOTH pushover values: it calls api.pushover.net
+  # directly rather than being a hosted "Pushover-powered service", so it
+  # supplies the application identity (api_token) as well as the recipient
+  # (user_key).
+  sops.secrets = {
+    "healthchecks.io/endpoint" = { };
+    "pushover/api_token" = { };
+    "pushover/user_key" = { };
+  };
 
+  # The alertmanager unit runs with DynamicUser=yes, so there is no stable uid
+  # for sops to chown these to. LoadCredential reads them as root at unit
+  # start and exposes them to the service user under a deterministic path,
+  # which is exactly what it exists for.
   systemd.services.alertmanager.serviceConfig.LoadCredential = [
     "hc-endpoint:${config.sops.secrets."healthchecks.io/endpoint".path}"
+    "pushover-token:${config.sops.secrets."pushover/api_token".path}"
+    "pushover-user-key:${config.sops.secrets."pushover/user_key".path}"
   ];
 
   system.activationScripts.prometheus_activation = {
@@ -336,53 +363,6 @@ in
         }
       ];
 
-      alertmanager-ntfy = {
-        enable = true;
-        settings = {
-          http = {
-            addr = "127.0.0.1:8000";
-          };
-          ntfy = {
-            baseurl = "https://ntfy.sh";
-            notification = {
-              # Both topic and priority accept gval expressions; the evaluation
-              # context exposes the alert's `status`, `labels` and `annotations`.
-              #
-              # Critical alerts keep the pre-existing topic so an already
-              # subscribed device continues to receive them without any action.
-              # Everything else moves to a separate digest topic, which can be
-              # muted independently while decoder thresholds are being tuned.
-              #
-              # NOTE: on public ntfy.sh a topic name is effectively a password.
-              # Both names are in git history and should move to sops-backed
-              # extraConfigFiles -- tracked in agent-docs/MONITORING.md.
-              topic = ''
-                labels["severity"] == "critical" ? "fred-sdrhub-alerts" : "fred-sdrhub-digest"
-              '';
-              priority = ''
-                status == "resolved" ? "default" :
-                labels["severity"] == "critical" ? "urgent" :
-                labels["severity"] == "warning" ? "default" : "low"
-              '';
-              tags = [
-                {
-                  tag = "+1";
-                  condition = ''status == "resolved"'';
-                }
-                {
-                  tag = "rotating_light";
-                  condition = ''status == "firing"'';
-                }
-              ];
-              templates = {
-                title = ''{{ if eq .Status "resolved" }}Resolved: {{ end }}{{ index .Annotations "summary" }}'';
-                description = ''{{ index .Annotations "description" }}'';
-              };
-            };
-          };
-        };
-      };
-
       #######################################
       # Alertmanager
       #######################################
@@ -398,7 +378,8 @@ in
           };
 
           route = {
-            receiver = "ntfy";
+            # Fallback for any alert without a matching severity child route.
+            receiver = "pushover-warning";
             group_by = [
               "alertname"
               "hostname"
@@ -426,14 +407,14 @@ in
               }
               {
                 matchers = [ ''severity="critical"'' ];
-                receiver = "ntfy";
+                receiver = "pushover-critical";
                 group_wait = "30s";
                 group_interval = "5m";
                 repeat_interval = "1h";
               }
               {
                 matchers = [ ''severity="warning"'' ];
-                receiver = "ntfy";
+                receiver = "pushover-warning";
                 group_wait = "2m";
                 group_interval = "30m";
                 repeat_interval = "12h";
@@ -442,7 +423,7 @@ in
                 # Informational tier. Deliberately slow: this is where decoder
                 # throughput alerts land while their thresholds are unproven.
                 matchers = [ ''severity="info"'' ];
-                receiver = "ntfy";
+                receiver = "pushover-info";
                 group_wait = "5m";
                 group_interval = "1h";
                 repeat_interval = "24h";
@@ -482,13 +463,87 @@ in
           ];
 
           receivers = [
+            # Pushover, one receiver per severity rather than one receiver with
+            # a templated priority. Pushover's emergency priority requires
+            # retry/expire, and each tier wants a different sound and repeat
+            # behaviour, so separate receivers are clearer than nested
+            # conditionals in a template.
+            #
+            # Both credentials come from sops via LoadCredential: the
+            # alertmanager unit runs DynamicUser=yes so there is no stable uid
+            # to chown to, and *_file keeps the secrets out of the Nix store
+            # while preserving build-time amtool validation.
+            #
+            # Alertmanager requires BOTH token and user_key. It talks to
+            # api.pushover.net directly rather than being a hosted
+            # "Pushover-powered service", so it supplies the application
+            # identity as well as the recipient.
             {
-              name = "ntfy";
+              name = "pushover-critical";
 
-              webhook_configs = [
+              pushover_configs = [
                 {
-                  url = "http://127.0.0.1:8000/hook";
+                  token_file = "/run/credentials/alertmanager.service/pushover-token";
+                  user_key_file = "/run/credentials/alertmanager.service/pushover-user-key";
                   send_resolved = true;
+
+                  # Priority 2 is emergency: Pushover re-alerts until the
+                  # notification is acknowledged, and it bypasses quiet hours.
+                  # This is the capability the ntfy setup did not have -- an
+                  # unseen critical alert was simply lost.
+                  priority = "2";
+                  retry = "2m";
+                  expire = "1h";
+                  sound = "siren";
+
+                  title = ''{{ if eq .Status "resolved" }}RESOLVED: {{ end }}{{ .CommonLabels.alertname }}{{ if .CommonLabels.hostname }} on {{ .CommonLabels.hostname }}{{ end }}'';
+                  message = pushoverMessage;
+                  url = "{{ (index .Alerts 0).GeneratorURL }}";
+                  url_title = "Open in Prometheus";
+                }
+              ];
+            }
+
+            {
+              name = "pushover-warning";
+
+              pushover_configs = [
+                {
+                  token_file = "/run/credentials/alertmanager.service/pushover-token";
+                  user_key_file = "/run/credentials/alertmanager.service/pushover-user-key";
+                  send_resolved = true;
+
+                  # Normal priority: notifies, respects quiet hours, no retry.
+                  priority = "0";
+
+                  title = ''{{ if eq .Status "resolved" }}RESOLVED: {{ end }}{{ .CommonLabels.alertname }}{{ if .CommonLabels.hostname }} on {{ .CommonLabels.hostname }}{{ end }}'';
+                  message = pushoverMessage;
+                  url = "{{ (index .Alerts 0).GeneratorURL }}";
+                  url_title = "Open in Prometheus";
+                }
+              ];
+            }
+
+            {
+              name = "pushover-info";
+
+              pushover_configs = [
+                {
+                  token_file = "/run/credentials/alertmanager.service/pushover-token";
+                  user_key_file = "/run/credentials/alertmanager.service/pushover-user-key";
+                  # Informational alerts do not need a resolved notification;
+                  # this is the tier decoder throughput lands in while its
+                  # thresholds are unproven and it would double the volume.
+                  send_resolved = false;
+
+                  # Priority -1 is low: delivered silently, no sound or
+                  # vibration. Visible when the phone is picked up.
+                  priority = "-1";
+
+                  title = "{{ .CommonLabels.alertname }}{{ if .CommonLabels.hostname }} on {{ .CommonLabels.hostname }}{{ end }}";
+                  message = pushoverMessage;
+                  url = "{{ (index .Alerts 0).GeneratorURL }}";
+                  url_title = "Open in Prometheus";
                 }
               ];
             }
