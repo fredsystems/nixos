@@ -7,9 +7,14 @@
   imports = [
     ./hardware-configuration.nix
     ../../../profiles/adsb-hub.nix
+    ../../../modules/hardware/usbfs.nix
   ];
 
   networking.hostName = "hfdlhub1";
+
+  # This host has USB SDR hardware attached; raise the global usbfs
+  # transfer-buffer ceiling above the 16 MB kernel default.
+  hardware-profile.usbfs.enable = true;
 
   system.stateVersion = stateVersion;
 

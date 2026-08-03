@@ -49,9 +49,14 @@ in
     ../../../modules/monitoring/master
     ../../../modules/monitoring/agent
     ../../../modules/services/tailscale
+    ../../../modules/hardware/usbfs.nix
   ];
 
   deployment.role = "monitoring-master";
+
+  # This host has USB SDR hardware attached; raise the global usbfs
+  # transfer-buffer ceiling above the 16 MB kernel default.
+  hardware-profile.usbfs.enable = true;
 
   sops_secrets.enable_secrets.enable = true;
 
