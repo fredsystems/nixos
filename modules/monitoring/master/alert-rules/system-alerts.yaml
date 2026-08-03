@@ -2,7 +2,12 @@ groups:
   - name: nixos-alerts
     rules:
       - alert: NixOSNotOnMain
-        expr: nixos_branch{host!~"daytona|maranello"} == 0
+        # Desktops track feature branches routinely, so they are excluded.
+        # This previously matched host!~"daytona|maranello", which never
+        # excluded Daytona: the host label is "Daytona" and PromQL regexes
+        # are case-sensitive. Selecting on role is both correct and
+        # consistent with NixOSRevisionBehind below.
+        expr: nixos_branch{role!="desktop"} == 0
         for: 6h
         labels:
           severity: warning

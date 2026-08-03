@@ -172,6 +172,10 @@ in
               targets = [
                 "sdrhub.local:9274"
               ];
+              labels = {
+                hostname = "sdrhub";
+                role = "master";
+              };
             }
           ];
         }
@@ -183,6 +187,10 @@ in
               targets = [
                 "sdrhub.local:8085"
               ];
+              labels = {
+                hostname = "sdrhub";
+                role = "master";
+              };
             }
           ];
         }
@@ -244,14 +252,28 @@ in
         {
           job_name = "prometheus";
           static_configs = [
-            { targets = [ "127.0.0.1:9090" ]; }
+            {
+              targets = [ "127.0.0.1:9090" ];
+              labels = {
+                hostname = "sdrhub";
+                role = "master";
+              };
+            }
           ];
         }
         {
           job_name = "pushgateway";
+          # honor_labels lets pushed metrics keep their own hostname/role if
+          # they carry them; the static labels below are only a fallback.
           honor_labels = true;
           static_configs = [
-            { targets = [ "127.0.0.1:9091" ]; }
+            {
+              targets = [ "127.0.0.1:9091" ];
+              labels = {
+                hostname = "sdrhub";
+                role = "master";
+              };
+            }
           ];
         }
       ];
