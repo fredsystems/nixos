@@ -84,6 +84,10 @@ RESERVED = {
     "and", "if", "atan2",
 }
 
+# Metric names with no underscore. Anything added here must be a real metric,
+# not a label or keyword, or it will produce a spurious MISSING.
+BARE_METRICS = {"up"}
+
 metrics = {}
 
 for name in sorted(os.listdir(rules_dir)):
@@ -148,9 +152,13 @@ for name in sorted(os.listdir(rules_dir)):
             # they may legitimately not exist yet.
             if ":" in ident:
                 continue
-            # A metric name always contains an underscore in this codebase;
-            # bare words are label values or leftover keywords.
-            if "_" not in ident:
+            # Metric names in this codebase contain an underscore, so requiring
+            # one is a cheap way to drop label values and leftover keywords.
+            # `up` is the exception that matters: it has no underscore and is
+            # referenced by NodeDown, PrometheusTargetDown, LokiDown and
+            # AlertmanagerDown, so without this allowlist the script silently
+            # skipped the single most load-bearing metric in the rule set.
+            if "_" not in ident and ident not in BARE_METRICS:
                 continue
             metrics.setdefault(ident, set()).add(name)
 
@@ -206,21 +214,21 @@ while IFS=$'\t' read -r metric files; do
         continue
     fi
 
+    # Any unexpected payload shape must yield "query-error" rather than raise:
+    # this runs under `set -e`, so an uncaught KeyError or IndexError would
+    # abort the whole script and silently skip every remaining metric.
     count="$(printf '%s' "${response}" | python3 -c '
 import json
 import sys
 
 try:
     payload = json.load(sys.stdin)
-except (ValueError, TypeError):
-    print("query-error")
-    sys.exit()
-
-if payload.get("status") != "success":
-    print("query-error")
-else:
+    if payload.get("status") != "success":
+        raise ValueError("non-success status")
     result = payload.get("data", {}).get("result", [])
     print(result[0]["value"][1] if result else "0")
+except Exception:
+    print("query-error")
 ')"
 
     if [[ ${count} == "query-error" ]]; then

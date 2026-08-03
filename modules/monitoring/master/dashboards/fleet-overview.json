@@ -409,7 +409,7 @@
       "id": 12,
       "type": "stat",
       "title": "Alerting Pipeline",
-      "description": "Inverted deadman. The Watchdog alert fires permanently by design, so FIRING is the healthy state and DOWN means Prometheus has stopped evaluating it. This CANNOT detect Prometheus or Grafana themselves being down -- it would show NO DATA. The authoritative deadman is external (healthchecks.io), because a monitor sharing infrastructure with what it watches cannot report that infrastructure failing.",
+      "description": "Inverted deadman. The Watchdog alert fires permanently by design, so FIRING is the healthy state and DOWN means Prometheus has stopped evaluating it. This CANNOT detect a failure downstream of rule evaluation: if Alertmanager, the Pushover receiver, or delivery itself breaks while Prometheus keeps evaluating Watchdog, this panel still reads OK. Nor can it detect Prometheus or Grafana being down, where it would show NO DATA. The authoritative deadman is external (healthchecks.io), because a monitor sharing infrastructure with what it watches cannot report that infrastructure failing.",
       "gridPos": { "h": 4, "w": 5, "x": 9, "y": 5 },
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "options": {

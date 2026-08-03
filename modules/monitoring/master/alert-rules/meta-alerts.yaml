@@ -59,15 +59,24 @@ groups:
           summary: "Prometheus TSDB write-ahead log corruption"
           description: "The WAL reported corruption in the last hour. Metric history may be incomplete."
 
+      # Thresholds are 80% of each job's scrape_timeout, so this means "about to
+      # start failing" rather than an arbitrary number of seconds. The blackbox
+      # jobs set scrape_timeout: 15s because a probe includes DNS, TCP, TLS and
+      # HTTP against a remote endpoint; 8s there is barely half their budget and
+      # would fire on healthy probes.
+      #
+      # Everything else inherits the global 10s scrape_timeout.
       - alert: PrometheusScrapeNearTimeout
         expr: |
-          scrape_duration_seconds > 8
+          scrape_duration_seconds{job!~"blackbox-.*"} > 8
+            or
+          scrape_duration_seconds{job=~"blackbox-.*"} > 12
         for: 15m
         labels:
           severity: warning
         annotations:
           summary: "Scrape of {{ $labels.job }} on {{ $labels.instance }} is slow"
-          description: "Scrape duration has exceeded 8s against a 10s timeout for 15 minutes. The target is about to start failing."
+          description: "Scrape duration has reached 80% of this job's scrape_timeout for 15 minutes. The target is about to start failing."
 
   - name: log-pipeline
     rules:

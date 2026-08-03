@@ -130,6 +130,34 @@ tests:
         alertname: ContainerUnhealthy
         exp_alerts: []
 
+  # The cases above each use one container, so none of them proves the
+  # start-time gate is applied per series rather than globally. This one has an
+  # old broken container and a freshly started one in the same evaluation: a
+  # correct per-series join alerts on the first and not the second.
+  - interval: 5m
+    name: ContainerUnhealthy start-gate discriminates between containers
+    input_series:
+      - series: 'container_health_state{name="oldbroken", hostname="sdrhub"}'
+        values: "0+0x60"
+      - series: 'container_start_time_seconds{name="oldbroken", hostname="sdrhub"}'
+        values: "0+0x60"
+      - series: 'container_health_state{name="newstarting", hostname="sdrhub"}'
+        values: "0+0x60"
+      # Started at t=10500s, so at eval 3h it is still inside the 2h30m gate.
+      - series: 'container_start_time_seconds{name="newstarting", hostname="sdrhub"}'
+        values: "10500+0x60"
+    alert_rule_test:
+      - eval_time: 3h
+        alertname: ContainerUnhealthy
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              name: oldbroken
+              hostname: sdrhub
+            exp_annotations:
+              summary: "Container oldbroken on sdrhub reports unhealthy"
+              description: "The container's own HEALTHCHECK has been failing for 10 minutes, and it started long enough ago that this is not its start_period."
+
   # These selected readsb_stats_* names, which the exporter does not emit.
   - interval: 1m
     name: UltrafeederNotReceiving fires on zero valid messages

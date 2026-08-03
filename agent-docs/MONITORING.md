@@ -12,10 +12,10 @@ This is a living reference, not a changelog. Three kinds of content live here:
 
 ### Deployment status
 
-A ticked checkbox in this document means **the code is committed and verified by
-eval, promtool and live query -- not that it is running in production.** The
-work landed on the `fix/monitoring-alerting-overhaul` branch; nothing has been
-applied to the fleet yet.
+A ticked checkbox means the change is **committed, verified by eval and
+promtool, and deployed to the fleet** unless the item says otherwise. Where a
+behaviour was confirmed against live Prometheus or Loki after deploying, the
+numbers are recorded alongside it.
 
 Deployed and verified in production:
 
@@ -59,8 +59,8 @@ applies the ACL explicitly via a oneshot ordered before the exporter.
 
 ### Maintenance rules
 
-- Tick a checkbox when the change is committed and verified by eval, promtool
-  and live query. Note separately if it has not yet been deployed.
+- Tick a checkbox when the change is committed, verified by eval and promtool,
+  and deployed. If it is committed but not yet deployed, say so on the item.
 - When a defect is fixed, leave the entry with its box ticked. The evidence is why the fix exists.
 - If a claim here is contradicted by the live stack, re-verify with the commands in [Verification commands](#verification-commands) and correct the document in the same commit as the code change.
 
@@ -107,7 +107,8 @@ their own modules rather than here: `scrapeConfigs` and `ruleFiles` are both
 | alertmanager            | 127.0.0.1:9093                          | hostname, role           |
 | loki                    | 127.0.0.1:5678                          | hostname, role           |
 | grafana                 | 127.0.0.1:3333                          | hostname, role           |
-| pushgateway             | 127.0.0.1:9091 (honor_labels)           | hostname, role           |
+| dump978                 | sdrhub.local:9275                       | hostname, role           |
+| pushgateway             | 127.0.0.1:9091 (honor_labels)           | none, deliberately       |
 | blackbox-exporter       | 127.0.0.1:9115 (the exporter itself)    | none                     |
 | blackbox-https          | 3 public HTTPS endpoints, must be 2xx   | instance, job            |
 | blackbox-https-redirect | 11 apex domains, must be 3xx            | instance, job            |
@@ -116,6 +117,12 @@ their own modules rather than here: `scrapeConfigs` and `ruleFiles` are both
 `dump978` is scraped on 9275, but only because the container now runs the
 `telegraf-*` image variant -- see below. It carries `metric_relabel_configs`,
 which no other job needs.
+
+`pushgateway` deliberately attaches no static labels. `honor_labels = true`
+means static labels act only as a fallback, so a series pushed from another
+machine that omitted `hostname` would silently inherit `hostname="sdrhub"` and
+be attributed to the wrong host. A missing label is easier to notice than a
+wrong one.
 
 Alertmanager routes by severity to three Pushover receivers, plus a `watchdog` receiver that pings healthchecks.io. Alertmanager, Grafana and Loki are all scraped. See [Notification transport](#notification-transport).
 
@@ -273,6 +280,19 @@ This is orthogonal to log shipping, which works correctly on every host includin
 - [ ] Either honour or remove the ignored keys in `mkUnit`
 - [x] Remove `lib.mkDefault` from `boot.kernelParams` in `rtl-sdr.nix`
 - [ ] Move the Grafana `secret_key` into sops
+- [ ] Decide on TLS and access control for the LAN monitoring endpoints.
+      Prometheus (9090), Alertmanager (9093), Loki (5678) and Grafana (3333) are
+      reachable on the LAN without auth or TLS, and Alertmanager in particular
+      is a control plane -- anyone on the LAN can silence every alert. Raised in
+      review on #2125; deliberately not addressed there because it is
+      pre-existing architecture rather than a regression, and rearchitecting it
+      touches every consumer. Karma is already loopback-only for this reason.
+- [ ] Decide whether a fork pull request should be able to pass the required
+      status checks. Every self-hosted job is now gated to same-repository pull
+      requests, so a fork skips them -- but `build-linux-summary` treats a
+      skipped build as a valid outcome, so the summary goes green without
+      anything having been built. Safe today (no forks, and a human reviews),
+      but fork CI status must not be trusted as-is.
 
 ## Signal catalogue
 

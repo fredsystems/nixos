@@ -12,7 +12,8 @@
 # EXPOSURE
 #
 # Bound to 127.0.0.1 and reached through the existing nginx reverse proxy, so
-# it is available on the LAN as http://karma.sdrhub.lan/ without opening a
+# it is available on the LAN as http://karma.sdrhub.lan/ (and the .local
+# alias) without opening a
 # port of its own. No `openFirewall`.
 #
 # This matters more than for a read-only dashboard: Karma creates and expires

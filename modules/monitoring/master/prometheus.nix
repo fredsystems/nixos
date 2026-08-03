@@ -388,17 +388,19 @@ in
         }
         {
           job_name = "pushgateway";
-          # honor_labels lets pushed metrics keep their own hostname/role if
-          # they carry them; the static labels below are only a fallback.
+
+          # honor_labels keeps whatever labels the pusher supplied. Deliberately
+          # NO static hostname/role here: with honor_labels those are only a
+          # fallback, so a series pushed from another machine that omitted
+          # hostname would silently inherit hostname="sdrhub", role="master" and
+          # be attributed to the wrong host. A missing hostname is easier to
+          # notice than a wrong one.
+          #
+          # Nothing pushes to the gateway today; whatever starts doing so should
+          # set its own hostname.
           honor_labels = true;
           static_configs = [
-            {
-              targets = [ "127.0.0.1:9091" ];
-              labels = {
-                hostname = "sdrhub";
-                role = "master";
-              };
-            }
+            { targets = [ "127.0.0.1:9091" ]; }
           ];
         }
       ];
@@ -429,11 +431,11 @@ in
             repeat_interval = "4h";
 
             # Per-severity pacing. All three land on the same receiver; the
-            # ntfy topic and priority are chosen from the severity label by
-            # the alertmanager-ntfy expressions above. Splitting here controls
+            # Each severity has its own Pushover receiver, which is where the
+            # priority, sound and retry behaviour is set. Splitting here controls
             # how insistently each tier repeats.
             routes = [
-              # The deadman must never reach ntfy: it fires permanently by
+              # The deadman must never reach Pushover: it fires permanently by
               # design. It is dispatched to its own receiver, which is a
               # blackhole until an external heartbeat URL is configured.
               # Matched first so it cannot fall through to a severity route
@@ -542,8 +544,8 @@ in
 
                   # Priority 2 is emergency: Pushover re-alerts until the
                   # notification is acknowledged, and it bypasses quiet hours.
-                  # This is the capability the ntfy setup did not have -- an
-                  # unseen critical alert was simply lost.
+                  # This is the capability the previous ntfy setup did not
+                  # have -- an unseen critical alert was simply lost.
                   priority = "2";
                   retry = "2m";
                   expire = "1h";

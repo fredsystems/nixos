@@ -21,6 +21,15 @@
 #   * Consequently every "something bad happened" rule here is `> N`, which only
 #     needs matching lines to exist, and every "something stopped" rule uses
 #     `absent_over_time` against an explicit selector.
+#
+# EVERY HOST-SCOPED RULE MUST EMIT `hostname`, not just `host`.
+#
+# Alertmanager's route groups on [alertname, hostname] and both inhibit rules
+# match with `equal: [hostname]`. A rule that only carries `host` -- which is
+# what `sum by (host, ...)` yields, since that is the Loki stream label -- is
+# therefore never suppressed by NodeDown for the same machine, and all of its
+# instances collapse into a single group with an empty hostname. Alloy sets
+# `host` and `hostname` identically, so aggregations here carry both.
 {
   pkgs,
   ...
@@ -137,6 +146,11 @@ let
       labels = {
         severity = "critical";
         inherit (d) host unit;
+        # Alertmanager groups on and inhibits by `hostname`, not `host`, so a
+        # rule carrying only `host` is never suppressed by NodeDown for the
+        # same machine and groups across hosts. Alloy sets both labels to the
+        # same value, so this is simply the name Alertmanager expects.
+        hostname = d.host;
       };
       annotations = {
         summary = "Decoder ${d.unit} on ${d.host} has stopped logging";
@@ -200,7 +214,7 @@ let
             # the whole container family, and it covers dumphfdl and
             # hfdlobserver, neither of which ships a HEALTHCHECK.
             alert = "SDRDecoderCrashed";
-            expr = ''sum by (host, unit) (count_over_time({unit=~"docker-.*"} |= `[s6wrap] !!! CAUTION !!!` [15m])) > 0'';
+            expr = ''sum by (host, hostname, unit) (count_over_time({unit=~"docker-.*"} |= `[s6wrap] !!! CAUTION !!!` [15m])) > 0'';
             for = "0m";
             labels.severity = "critical";
             annotations = {
@@ -214,7 +228,7 @@ let
             # status itself. Exit 0 is routine rotation; negative values are
             # signal deaths. Threshold allows for occasional restarts.
             alert = "HFDLObserverChildCrashing";
-            expr = ''sum by (host, unit) (count_over_time({unit="docker-hfdlobserver.service"} |~ `exited with -(11|6|9)` [30m])) > 2'';
+            expr = ''sum by (host, hostname, unit) (count_over_time({unit="docker-hfdlobserver.service"} |~ `exited with -(11|6|9)` [30m])) > 2'';
             for = "5m";
             labels.severity = "warning";
             annotations = {
@@ -231,7 +245,7 @@ let
         rules = [
           {
             alert = "SDRCannotClaimDevice";
-            expr = ''sum by (host, unit) (count_over_time({unit=~"docker-.*"} |= `usb_claim_interface error` [30m])) > 10'';
+            expr = ''sum by (host, hostname, unit) (count_over_time({unit=~"docker-.*"} |= `usb_claim_interface error` [30m])) > 10'';
             for = "10m";
             labels.severity = "critical";
             annotations = {
@@ -245,7 +259,7 @@ let
             # fire on vdlmhub until the usbfs kernel parameter is deployed --
             # see modules/hardware/usbfs.nix.
             alert = "SDRUsbfsBufferExhausted";
-            expr = ''sum by (host, unit) (count_over_time({unit=~"docker-.*"} |~ `(Failed to submit transfer|async read failed)` [15m])) > 5'';
+            expr = ''sum by (host, hostname, unit) (count_over_time({unit=~"docker-.*"} |~ `(Failed to submit transfer|async read failed)` [15m])) > 5'';
             for = "5m";
             labels.severity = "warning";
             annotations = {
@@ -256,7 +270,7 @@ let
 
           {
             alert = "SDRPlayApiUnresponsive";
-            expr = ''sum by (host, unit) (count_over_time({unit=~"docker-.*"} |= `sdrplay_api_ServiceNotResponding` [30m])) > 0'';
+            expr = ''sum by (host, hostname, unit) (count_over_time({unit=~"docker-.*"} |= `sdrplay_api_ServiceNotResponding` [30m])) > 0'';
             for = "0m";
             labels.severity = "critical";
             annotations = {
@@ -281,7 +295,7 @@ let
             # ceiling fix: 0 restarts in 12h, against 54 in the preceding 3
             # days, and the monitor now reports OK more often than stale.
             alert = "ContainerSelfRestartingReceiver";
-            expr = ''sum by (host, unit) (count_over_time({unit=~"docker-.*"} |= `[message-monitor]` |= `Restarting the` [2h])) > 3'';
+            expr = ''sum by (host, hostname, unit) (count_over_time({unit=~"docker-.*"} |= `[message-monitor]` |= `Restarting the` [2h])) > 3'';
             for = "10m";
             labels.severity = "warning";
             annotations = {
@@ -298,7 +312,7 @@ let
         rules = [
           {
             alert = "MlatNotSynchronized";
-            expr = ''sum by (host, unit) (count_over_time({unit=~"docker-.*"} |~ `Server status: +(not synchronized|clock unstable)` [30m])) > 0'';
+            expr = ''sum by (host, hostname, unit) (count_over_time({unit=~"docker-.*"} |~ `Server status: +(not synchronized|clock unstable)` [30m])) > 0'';
             for = "10m";
             labels.severity = "warning";
             annotations = {
@@ -309,7 +323,7 @@ let
 
           {
             alert = "FeederUpstreamRetrying";
-            expr = ''sum by (host, unit) (count_over_time({unit=~"docker-.*"} |= `Connection retries will continue` [30m])) > 2'';
+            expr = ''sum by (host, hostname, unit) (count_over_time({unit=~"docker-.*"} |= `Connection retries will continue` [30m])) > 2'';
             for = "10m";
             labels.severity = "warning";
             annotations = {
@@ -323,7 +337,7 @@ let
             # sdre_stubborn_io indicates genuine connectivity loss, whereas
             # message_handler errors are malformed upstream JSON and are noise.
             alert = "AcarsRouterUpstreamFlapping";
-            expr = ''sum by (host, unit) (count_over_time({unit=~"docker-.*"} |~ `sdre_stubborn_io.*(Disconnect occurred|Write while disconnected)` [30m])) > 20'';
+            expr = ''sum by (host, hostname, unit) (count_over_time({unit=~"docker-.*"} |~ `sdre_stubborn_io.*(Disconnect occurred|Write while disconnected)` [30m])) > 20'';
             for = "15m";
             labels.severity = "warning";
             annotations = {
@@ -344,11 +358,11 @@ let
         rules = [
           {
             record = "decoder:messages:last5m";
-            expr = ''sum by (host, unit) (last_over_time({unit=~"docker-(acarsdec|dumpvdl2)-.*"} | regexp `Total in the last \d+ minutes: (?P<msgs>\d+)` | unwrap msgs [10m]))'';
+            expr = ''sum by (host, hostname, unit) (last_over_time({unit=~"docker-(acarsdec|dumpvdl2)-.*"} | regexp `Total in the last \d+ minutes: (?P<msgs>\d+)` | unwrap msgs [10m]))'';
           }
           {
             record = "decoder:messages:last5m";
-            expr = ''sum by (host, unit) (last_over_time({unit=~"docker-dumphfdl-.*"} | regexp `(?P<msgs>\d+) hfdl messages received` | unwrap msgs [10m]))'';
+            expr = ''sum by (host, hostname, unit) (last_over_time({unit=~"docker-dumphfdl-.*"} | regexp `(?P<msgs>\d+) hfdl messages received` | unwrap msgs [10m]))'';
           }
         ];
       }

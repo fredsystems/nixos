@@ -343,7 +343,12 @@ tests:
         exp_alerts: []
 
   # Proves the normalisation by core count. An absolute load of 20 is alarming
-  # on a 4-core box and unremarkable on fredhub's 32 cores (ratio 0.625).
+  # on a 4-core box and unremarkable on fredhub's 32 cores (ratio 0.625, far
+  # below the threshold of 4).
+  #
+  # All 32 core series are supplied deliberately. An earlier version claimed 32
+  # cores in this comment but supplied 6, giving a ratio of 3.33 -- under the
+  # threshold, so the case passed, but by a margin that proved nothing.
   - interval: 1m
     name: NodeHighLoad normalises by CPU count on a large host
     input_series:
@@ -360,6 +365,58 @@ tests:
       - series: 'node_cpu_seconds_total{cpu="4", mode="idle", hostname="fredhub", role="agent"}'
         values: "100+1x40"
       - series: 'node_cpu_seconds_total{cpu="5", mode="idle", hostname="fredhub", role="agent"}'
+        values: "100+1x40"
+      - series: 'node_cpu_seconds_total{cpu="6", mode="idle", hostname="fredhub", role="agent"}'
+        values: "100+1x40"
+      - series: 'node_cpu_seconds_total{cpu="7", mode="idle", hostname="fredhub", role="agent"}'
+        values: "100+1x40"
+      - series: 'node_cpu_seconds_total{cpu="8", mode="idle", hostname="fredhub", role="agent"}'
+        values: "100+1x40"
+      - series: 'node_cpu_seconds_total{cpu="9", mode="idle", hostname="fredhub", role="agent"}'
+        values: "100+1x40"
+      - series: 'node_cpu_seconds_total{cpu="10", mode="idle", hostname="fredhub", role="agent"}'
+        values: "100+1x40"
+      - series: 'node_cpu_seconds_total{cpu="11", mode="idle", hostname="fredhub", role="agent"}'
+        values: "100+1x40"
+      - series: 'node_cpu_seconds_total{cpu="12", mode="idle", hostname="fredhub", role="agent"}'
+        values: "100+1x40"
+      - series: 'node_cpu_seconds_total{cpu="13", mode="idle", hostname="fredhub", role="agent"}'
+        values: "100+1x40"
+      - series: 'node_cpu_seconds_total{cpu="14", mode="idle", hostname="fredhub", role="agent"}'
+        values: "100+1x40"
+      - series: 'node_cpu_seconds_total{cpu="15", mode="idle", hostname="fredhub", role="agent"}'
+        values: "100+1x40"
+      - series: 'node_cpu_seconds_total{cpu="16", mode="idle", hostname="fredhub", role="agent"}'
+        values: "100+1x40"
+      - series: 'node_cpu_seconds_total{cpu="17", mode="idle", hostname="fredhub", role="agent"}'
+        values: "100+1x40"
+      - series: 'node_cpu_seconds_total{cpu="18", mode="idle", hostname="fredhub", role="agent"}'
+        values: "100+1x40"
+      - series: 'node_cpu_seconds_total{cpu="19", mode="idle", hostname="fredhub", role="agent"}'
+        values: "100+1x40"
+      - series: 'node_cpu_seconds_total{cpu="20", mode="idle", hostname="fredhub", role="agent"}'
+        values: "100+1x40"
+      - series: 'node_cpu_seconds_total{cpu="21", mode="idle", hostname="fredhub", role="agent"}'
+        values: "100+1x40"
+      - series: 'node_cpu_seconds_total{cpu="22", mode="idle", hostname="fredhub", role="agent"}'
+        values: "100+1x40"
+      - series: 'node_cpu_seconds_total{cpu="23", mode="idle", hostname="fredhub", role="agent"}'
+        values: "100+1x40"
+      - series: 'node_cpu_seconds_total{cpu="24", mode="idle", hostname="fredhub", role="agent"}'
+        values: "100+1x40"
+      - series: 'node_cpu_seconds_total{cpu="25", mode="idle", hostname="fredhub", role="agent"}'
+        values: "100+1x40"
+      - series: 'node_cpu_seconds_total{cpu="26", mode="idle", hostname="fredhub", role="agent"}'
+        values: "100+1x40"
+      - series: 'node_cpu_seconds_total{cpu="27", mode="idle", hostname="fredhub", role="agent"}'
+        values: "100+1x40"
+      - series: 'node_cpu_seconds_total{cpu="28", mode="idle", hostname="fredhub", role="agent"}'
+        values: "100+1x40"
+      - series: 'node_cpu_seconds_total{cpu="29", mode="idle", hostname="fredhub", role="agent"}'
+        values: "100+1x40"
+      - series: 'node_cpu_seconds_total{cpu="30", mode="idle", hostname="fredhub", role="agent"}'
+        values: "100+1x40"
+      - series: 'node_cpu_seconds_total{cpu="31", mode="idle", hostname="fredhub", role="agent"}'
         values: "100+1x40"
     alert_rule_test:
       - eval_time: 30m
