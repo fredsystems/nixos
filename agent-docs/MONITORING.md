@@ -17,23 +17,33 @@ eval, promtool and live query -- not that it is running in production.** The
 work landed on the `fix/monitoring-alerting-overhaul` branch; nothing has been
 applied to the fleet yet.
 
-Three things are expected on first apply, and none of them is a bug:
+Deployed and verified in production:
 
-- `SDRCannotClaimDevice` will fire immediately and persistently for dump978,
-  which logs roughly 240 `usb_claim_interface` failures an hour. It is a true
-  positive: that receiver genuinely cannot bind its device.
-- `SDRUsbfsBufferExhausted` will fire for vdlmhub until the host reboots and
-  picks up the new `usbcore.usbfs_memory_mb` kernel parameter. The
-  `systemd.tmpfiles` write applies it live, so this should clear on apply
-  without a reboot.
-- Warning and info alerts move to a new ntfy topic, `fred-sdrhub-digest`.
-  **It must be subscribed to** or those tiers will be invisible. Critical
-  deliberately stays on `fred-sdrhub-alerts` so an existing subscription keeps
-  receiving outages.
+- **usbfs ceiling** raised to 1000 MB on the four hosts with USB radios. This
+  resolved two long-standing faults: `usb_claim_interface error` on dump978
+  (37,948 events in 7 days, now zero) and `Failed to submit transfer` on
+  vdlmhub (2,095 events, now zero).
+- **smartctl exporter** on all six SMART-capable hosts, 20 metrics each.
+  sdrhub's Lexar NM620 reports 54% of rated write endurance consumed after
+  37.8 TB written -- the finding that justified adding it. Below the 80%
+  warning threshold, so it does not alert yet.
+- **blackbox exporter** probing 20 endpoints, 14 TLS certificates, minimum
+  headroom 49 days, zero failing probes.
+- **Pushover** replaced ntfy; `alertmanager-ntfy` removed from the critical
+  path. Critical alerts use emergency priority and re-alert until
+  acknowledged.
+- **Deadman** pings healthchecks.io. Recommended schedule: period 5m, grace
+  5m. `repeat_interval` is 1m so pings arrive every ~60s; tighter than that
+  false-alarms whenever a `nixos-rebuild` restarts Alertmanager.
 
-After applying, re-run `scripts/check-alert-metrics.sh`; the three metrics it
-currently reports MISSING are all produced by changes in this branch and should
-resolve.
+A trap worth knowing about, since it will recur on any new host: the nixpkgs
+smartctl module's udev rule is gated on `ACTION=="add"`, so it fires at boot
+and never again. Deploying the exporter to a running system leaves
+`/dev/nvme0` as `crw------- root root`, and the exporter serves
+`smartctl_devices 1` with no device metrics while its scrape target still
+reports up. Capabilities do not help -- the unit has CAP_SYS_RAWIO and
+CAP_SYS_ADMIN, and neither bypasses DAC. `modules/monitoring/agent/smartctl.nix`
+applies the ACL explicitly via a oneshot ordered before the exporter.
 
 ### Maintenance rules
 
@@ -422,7 +432,7 @@ Thresholds cannot be derived from first principles. The deliverable is a tuning 
 
 ## Notification transport
 
-**Status: proposal only. Not adopted, not scheduled.** Recorded so the evaluation does not have to be repeated. Do not implement any of this without explicit sign-off -- the current ntfy path stays as-is for now.
+**Status: adopted.** ntfy and the `alertmanager-ntfy` bridge have been removed; alerts go to Pushover via Alertmanager's native receiver, and the deadman pings healthchecks.io. The evaluation below is retained because it records why, and which options were rejected.
 
 ### Current path and its gaps
 
@@ -473,8 +483,8 @@ If and when this is picked up:
 
 Two independent providers also means a single provider outage does not blind the fleet.
 
-- [ ] Decide whether to adopt this proposal
-- [ ] Independently of the above: move off the unauthenticated public ntfy.sh topic
+- [x] Decide whether to adopt this proposal
+- [x] Independently of the above: move off the unauthenticated public ntfy.sh topic
 
 ## Work plan
 
@@ -527,9 +537,9 @@ The notification path is currently a single unmonitored point of failure. If Ale
 - [ ] `promtool check rules` in pre-commit
 - [ ] Add `runbook_url` annotations to every alert
 - [ ] Raise dump978's internal `message-monitor` threshold; it currently restarts its own decoder about 20 times a day because UAT is legitimately quiet at this site
-- [ ] Blackbox exporter for certificate expiry and external endpoint probes
+- [x] Blackbox exporter for certificate expiry and external endpoint probes
 - [x] Disk fill-rate prediction, systemd timer staleness, network errors, load saturation
-- [ ] smartctl exporter for SMART pre-failure attributes
+- [x] smartctl exporter for SMART pre-failure attributes
 
 ### Phase 6 -- throughput baselines
 
