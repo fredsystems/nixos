@@ -287,9 +287,24 @@ in
           ntfy = {
             baseurl = "https://ntfy.sh";
             notification = {
-              topic = "fred-sdrhub-alerts";
+              # Both topic and priority accept gval expressions; the evaluation
+              # context exposes the alert's `status`, `labels` and `annotations`.
+              #
+              # Critical alerts keep the pre-existing topic so an already
+              # subscribed device continues to receive them without any action.
+              # Everything else moves to a separate digest topic, which can be
+              # muted independently while decoder thresholds are being tuned.
+              #
+              # NOTE: on public ntfy.sh a topic name is effectively a password.
+              # Both names are in git history and should move to sops-backed
+              # extraConfigFiles -- tracked in agent-docs/MONITORING.md.
+              topic = ''
+                labels["severity"] == "critical" ? "fred-sdrhub-alerts" : "fred-sdrhub-digest"
+              '';
               priority = ''
-                status == "firing" ? "high" : "default"
+                status == "resolved" ? "default" :
+                labels["severity"] == "critical" ? "urgent" :
+                labels["severity"] == "warning" ? "default" : "low"
               '';
               tags = [
                 {
@@ -333,6 +348,36 @@ in
             group_wait = "30s";
             group_interval = "5m";
             repeat_interval = "4h";
+
+            # Per-severity pacing. All three land on the same receiver; the
+            # ntfy topic and priority are chosen from the severity label by
+            # the alertmanager-ntfy expressions above. Splitting here controls
+            # how insistently each tier repeats.
+            routes = [
+              {
+                matchers = [ ''severity="critical"'' ];
+                receiver = "ntfy";
+                group_wait = "30s";
+                group_interval = "5m";
+                repeat_interval = "1h";
+              }
+              {
+                matchers = [ ''severity="warning"'' ];
+                receiver = "ntfy";
+                group_wait = "2m";
+                group_interval = "30m";
+                repeat_interval = "12h";
+              }
+              {
+                # Informational tier. Deliberately slow: this is where decoder
+                # throughput alerts land while their thresholds are unproven.
+                matchers = [ ''severity="info"'' ];
+                receiver = "ntfy";
+                group_wait = "5m";
+                group_interval = "1h";
+                repeat_interval = "24h";
+              }
+            ];
           };
 
           inhibit_rules = [
