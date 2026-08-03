@@ -167,8 +167,18 @@ fi
 # Fail loud if nix eval can't enumerate nixosConfigurations -- a broken
 # flake silently producing an empty host list would defeat the whole
 # point of this verification gate.
-if ! ALL_HOSTS_JSON="$(nix eval .#nixosConfigurations --apply 'cfgs: builtins.attrNames cfgs' --json 2>&1)"; then
-  printf 'ERROR: failed to enumerate nixosConfigurations:\n%s\n' "$ALL_HOSTS_JSON" >&2
+#
+# stderr is captured to a file rather than folded in with 2>&1: nix prints
+# "Using saved setting for 'extra-substituters = ...'" notices for this
+# flake's nixConfig whenever the invoking user is not a trusted user, and
+# merging those into the JSON turns them into bogus host names.
+NIX_EVAL_STDERR="$(mktemp)"
+trap 'rm -f "$NIX_EVAL_STDERR"' EXIT
+if ! ALL_HOSTS_JSON="$(
+  nix eval .#nixosConfigurations --apply 'cfgs: builtins.attrNames cfgs' --json \
+    2>"$NIX_EVAL_STDERR"
+)"; then
+  printf 'ERROR: failed to enumerate nixosConfigurations:\n%s\n' "$(cat "$NIX_EVAL_STDERR")" >&2
   exit 1
 fi
 mapfile -t ALL_HOSTS < <(echo "$ALL_HOSTS_JSON" | tr -d '[]" ' | tr ',' '\n' | grep -v '^$')
