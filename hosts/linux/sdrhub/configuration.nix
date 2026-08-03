@@ -335,6 +335,22 @@ in
           config.sops.secrets."docker/sdrhub/dump978.env".path
         ];
 
+        # Suppress telegraf's per-aircraft socket listener.
+        #
+        # Without this, telegraf emits 23 metric families keyed on `address`,
+        # `callsign` and `flightplan_id` -- one set per aircraft seen. That is
+        # unbounded cardinality: observed growing from 230 to 286 series within
+        # an hour, and with 90d retention every aircraft ever seen would leave
+        # 23 series behind permanently. It is also useless for monitoring;
+        # per-aircraft state is what tar1090 and skyaware978 are for.
+        #
+        # The aggregate inputs (stats_*, polar_range_*) are unaffected and are
+        # what the scrape job actually wants: total_accepted_messages,
+        # total_tracks, tracks_with_position, avg_accepted_rssi, max_distance_m.
+        environment = {
+          INFLUXDB_SKIP_AIRCRAFT = "true";
+        };
+
         deviceCgroupRules = [
           "c 189:* rwm"
         ];

@@ -201,13 +201,10 @@ in
       ];
 
       scrapeConfigs = [
-        # Only :9274 serves metrics.  Docker publishes 9273 and 9275 but no
-        # process inside the ultrafeeder / dump978 containers listens on them,
-        # so docker-proxy accepts the connection and immediately resets it.
-        # Both were permanently down targets.  dump978 exposes its metrics
-        # through the container's own nginx, which currently 404s on /metrics
-        # (it reads /run/readsb/stats.prom, which does not exist), so there is
-        # nothing to scrape for it at all until that is fixed container-side.
+        # Ultrafeeder serves metrics on :9274 only. Docker also publishes 9273,
+        # but nothing inside the container listens on it, so docker-proxy
+        # accepts the connection and immediately resets it -- it was a
+        # permanently down target and is not scraped.
         {
           job_name = "ultrafeeder";
           static_configs = [
@@ -219,6 +216,49 @@ in
                 hostname = "sdrhub";
                 role = "master";
               };
+            }
+          ];
+        }
+
+        # dump978 UAT decoder. Serves telegraf's prometheus_client output on
+        # 9275, which only works on the `telegraf-*` image variant -- the
+        # `latest-*` variant omits the telegraf binary and its s6 services
+        # silently sleep, which is why this target was previously down.
+        {
+          job_name = "dump978";
+          static_configs = [
+            {
+              targets = [
+                "sdrhub.local:9275"
+              ];
+              labels = {
+                hostname = "sdrhub";
+                role = "master";
+              };
+            }
+          ];
+
+          metric_relabel_configs = [
+            # Belt and braces against the per-aircraft cardinality bomb.
+            # INFLUXDB_SKIP_AIRCRAFT=true on the container stops telegraf
+            # collecting these at all, which is the real fix; this drop means
+            # that if the env var is ever lost or a future image ignores it,
+            # Prometheus still refuses to ingest 23 unbounded families keyed on
+            # aircraft address, callsign and flightplan id.
+            {
+              source_labels = [ "__name__" ];
+              regex = "aircraft_.*";
+              action = "drop";
+            }
+
+            # telegraf tags everything with host=<container id>, which changes
+            # every time the container is recreated. Left in place it would
+            # churn the series set on each restart and break continuity of the
+            # very counters this job exists to watch. hostname comes from the
+            # static labels above instead.
+            {
+              regex = "host";
+              action = "labeldrop";
             }
           ];
         }
