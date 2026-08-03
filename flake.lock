@@ -873,11 +873,11 @@
         "nixpkgs": "nixpkgs_10"
       },
       "locked": {
-        "lastModified": 1764529576,
-        "narHash": "sha256-0KnDDF+K6C3Pj/b/o30lTRNUxDq4SwZU1K17zsrrOT4=",
+        "lastModified": 1785715923,
+        "narHash": "sha256-wLYdAvZ4TAmZFVuprvq5fydQYXqxdqbYAcaFm4q8XZo=",
         "owner": "fredclausen",
         "repo": "nixos-needsreboot",
-        "rev": "4eac6a8686e583184f9414450a746a6ee0a90db5",
+        "rev": "7c72623c2ea71853dd9f2ab07044188f1f50fe5b",
         "type": "github"
       },
       "original": {
