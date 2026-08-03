@@ -31,7 +31,7 @@
       "type": "stat",
       "title": "Nodes Up",
       "description": "Number of nodes currently reachable by Prometheus",
-      "gridPos": { "h": 4, "w": 3, "x": 0, "y": 1 },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 1 },
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "options": {
         "reduceOptions": {
@@ -74,7 +74,7 @@
       "type": "stat",
       "title": "Nodes Down",
       "description": "Number of nodes not reachable by Prometheus",
-      "gridPos": { "h": 4, "w": 3, "x": 3, "y": 1 },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 1 },
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "options": {
         "reduceOptions": {
@@ -122,7 +122,7 @@
       "type": "stat",
       "title": "Nodes Needing Reboot",
       "description": "Nodes with /run/reboot-required present",
-      "gridPos": { "h": 4, "w": 3, "x": 6, "y": 1 },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 1 },
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "options": {
         "reduceOptions": {
@@ -170,7 +170,7 @@
       "type": "stat",
       "title": "Nodes Behind Main",
       "description": "Nodes whose deployed commit is behind GitHub main",
-      "gridPos": { "h": 4, "w": 3, "x": 9, "y": 1 },
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 1 },
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "options": {
         "reduceOptions": {
@@ -218,7 +218,7 @@
       "type": "stat",
       "title": "Failed Systemd Units",
       "description": "Total count of failed systemd units across all nodes",
-      "gridPos": { "h": 4, "w": 3, "x": 12, "y": 1 },
+      "gridPos": { "h": 4, "w": 5, "x": 0, "y": 5 },
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "options": {
         "reduceOptions": {
@@ -265,8 +265,8 @@
       "id": 7,
       "type": "stat",
       "title": "Active Alerts",
-      "description": "Number of currently firing Alertmanager alerts",
-      "gridPos": { "h": 4, "w": 3, "x": 15, "y": 1 },
+      "description": "Currently firing Alertmanager alerts, excluding the Watchdog deadman, which fires permanently by design -- see the Alerting Pipeline panel",
+      "gridPos": { "h": 4, "w": 4, "x": 5, "y": 5 },
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "options": {
         "reduceOptions": {
@@ -303,7 +303,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "count(ALERTS{alertstate=\"firing\"}) or vector(0)",
+          "expr": "count(ALERTS{alertstate=\"firing\", alertname!=\"Watchdog\"}) or vector(0)",
           "legendFormat": "Firing",
           "instant": true
         }
@@ -314,7 +314,7 @@
       "type": "stat",
       "title": "Firmware Updates",
       "description": "Total firmware updates available across the fleet (fwupd)",
-      "gridPos": { "h": 4, "w": 3, "x": 18, "y": 1 },
+      "gridPos": { "h": 4, "w": 5, "x": 14, "y": 5 },
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "options": {
         "reduceOptions": {
@@ -362,7 +362,7 @@
       "type": "stat",
       "title": "Critical Firmware",
       "description": "Devices with critical- or high-urgency firmware updates pending",
-      "gridPos": { "h": 4, "w": 3, "x": 21, "y": 1 },
+      "gridPos": { "h": 4, "w": 5, "x": 19, "y": 5 },
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "options": {
         "reduceOptions": {
@@ -406,18 +406,77 @@
       ]
     },
     {
+      "id": 12,
+      "type": "stat",
+      "title": "Alerting Pipeline",
+      "description": "Inverted deadman. The Watchdog alert fires permanently by design, so FIRING is the healthy state and DOWN means Prometheus has stopped evaluating it. This CANNOT detect Prometheus or Grafana themselves being down -- it would show NO DATA. The authoritative deadman is external (healthchecks.io), because a monitor sharing infrastructure with what it watches cannot report that infrastructure failing.",
+      "gridPos": { "h": 4, "w": 5, "x": 9, "y": 5 },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": { "text": "NO DATA", "color": "red", "index": 0 }
+              }
+            },
+            {
+              "type": "value",
+              "options": {
+                "0": { "text": "DOWN", "color": "red", "index": 1 },
+                "1": { "text": "OK", "color": "green", "index": 2 }
+              }
+            }
+          ],
+          "noValue": "NO DATA",
+          "unit": "none",
+          "color": { "mode": "thresholds" }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+          "expr": "count(ALERTS{alertstate=\"firing\", alertname=\"Watchdog\"}) or vector(0)",
+          "legendFormat": "Watchdog",
+          "instant": true
+        }
+      ]
+    },
+    {
       "id": 10,
       "type": "row",
       "title": "Per-Node Build & Deployment Info",
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 }
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 9 }
     },
     {
       "id": 11,
       "type": "table",
       "title": "Node Deployment Status",
       "description": "Per-node: deployed SHA, deploy time, commits behind main, reboot needed, and node up status",
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 6 },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 10 },
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "options": {
         "showHeader": true,
@@ -642,14 +701,14 @@
       "type": "row",
       "title": "Per-Node Resource Health",
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 14 }
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 18 }
     },
     {
       "id": 21,
       "type": "table",
       "title": "Node Resource Summary",
       "description": "CPU, memory, disk, and load average per node",
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 15 },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 19 },
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "options": {
         "showHeader": true,
@@ -866,14 +925,14 @@
       "type": "row",
       "title": "Failed Systemd Units",
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 23 }
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 27 }
     },
     {
       "id": 31,
       "type": "table",
       "title": "Currently Failed Units",
       "description": "All systemd units currently in a failed state across the fleet",
-      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 24 },
+      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 28 },
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "options": {
         "showHeader": true,
@@ -957,14 +1016,14 @@
       "type": "row",
       "title": "Pending Firmware Updates",
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 30 }
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 34 }
     },
     {
       "id": 36,
       "type": "table",
       "title": "Firmware Updates by Device",
       "description": "Devices across the fleet with firmware updates available (fwupd). Run `fwupdmgr update` on the affected host to apply.",
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 31 },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 35 },
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "options": {
         "showHeader": true,
@@ -1103,13 +1162,13 @@
       "type": "row",
       "title": "Resource Trends",
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 39 }
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 43 }
     },
     {
       "id": 41,
       "type": "timeseries",
       "title": "CPU Usage % — All Nodes",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 40 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 44 },
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "options": {
         "tooltip": { "mode": "multi", "sort": "desc" },
@@ -1155,7 +1214,7 @@
       "id": 42,
       "type": "timeseries",
       "title": "Memory Usage % — All Nodes",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 40 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 44 },
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "options": {
         "tooltip": { "mode": "multi", "sort": "desc" },
@@ -1201,7 +1260,7 @@
       "id": 43,
       "type": "timeseries",
       "title": "Network Receive — All Nodes",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 48 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 52 },
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "options": {
         "tooltip": { "mode": "multi", "sort": "desc" },
@@ -1238,7 +1297,7 @@
       "id": 44,
       "type": "timeseries",
       "title": "Network Transmit — All Nodes",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 48 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 52 },
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "options": {
         "tooltip": { "mode": "multi", "sort": "desc" },
@@ -1275,7 +1334,7 @@
       "id": 45,
       "type": "timeseries",
       "title": "System Load (1m) — All Nodes",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 56 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 60 },
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "options": {
         "tooltip": { "mode": "multi", "sort": "desc" },
@@ -1312,7 +1371,7 @@
       "id": 46,
       "type": "timeseries",
       "title": "Root Disk Usage % — All Nodes",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 56 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 60 },
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "options": {
         "tooltip": { "mode": "multi", "sort": "desc" },

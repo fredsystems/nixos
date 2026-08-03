@@ -13,6 +13,7 @@ let
     "sdrhub" = "192.168.31.20";
     "ai.sdrhub" = "192.168.31.20";
     "search.sdrhub" = "192.168.31.20";
+    "karma.sdrhub" = "192.168.31.20";
     "tar1090.sdrhub" = "192.168.31.20";
     "dump978.sdrhub" = "192.168.31.20";
     "piaware.sdrhub" = "192.168.31.20";
@@ -735,6 +736,17 @@ in
               return = "302 http://192.168.31.20:8087/";
             };
 
+            # Karma serves its assets from absolute paths, so a sub-path proxy
+            # would break them. Redirect to the dedicated vhost instead, the
+            # same approach used for fr24 and planefinder above.
+            "/karma/" = {
+              return = "302 http://karma.sdrhub.lan/";
+            };
+
+            "/karma" = {
+              return = "302 http://karma.sdrhub.lan/";
+            };
+
             "/planefinder" = {
               return = "302 http://192.168.31.20:8087/";
             };
@@ -788,6 +800,25 @@ in
           serverAliases = [ "search.sdrhub.local" ];
           locations."/" = {
             proxyPass = "http://127.0.0.1:4444";
+          };
+        };
+
+        # Karma alert dashboard. Bound to loopback by
+        # modules/monitoring/master/karma.nix and reached only through here, so
+        # it needs no firewall port of its own. The port is read from the
+        # service definition rather than hardcoded.
+        #
+        # Karma pushes live alert updates over a websocket, hence the upgrade
+        # headers (the $connection_upgrade map is defined in appendHttpConfig).
+        "karma.sdrhub.lan" = {
+          serverAliases = [ "karma.sdrhub.local" ];
+          locations."/" = {
+            proxyPass = "http://127.0.0.1:${toString config.services.karma.settings.listen.port}";
+            extraConfig = ''
+              proxy_http_version 1.1;
+              proxy_set_header Upgrade $http_upgrade;
+              proxy_set_header Connection $connection_upgrade;
+            '';
           };
         };
       };
