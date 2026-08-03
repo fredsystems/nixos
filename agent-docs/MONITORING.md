@@ -96,22 +96,22 @@ Defined at `modules/monitoring/master/prometheus.nix:160-262`. Global `scrape_in
 their own modules rather than here: `scrapeConfigs` and `ruleFiles` are both
 `listOf` options that merge across modules, so an exporter can be self-contained.
 
-| Job                     | Targets                                   | Labels attached          |
-| ----------------------- | ----------------------------------------- | ------------------------ |
-| node                    | all agents + desktops + sdrhub on :9100   | hostname, role, exporter |
-| cadvisor                | all agents + sdrhub on :4567 (7)          | hostname, role, exporter |
-| smartctl                | 6 SMART-capable hosts on :9633            | hostname, role, exporter |
-| ultrafeeder             | sdrhub.local:9274                         | hostname, role           |
-| acarshub                | sdrhub.local:8085                         | hostname, role           |
-| prometheus              | 127.0.0.1:9090                            | hostname, role           |
-| alertmanager            | 127.0.0.1:9093                            | hostname, role           |
-| loki                    | 127.0.0.1:5678                            | hostname, role           |
-| grafana                 | 127.0.0.1:3333                            | hostname, role           |
-| pushgateway             | 127.0.0.1:9091 (honor_labels)             | hostname, role           |
-| blackbox-exporter       | 127.0.0.1:9115 (the exporter itself)      | none                     |
-| blackbox-https          | 3 public HTTPS endpoints, must be 2xx     | instance, job            |
-| blackbox-https-redirect | 11 apex domains, must be 3xx              | instance, job            |
-| blackbox-http-internal  | 6 internal vhosts via the nginx proxy     | instance, job            |
+| Job                     | Targets                                 | Labels attached          |
+| ----------------------- | --------------------------------------- | ------------------------ |
+| node                    | all agents + desktops + sdrhub on :9100 | hostname, role, exporter |
+| cadvisor                | all agents + sdrhub on :4567 (7)        | hostname, role, exporter |
+| smartctl                | 6 SMART-capable hosts on :9633          | hostname, role, exporter |
+| ultrafeeder             | sdrhub.local:9274                       | hostname, role           |
+| acarshub                | sdrhub.local:8085                       | hostname, role           |
+| prometheus              | 127.0.0.1:9090                          | hostname, role           |
+| alertmanager            | 127.0.0.1:9093                          | hostname, role           |
+| loki                    | 127.0.0.1:5678                          | hostname, role           |
+| grafana                 | 127.0.0.1:3333                          | hostname, role           |
+| pushgateway             | 127.0.0.1:9091 (honor_labels)           | hostname, role           |
+| blackbox-exporter       | 127.0.0.1:9115 (the exporter itself)    | none                     |
+| blackbox-https          | 3 public HTTPS endpoints, must be 2xx   | instance, job            |
+| blackbox-https-redirect | 11 apex domains, must be 3xx            | instance, job            |
+| blackbox-http-internal  | 6 internal vhosts via the nginx proxy   | instance, job            |
 
 `dump978` is scraped on 9275, but only because the container now runs the
 `telegraf-*` image variant -- see below. It carries `metric_relabel_configs`,
@@ -127,13 +127,13 @@ Alertmanager routes by severity to three Pushover receivers, plus a `watchdog` r
 
 Five of the then-twenty-two rules referenced metrics with no active series. Prometheus reported all of them as `health=ok`, because a rule evaluating to an empty vector is considered healthy. They had never fired and could not fire. The rule set is now 49 alerts across 9 files, all covered by `promtool` unit tests and by `scripts/check-alert-metrics.sh`.
 
-| Rule                    | Location             | Missing metric                                | Cause                                                     |
-| ----------------------- | -------------------- | --------------------------------------------- | --------------------------------------------------------- |
-| DockerUnitFlapping      | docker-rules.yaml:5  | node_systemd_unit_restart_total                | collector flag not passed to node_exporter                |
-| SDRServiceFailure       | docker-rules.yaml:14 | promtail_custom_sdr_service_failure_total      | promtail replaced by Alloy, which uses unprefixed names   |
-| FeederUpstreamFailure   | docker-rules.yaml:23 | promtail_custom_feeder_upstream_failure_total  | same as above                                             |
-| UltrafeederNoAircraft   | sdr-alerts.yaml:5    | readsb_stats_aircraft_with_pos                 | exporter emits readsb_aircraft_* families instead         |
-| UltrafeederNotReceiving | sdr-alerts.yaml:14   | readsb_stats_messages                          | same as above                                             |
+| Rule                    | Location             | Missing metric                                | Cause                                                   |
+| ----------------------- | -------------------- | --------------------------------------------- | ------------------------------------------------------- |
+| DockerUnitFlapping      | docker-rules.yaml:5  | node_systemd_unit_restart_total               | collector flag not passed to node_exporter              |
+| SDRServiceFailure       | docker-rules.yaml:14 | promtail_custom_sdr_service_failure_total     | promtail replaced by Alloy, which uses unprefixed names |
+| FeederUpstreamFailure   | docker-rules.yaml:23 | promtail_custom_feeder_upstream_failure_total | same as above                                           |
+| UltrafeederNoAircraft   | sdr-alerts.yaml:5    | readsb_stats_aircraft_with_pos                | exporter emits `readsb_aircraft_*` families instead     |
+| UltrafeederNotReceiving | sdr-alerts.yaml:14   | readsb_stats_messages                         | same as above                                           |
 
 `node_systemd_unit_restart_total` requires `--collector.systemd.enable-restarts-metrics`, which `modules/monitoring/agent/node_exporter.nix:278-287` does not pass.
 
@@ -216,12 +216,12 @@ within an hour. With 90d retention every aircraft ever seen would leave 23
 series behind permanently, and none of it answers a monitoring question;
 per-aircraft state is what tar1090 and skyaware978 are for.
 
-| Family         | Series | Cardinality               |
-| -------------- | ------ | ------------------------- |
-| `aircraft_`    | 286    | unbounded -- suppressed   |
-| `stats_`       | 21     | fixed -- this is the useful part |
-| `polar_range_` | 72     | fixed, bearing buckets    |
-| `go_`/`process_` | 44   | fixed, telegraf's runtime |
+| Family           | Series | Cardinality                      |
+| ---------------- | ------ | -------------------------------- |
+| `aircraft_`      | 286    | unbounded -- suppressed          |
+| `stats_`         | 21     | fixed -- this is the useful part |
+| `polar_range_`   | 72     | fixed, bearing buckets           |
+| `go_`/`process_` | 44     | fixed, telegraf's runtime        |
 
 Suppressed in two places deliberately: `INFLUXDB_SKIP_AIRCRAFT=true` on the
 container stops collection at source, and a `metric_relabel_configs` drop on
@@ -257,15 +257,15 @@ This is orthogonal to log shipping, which works correctly on every host includin
 
 ### Smaller correctness defects
 
-| Location                        | Defect                                                                                              |
-| ------------------------------- | --------------------------------------------------------------------------------------------------- |
-| system-alerts.yaml:5            | `NixOSNotOnMain` excludes `daytona`; the host is `Daytona` and the regex is case-sensitive          |
-| sdr-alerts.yaml:9,18            | Annotations template `{{ $labels.hostname }}`; the ultrafeeder job attaches no `hostname` label     |
-| prometheus.nix:161-193          | Jobs ultrafeeder, dump978, acarshub, prometheus, pushgateway attach no labels at all                |
-| prometheus.nix:327              | Inhibit list references `SDRServiceFailure` and `FeederUpstreamFailure`, both being removed         |
-| adsb-docker-units.nix:31-82     | `mkUnit` silently ignores the `hostname`, `requires`, and `depends_on` keys set by several hosts    |
-| hardware/rtl-sdr.nix:17         | `lib.mkDefault` on a list option -- see [Kernel parameter merge hazard](#kernel-parameter-merge-hazard) |
-| grafana.nix:74                  | `secret_key` hardcoded in plaintext; the admin password is correctly sops-managed                   |
+| Location                    | Defect                                                                                                  |
+| --------------------------- | ------------------------------------------------------------------------------------------------------- |
+| system-alerts.yaml:5        | `NixOSNotOnMain` excludes `daytona`; the host is `Daytona` and the regex is case-sensitive              |
+| sdr-alerts.yaml:9,18        | Annotations template `{{ $labels.hostname }}`; the ultrafeeder job attaches no `hostname` label         |
+| prometheus.nix:161-193      | Jobs ultrafeeder, dump978, acarshub, prometheus, pushgateway attach no labels at all                    |
+| prometheus.nix:327          | Inhibit list references `SDRServiceFailure` and `FeederUpstreamFailure`, both being removed             |
+| adsb-docker-units.nix:31-82 | `mkUnit` silently ignores the `hostname`, `requires`, and `depends_on` keys set by several hosts        |
+| hardware/rtl-sdr.nix:17     | `lib.mkDefault` on a list option -- see [Kernel parameter merge hazard](#kernel-parameter-merge-hazard) |
+| grafana.nix:74              | `secret_key` hardcoded in plaintext; the admin password is correctly sops-managed                       |
 
 - [x] Fix the `Daytona` regex case sensitivity
 - [x] Add `hostname` and `role` labels to the unlabelled scrape jobs
@@ -282,11 +282,11 @@ The SDR containers are inconsistent about error reporting, and a generic match o
 
 Every decoder emits a periodic, machine-parseable throughput line. Over a 48h sample these arrived 575 times out of 576 expected, so the **absence** of a heartbeat is itself a strong signal that a container has wedged, independent of the value it carries.
 
-| Container family        | Log line                                                  | Period |
-| ----------------------- | --------------------------------------------------------- | ------ |
-| acarsdec-\*, dumpvdl2-\* | `[acars_bridge] [STATS] Total in the last 5 minutes: N`   | 5 min  |
-| dumphfdl-\*             | `[hfdl_stats] N hfdl messages received in last 5 mins`    | 5 min  |
-| ultrafeeder             | Prometheus exporter on :9274                              | scrape |
+| Container family         | Log line                                                | Period |
+| ------------------------ | ------------------------------------------------------- | ------ |
+| acarsdec-\*, dumpvdl2-\* | `[acars_bridge] [STATS] Total in the last 5 minutes: N` | 5 min  |
+| dumphfdl-\*              | `[hfdl_stats] N hfdl messages received in last 5 mins`  | 5 min  |
+| ultrafeeder              | Prometheus exporter on :9274                            | scrape |
 
 Extraction:
 
@@ -335,22 +335,47 @@ hfdlhub1   dumphfdl-1/2/3                                                 = none
 hfdlhub2   hfdlobserver                                                   = none
 ```
 
-Treat this as a fast supplementary signal at `warning` severity where it exists. It is not a backbone and must never be the only signal for a container.
+Treat this as a supplementary signal at `warning` severity where it exists. It is not a backbone and must never be the only signal for a container.
+
+**Two traps in `container_health_state`, both of which produced false positives before being fixed.**
+
+The value encoding is:
+
+```text
+ 1  healthy
+-1  no healthcheck defined in the image
+ 0  unhealthy  OR  still inside its start_period
+```
+
+A naive `!= 1` fires for all 34 containers that simply have no healthcheck. That one is obvious once seen.
+
+The second is not. **cAdvisor does not distinguish Docker's `starting` from `unhealthy`** -- both are `0`. These images deliberately use long start periods, because their healthchecks assert on message counts over the preceding hour or two:
+
+| Containers                            | start_period |
+| ------------------------------------- | ------------ |
+| piaware, dump978                      | 2h           |
+| acarsdec, dumpvdl2, acarshub, feeders | 1h           |
+| ultrafeeder, fr24                     | 10m          |
+| planewatch, radarvirtuel, degoog      | under 2m     |
+
+So a rule without a start-time gate fires roughly ten minutes after **every restart** and keeps firing for up to two hours -- on every deploy, for the containers that matter most. Observed doing exactly that to piaware, which was healthy and three minutes old at the time.
+
+`ContainerUnhealthy` therefore gates on `(time() - container_start_time_seconds) > 9000`, a margin over the longest start_period in the fleet. A slow gate is acceptable because nothing fast depends on this rule: `DecoderHeartbeatMissing` is 20m, and the Loki `s6wrap` crash rules, `DockerUnitFlapping` and `ContainerRestarting` are all healthcheck-independent. There is a regression test, and removing the gate makes it fail.
 
 ### Curated error signatures
 
 Only unambiguous patterns, explicitly enumerated. Never a generic level match.
 
-| Pattern                                                   | Meaning                                   | Severity |
-| --------------------------------------------------------- | ----------------------------------------- | -------- |
-| `usb_claim_interface error`                               | cannot bind SDR (1219 hits, dump978)      | critical |
-| `Failed to submit transfer` / `async read failed`         | usbfs ceiling exhausted (515/520, vdlmhub) | critical |
-| `sdrplay_api_ServiceNotResponding`                        | SDRplay API service dead                  | critical |
-| `Server status: (not synchronized\|clock unstable)`       | MLAT broken                               | warning  |
-| `Connection retries will continue`                        | feeder upstream unreachable               | warning  |
-| `Lost N packets ... on USB, MLAT could be UNSTABLE`       | USB or system clock issue                 | warning  |
-| `sdre_stubborn_io.*(Disconnect occurred\|Write while disconnected)` | real upstream connection loss | warning  |
-| `[message-monitor] [WARNING] Restarting the ... service`  | container gave up on its own receiver     | warning  |
+| Pattern                                                             | Meaning                                    | Severity |
+| ------------------------------------------------------------------- | ------------------------------------------ | -------- |
+| `usb_claim_interface error`                                         | cannot bind SDR (1219 hits, dump978)       | critical |
+| `Failed to submit transfer` / `async read failed`                   | usbfs ceiling exhausted (515/520, vdlmhub) | critical |
+| `sdrplay_api_ServiceNotResponding`                                  | SDRplay API service dead                   | critical |
+| `Server status: (not synchronized\|clock unstable)`                 | MLAT broken                                | warning  |
+| `Connection retries will continue`                                  | feeder upstream unreachable                | warning  |
+| `Lost N packets ... on USB, MLAT could be UNSTABLE`                 | USB or system clock issue                  | warning  |
+| `sdre_stubborn_io.*(Disconnect occurred\|Write while disconnected)` | real upstream connection loss              | warning  |
+| `[message-monitor] [WARNING] Restarting the ... service`            | container gave up on its own receiver      | warning  |
 
 For `acars_router` the discriminator is the **module path**, not the log level: `sdre_stubborn_io` indicates genuine connectivity loss, `message_handler` indicates data-quality noise.
 
@@ -358,15 +383,15 @@ For `acars_router` the discriminator is the **module path**, not the log level: 
 
 Recording these so they are not "rediscovered" and added later.
 
-| Pattern                                                | Why it is noise                                            |
-| ------------------------------------------------------ | ---------------------------------------------------------- |
-| `[R82XX] PLL not locked!`                              | normal during tuning                                       |
-| `message_handler.*Failed to parse received message`    | malformed upstream JSON, not a container failure           |
-| `acars2pos: failed distance check`                     | data quality filter working as designed                    |
-| `collectd: rrd_update_r ... illegal attempt`           | rrdtool bookkeeping noise                                  |
-| `Error response from daemon: No such container`        | emitted by our own `ExecStartPre` `docker rm -f`           |
-| `readsb: UAT TCP input: Connection to dump978 refused` | symptom of dump978 restarting; alert on the cause instead  |
-| `nginx: open() "/webapp/dist/favicon.ico" failed`      | cosmetic                                                   |
+| Pattern                                                | Why it is noise                                           |
+| ------------------------------------------------------ | --------------------------------------------------------- |
+| `[R82XX] PLL not locked!`                              | normal during tuning                                      |
+| `message_handler.*Failed to parse received message`    | malformed upstream JSON, not a container failure          |
+| `acars2pos: failed distance check`                     | data quality filter working as designed                   |
+| `collectd: rrd_update_r ... illegal attempt`           | rrdtool bookkeeping noise                                 |
+| `Error response from daemon: No such container`        | emitted by our own `ExecStartPre` `docker rm -f`          |
+| `readsb: UAT TCP input: Connection to dump978 refused` | symptom of dump978 restarting; alert on the cause instead |
+| `nginx: open() "/webapp/dist/favicon.ico" failed`      | cosmetic                                                  |
 
 ## Traffic seasonality
 
@@ -415,7 +440,7 @@ and
 
 The second clause is what makes quiet frequencies safe. If a receiver historically produced nothing at this hour, its baseline is near zero, the guard fails, and it never alerts. Averaging three weekly samples prevents one bad day from poisoning the baseline.
 
-**Share of fleet volume.** Self-baselining still breaks on holidays, because the prior week was an ordinary week. Comparing a receiver's *share* of its group's total instead of its absolute volume removes that entirely: if all receivers drop together, every share holds steady and nothing fires; if one dies, its share collapses while its siblings' shares rise. No calendar knowledge required. This only holds within a homogeneous group, so it applies to acarsdec-1/2/3 and dumpvdl2-1/2/3/4 but not across the HF receivers with disjoint windows.
+**Share of fleet volume.** Self-baselining still breaks on holidays, because the prior week was an ordinary week. Comparing a receiver's _share_ of its group's total instead of its absolute volume removes that entirely: if all receivers drop together, every share holds steady and nothing fires; if one dies, its share collapses while its siblings' shares rise. No calendar knowledge required. This only holds within a homogeneous group, so it applies to acarsdec-1/2/3 and dumpvdl2-1/2/3/4 but not across the HF receivers with disjoint windows.
 
 **Sibling comparison over a long window.** A self-baseline cannot detect a receiver that was already broken before the baseline window opened. Sibling comparison can -- dumphfdl-2 is flat zero across all 24 hours while both same-host, same-hardware siblings show clear propagation curves:
 
@@ -556,23 +581,23 @@ For the record, the path this replaced: every severity went to a single `ntfy` r
 
 ### Delivery options evaluated
 
-| Option             | Native in Alertmanager | Self-host | Bypasses iOS Focus | Ack or escalation      | Notes                                                            |
-| ------------------ | ---------------------- | --------- | ------------------ | ---------------------- | ---------------------------------------------------------------- |
-| Pushover           | yes, `pushover_configs` | no        | yes, emergency priority | retries until acked | Removes the bridge from the critical path entirely               |
-| ntfy self-hosted   | needs bridge           | yes       | yes, priority 5    | no                     | Adds auth and private topics; keeps the existing bridge risk     |
-| Telegram           | yes, `telegram_configs` | no        | no                 | no                     | Free, good formatting and search; buried among ordinary chats    |
-| PagerDuty          | yes, `pagerduty_configs` | no      | yes, phone calls   | full escalation policies | Only option with true escalate-if-unacked; cloud dependency    |
-| Gotify             | needs bridge           | yes       | no                 | no                     | Android-oriented; ruled out by the iOS constraint                |
-| Email              | yes                    | yes       | no                 | no                     | Digest tier only                                                 |
+| Option           | Native in Alertmanager   | Self-host | Bypasses iOS Focus      | Ack or escalation        | Notes                                                         |
+| ---------------- | ------------------------ | --------- | ----------------------- | ------------------------ | ------------------------------------------------------------- |
+| Pushover         | yes, `pushover_configs`  | no        | yes, emergency priority | retries until acked      | Removes the bridge from the critical path entirely            |
+| ntfy self-hosted | needs bridge             | yes       | yes, priority 5         | no                       | Adds auth and private topics; keeps the existing bridge risk  |
+| Telegram         | yes, `telegram_configs`  | no        | no                      | no                       | Free, good formatting and search; buried among ordinary chats |
+| PagerDuty        | yes, `pagerduty_configs` | no        | yes, phone calls        | full escalation policies | Only option with true escalate-if-unacked; cloud dependency   |
+| Gotify           | needs bridge             | yes       | no                      | no                       | Android-oriented; ruled out by the iOS constraint             |
+| Email            | yes                      | yes       | no                      | no                       | Digest tier only                                              |
 
 ### Triage and console options
 
-| Option                          | Packaged as             | What it provides                                                                 |
-| ------------------------------- | ----------------------- | -------------------------------------------------------------------------------- |
-| Karma                           | `services.karma`        | Purpose-built Alertmanager console: grouped live state, silence management        |
-| Grafana Alertmanager datasource | Grafana already running | Browse and silence alerts in an existing UI with no rule migration                |
-| Alerta                          | `services.alerta`       | Alert database with deduplication, correlation, and history                       |
-| Uptime Kuma                     | `services.uptime-kuma`  | Blackbox checks and deadman hosting rather than an Alertmanager console           |
+| Option                          | Packaged as             | What it provides                                                           |
+| ------------------------------- | ----------------------- | -------------------------------------------------------------------------- |
+| Karma                           | `services.karma`        | Purpose-built Alertmanager console: grouped live state, silence management |
+| Grafana Alertmanager datasource | Grafana already running | Browse and silence alerts in an existing UI with no rule migration         |
+| Alerta                          | `services.alerta`       | Alert database with deduplication, correlation, and history                |
+| Uptime Kuma                     | `services.uptime-kuma`  | Blackbox checks and deadman hosting rather than an Alertmanager console    |
 
 All four are present in the pinned nixpkgs. Karma remains the recommended triage console and is not yet deployed.
 
@@ -750,14 +775,14 @@ Large regex alternations over a seven-day range will drop the Loki connection. N
 
 ## Decisions log
 
-| Decision                                                     | Rationale                                                                                                                                     |
-| ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| Rules live in the Loki ruler, not Alloy `stage.metrics`      | One file on one host instead of a six-host colmena deploy per regex tweak. LogQL `unwrap` handles numeric heartbeat extraction, which `stage.metrics` cannot. Also removes the need for Alloy to be scrapeable. |
-| Alerts fire immediately rather than running in shadow mode   | Real-time notifications give the evidence needed to judge whether a threshold is right. Requires severity routing first so tuning noise is isolated from critical alerts. |
-| Throughput thresholds are relative, never absolute           | Traffic varies by hour, weekday, season, weather, and holiday, and the fleet contains three incompatible diurnal archetypes. No static threshold can be correct for all receivers. |
-| `usbfs_memory_mb` set via `boot.kernelParams`                | `usbcore` is built into the kernel on all hosts, so `modprobe.d` options do not apply. A `systemd.tmpfiles` write is added alongside so the setting also takes effect without a reboot. |
-| Explicit `1000` rather than `0`                              | `0` is valid and means the 2047 MB hard maximum, but a bounded value states intent and avoids an effectively unlimited pin budget.            |
-| usbfs enabled on four hosts, not five                        | hfdlhub2 has no USB SDR hardware; hfdlobserver drives network web888/KiwiSDR receivers. It cannot go in `profiles/adsb-hub.nix`, which is also imported by fredvps, fredhub, and hfdlhub2. |
-| Container healthchecks are a supplement, never a backbone    | Coverage is inversely correlated with failure rate -- the only containers observed crashing, dumphfdl and hfdlobserver, ship no healthcheck.  |
-| Migrated ntfy to Pushover                                    | Acknowledgement was the deciding factor: Pushover priority 2 re-alerts until acked, so an unseen critical is not lost. Also removes the unmonitored `alertmanager-ntfy` bridge from the critical path and moves credentials into sops. |
-| Grafana OnCall OSS excluded permanently                      | Archived 2026-03-24; Cloud Connection for mobile push, SMS, and voice is disabled. Recorded so it is not re-evaluated.                        |
+| Decision                                                   | Rationale                                                                                                                                                                                                                                                                                      |
+| ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Rules live in the Loki ruler, not Alloy `stage.metrics`    | One file on one host instead of a six-host colmena deploy per regex tweak. LogQL `unwrap` handles numeric heartbeat extraction, which `stage.metrics` cannot. Also removes the need for Alloy to be scrapeable.                                                                                |
+| Alerts fire immediately rather than running in shadow mode | Real-time notifications give the evidence needed to judge whether a threshold is right. Requires severity routing first so tuning noise is isolated from critical alerts.                                                                                                                      |
+| Throughput thresholds are relative, never absolute         | Traffic varies by hour, weekday, season, weather, and holiday, and the fleet contains three incompatible diurnal archetypes. No static threshold can be correct for all receivers.                                                                                                             |
+| `usbfs_memory_mb` set via `boot.kernelParams`              | `usbcore` is built into the kernel on all hosts, so `modprobe.d` options do not apply. A `systemd.tmpfiles` write is added alongside so the setting also takes effect without a reboot.                                                                                                        |
+| Explicit `1000` rather than `0`                            | `0` is valid and means the 2047 MB hard maximum, but a bounded value states intent and avoids an effectively unlimited pin budget.                                                                                                                                                             |
+| usbfs enabled on four hosts, not five                      | hfdlhub2 has no USB SDR hardware; hfdlobserver drives network web888/KiwiSDR receivers. It cannot go in `profiles/adsb-hub.nix`, which is also imported by fredvps, fredhub, and hfdlhub2.                                                                                                     |
+| Container healthchecks are a supplement, never a backbone  | Coverage is inversely correlated with failure rate -- the only containers observed crashing, dumphfdl and hfdlobserver, ship no healthcheck. cAdvisor also cannot distinguish `starting` from `unhealthy`, so the rule needs a start-time gate longer than the fleet's longest `start_period`. |
+| Migrated ntfy to Pushover                                  | Acknowledgement was the deciding factor: Pushover priority 2 re-alerts until acked, so an unseen critical is not lost. Also removes the unmonitored `alertmanager-ntfy` bridge from the critical path and moves credentials into sops.                                                         |
+| Grafana OnCall OSS excluded permanently                    | Archived 2026-03-24; Cloud Connection for mobile push, SMS, and voice is disabled. Recorded so it is not re-evaluated.                                                                                                                                                                         |
