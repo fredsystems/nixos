@@ -382,12 +382,21 @@ in
 
           inhibit_rules = [
             {
-              # When a node is completely down, suppress all the downstream alerts
-              # it would otherwise generate (unit failures, container restarts, etc.)
-              source_matchers = [ "alertname = \"NodeDown\"" ];
-              target_matchers = [
-                "alertname =~ \"SystemdUnitFailed|SystemdUnitFlapping|GithubRunnerCrashLoop|ContainerRestarting|ContainerOOM|DockerUnitFlapping|UltrafeederNoAircraft|UltrafeederNotReceiving|AdGuardHomeDown|AtticServerDown\""
-              ];
+              # When a node is down, everything else observed on that node is a
+              # consequence, so suppress all of it and page once for the cause.
+              #
+              # Matching on "not NodeDown" rather than an explicit alertname
+              # list is deliberate: the previous list had to be edited by hand
+              # for every new alert, and had already gone stale, still naming
+              # two rules that no longer exist. It also omitted
+              # PrometheusTargetDown, which a downed node always triggers.
+              #
+              # Alerts with no hostname label (the Watchdog deadman, for
+              # example) are never inhibited by this rule: `equal` requires the
+              # label to match, and NodeDown always carries a non-empty
+              # hostname from the node job.
+              source_matchers = [ ''alertname="NodeDown"'' ];
+              target_matchers = [ ''alertname!="NodeDown"'' ];
               equal = [ "hostname" ];
             }
           ];
