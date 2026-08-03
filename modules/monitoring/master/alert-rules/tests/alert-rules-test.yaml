@@ -157,7 +157,7 @@ tests:
   - interval: 1m
     name: DockerUnitFlapping fires on a restart loop
     input_series:
-      - series: 'node_systemd_unit_restart_total{name="docker-dumpvdl2-3.service", hostname="vdlmhub"}'
+      - series: 'node_systemd_service_restart_total{name="docker-dumpvdl2-3.service", hostname="vdlmhub"}'
         values: "0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19"
     alert_rule_test:
       - eval_time: 16m
@@ -174,7 +174,7 @@ tests:
   - interval: 1m
     name: DockerUnitFlapping stays silent for a stable unit
     input_series:
-      - series: 'node_systemd_unit_restart_total{name="docker-ultrafeeder.service", hostname="sdrhub"}'
+      - series: 'node_systemd_service_restart_total{name="docker-ultrafeeder.service", hostname="sdrhub"}'
         values: "2+0x20"
     alert_rule_test:
       - eval_time: 16m

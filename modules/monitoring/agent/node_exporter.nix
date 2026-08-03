@@ -289,7 +289,7 @@
       extraFlags = [
         "--collector.textfile.directory=/var/lib/node_exporter/textfiles"
 
-        # The systemd collector does not emit node_systemd_unit_restart_total
+        # The systemd collector does not emit node_systemd_service_restart_total
         # unless this is set. Without it the DockerUnitFlapping alert selects
         # a metric that does not exist and silently never fires.
         "--collector.systemd.enable-restarts-metrics"

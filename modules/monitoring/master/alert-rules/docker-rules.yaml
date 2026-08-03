@@ -5,7 +5,7 @@ groups:
       # without which this metric does not exist. See
       # modules/monitoring/agent/node_exporter.nix.
       - alert: DockerUnitFlapping
-        expr: increase(node_systemd_unit_restart_total{name=~"docker-.*"}[10m]) > 3
+        expr: increase(node_systemd_service_restart_total{name=~"docker-.*"}[10m]) > 3
         for: 5m
         labels:
           severity: critical
