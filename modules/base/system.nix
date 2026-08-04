@@ -55,12 +55,13 @@ in
       # invocation rather than once per path, but with direnv auto-loading a flake
       # on every `cd` that is once per directory change.
       #
-      # 5s only bounds the TCP handshake (`stalled-download-timeout` covers
-      # stalls mid-transfer), and a handshake to cache.nixos.org or cachix
-      # completes in well under a second even on a high-latency link, so there is
-      # no realistic way for this to turn a working remote cache into a failure.
-      # It cuts the off-LAN stall by two thirds while leaving an order of
-      # magnitude of headroom.
+      # 5s bounds the whole connection phase -- DNS resolution, the TCP handshake
+      # and, for the https substituters, the TLS handshake -- but not the
+      # transfer, which `stalled-download-timeout` already covers. Reaching that
+      # point with cache.nixos.org or cachix takes well under a second on a
+      # healthy link and a small multiple of that on a poor one, so 5s cuts the
+      # off-LAN stall by two thirds while still leaving several times the
+      # realistic worst case.
       #
       # This is a mitigation, not the fix: with Tailscale up and
       # --accept-routes, 192.168.31.14 is genuinely reachable and the timeout

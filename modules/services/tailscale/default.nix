@@ -66,7 +66,13 @@
           # STATUS_OK=0, which is the honest report and is what
           # TailscaleBackendNotRunning and the expiry guards expect. Matches the
           # --max-time already used by the imageapi metric on fredvps.
-          STATUS=$(${pkgs.coreutils}/bin/timeout 10 "$TAILSCALE" status --json 2>/dev/null || echo "")
+          # --kill-after matters as much as the timeout itself: a plain `timeout`
+          # sends TERM and then waits indefinitely for a process that ignores it,
+          # which would leave the oneshot active and the previous .prom in place
+          # -- the exact silently-frozen-metrics outcome the bound exists to
+          # prevent. SIGKILL five seconds later guarantees the fall-through.
+          STATUS=$(${pkgs.coreutils}/bin/timeout --kill-after=5 10 \
+            "$TAILSCALE" status --json 2>/dev/null || echo "")
 
           if [[ -n "$STATUS" ]] && $JQ -e . <<<"$STATUS" >/dev/null 2>&1; then
             STATUS_OK=1

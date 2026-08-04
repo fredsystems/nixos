@@ -121,10 +121,19 @@ trap 'rm -f "$EVAL_STDERR"' EXIT
 
 # Captured before evaluation and re-checked immediately before `colmena apply`,
 # so an edit landing mid-run cannot deploy closures this run never evaluated.
-SOURCE_ID_AT_EVAL="$(
+#
+# The diff content is hashed, not just the porcelain file list. The list records
+# THAT a file is dirty, not what is in it, so editing an already-dirty file left
+# both identifiers identical -- missing precisely the case this guard exists to
+# catch. `git diff HEAD` covers staged and unstaged changes to tracked files,
+# which is exactly the set a flake evaluation can see; untracked files are
+# invisible to Nix and cannot affect the result.
+source_identity() {
     git rev-parse HEAD
     git status --porcelain
-)"
+    git diff HEAD | sha256sum
+}
+SOURCE_ID_AT_EVAL="$(source_identity)"
 
 echo "Evaluating what colmena would deploy..." >&2
 if ! EXPECTED_JSON="$(
@@ -282,9 +291,18 @@ else
     if [[ $WAIT -eq 1 && -n "$LAGGING" ]]; then
         echo "Manifest has not caught up yet; waiting up to ${WAIT_TIMEOUT}s..." >&2
         while [[ -n "$LAGGING" && "$SECONDS" -lt "$DEADLINE" ]]; do
-            sleep "$WAIT_INTERVAL"
-            LAGGING="$(manifest_lagging_nodes "$((DEADLINE - SECONDS))")"
-            [[ -z "$LAGGING" ]] && echo "Manifest caught up after $((WAIT_TIMEOUT - (DEADLINE - SECONDS)))s." >&2
+            # Sleep no further than the deadline, then only fetch if budget
+            # remains. Sleeping a fixed interval could overshoot and leave a
+            # nonpositive budget, which the fetch clamped to 1s -- letting a
+            # --wait run exceed WAIT_TIMEOUT by an extra request.
+            remaining=$((DEADLINE - SECONDS))
+            [[ "$remaining" -le 0 ]] && break
+            sleep "$(( WAIT_INTERVAL < remaining ? WAIT_INTERVAL : remaining ))"
+
+            remaining=$((DEADLINE - SECONDS))
+            [[ "$remaining" -le 0 ]] && break
+            LAGGING="$(manifest_lagging_nodes "$remaining")"
+            [[ -z "$LAGGING" ]] && echo "Manifest caught up after $((WAIT_TIMEOUT - remaining))s." >&2
         done
     fi
 
@@ -320,15 +338,22 @@ fi
 
 # --- Deploy ---------------------------------------------------------------
 
+# On host-key policy for the deployment itself: colmena opens its own SSH
+# connections and this script cannot inject options into them, so it cannot
+# extend the pinned StrictHostKeyChecking used by the probe above to `colmena
+# apply`. What it does provide is that the target list only ever contains hosts
+# whose key verified against known_hosts moments earlier in this same run -- a
+# host that failed that check is in UNREACHABLE and is never passed on. That
+# narrows the exposure to a key swapped between probe and deploy rather than
+# eliminating it. Closing it properly belongs in ssh_config or an SSH host CA,
+# which would cover every colmena invocation rather than only this wrapper.
+
 # `nix eval` above and `colmena apply` below resolve the flake independently, so
 # a worktree edit landing in between would deploy something this run never
 # evaluated and the guard never checked. Re-checking the source identity closes
 # that window: cheaper than snapshotting the tree, and it catches the realistic
 # case of editing a file while the SSH probing was in progress.
-SOURCE_ID_NOW="$(
-    git rev-parse HEAD
-    git status --porcelain
-)"
+SOURCE_ID_NOW="$(source_identity)"
 if [[ "$SOURCE_ID_NOW" != "$SOURCE_ID_AT_EVAL" ]]; then
     cat >&2 <<'EOF'
 error: the working tree changed while this run was in progress.
