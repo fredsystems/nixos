@@ -213,3 +213,97 @@ groups:
         annotations:
           summary: "Attic Nix cache server is DOWN on fredhub"
           description: "The Attic binary cache server has been inactive for 5+ minutes. NixOS builds will fall back to cache.nixos.org and be significantly slower."
+
+  # Tailscale node key expiry.
+  #
+  # Metric source: modules/services/tailscale/default.nix, which is imported by
+  # exactly the hosts running tailscale (sdrhub and fredvps today), so these
+  # rules scope themselves automatically as that set changes.
+  #
+  # WHAT EXPIRES. Not the sops auth key -- that is only consulted when a node is
+  # not yet registered, so its expiry cannot disturb a running node. What expires
+  # is each device's NODE key, and rotating the auth key does not renew it: an
+  # expired node key needs `tailscale up` with an interactive login, or a new key
+  # plus --force-reauth. The cost of getting this wrong is concrete: sdrhub
+  # withdraws its advertised 192.168.31.0/24 subnet route, and fredvps loses the
+  # tailnet address Prometheus scrapes it by.
+  #
+  # Thresholds deliberately mirror BlackboxCertExpiringSoon / CertExpiryCritical
+  # (21d warning, 7d critical) so every "credential is running out" alert in this
+  # fleet paces identically.
+  #
+  # Both rules carry two guards that are not optional:
+  #
+  #   tailscale_key_expiry_disabled == 0
+  #     A tagged device, or one with key expiry disabled in the admin console,
+  #     reports no expiry and the metric is 0. Without this guard `0 - time()` is
+  #     hugely negative and the critical rule would fire permanently -- doing the
+  #     right thing upstream would look like a fault.
+  #
+  #   tailscale_status_scrape_success == 1
+  #     If tailscaled cannot be queried the metric is also 0, with the same
+  #     consequence. A daemon fault must be reported as one, not as an expiry.
+  #     TailscaleBackendNotRunning covers that case.
+  #
+  # Already-expired keys need no separate rule: the difference simply goes
+  # negative and TailscaleKeyExpiryCritical fires, exactly as the blackbox cert
+  # rules document for expired certificates.
+  - name: tailscale-alerts
+    rules:
+      - alert: TailscaleKeyExpiringSoon
+        # The >= 7d floor makes this mutually exclusive with the critical rule
+        # below; without it both would fire under 7 days and Alertmanager would
+        # deliver the same host twice on two severities.
+        expr: |
+          (tailscale_key_expiry_seconds - time()) < (21 * 24 * 60 * 60)
+          and
+          (tailscale_key_expiry_seconds - time()) >= (7 * 24 * 60 * 60)
+          and on (host) (tailscale_key_expiry_disabled == 0)
+          and on (host) (tailscale_status_scrape_success == 1)
+        # 1h: expiry is a slowly-moving fact, so a long `for` costs nothing and
+        # makes the rule immune to a single bad scrape.
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Tailscale node key on {{ $labels.host }} expires in under 21 days"
+          description: >-
+            The node key for {{ $labels.host }} expires in less than 21 days,
+            after which the host drops off the tailnet until re-authenticated
+            interactively. Rotating the sops auth key will NOT renew it. Prefer
+            disabling key expiry for this device in the admin console, or making
+            it a tagged device, so this stops recurring.
+
+      - alert: TailscaleKeyExpiryCritical
+        expr: |
+          (tailscale_key_expiry_seconds - time()) < (7 * 24 * 60 * 60)
+          and on (host) (tailscale_key_expiry_disabled == 0)
+          and on (host) (tailscale_status_scrape_success == 1)
+        for: 1h
+        labels:
+          severity: critical
+        annotations:
+          summary: "Tailscale node key on {{ $labels.host }} expires in under 7 days"
+          description: >-
+            The node key for {{ $labels.host }} expires in less than 7 days (or
+            has already expired). When it goes, sdrhub stops advertising the LAN
+            subnet route and fredvps becomes unreachable over the tailnet, which
+            also removes it from Prometheus. Re-authenticate and then disable key
+            expiry for this device.
+
+      - alert: TailscaleBackendNotRunning
+        # BackendState is not Running. The state after a key expires is
+        # NeedsLogin, so this is the signal that the host is actually off the
+        # tailnet right now, as opposed to heading that way. Distinct from
+        # SystemdUnitFailed, which only notices tailscaled failing outright --
+        # NeedsLogin is a perfectly healthy process that has stopped working.
+        expr: tailscale_backend_running == 0 and on (host) (tailscale_status_scrape_success == 1)
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Tailscale is not running on {{ $labels.host }}"
+          description: >-
+            tailscaled on {{ $labels.host }} reports a backend state other than
+            Running for 15 minutes. If the node key has expired the state will be
+            NeedsLogin and the host needs interactive re-authentication.
