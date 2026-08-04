@@ -1,0 +1,88 @@
+{
+  "generated_at": 1785876390,
+  "hosts": {
+    "Daytona": {
+      "history": [
+        {
+          "at": 1785876390,
+          "rev": "5adcc9073396dfcf8517bc775e544b813f9aa4c3",
+          "toplevel": "/nix/store/1bby9h4lm465hdgpw68ig2dsdkj7vm85-nixos-system-Daytona-26.11.20260802.6438090"
+        }
+      ]
+    },
+    "acarshub": {
+      "history": [
+        {
+          "at": 1785876390,
+          "rev": "5adcc9073396dfcf8517bc775e544b813f9aa4c3",
+          "toplevel": "/nix/store/7ll4m9qvqgis36rwm5pvj1ywh03rjhqc-nixos-system-acarshub-26.05.20260803.531670d"
+        }
+      ]
+    },
+    "fredhub": {
+      "history": [
+        {
+          "at": 1785876390,
+          "rev": "5adcc9073396dfcf8517bc775e544b813f9aa4c3",
+          "toplevel": "/nix/store/4bac3xsicqmr1ji41bdggzb7zs0d3bv3-nixos-system-fredhub-26.05.20260803.531670d"
+        }
+      ]
+    },
+    "fredvps": {
+      "history": [
+        {
+          "at": 1785876390,
+          "rev": "5adcc9073396dfcf8517bc775e544b813f9aa4c3",
+          "toplevel": "/nix/store/yn0f32xr2ms81w9765v2rw83xak2zk9l-nixos-system-fredvps-26.05.20260803.531670d"
+        }
+      ]
+    },
+    "hfdlhub1": {
+      "history": [
+        {
+          "at": 1785876390,
+          "rev": "5adcc9073396dfcf8517bc775e544b813f9aa4c3",
+          "toplevel": "/nix/store/n7kjq0mb5n962j6b2fn43xxawhmn1igg-nixos-system-hfdlhub1-26.05.20260803.531670d"
+        }
+      ]
+    },
+    "hfdlhub2": {
+      "history": [
+        {
+          "at": 1785876390,
+          "rev": "5adcc9073396dfcf8517bc775e544b813f9aa4c3",
+          "toplevel": "/nix/store/3r30p230mm3pi7p6bbws1by5vhxbinyl-nixos-system-hfdlhub2-26.05.20260803.531670d"
+        }
+      ]
+    },
+    "maranello": {
+      "history": [
+        {
+          "at": 1785876390,
+          "rev": "5adcc9073396dfcf8517bc775e544b813f9aa4c3",
+          "toplevel": "/nix/store/khm3qk4dwn1739cjizxyqd61l58ssx8x-nixos-system-maranello-26.11.20260802.6438090"
+        }
+      ]
+    },
+    "sdrhub": {
+      "history": [
+        {
+          "at": 1785876390,
+          "rev": "5adcc9073396dfcf8517bc775e544b813f9aa4c3",
+          "toplevel": "/nix/store/k2srqzyfa5jm96w6a9fbrqw1ykpaij9z-nixos-system-sdrhub-26.05.20260803.531670d"
+        }
+      ]
+    },
+    "vdlmhub": {
+      "history": [
+        {
+          "at": 1785876390,
+          "rev": "5adcc9073396dfcf8517bc775e544b813f9aa4c3",
+          "toplevel": "/nix/store/yq7j7djywxmg1qiwm2ssmncb95ak73ab-nixos-system-vdlmhub-26.05.20260803.531670d"
+        }
+      ]
+    }
+  },
+  "rev": "5adcc9073396dfcf8517bc775e544b813f9aa4c3",
+  "schema": 1
+}
