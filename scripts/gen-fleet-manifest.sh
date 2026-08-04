@@ -160,13 +160,37 @@ if ! COLMENA_JSON="$(
     exit 1
 fi
 
+# Same warnings-are-fatal policy the nixosConfigurations eval above applies.
+# This is the only place it can ever be enforced for the colmena evaluator:
+# nothing in CI evaluates colmenaHive, so a warning introduced by a nixpkgs or
+# colmena bump would otherwise never surface anywhere.
+if grep -q 'evaluation warning:' "$COLMENA_STDERR"; then
+    printf 'error: colmena evaluation produced warnings:\n%s\n' "$(cat "$COLMENA_STDERR")" >&2
+    exit 1
+fi
+
+# An empty or non-object node set would make the comparison below vacuous and
+# report "agree for 0 servers" on its way to publishing an unverified manifest.
+# Mirrors the identical guard applied to PATHS_JSON above.
+if [[ "$(jq -r 'type' <<<"$COLMENA_JSON")" != "object" ]] ||
+    [[ "$(jq -r 'length' <<<"$COLMENA_JSON")" -eq 0 ]]; then
+    echo "error: colmena evaluation produced no nodes -- refusing to publish" >&2
+    exit 1
+fi
+
+# A colmena node with no nixosConfigurations entry counts as a mismatch rather
+# than being skipped. Such a node should be unreachable -- mkNode dereferences
+# `self.nixosConfigurations.<name>._colmena`, so a missing entry throws during
+# evaluation and is caught above -- but suppressing the case would hide exactly
+# the failure this guard exists to report: a host colmena deploys that the
+# manifest has no path for, which reports `unmanaged` forever.
 MISMATCHED="$(
     jq -rn \
         --argjson a "$PATHS_JSON" \
         --argjson b "$COLMENA_JSON" \
         '$b | to_entries
-         | map(select($a[.key] != null and $a[.key] != .value)
-               | "  \(.key)\n    nixosConfigurations: \($a[.key])\n    colmena:             \(.value)")
+         | map(select($a[.key] != .value)
+               | "  \(.key)\n    nixosConfigurations: \($a[.key] // "<missing>")\n    colmena:             \(.value)")
          | join("\n")'
 )"
 
