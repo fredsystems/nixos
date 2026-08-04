@@ -78,7 +78,7 @@
 
             STATE_DIR=/var/lib/nixos-deploy-state
             CACHE="$STATE_DIR/manifest.json"
-            TS_FILE="$STATE_DIR/deploy_timestamp_ms"
+            TS_FILE="$STATE_DIR/deploy_timestamp_seconds"
             LAST_TOPLEVEL_FILE="$STATE_DIR/last_toplevel"
             TEXTFILE_DIR=/var/lib/node_exporter/textfiles
             OUT="$TEXTFILE_DIR/nixos_deploy_state.prom"
@@ -149,17 +149,30 @@
             # below 1e12" fixup as a result; naming the unit in the metric
             # removes that class of bug. Grafana wants ms, so the dashboard
             # multiplies rather than the exporter guessing.
-            OLD_TS_MS_FILE=/var/lib/node_exporter/textfiles/nixos_build_timestamp.val
+            LEGACY_TS_FILE=/var/lib/node_exporter/textfiles/nixos_build_timestamp.val
             LAST_TOPLEVEL=$(cat "$LAST_TOPLEVEL_FILE" 2>/dev/null || echo "")
             if [[ -n "$RUNNING" && "$RUNNING" != "$LAST_TOPLEVEL" ]]; then
               SEEDED=0
-              if [[ -z "$LAST_TOPLEVEL" && -s "$OLD_TS_MS_FILE" ]]; then
+              if [[ -z "$LAST_TOPLEVEL" && -s "$LEGACY_TS_FILE" ]]; then
                 # First run after replacing the old services: adopt the previous
                 # deploy timestamp rather than reporting a bogus "deployed just
                 # now" for every host in the fleet simultaneously.
-                OLD_MS=$(cat "$OLD_TS_MS_FILE" 2>/dev/null || echo 0)
-                if [[ "$OLD_MS" =~ ^[0-9]+$ && "$OLD_MS" -gt 0 ]]; then
-                  echo $(( OLD_MS / 1000 )) > "$TS_FILE"
+                #
+                # The legacy file's unit is genuinely ambiguous, which is the
+                # whole reason the replacement names its unit. The old script
+                # wrote milliseconds but carried a runtime fixup that multiplied
+                # any value below 1e12 by 1000, so a host whose timer had not
+                # run since before that fixup shipped can still hold seconds.
+                # Applying the same magnitude test rather than dividing
+                # unconditionally avoids turning such a value into a 1970
+                # timestamp.
+                LEGACY_TS=$(cat "$LEGACY_TS_FILE" 2>/dev/null || echo 0)
+                if [[ "$LEGACY_TS" =~ ^[0-9]+$ && "$LEGACY_TS" -gt 0 ]]; then
+                  if [[ "$LEGACY_TS" -ge 1000000000000 ]]; then
+                    echo $(( LEGACY_TS / 1000 )) > "$TS_FILE"
+                  else
+                    echo "$LEGACY_TS" > "$TS_FILE"
+                  fi
                   SEEDED=1
                 fi
               fi
@@ -167,7 +180,7 @@
               echo "$RUNNING" > "$LAST_TOPLEVEL_FILE"
             fi
             DEPLOY_TS=$(cat "$TS_FILE" 2>/dev/null || echo 0)
-            rm -f "$OLD_TS_MS_FILE" /var/lib/node_exporter/textfiles/nixos_build_last_sha
+            rm -f "$LEGACY_TS_FILE" /var/lib/node_exporter/textfiles/nixos_build_last_sha
 
             MANIFEST_AGE=0
             if [[ "$GENERATED_AT" -gt 0 ]]; then

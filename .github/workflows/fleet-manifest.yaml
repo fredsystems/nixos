@@ -45,6 +45,12 @@ jobs:
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # No step in this job needs the checkout's credential: the eval is
+          # local, and every remote git operation below authenticates through
+          # REMOTE_URL. Leaving it at the default would write the write-scoped
+          # token into .git/config for the duration of the job for nothing.
+          persist-credentials: false
 
       - name: Install Nix
         uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22

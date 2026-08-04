@@ -207,7 +207,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "count(nixos_deploy_state{role!=\"desktop\", state=\"drifted\"} == 1) or vector(0)",
+          "expr": "count(nixos_deploy_state{role!=\"desktop\", state=~\"drifted|unmanaged\"} == 1) or vector(0)",
           "legendFormat": "Needing deploy",
           "instant": true
         }
@@ -553,7 +553,7 @@
             ]
           },
           {
-            "matcher": { "id": "byName", "options": "Needs Deploy" },
+            "matcher": { "id": "byName", "options": "Deploy State" },
             "properties": [
               {
                 "id": "mappings",
@@ -561,13 +561,41 @@
                   {
                     "type": "value",
                     "options": {
-                      "0": { "text": "Current", "color": "green", "index": 0 }
+                      "up_to_date": {
+                        "text": "Current",
+                        "color": "green",
+                        "index": 0
+                      }
                     }
                   },
                   {
                     "type": "value",
                     "options": {
-                      "1": { "text": "DEPLOY", "color": "yellow", "index": 1 }
+                      "drifted": {
+                        "text": "DEPLOY",
+                        "color": "yellow",
+                        "index": 1
+                      }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "unmanaged": {
+                        "text": "UNMANAGED",
+                        "color": "orange",
+                        "index": 2
+                      }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "unknown": {
+                        "text": "UNKNOWN",
+                        "color": "red",
+                        "index": 3
+                      }
                     }
                   }
                 ]
@@ -576,7 +604,7 @@
                 "id": "custom.cellOptions",
                 "value": { "type": "color-background" }
               },
-              { "id": "custom.width", "value": 100 }
+              { "id": "custom.width", "value": 120 }
             ]
           },
           {
@@ -632,21 +660,22 @@
             "renameByName": {
               "host": "Host",
               "short_rev": "SHA",
+              "state": "Deploy State",
               "Value #build": "Last Deployed",
-              "Value #behind": "Needs Deploy",
               "Value #lag": "Drift Age (h)",
               "Value #reboot": "Reboot Needed",
               "Value #up": "Up"
             },
             "excludeByName": {
-              "Time": true
+              "Time": true,
+              "Value #behind": true
             },
             "indexByName": {
               "Host": 0,
               "Up": 1,
               "SHA": 2,
               "Last Deployed": 3,
-              "Needs Deploy": 4,
+              "Deploy State": 4,
               "Drift Age (h)": 5,
               "Reboot Needed": 6
             }
@@ -665,7 +694,7 @@
         {
           "refId": "behind",
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "max by (host) (nixos_deploy_state{state=\"drifted\"})",
+          "expr": "max by (host, state) (nixos_deploy_state == 1)",
           "instant": true,
           "legendFormat": "__auto",
           "format": "table"
@@ -673,7 +702,7 @@
         {
           "refId": "lag",
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "(time() - max by (host) (nixos_expected_change_timestamp_seconds)) / 3600 * max by (host) (nixos_deploy_state{state=\"drifted\"})",
+          "expr": "(time() - max by (host) (nixos_expected_change_timestamp_seconds)) / 3600 * max by (host) (nixos_deploy_state{state=~\"drifted|unmanaged\"})",
           "instant": true,
           "legendFormat": "__auto",
           "format": "table"

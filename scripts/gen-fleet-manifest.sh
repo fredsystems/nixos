@@ -136,6 +136,31 @@ else
     OLD_JSON='{}'
 fi
 
+# Hosts that were published before but are absent now. Reported loudly, but
+# deliberately NOT treated as fatal.
+#
+# A partially-evaluated subset is not reachable here: `nix eval --json` forces
+# the whole attrset, so any single host failing to evaluate fails the command
+# outright and we exit above. The only way this set is non-empty is a deliberate
+# removal from nixosConfigurations, which is a normal operation -- and failing on
+# it would wedge the publisher on every subsequent commit until someone
+# intervened, taking drift detection down for the entire fleet to report one
+# intentional change.
+#
+# The consequence of a genuinely unintended removal is already covered: the
+# dropped host resolves no history, reports `unknown`, and
+# NixOSDeployStateUnknown fires. This message is here so the cause is obvious in
+# the workflow log when that happens.
+DROPPED="$(jq -r --argjson paths "$PATHS_JSON" '
+    ((.hosts // {}) | keys) - ($paths | keys) | join(" ")
+' <<<"$OLD_JSON")"
+
+if [[ -n "$DROPPED" ]]; then
+    echo "WARNING: hosts in the previous manifest are no longer in nixosConfigurations: ${DROPPED}" >&2
+    echo "         They will lose their history and report deploy state 'unknown'." >&2
+    echo "         Expected after an intentional host removal; otherwise investigate." >&2
+fi
+
 NEW_JSON="$(
     jq -n \
         --argjson old "$OLD_JSON" \

@@ -131,6 +131,38 @@ groups:
             deploy-drift detection is effectively disabled fleet-wide. Check the
             Fleet Manifest workflow.
 
+      - alert: NixOSDeployStateMetricsMissing
+        # Every rule in this group selects a metric written by a single unit
+        # (nixos-deploy-state-metric.service). If that unit stops producing its
+        # textfile fleet-wide, every one of those selectors matches nothing and
+        # Prometheus reports all of them health=ok -- the "a rule that can never
+        # fire looks identical to a healthy rule" trap that
+        # scripts/check-alert-metrics.sh exists to catch at PR time. This is the
+        # runtime equivalent.
+        #
+        # Selects nixos_deploy_state rather than nixos_manifest_age_seconds
+        # deliberately: it is the metric four alerts in this group depend on, and
+        # both live in the same file, so one rule covers the lot. The four states
+        # are emitted unconditionally on every run, so absence here always means
+        # the exporter is not reporting, never that a condition is false.
+        #
+        # absent() only fires when the vector is completely empty, so this covers
+        # fleet-wide loss. Per-host loss is already covered by the generic
+        # SystemdUnitFailed (alert-rules.yaml) and SystemdTimerStale
+        # (capacity-alerts.yaml), both of which match this unit and timer without
+        # needing to name them.
+        expr: absent(nixos_deploy_state{role!="desktop"})
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "NixOS deploy-state metrics are missing fleet-wide"
+          description: >-
+            No non-desktop host is exporting nixos_deploy_state, so every
+            deploy-drift rule in this group is silently matching nothing. Check
+            nixos-deploy-state-metric.service and the node_exporter textfile
+            collector.
+
       - alert: NixOSManifestFetchStalled
         # Complements NixOSFleetManifestStale by covering the opposite fault: a
         # single host that has lost egress (or is being served a stale cached

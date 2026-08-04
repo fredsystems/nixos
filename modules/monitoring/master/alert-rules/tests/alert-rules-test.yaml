@@ -401,6 +401,27 @@ tests:
               summary: "NixOS host is running an unmanaged system closure"
               description: "vdlmhub is running nixos-system-vdlmhub-wip, which main has never produced (main expects nixos-system-vdlmhub-2). It was probably deployed from a dirty or feature-branch checkout and will not converge on its own."
 
+  # Desktops report `unmanaged` in NORMAL operation: they are rebuilt locally,
+  # frequently from a dirty tree, so their running closure is routinely one main
+  # never published. That makes the role!="desktop" selector on this rule more
+  # load-bearing than on NixOSDeployDrift -- removing it would page for both
+  # desktops permanently rather than occasionally.
+  - interval: 1m
+    name: NixOSUnmanagedSystem ignores desktops, which build locally by design
+    input_series:
+      - series: 'nixos_deploy_state{host="Daytona", hostname="Daytona", role="desktop", state="unmanaged"}'
+        values: "1+0x500"
+      - series: 'nixos_deploy_state{host="maranello", hostname="maranello", role="desktop", state="unmanaged"}'
+        values: "1+0x500"
+      - series: 'nixos_deploy_info{host="Daytona", hostname="Daytona", role="desktop", running="nixos-system-Daytona-local", expected="nixos-system-Daytona-1"}'
+        values: "1+0x500"
+      - series: 'nixos_deploy_info{host="maranello", hostname="maranello", role="desktop", running="nixos-system-maranello-local", expected="nixos-system-maranello-1"}'
+        values: "1+0x500"
+    alert_rule_test:
+      - eval_time: 3h
+        alertname: NixOSUnmanagedSystem
+        exp_alerts: []
+
   # A host that cannot resolve its expected closure has no drift detection at
   # all. A blind check that stays quiet is the exact failure this rule set was
   # rewritten to eliminate, so blindness itself has to be alertable.
@@ -422,6 +443,39 @@ tests:
             exp_annotations:
               summary: "NixOS deploy state cannot be determined"
               description: "vdlmhub could not resolve its expected closure from the fleet manifest for 12 hours. Drift detection is not running on this host. Check the fleet-manifest workflow and the host's egress to raw.githubusercontent.com."
+
+  # Every rule in the nixos-alerts group reads a metric from one unit. If that
+  # unit stops fleet-wide, all of them match nothing and Prometheus calls them
+  # healthy. These two cases assert the absent() backstop both fires on total
+  # loss and stays quiet whenever anything is still reporting.
+  - interval: 1m
+    name: NixOSDeployStateMetricsMissing fires when no host exports the metric
+    input_series:
+      # Some unrelated series must exist, or promtool has no timeline to
+      # evaluate against and the test proves nothing.
+      - series: 'nixos_needs_reboot{host="vdlmhub", hostname="vdlmhub", role="agent"}'
+        values: "0+0x200"
+    alert_rule_test:
+      - eval_time: 2h
+        alertname: NixOSDeployStateMetricsMissing
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: "NixOS deploy-state metrics are missing fleet-wide"
+              description: "No non-desktop host is exporting nixos_deploy_state, so every deploy-drift rule in this group is silently matching nothing. Check nixos-deploy-state-metric.service and the node_exporter textfile collector."
+
+  # One surviving host is enough to prove the exporter is not universally broken,
+  # and the per-host case belongs to SystemdUnitFailed / SystemdTimerStale.
+  - interval: 1m
+    name: NixOSDeployStateMetricsMissing stays silent while one host reports
+    input_series:
+      - series: 'nixos_deploy_state{host="vdlmhub", hostname="vdlmhub", role="agent", state="up_to_date"}'
+        values: "1+0x200"
+    alert_rule_test:
+      - eval_time: 2h
+        alertname: NixOSDeployStateMetricsMissing
+        exp_alerts: []
 
   # Watchdog for the publisher. If the manifest workflow stops, every host keeps
   # fetching the last good file successfully and keeps reporting up_to_date, so
