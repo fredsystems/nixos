@@ -85,6 +85,35 @@
 
             RUNNING=$(readlink -f /run/current-system 2>/dev/null || echo "")
 
+            # Deploy timestamp, read straight off the system profile symlink.
+            #
+            # /nix/var/nix/profiles/system is atomically replaced on every
+            # activation that sets a new generation -- by nixos-rebuild switch and
+            # by colmena apply alike -- so its own mtime IS the deploy time. It
+            # needs no state file, is correct on the very first run, and survives
+            # both a wiped StateDirectory and a reboot.
+            #
+            # An earlier version tracked this in state: it recorded the running
+            # closure and stamped the clock whenever that changed, seeding from
+            # the superseded metric's file on first run to avoid every host
+            # reporting "deployed just now" at once. That reasoning was wrong.
+            # This unit's first run can only ever happen on a closure that was
+            # just activated, because installing the unit requires activating
+            # one -- so "just now" was the correct answer, and seeding replaced it
+            # with the host's PREVIOUS deploy time.
+            #
+            # /run/current-system is deliberately NOT used for this: it lives on
+            # tmpfs and is recreated at boot, so its mtime is the last boot time
+            # rather than the last deploy.
+            #
+            # It is read here, before the state machine, because the state
+            # machine needs it to tell "main never produced this closure" apart
+            # from "the manifest is older than this closure".
+            DEPLOY_TS=$(stat -c %Y /nix/var/nix/profiles/system 2>/dev/null || echo 0)
+            if [[ ! "$DEPLOY_TS" =~ ^[0-9]+$ ]]; then
+              DEPLOY_TS=0
+            fi
+
             # Refresh the manifest into a temp file first: a truncated or
             # error-page response must not clobber a good cached copy, or a
             # transient GitHub failure would flip the whole fleet to unknown.
@@ -120,6 +149,26 @@
                 '[.hosts[$h].history[].toplevel] | index($p) != null' "$CACHE" >/dev/null 2>&1; then
                 # A closure main published previously: genuinely a deploy behind.
                 STATE="drifted"
+              elif [[ "$GENERATED_AT" -gt 0 && "$DEPLOY_TS" -gt 0 && "$GENERATED_AT" -lt "$DEPLOY_TS" ]]; then
+                # The manifest was generated BEFORE the running closure was
+                # activated, so it cannot possibly contain that closure and
+                # `unmanaged` is not a conclusion the evidence supports.
+                #
+                # This is the normal state for the first few minutes after any
+                # deploy: the manifest is published by a workflow that runs after
+                # the merge, and each host only refetches on its timer. Reporting
+                # `unmanaged` here blamed the host for the publisher simply not
+                # having caught up yet -- and `unmanaged` has a 2h fuse, so a
+                # deploy racing a slow or failed manifest run would have paged
+                # about a perfectly healthy fleet. That is the same
+                # misattribution NixOSFleetManifestStale uses min() to avoid, one
+                # layer down.
+                #
+                # `unknown` is the honest answer -- deploy state cannot be
+                # determined -- and its 12h fuse is long enough to never fire on
+                # a normal deploy while still catching a genuinely stuck
+                # publisher, which is exactly when this must not stay quiet.
+                STATE="unknown"
               else
                 # Never published by main -- a local, dirty or branch build.
                 # Distinguishing this from "drifted" is the whole point: the old
@@ -157,14 +206,6 @@
             # happened, and the value then froze there until the next real deploy
             # because the legacy file it seeded from was deleted on the same run.
             #
-            # /run/current-system is deliberately NOT used for this: it lives on
-            # tmpfs and is recreated at boot, so its mtime is the last boot time
-            # rather than the last deploy.
-            DEPLOY_TS=$(stat -c %Y /nix/var/nix/profiles/system 2>/dev/null || echo 0)
-            if [[ ! "$DEPLOY_TS" =~ ^[0-9]+$ ]]; then
-              DEPLOY_TS=0
-            fi
-
             # Retire the state and textfiles the superseded services left behind.
             rm -f /var/lib/node_exporter/textfiles/nixos_build_timestamp.val \
                   /var/lib/node_exporter/textfiles/nixos_build_last_sha \
@@ -375,4 +416,29 @@
   networking.firewall.allowedTCPPorts = [
     9100 # node_exporter
   ];
+
+  # Re-evaluate deploy state immediately after every activation.
+  #
+  # The metric's timer runs every 10 minutes (plus up to 2 minutes of jitter),
+  # so without this a freshly deployed host keeps reporting against the manifest
+  # it cached BEFORE the deploy for up to ~12 minutes. That window is what makes
+  # the whole fleet look wrong right after a deploy, which is confusing even
+  # though the paired state-machine guard now downgrades it from `unmanaged` to
+  # `unknown`. Kicking the unit here shrinks the window to however long the
+  # manifest publish itself takes.
+  #
+  # --no-block is required: activation must not wait on a network fetch, and a
+  # blocking start would also deadlock when activation is itself being run by
+  # systemd. Failure is ignored for the same reason -- this is an optimisation,
+  # and the timer remains the thing that guarantees the metric is emitted.
+  #
+  # No revision or other flake metadata is embedded here, so this does not
+  # reintroduce the closure-churn problem documented in flake/lib/mk-system.nix.
+  system.activationScripts.refreshDeployStateMetric = {
+    text = ''
+      ${config.systemd.package}/bin/systemctl start --no-block \
+        nixos-deploy-state-metric.service || true
+    '';
+    deps = [ ];
+  };
 }
