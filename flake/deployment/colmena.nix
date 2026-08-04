@@ -80,7 +80,51 @@ let
         ]
         ++ (node.tags or [ ]);
       };
-      imports = c.modules;
+      imports = c.modules ++ [
+        # Restore the flake-derived version metadata that nixpkgs' own
+        # `lib.nixosSystem` injects but Colmena's evaluator does not.
+        #
+        # nixpkgs' flake builds its `lib` as
+        #   (import ./lib).extend (import ./lib/flake-version-info.nix self)
+        # and that overlay rewrites `lib.trivial.versionSuffix` and
+        # `revisionWithDefault` from the flake's own `self`. `lib.nixosSystem`
+        # passes that extended lib into eval-config, so `mkSystem` (which calls
+        # `pkgsInput.lib.nixosSystem`) gets `26.05.<date>.<shortRev>`. Colmena
+        # calls eval-config directly with the plain `pkgs.lib` from
+        # `import nixpkgs { }`, which is NOT flake-extended, so the suffix fell
+        # back to the sentinel `pre-git`.
+        #
+        # The consequence was that `colmena apply` and
+        # `nix eval .#nixosConfigurations.<host>` produced DIFFERENT store paths
+        # for the same host and the same commit. Two things broke as a result:
+        #
+        #   * The fleet manifest is generated from nixosConfigurations, so every
+        #     colmena-deployed server compared as `unmanaged` forever -- its
+        #     running closure was a path the manifest could never contain.
+        #   * ci-linux.yaml builds and pushes
+        #     `.#nixosConfigurations.<host>...toplevel` to Attic, but colmena
+        #     deployed a different path, so the cache never had the closure
+        #     colmena actually wanted. Every `colmena apply` rebuilt the servers
+        #     locally instead of substituting from Attic.
+        #
+        # Setting these three options makes the two evaluation paths produce
+        # byte-identical toplevels (verified for all seven servers), which fixes
+        # both. Keep them in sync with whatever nixpkgs' flake-version-info
+        # overlay does if that upstream mechanism changes.
+        #
+        # NOTE: `system.nixos.revision` here is the NIXPKGS revision, not this
+        # flake's. It only changes when flake.lock's nixpkgs changes, which
+        # already changes the closure, so this does not reintroduce the
+        # "never bake the flake's git rev into a closure" problem documented in
+        # flake/lib/mk-system.nix.
+        {
+          system.nixos.versionSuffix = ".${
+            builtins.substring 0 8 c.nixpkgs.lastModifiedDate
+          }.${c.nixpkgs.shortRev}";
+          system.nixos.revision = c.nixpkgs.rev;
+          nixpkgs.flake.source = c.nixpkgs.outPath;
+        }
+      ];
     };
 
   # The raw colmena hive attrset.  colmenaHive (below) wraps this with

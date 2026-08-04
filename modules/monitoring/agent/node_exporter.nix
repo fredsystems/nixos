@@ -78,8 +78,6 @@
 
             STATE_DIR=/var/lib/nixos-deploy-state
             CACHE="$STATE_DIR/manifest.json"
-            TS_FILE="$STATE_DIR/deploy_timestamp_seconds"
-            LAST_TOPLEVEL_FILE="$STATE_DIR/last_toplevel"
             TEXTFILE_DIR=/var/lib/node_exporter/textfiles
             OUT="$TEXTFILE_DIR/nixos_deploy_state.prom"
 
@@ -139,48 +137,40 @@
                 "$CACHE" 2>/dev/null || echo "")
             fi
 
-            # Deploy timestamp: observed locally, keyed on the running closure
-            # changing. Keying on the closure rather than on a git SHA means
-            # redeploying an identical system does not reset it, and a commit
-            # that does not touch this host does not either.
+            # Deploy timestamp, read straight off the system profile symlink.
             #
-            # Stored and exported in seconds. The superseded metric used
-            # milliseconds implicitly and had to carry a runtime "migrate values
-            # below 1e12" fixup as a result; naming the unit in the metric
-            # removes that class of bug. Grafana wants ms, so the dashboard
-            # multiplies rather than the exporter guessing.
-            LEGACY_TS_FILE=/var/lib/node_exporter/textfiles/nixos_build_timestamp.val
-            LAST_TOPLEVEL=$(cat "$LAST_TOPLEVEL_FILE" 2>/dev/null || echo "")
-            if [[ -n "$RUNNING" && "$RUNNING" != "$LAST_TOPLEVEL" ]]; then
-              SEEDED=0
-              if [[ -z "$LAST_TOPLEVEL" && -s "$LEGACY_TS_FILE" ]]; then
-                # First run after replacing the old services: adopt the previous
-                # deploy timestamp rather than reporting a bogus "deployed just
-                # now" for every host in the fleet simultaneously.
-                #
-                # The legacy file's unit is genuinely ambiguous, which is the
-                # whole reason the replacement names its unit. The old script
-                # wrote milliseconds but carried a runtime fixup that multiplied
-                # any value below 1e12 by 1000, so a host whose timer had not
-                # run since before that fixup shipped can still hold seconds.
-                # Applying the same magnitude test rather than dividing
-                # unconditionally avoids turning such a value into a 1970
-                # timestamp.
-                LEGACY_TS=$(cat "$LEGACY_TS_FILE" 2>/dev/null || echo 0)
-                if [[ "$LEGACY_TS" =~ ^[0-9]+$ && "$LEGACY_TS" -gt 0 ]]; then
-                  if [[ "$LEGACY_TS" -ge 1000000000000 ]]; then
-                    echo $(( LEGACY_TS / 1000 )) > "$TS_FILE"
-                  else
-                    echo "$LEGACY_TS" > "$TS_FILE"
-                  fi
-                  SEEDED=1
-                fi
-              fi
-              [[ "$SEEDED" -eq 0 ]] && date +%s > "$TS_FILE"
-              echo "$RUNNING" > "$LAST_TOPLEVEL_FILE"
+            # /nix/var/nix/profiles/system is atomically replaced on every
+            # activation that sets a new generation -- by nixos-rebuild switch and
+            # by colmena apply alike -- so its own mtime IS the deploy time. It
+            # needs no state file, is correct on the very first run, and survives
+            # both a wiped StateDirectory and a reboot.
+            #
+            # An earlier version tracked this in state: it recorded the running
+            # closure and stamped the clock whenever that changed, seeding from
+            # the superseded metric's file on first run to avoid every host
+            # reporting "deployed just now" at once. That reasoning was wrong.
+            # This unit's first run can only ever happen on a closure that was
+            # just activated, because installing the unit requires activating
+            # one -- so "just now" was the correct answer, and seeding replaced it
+            # with the host's PREVIOUS deploy time. Every host in the fleet
+            # reported a deploy several hours older than the one that had just
+            # happened, and the value then froze there until the next real deploy
+            # because the legacy file it seeded from was deleted on the same run.
+            #
+            # /run/current-system is deliberately NOT used for this: it lives on
+            # tmpfs and is recreated at boot, so its mtime is the last boot time
+            # rather than the last deploy.
+            DEPLOY_TS=$(stat -c %Y /nix/var/nix/profiles/system 2>/dev/null || echo 0)
+            if [[ ! "$DEPLOY_TS" =~ ^[0-9]+$ ]]; then
+              DEPLOY_TS=0
             fi
-            DEPLOY_TS=$(cat "$TS_FILE" 2>/dev/null || echo 0)
-            rm -f "$LEGACY_TS_FILE" /var/lib/node_exporter/textfiles/nixos_build_last_sha
+
+            # Retire the state and textfiles the superseded services left behind.
+            rm -f /var/lib/node_exporter/textfiles/nixos_build_timestamp.val \
+                  /var/lib/node_exporter/textfiles/nixos_build_last_sha \
+                  "$STATE_DIR/deploy_timestamp_seconds" \
+                  "$STATE_DIR/deploy_timestamp_ms" \
+                  "$STATE_DIR/last_toplevel"
 
             MANIFEST_AGE=0
             if [[ "$GENERATED_AT" -gt 0 ]]; then
