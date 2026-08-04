@@ -737,3 +737,40 @@ tests:
             exp_annotations:
               summary: "Tailscale is not running on fredvps"
               description: "tailscaled on fredvps reports a backend state other than Running for 15 minutes. If the node key has expired the state will be NeedsLogin and the host needs interactive re-authentication."
+
+  # A failed status read suppresses all three other tailscale rules by design,
+  # so the failure itself has to be alertable or the whole section goes quiet
+  # precisely when it can no longer see anything.
+  - interval: 1m
+    name: TailscaleStatusScrapeFailed fires while the expiry rules stay silent
+    input_series:
+      - series: 'tailscale_status_scrape_success{host="sdrhub", hostname="sdrhub", role="master"}'
+        values: "0+0x200"
+      - series: 'tailscale_key_expiry_seconds{host="sdrhub", hostname="sdrhub", role="master"}'
+        values: "0+0x200"
+      - series: 'tailscale_key_expiry_disabled{host="sdrhub", hostname="sdrhub", role="master"}'
+        values: "0+0x200"
+      - series: 'tailscale_backend_running{host="sdrhub", hostname="sdrhub", role="master"}'
+        values: "0+0x200"
+    alert_rule_test:
+      - eval_time: 1h
+        alertname: TailscaleStatusScrapeFailed
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              host: sdrhub
+              hostname: sdrhub
+              role: master
+            exp_annotations:
+              summary: "Cannot read Tailscale status on sdrhub"
+              description: "tailscale status --json has been unreadable on sdrhub for 30 minutes, so key expiry and backend state are both unmonitored there. The collector bounds the call at 10s and reports the failure rather than hanging, so this points at tailscaled being wedged or absent rather than at the metric unit."
+      # The three suppressed rules must all stay silent on the same input.
+      - eval_time: 1h
+        alertname: TailscaleKeyExpiryCritical
+        exp_alerts: []
+      - eval_time: 1h
+        alertname: TailscaleKeyExpiringSoon
+        exp_alerts: []
+      - eval_time: 1h
+        alertname: TailscaleBackendNotRunning
+        exp_alerts: []

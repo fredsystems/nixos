@@ -92,7 +92,7 @@ while [[ $# -gt 0 ]]; do
     shift
 done
 
-for tool in nix jq git ssh curl colmena; do
+for tool in nix jq git ssh curl colmena timeout; do
     command -v "$tool" >/dev/null 2>&1 || {
         echo "error: required tool not on PATH: $tool" >&2
         exit 1
@@ -119,6 +119,13 @@ fi
 EVAL_STDERR="$(mktemp)"
 trap 'rm -f "$EVAL_STDERR"' EXIT
 
+# Captured before evaluation and re-checked immediately before `colmena apply`,
+# so an edit landing mid-run cannot deploy closures this run never evaluated.
+SOURCE_ID_AT_EVAL="$(
+    git rev-parse HEAD
+    git status --porcelain
+)"
+
 echo "Evaluating what colmena would deploy..." >&2
 if ! EXPECTED_JSON="$(
     nix eval --json '.#colmenaHive.nodes' \
@@ -141,41 +148,143 @@ if [[ ${#NODES[@]} -eq 0 ]]; then
 fi
 echo "Evaluated ${#NODES[@]} node(s)." >&2
 
-# --- Manifest guard -------------------------------------------------------
+# --- Determine what each node is actually running -------------------------
+#
+# Done BEFORE the manifest guard, so the guard can be scoped to the nodes that
+# are actually going to be deployed. Checking every evaluated node instead would
+# refuse the whole run because some node that needs no deploy happens to have an
+# unpublished closure -- blocking a safe deployment for an unrelated host.
 
-# Returns the space-separated list of nodes whose locally-evaluated closure is
-# not the one the published manifest currently expects for them.
+DRIFTED=()
+CURRENT=()
+UNREACHABLE=()
+
+for node in "${NODES[@]}"; do
+    expected="$(jq -r --arg n "$node" '.[$n]' <<<"$EXPECTED_JSON")"
+    host="$(jq -r --arg n "$node" '.[$n].targetHost // ""' <<<"$DEPLOY_JSON")"
+    port="$(jq -r --arg n "$node" '.[$n].targetPort // 22' <<<"$DEPLOY_JSON")"
+    user="$(jq -r --arg n "$node" '.[$n].targetUser // "root"' <<<"$DEPLOY_JSON")"
+
+    if [[ -z "$host" ]]; then
+        UNREACHABLE+=("$node (no targetHost)")
+        continue
+    fi
+
+    # StrictHostKeyChecking is pinned to yes rather than left to the caller's
+    # ssh_config, and certainly not set to accept-new.
+    #
+    # This probe decides whether a host is skipped. An attacker able to spoof DNS
+    # or a route could present their own host key, answer with the expected
+    # closure path, and cause a genuinely drifted host to be classified as
+    # current -- silently withholding a deploy, which is the one failure
+    # direction here that matters. Trust-on-first-use is therefore the wrong
+    # default, and relying on the ambient config is not enough either: a
+    # `StrictHostKeyChecking no` entry in ~/.ssh/config would silently defeat it.
+    #
+    # Every node is already in known_hosts because colmena connects to them, so
+    # an unknown key means something is wrong. It fails, lands the node in
+    # UNREACHABLE, and gets reported rather than skipped.
+    #
+    # The outer timeout bounds the whole session, which ConnectTimeout does not:
+    # it only covers reaching the port. A host that accepts the connection and
+    # then wedges -- full disk, load spike, D-state -- would otherwise block the
+    # loop forever and prevent every later node from being classified.
+    # Retried once. A transient blip -- flaky mDNS for a .local name, a moment of
+    # packet loss -- otherwise demotes a host to UNREACHABLE, and the run then
+    # proceeds without it. That is the one failure direction that matters here:
+    # withholding a deploy from a host that needed one. Observed in practice, so
+    # this is not hypothetical.
+    running=""
+    probe_ok=0
+    for attempt in 1 2; do
+        if running="$(
+            timeout 30 ssh \
+                -o BatchMode=yes \
+                -o ConnectTimeout=10 \
+                -o StrictHostKeyChecking=yes \
+                -p "$port" "${user}@${host}" 'readlink -f /run/current-system' 2>/dev/null
+        )"; then
+            probe_ok=1
+            break
+        fi
+        [[ "$attempt" -eq 1 ]] && sleep 3
+    done
+
+    if [[ "$probe_ok" -eq 0 ]]; then
+        UNREACHABLE+=("$node ($host)")
+        continue
+    fi
+
+    if [[ "$running" == "$expected" ]]; then
+        CURRENT+=("$node")
+    else
+        DRIFTED+=("$node")
+    fi
+done
+
+printf '\n%-12s %s\n' "current:" "${CURRENT[*]:-none}"
+printf '%-12s %s\n' "to deploy:" "${DRIFTED[*]:-none}"
+if [[ ${#UNREACHABLE[@]} -gt 0 ]]; then
+    # Reported rather than silently skipped: an unreachable node is one colmena
+    # could not have deployed either, and treating it as "current" would quietly
+    # leave it behind forever.
+    printf '%-12s %s\n' "unreachable:" "${UNREACHABLE[*]}"
+fi
+echo
+
+if [[ ${#DRIFTED[@]} -eq 0 ]]; then
+    echo "Nothing to deploy."
+    exit 0
+fi
+
+# --- Manifest guard, scoped to the deployment targets ---------------------
+
+# Prints the space-separated subset of the given nodes whose locally-evaluated
+# closure is not the one the published manifest currently expects for them.
+#
+# $1 is the remaining seconds allowed for the fetch, so a --wait loop cannot
+# exceed its deadline by however long curl decides to spend.
 manifest_lagging_nodes() {
-    local manifest
-    manifest="$(curl -sfL --max-time 30 "$MANIFEST_URL" 2>/dev/null || echo "")"
+    local budget="$1" manifest
+    [[ "$budget" -lt 1 ]] && budget=1
+
+    manifest="$(curl -sfL --max-time "$budget" "$MANIFEST_URL" 2>/dev/null || echo "")"
 
     if [[ -z "$manifest" ]] || ! jq -e '.schema == 1' <<<"$manifest" >/dev/null 2>&1; then
         echo "__FETCH_FAILED__"
         return 0
     fi
 
-    jq -rn --argjson expected "$EXPECTED_JSON" --argjson m "$manifest" '
-        $expected | to_entries
+    jq -rn \
+        --argjson expected "$EXPECTED_JSON" \
+        --argjson m "$manifest" \
+        --arg targets "${DRIFTED[*]}" \
+        '
+        ($targets | split(" ")) as $t
+        | $expected | to_entries
         | map(select(
-            ($m.hosts[.key].history[0].toplevel // "") != .value
+            (.key | IN($t[]))
+            and (($m.hosts[.key].history[0].toplevel // "") != .value)
           ) | .key)
         | join(" ")
-    '
+        '
 }
 
 if [[ $FORCE -eq 1 ]]; then
     echo "Skipping the manifest guard (--force)." >&2
 else
-    LAGGING="$(manifest_lagging_nodes)"
+    # Deadline measured with SECONDS, not by summing sleeps: each fetch can also
+    # consume wall-clock time, so accumulating only the sleeps let --wait run for
+    # several times its stated timeout when every fetch was slow.
+    DEADLINE=$((SECONDS + WAIT_TIMEOUT))
+    LAGGING="$(manifest_lagging_nodes "$((DEADLINE - SECONDS))")"
 
     if [[ $WAIT -eq 1 && -n "$LAGGING" ]]; then
         echo "Manifest has not caught up yet; waiting up to ${WAIT_TIMEOUT}s..." >&2
-        WAITED=0
-        while [[ -n "$LAGGING" && "$WAITED" -lt "$WAIT_TIMEOUT" ]]; do
+        while [[ -n "$LAGGING" && "$SECONDS" -lt "$DEADLINE" ]]; do
             sleep "$WAIT_INTERVAL"
-            WAITED=$((WAITED + WAIT_INTERVAL))
-            LAGGING="$(manifest_lagging_nodes)"
-            [[ -z "$LAGGING" ]] && echo "Manifest caught up after ${WAITED}s." >&2
+            LAGGING="$(manifest_lagging_nodes "$((DEADLINE - SECONDS))")"
+            [[ -z "$LAGGING" ]] && echo "Manifest caught up after $((WAIT_TIMEOUT - (DEADLINE - SECONDS)))s." >&2
         done
     fi
 
@@ -209,58 +318,25 @@ EOF
     echo "Manifest matches the closures to be deployed." >&2
 fi
 
-# --- Determine what each node is actually running -------------------------
+# --- Deploy ---------------------------------------------------------------
 
-DRIFTED=()
-CURRENT=()
-UNREACHABLE=()
+# `nix eval` above and `colmena apply` below resolve the flake independently, so
+# a worktree edit landing in between would deploy something this run never
+# evaluated and the guard never checked. Re-checking the source identity closes
+# that window: cheaper than snapshotting the tree, and it catches the realistic
+# case of editing a file while the SSH probing was in progress.
+SOURCE_ID_NOW="$(
+    git rev-parse HEAD
+    git status --porcelain
+)"
+if [[ "$SOURCE_ID_NOW" != "$SOURCE_ID_AT_EVAL" ]]; then
+    cat >&2 <<'EOF'
+error: the working tree changed while this run was in progress.
 
-for node in "${NODES[@]}"; do
-    expected="$(jq -r --arg n "$node" '.[$n]' <<<"$EXPECTED_JSON")"
-    host="$(jq -r --arg n "$node" '.[$n].targetHost // ""' <<<"$DEPLOY_JSON")"
-    port="$(jq -r --arg n "$node" '.[$n].targetPort // 22' <<<"$DEPLOY_JSON")"
-    user="$(jq -r --arg n "$node" '.[$n].targetUser // "root"' <<<"$DEPLOY_JSON")"
-
-    if [[ -z "$host" ]]; then
-        UNREACHABLE+=("$node (no targetHost)")
-        continue
-    fi
-
-    # StrictHostKeyChecking is deliberately left at the user's default rather
-    # than set to accept-new. This script decides whether to deploy, so
-    # silently trusting an unrecognised host key is the wrong default: an
-    # unknown host should be surfaced, not adopted. Under BatchMode an unknown
-    # key simply fails, which lands the node in UNREACHABLE below and is
-    # reported rather than skipped. Every node here is already in known_hosts
-    # because colmena connects to them, so this costs nothing in practice.
-    if ! running="$(
-        ssh -o BatchMode=yes -o ConnectTimeout=10 \
-            -p "$port" "${user}@${host}" 'readlink -f /run/current-system' 2>/dev/null
-    )"; then
-        UNREACHABLE+=("$node ($host)")
-        continue
-    fi
-
-    if [[ "$running" == "$expected" ]]; then
-        CURRENT+=("$node")
-    else
-        DRIFTED+=("$node")
-    fi
-done
-
-printf '\n%-12s %s\n' "current:" "${CURRENT[*]:-none}"
-printf '%-12s %s\n' "to deploy:" "${DRIFTED[*]:-none}"
-if [[ ${#UNREACHABLE[@]} -gt 0 ]]; then
-    # Reported rather than silently skipped: an unreachable node is one colmena
-    # could not have deployed either, and treating it as "current" would quietly
-    # leave it behind forever.
-    printf '%-12s %s\n' "unreachable:" "${UNREACHABLE[*]}"
-fi
-echo
-
-if [[ ${#DRIFTED[@]} -eq 0 ]]; then
-    echo "Nothing to deploy."
-    exit 0
+  The closures checked against the manifest are no longer the ones colmena would
+  build. Re-run so the evaluation, the guard and the deployment all agree.
+EOF
+    exit 1
 fi
 
 TARGETS="$(

@@ -78,10 +78,19 @@ groups:
         #   flipaholics.pro         ~0.62s  (slowest backend; consistently so)
         #   LAN nginx vhosts        0.007s - 0.03s
         #
-        # Worst single observation across all 20 targets was 1.03s, on a cold
-        # first probe. 5s is roughly a 5x margin over that and an 8x margin
-        # over the slowest steady-state target, so this cannot fire on normal
-        # variance -- only on genuine degradation.
+        # Worst single observation was 1.03s, on a cold first probe. 5s is
+        # roughly a 5x margin over that and an 8x margin over the slowest
+        # steady-state target, so this cannot fire on normal variance -- only on
+        # genuine degradation.
+        #
+        # That baseline was measured across the 20 targets that existed when it
+        # was taken. The 16 `-secondary` targets added later were verified to
+        # respond as classified but were NOT separately timed. They are not
+        # expected to shift it: the www aliases are the same nginx vhosts and
+        # certificates as their apex, and the two sub-path targets proxy to
+        # loopback backends on the same host as an already-measured vhost. If a
+        # future target is added that is not in one of those classes, re-measure
+        # rather than assuming this margin still holds.
         #
         # Deliberately below the module timeout (10s) and the job's
         # scrape_timeout (15s), so a slow-but-working endpoint surfaces here

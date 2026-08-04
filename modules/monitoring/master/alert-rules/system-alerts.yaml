@@ -291,6 +291,33 @@ groups:
             also removes it from Prometheus. Re-authenticate and then disable key
             expiry for this device.
 
+      - alert: TailscaleStatusScrapeFailed
+        # Every other rule in this group requires
+        # tailscale_status_scrape_success == 1, because a failed status read
+        # reports expiry 0 and backend_running 0 and would otherwise fire them
+        # spuriously. The consequence is that a persistently failing read
+        # silences all three at once, so without this rule the entire tailscale
+        # section goes quiet exactly when it has stopped being able to see
+        # anything. Nothing else catches it either: the collector times the call
+        # out and still exits 0, so the unit does not fail and
+        # SystemdUnitFailed never fires.
+        #
+        # 30m against a 5-minute collection interval is six consecutive failed
+        # reads -- long enough to ride out a tailscaled restart, short enough to
+        # be actionable.
+        expr: tailscale_status_scrape_success == 0
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Cannot read Tailscale status on {{ $labels.host }}"
+          description: >-
+            tailscale status --json has been unreadable on {{ $labels.host }} for
+            30 minutes, so key expiry and backend state are both unmonitored
+            there. The collector bounds the call at 10s and reports the failure
+            rather than hanging, so this points at tailscaled being wedged or
+            absent rather than at the metric unit.
+
       - alert: TailscaleBackendNotRunning
         # BackendState is not Running. The state after a key expires is
         # NeedsLogin, so this is the signal that the host is actually off the

@@ -244,3 +244,74 @@ tests:
       - eval_time: 90m
         alertname: BlackboxCertExpiringSoon
         exp_alerts: []
+
+  # ---------------------------------------------------------------------------
+  # The `-secondary` jobs must be invisible to the TLS rules.
+  #
+  # A secondary target shares its certificate with a primary one: a www alias is
+  # folded into the apex's ACME cert, and a sub-path is the same vhost. Including
+  # them would report one renewal failure once per probed URL instead of once per
+  # certificate. The job-name suffix is therefore load-bearing rather than
+  # cosmetic, and these cases are what stop a rename or a selector edit quietly
+  # restoring the duplicates.
+  # ---------------------------------------------------------------------------
+
+  - interval: 1m
+    name: Cert expiry alerts ignore -secondary jobs and still fire for the primary
+    input_series:
+      # 3 days of validity: inside the critical threshold for every series here.
+      - series: 'probe_ssl_earliest_cert_expiry{job="blackbox-https", instance="https://fredclausen.com/"}'
+        values: "259200+0x200"
+      - series: 'probe_ssl_earliest_cert_expiry{job="blackbox-https-secondary", instance="https://www.fredclausen.com/"}'
+        values: "259200+0x200"
+      - series: 'probe_ssl_earliest_cert_expiry{job="blackbox-https-redirect-secondary", instance="https://www.acarshub.com/"}'
+        values: "259200+0x200"
+    alert_rule_test:
+      - eval_time: 2h
+        alertname: BlackboxCertExpiryCritical
+        # Exactly one alert: the primary. Both secondary series share a
+        # certificate with a primary target and must not add a second report.
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: blackbox-https
+              instance: https://fredclausen.com/
+            exp_annotations:
+              summary: "TLS certificate for https://fredclausen.com/ expires in under 7 days"
+              description: "The certificate served by https://fredclausen.com/ has less than 7 days of validity left. Browsers will start refusing this endpoint. Fix ACME renewal on the host terminating this vhost now."
+
+  - interval: 1m
+    name: The 21-day warning also ignores -secondary jobs
+    input_series:
+      # 14 days: inside the warning band, above the 7d critical floor.
+      - series: 'probe_ssl_earliest_cert_expiry{job="blackbox-https-secondary", instance="https://www.acarshub.app/"}'
+        values: "1209600+0x200"
+      - series: 'probe_ssl_earliest_cert_expiry{job="blackbox-https-redirect-secondary", instance="https://www.sdr-e.org/"}'
+        values: "1209600+0x200"
+    alert_rule_test:
+      - eval_time: 2h
+        alertname: BlackboxCertExpiringSoon
+        exp_alerts: []
+      - eval_time: 2h
+        alertname: BlackboxCertExpiryCritical
+        exp_alerts: []
+
+  # Availability rules, by contrast, DO apply to secondary jobs -- that is the
+  # entire reason those targets were added. A www alias broken by a dropped
+  # serverAlias must be caught.
+  - interval: 1m
+    name: BlackboxProbeFailed fires for a -secondary target
+    input_series:
+      - series: 'probe_success{job="blackbox-https-secondary", instance="https://fredclausen.com/tar1090/"}'
+        values: "0+0x15"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: BlackboxProbeFailed
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: blackbox-https-secondary
+              instance: https://fredclausen.com/tar1090/
+            exp_annotations:
+              summary: "Endpoint https://fredclausen.com/tar1090/ is failing its probe"
+              description: "Blackbox job blackbox-https-secondary has been unable to get a valid response from https://fredclausen.com/tar1090/ for 5 minutes."

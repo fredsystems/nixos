@@ -119,11 +119,28 @@
     timers.tailscale-expiry-metric = {
       wantedBy = [ "timers.target" ];
       timerConfig = {
-        # Expiry moves on a scale of months; hourly is ample and keeps the series
-        # responsive enough to notice tailscaled dying.
-        OnCalendar = "hourly";
+        # Every 5 minutes, paced by the backend-state metric rather than by
+        # expiry.
+        #
+        # Expiry alone would be happy with an hourly run -- it moves on a scale
+        # of months. But this unit also emits tailscale_backend_running, and
+        # TailscaleBackendNotRunning claims to fire after 15 minutes. On an
+        # hourly timer that claim was false: up to 65 minutes to write the 0,
+        # plus the 15 minute `for`, is roughly 80 minutes before a node that has
+        # dropped to NeedsLogin is reported. An alert whose stated window is five
+        # times shorter than reality is worse than one with an honest longer
+        # window.
+        #
+        # Raising the frequency of the whole unit rather than splitting
+        # backend-state into a second service and timer: the work is a single
+        # local API call against tailscaled, so there is nothing to gain by
+        # collecting the two halves separately, and a second unit would be more
+        # moving parts for the same result.
+        OnCalendar = "*:0/5";
         Persistent = true;
-        RandomizedDelaySec = "300";
+        # Small relative to the interval; enough to keep the two tailnet hosts
+        # off the same instant without eating into the detection window.
+        RandomizedDelaySec = "30";
       };
     };
   };
