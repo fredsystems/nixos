@@ -1,8 +1,13 @@
 {
-  "generated_at": 1785885206,
+  "generated_at": 1785887739,
   "hosts": {
     "Daytona": {
       "history": [
+        {
+          "at": 1785887739,
+          "rev": "55a0836c03035eef2aafaf63d1a07b3b5c956ad8",
+          "toplevel": "/nix/store/pz2sbd6wswv31n3pyxc4g175d0qaqrsx-nixos-system-Daytona-26.11.20260802.6438090"
+        },
         {
           "at": 1785885206,
           "rev": "3198247a806019f575e2383e4d85d4bd076a1f50",
@@ -173,6 +178,6 @@
       ]
     }
   },
-  "rev": "3198247a806019f575e2383e4d85d4bd076a1f50",
+  "rev": "55a0836c03035eef2aafaf63d1a07b3b5c956ad8",
   "schema": 1
 }
