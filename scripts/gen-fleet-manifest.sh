@@ -128,6 +128,64 @@ fi
 
 echo "Evaluated $(jq -r 'length' <<<"$PATHS_JSON") host(s)." >&2
 
+# Assert that what colmena would deploy matches what this manifest publishes.
+#
+# This is a regression guard for a bug that made the entire server fleet report
+# `unmanaged`. The manifest is generated from `nixosConfigurations`, but servers
+# are deployed by colmena, and the two used to evaluate to DIFFERENT store paths
+# for the same host at the same commit: nixpkgs' `lib.nixosSystem` passes a
+# flake-extended `lib` into eval-config, colmena calls eval-config directly with
+# the plain `pkgs.lib`, and `system.nixos.versionSuffix` consequently came out as
+# `pre-git` instead of `.<date>.<shortRev>`. The manifest therefore described
+# paths that no server would ever be running. See the comment in
+# flake/deployment/colmena.nix.
+#
+# Nothing else in CI evaluates colmenaHive, so without this check the two paths
+# can silently diverge again -- a nixpkgs change to that lib overlay, or a
+# colmena bump, would be enough. Publishing a manifest that describes
+# undeployable paths is worse than not publishing: it marks every server
+# unmanaged. So divergence is fatal here rather than a warning.
+echo "Verifying colmena and nixosConfigurations agree..." >&2
+
+COLMENA_STDERR="$(mktemp)"
+trap 'rm -f "$EVAL_STDERR" "$COLMENA_STDERR"' EXIT
+
+if ! COLMENA_JSON="$(
+    nix eval --json '.#colmenaHive.nodes' \
+        --apply 'ns: builtins.mapAttrs (_: n: n.config.system.build.toplevel.outPath) ns' \
+        2>"$COLMENA_STDERR"
+)"; then
+    printf 'error: failed to evaluate colmenaHive nodes:\n%s\n' "$(cat "$COLMENA_STDERR")" >&2
+    echo "       Cannot confirm the manifest describes deployable paths; refusing to publish." >&2
+    exit 1
+fi
+
+MISMATCHED="$(
+    jq -rn \
+        --argjson a "$PATHS_JSON" \
+        --argjson b "$COLMENA_JSON" \
+        '$b | to_entries
+         | map(select($a[.key] != null and $a[.key] != .value)
+               | "  \(.key)\n    nixosConfigurations: \($a[.key])\n    colmena:             \(.value)")
+         | join("\n")'
+)"
+
+if [[ -n "$MISMATCHED" ]]; then
+    cat >&2 <<EOF
+error: colmena would deploy different closures than this manifest publishes.
+
+$MISMATCHED
+
+Every affected host would report deploy state 'unmanaged' forever, because its
+running closure is a path the manifest can never contain. Refusing to publish.
+
+Fix the divergence (see flake/deployment/colmena.nix) rather than this check.
+EOF
+    exit 1
+fi
+
+echo "colmena and nixosConfigurations agree for $(jq -r 'length' <<<"$COLMENA_JSON") server(s)." >&2
+
 # Previous manifest, if any. A malformed existing file is treated as absent
 # rather than fatal so a corrupted manifest self-heals on the next run.
 #
