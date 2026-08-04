@@ -303,11 +303,23 @@ mv "${OUT}.tmp" "$OUT"
 
 # Report what moved, so the workflow log answers "which hosts did this commit
 # actually affect?" directly.
-CHANGED="$(jq -r --arg rev "$REV" '
-    .hosts | to_entries
-    | map(select(.value.history[0].rev == $rev))
-    | map(.key) | join(" ")
-' "$OUT")"
+# Computed by diffing against the previous manifest rather than by selecting
+# `history[0].rev == $REV`.
+#
+# That selector answers "whose newest entry carries this revision", which is only
+# the same question when every entry at this revision was created by THIS run. Re-
+# run the generator at an unchanged revision -- a workflow_dispatch, or a retry --
+# and it reports every host as changed, because their entries were created at that
+# same revision the first time round. Diffing the paths is what the sentence
+# actually claims to describe.
+CHANGED="$(
+    jq -rn \
+        --argjson old "$OLD_JSON" \
+        --argjson paths "$PATHS_JSON" \
+        '$paths | to_entries
+         | map(select((($old.hosts // {})[.key].history[0].toplevel // "") != .value) | .key)
+         | join(" ")'
+)"
 
 if [[ -n "$CHANGED" ]]; then
     echo "Hosts whose expected closure changed at ${REV}: ${CHANGED}" >&2
