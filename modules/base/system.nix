@@ -44,6 +44,30 @@ in
         "niri-epireyn.cachix.org-1:tlVyFN7CtsDT+ZcLPS+ekFWeT1X6X4OqvWqbBMyIzFA="
       ];
 
+      # Nix's default is 15s, which is the wrong shape for a substituter list
+      # whose first entry is a LAN address.
+      #
+      # http://192.168.31.14:8080/fred is unroutable from anywhere but the home
+      # network, and a foreign network typically blackholes 192.168.31.0/24
+      # rather than returning ICMP unreachable -- so the connection does not fail
+      # fast, it sits through the full timeout. Nix stops retrying a cache that
+      # errored for the rest of the process, so the cost is roughly once per nix
+      # invocation rather than once per path, but with direnv auto-loading a flake
+      # on every `cd` that is once per directory change.
+      #
+      # 5s only bounds the TCP handshake (`stalled-download-timeout` covers
+      # stalls mid-transfer), and a handshake to cache.nixos.org or cachix
+      # completes in well under a second even on a high-latency link, so there is
+      # no realistic way for this to turn a working remote cache into a failure.
+      # It cuts the off-LAN stall by two thirds while leaving an order of
+      # magnitude of headroom.
+      #
+      # This is a mitigation, not the fix: with Tailscale up and
+      # --accept-routes, 192.168.31.14 is genuinely reachable and the timeout
+      # stops mattering. It is worth having anyway, for when the tunnel is down
+      # or deliberately off.
+      connect-timeout = 5;
+
       trusted-users = [
         "root"
         "@wheel"
