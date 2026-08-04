@@ -270,29 +270,266 @@ tests:
               summary: "Docker daemon is not running on vdlmhub"
               description: "dockerd is not active. Every container on this host is down."
 
-  # NixOSNotOnMain previously matched host!~"daytona|maranello", which never
-  # excluded Daytona because the host label is "Daytona" and PromQL regexes
-  # are case-sensitive.
+  # ---------------------------------------------------------------------------
+  # Deploy-state alerts.
+  #
+  # These replace NixOSNotOnMain / NixOSRevisionBehind, which counted commits
+  # between the host's recorded git SHA and main. The tests below encode the
+  # three failure modes that motivated the rewrite, so a regression to
+  # commit-distance semantics fails here rather than in production Pushover
+  # notifications.
+  #
+  # promtool has no clock, so `time()` in the drift rule evaluates to the test's
+  # eval_time as a Unix timestamp -- for a test starting at epoch 0, eval_time
+  # 7h means time() == 25200. Expected-change timestamps below are therefore
+  # small absolute numbers chosen relative to that, not real dates.
+  # ---------------------------------------------------------------------------
+
+  # Failure mode (b)/(c): main moves, but the commits do not change this host's
+  # closure. The host reports up_to_date and, critically, its
+  # expected-change timestamp does not move -- so nothing fires. This is the
+  # case that generated recurring false alerts on all seven servers every time
+  # the nightly opencode overlay bump landed.
   - interval: 1m
-    name: NixOSNotOnMain ignores desktops regardless of hostname casing
+    name: NixOSDeployDrift stays silent when main does not change this host
     input_series:
-      - series: 'nixos_branch{host="Daytona", hostname="Daytona", role="desktop"}'
+      - series: 'nixos_deploy_state{host="vdlmhub", hostname="vdlmhub", role="agent", state="up_to_date"}'
+        values: "1+0x500"
+      - series: 'nixos_deploy_state{host="vdlmhub", hostname="vdlmhub", role="agent", state="drifted"}'
         values: "0+0x500"
-      - series: 'nixos_branch{host="maranello", hostname="maranello", role="desktop"}'
-        values: "0+0x500"
+      - series: 'nixos_expected_change_timestamp_seconds{host="vdlmhub", hostname="vdlmhub", role="agent"}'
+        values: "100+0x500"
+      - series: 'nixos_deploy_info{host="vdlmhub", hostname="vdlmhub", role="agent", running="nixos-system-vdlmhub-1", expected="nixos-system-vdlmhub-1", short_rev="aaaaaaa", short_expected_rev="aaaaaaa"}'
+        values: "1+0x500"
     alert_rule_test:
       - eval_time: 7h
-        alertname: NixOSNotOnMain
+        alertname: NixOSDeployDrift
         exp_alerts: []
 
+  # Drift within the grace window must not page. The closure genuinely changed,
+  # but only ~1h ago (expected-change timestamp 21000 vs time() == 25200), which
+  # is inside the six-hour allowance for a deploy to happen.
   - interval: 1m
-    name: NixOSNotOnMain fires for a server off main
+    name: NixOSDeployDrift stays silent inside the grace window
     input_series:
-      - series: 'nixos_branch{host="vdlmhub", hostname="vdlmhub", role="agent"}'
-        values: "0+0x500"
+      - series: 'nixos_deploy_state{host="vdlmhub", hostname="vdlmhub", role="agent", state="drifted"}'
+        values: "1+0x500"
+      - series: 'nixos_expected_change_timestamp_seconds{host="vdlmhub", hostname="vdlmhub", role="agent"}'
+        values: "21000+0x500"
+      - series: 'nixos_deploy_info{host="vdlmhub", hostname="vdlmhub", role="agent", running="nixos-system-vdlmhub-1", expected="nixos-system-vdlmhub-2", short_rev="aaaaaaa", short_expected_rev="bbbbbbb"}'
+        values: "1+0x500"
     alert_rule_test:
       - eval_time: 7h
-        alertname: NixOSNotOnMain
+        alertname: NixOSDeployDrift
+        exp_alerts: []
+
+  # Legitimate drift: the host's closure changed more than six hours ago and the
+  # host has not taken it up. The annotation must name both closures, which only
+  # works if the group_left join against the constant-valued nixos_deploy_info
+  # is intact.
+  - interval: 1m
+    name: NixOSDeployDrift fires when this host's closure changed long ago
+    input_series:
+      - series: 'nixos_deploy_state{host="vdlmhub", hostname="vdlmhub", role="agent", state="drifted"}'
+        values: "1+0x500"
+      - series: 'nixos_expected_change_timestamp_seconds{host="vdlmhub", hostname="vdlmhub", role="agent"}'
+        values: "100+0x500"
+      - series: 'nixos_deploy_info{host="vdlmhub", hostname="vdlmhub", role="agent", running="nixos-system-vdlmhub-1", expected="nixos-system-vdlmhub-2", short_rev="aaaaaaa", short_expected_rev="bbbbbbb"}'
+        values: "1+0x500"
+    alert_rule_test:
+      - eval_time: 7h
+        alertname: NixOSDeployDrift
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              host: vdlmhub
+              hostname: vdlmhub
+              role: agent
+              state: drifted
+              running: nixos-system-vdlmhub-1
+              expected: nixos-system-vdlmhub-2
+              short_rev: aaaaaaa
+              short_expected_rev: bbbbbbb
+            exp_annotations:
+              summary: "NixOS host is running an outdated system closure"
+              description: "vdlmhub is running nixos-system-vdlmhub-1 (from aaaaaaa) but main expects nixos-system-vdlmhub-2 (from bbbbbbb). This commit range genuinely changes this host's closure, so a deploy is required."
+
+  # Desktops are excluded by role, not by a host-name regex. The predecessor
+  # rule used host!~"daytona|maranello" and never excluded Daytona, because the
+  # label is "Daytona" and PromQL regexes are case-sensitive. Keeping a
+  # mixed-case desktop in this test preserves that regression guard.
+  - interval: 1m
+    name: NixOSDeployDrift ignores desktops regardless of hostname casing
+    input_series:
+      - series: 'nixos_deploy_state{host="Daytona", hostname="Daytona", role="desktop", state="drifted"}'
+        values: "1+0x500"
+      - series: 'nixos_deploy_state{host="maranello", hostname="maranello", role="desktop", state="drifted"}'
+        values: "1+0x500"
+      - series: 'nixos_expected_change_timestamp_seconds{host="Daytona", hostname="Daytona", role="desktop"}'
+        values: "100+0x500"
+      - series: 'nixos_expected_change_timestamp_seconds{host="maranello", hostname="maranello", role="desktop"}'
+        values: "100+0x500"
+    alert_rule_test:
+      - eval_time: 7h
+        alertname: NixOSDeployDrift
+        exp_alerts: []
+
+  # Failure mode (a): a host built from a dirty or feature-branch tree. The
+  # superseded script hard-coded BEHIND=0 whenever the recorded revision was the
+  # string "dirty", so this -- the state most deserving an alert -- was the one
+  # state guaranteed to stay silent. It must now fire.
+  - interval: 1m
+    name: NixOSUnmanagedSystem fires for a server on an unpublished closure
+    input_series:
+      - series: 'nixos_deploy_state{host="vdlmhub", hostname="vdlmhub", role="agent", state="unmanaged"}'
+        values: "1+0x500"
+      - series: 'nixos_deploy_info{host="vdlmhub", hostname="vdlmhub", role="agent", running="nixos-system-vdlmhub-wip", expected="nixos-system-vdlmhub-2"}'
+        values: "1+0x500"
+    alert_rule_test:
+      - eval_time: 3h
+        alertname: NixOSUnmanagedSystem
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              host: vdlmhub
+              hostname: vdlmhub
+              role: agent
+              state: unmanaged
+              running: nixos-system-vdlmhub-wip
+              expected: nixos-system-vdlmhub-2
+            exp_annotations:
+              summary: "NixOS host is running an unmanaged system closure"
+              description: "vdlmhub is running nixos-system-vdlmhub-wip, which main has never produced (main expects nixos-system-vdlmhub-2). It was probably deployed from a dirty or feature-branch checkout and will not converge on its own."
+
+  # Desktops report `unmanaged` in NORMAL operation: they are rebuilt locally,
+  # frequently from a dirty tree, so their running closure is routinely one main
+  # never published. That makes the role!="desktop" selector on this rule more
+  # load-bearing than on NixOSDeployDrift -- removing it would page for both
+  # desktops permanently rather than occasionally.
+  - interval: 1m
+    name: NixOSUnmanagedSystem ignores desktops, which build locally by design
+    input_series:
+      - series: 'nixos_deploy_state{host="Daytona", hostname="Daytona", role="desktop", state="unmanaged"}'
+        values: "1+0x500"
+      - series: 'nixos_deploy_state{host="maranello", hostname="maranello", role="desktop", state="unmanaged"}'
+        values: "1+0x500"
+      - series: 'nixos_deploy_info{host="Daytona", hostname="Daytona", role="desktop", running="nixos-system-Daytona-local", expected="nixos-system-Daytona-1"}'
+        values: "1+0x500"
+      - series: 'nixos_deploy_info{host="maranello", hostname="maranello", role="desktop", running="nixos-system-maranello-local", expected="nixos-system-maranello-1"}'
+        values: "1+0x500"
+    alert_rule_test:
+      - eval_time: 3h
+        alertname: NixOSUnmanagedSystem
+        exp_alerts: []
+
+  # A host that cannot resolve its expected closure has no drift detection at
+  # all. A blind check that stays quiet is the exact failure this rule set was
+  # rewritten to eliminate, so blindness itself has to be alertable.
+  - interval: 1m
+    name: NixOSDeployStateUnknown fires when the host cannot resolve state
+    input_series:
+      - series: 'nixos_deploy_state{host="vdlmhub", hostname="vdlmhub", role="agent", state="unknown"}'
+        values: "1+0x900"
+    alert_rule_test:
+      - eval_time: 13h
+        alertname: NixOSDeployStateUnknown
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              host: vdlmhub
+              hostname: vdlmhub
+              role: agent
+              state: unknown
+            exp_annotations:
+              summary: "NixOS deploy state cannot be determined"
+              description: "vdlmhub could not resolve its expected closure from the fleet manifest for 12 hours. Drift detection is not running on this host. Check the fleet-manifest workflow and the host's egress to raw.githubusercontent.com."
+
+  # Every rule in the nixos-alerts group reads a metric from one unit. If that
+  # unit stops fleet-wide, all of them match nothing and Prometheus calls them
+  # healthy. These two cases assert the absent() backstop both fires on total
+  # loss and stays quiet whenever anything is still reporting.
+  - interval: 1m
+    name: NixOSDeployStateMetricsMissing fires when no host exports the metric
+    input_series:
+      # Some unrelated series must exist, or promtool has no timeline to
+      # evaluate against and the test proves nothing.
+      - series: 'nixos_needs_reboot{host="vdlmhub", hostname="vdlmhub", role="agent"}'
+        values: "0+0x200"
+    alert_rule_test:
+      - eval_time: 2h
+        alertname: NixOSDeployStateMetricsMissing
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: "NixOS deploy-state metrics are missing fleet-wide"
+              description: "No non-desktop host is exporting nixos_deploy_state, so every deploy-drift rule in this group is silently matching nothing. Check nixos-deploy-state-metric.service and the node_exporter textfile collector."
+
+  # One surviving host is enough to prove the exporter is not universally broken,
+  # and the per-host case belongs to SystemdUnitFailed / SystemdTimerStale.
+  - interval: 1m
+    name: NixOSDeployStateMetricsMissing stays silent while one host reports
+    input_series:
+      - series: 'nixos_deploy_state{host="vdlmhub", hostname="vdlmhub", role="agent", state="up_to_date"}'
+        values: "1+0x200"
+    alert_rule_test:
+      - eval_time: 2h
+        alertname: NixOSDeployStateMetricsMissing
+        exp_alerts: []
+
+  # Watchdog for the publisher. If the manifest workflow stops, every host keeps
+  # fetching the last good file successfully and keeps reporting up_to_date, so
+  # nothing else in this rule set can notice. min() means one alert for the whole
+  # fleet rather than one per host, and makes the condition specific: if even the
+  # freshest host is looking at a day-old manifest, the publisher is at fault.
+  - interval: 1m
+    name: NixOSFleetManifestStale fires once for the fleet, not once per host
+    input_series:
+      - series: 'nixos_manifest_age_seconds{host="vdlmhub", hostname="vdlmhub", role="agent"}'
+        values: "90000+0x200"
+      - series: 'nixos_manifest_age_seconds{host="acarshub", hostname="acarshub", role="agent"}'
+        values: "95000+0x200"
+      - series: 'nixos_manifest_age_seconds{host="sdrhub", hostname="sdrhub", role="master"}'
+        values: "91000+0x200"
+    alert_rule_test:
+      - eval_time: 2h
+        alertname: NixOSFleetManifestStale
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: "Fleet deploy manifest is stale"
+              description: "The newest fleet manifest any host can see is over 24h old, so deploy-drift detection is effectively disabled fleet-wide. Check the Fleet Manifest workflow."
+
+  # A single host lagging on its fetch must NOT trip the fleet-wide watchdog:
+  # that is a per-host network problem, and min() is what keeps the two apart.
+  # The companion NixOSManifestFetchStalled is what should catch it instead --
+  # asserted in the next two cases.
+  - interval: 1m
+    name: NixOSFleetManifestStale ignores one host with a stale local cache
+    input_series:
+      - series: 'nixos_manifest_age_seconds{host="vdlmhub", hostname="vdlmhub", role="agent"}'
+        values: "90000+0x200"
+      - series: 'nixos_manifest_age_seconds{host="acarshub", hostname="acarshub", role="agent"}'
+        values: "600+0x200"
+    alert_rule_test:
+      - eval_time: 2h
+        alertname: NixOSFleetManifestStale
+        exp_alerts: []
+
+  # The single-stalled-host case the fleet-wide watchdog deliberately ignores.
+  # vdlmhub is 90000s behind while acarshub is at 600s, so the differential is
+  # ~89400s > 43200s.
+  - interval: 1m
+    name: NixOSManifestFetchStalled fires for the one host that stopped refreshing
+    input_series:
+      - series: 'nixos_manifest_age_seconds{host="vdlmhub", hostname="vdlmhub", role="agent"}'
+        values: "90000+0x200"
+      - series: 'nixos_manifest_age_seconds{host="acarshub", hostname="acarshub", role="agent"}'
+        values: "600+0x200"
+    alert_rule_test:
+      - eval_time: 2h
+        alertname: NixOSManifestFetchStalled
         exp_alerts:
           - exp_labels:
               severity: warning
@@ -300,5 +537,24 @@ tests:
               hostname: vdlmhub
               role: agent
             exp_annotations:
-              summary: "NixOS repo not on main branch"
-              description: "The NixOS configuration on vdlmhub is not checked out on main for more than 6 hours."
+              summary: "NixOS host is not refreshing the fleet manifest"
+              description: "vdlmhub is comparing against a manifest at least 12h older than the freshest one in the fleet, so its drift detection is stale even though it may report up to date. Check the host's egress to raw.githubusercontent.com."
+
+  # A publisher outage raises every host's age together. The differential stays
+  # near zero, so this rule must stay silent and leave the single fleet-wide
+  # NixOSFleetManifestStale notification to do the reporting. Without this
+  # guard the alert would page once per host for one fault -- the noise pattern
+  # this whole rewrite exists to remove.
+  - interval: 1m
+    name: NixOSManifestFetchStalled stays silent during a publisher outage
+    input_series:
+      - series: 'nixos_manifest_age_seconds{host="vdlmhub", hostname="vdlmhub", role="agent"}'
+        values: "90000+0x200"
+      - series: 'nixos_manifest_age_seconds{host="acarshub", hostname="acarshub", role="agent"}'
+        values: "91000+0x200"
+      - series: 'nixos_manifest_age_seconds{host="sdrhub", hostname="sdrhub", role="master"}'
+        values: "90500+0x200"
+    alert_rule_test:
+      - eval_time: 2h
+        alertname: NixOSManifestFetchStalled
+        exp_alerts: []

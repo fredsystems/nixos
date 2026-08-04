@@ -8,30 +8,6 @@
 {
   systemd = {
     services = {
-      nixos-branch-metric = {
-        description = "Emit NixOS branch metric";
-        serviceConfig = {
-          Type = "oneshot";
-          ExecStart = pkgs.writeShellScript "nixos-branch-metric.sh" ''
-            # For colmena-managed nodes there is no local git checkout.
-            # A clean build from a known commit written to
-            # /etc/nixos/configuration-revision is treated as "on main"
-            # (value=1). A dirty build or missing file emits 0.
-            REV=$(cat /etc/nixos/configuration-revision 2>/dev/null || echo "")
-
-            if [[ -n "$REV" && "$REV" != "dirty" ]]; then
-              value=1
-            else
-              value=0
-            fi
-
-            mkdir -p /var/lib/node_exporter/textfiles
-            echo "nixos_branch{host=\"${config.networking.hostName}\"} $value" \
-              > /var/lib/node_exporter/textfiles/nixos_branch.prom
-          '';
-        };
-      };
-
       nixos-needs-reboot-metric = {
         description = "Emit reboot-needed metric for Prometheus";
         serviceConfig = {
@@ -56,107 +32,224 @@
         };
       };
 
-      nixos-build-info-metric = {
-        description = "Emit NixOS build SHA and deploy timestamp metrics";
+      # Deploy state relative to the fleet manifest published by
+      # .github/workflows/fleet-manifest.yaml.
+      #
+      # This replaces three earlier services (nixos-branch-metric,
+      # nixos-build-info-metric, nixos-revision-metric), all of which keyed off
+      # a git SHA written to /etc/nixos/configuration-revision and asked the
+      # GitHub compare API for a commit distance. That produced three distinct
+      # classes of false alert:
+      #
+      #   * A commit that moved main without changing THIS host's closure still
+      #     counted, so every host alerted on every unrelated commit and the
+      #     "fix" was a rebuild that changed nothing. Commit distance simply is
+      #     not a measure of whether a host needs a deploy.
+      #   * A dirty or branch build recorded the literal string "dirty", and the
+      #     script then hard-coded BEHIND=0 for that case -- so a host built
+      #     from a WIP tree reported healthy no matter how far main moved. The
+      #     one situation most deserving an alert was the one that silenced it.
+      #   * The SHA was written from a system.activationScripts entry, which is
+      #     part of system.build.toplevel. Every commit therefore changed every
+      #     host's store path, poisoning the only exact signal available. See
+      #     the note in flake/lib/mk-system.nix.
+      #
+      # The manifest records the toplevel store path main expects per host, so
+      # the comparison here is exact: identical paths means identical systems,
+      # and a commit that does not alter this host's closure cannot move it.
+      nixos-deploy-state-metric = {
+        description = "Emit NixOS deploy state metrics from the fleet manifest";
+        # Needs the network to refresh the manifest. It degrades to the cached
+        # copy rather than failing, but ordering after the network avoids a
+        # guaranteed-failing fetch on every boot.
+        after = [ "network-online.target" ];
+        wants = [ "network-online.target" ];
         serviceConfig = {
           Type = "oneshot";
-          ExecStart = pkgs.writeShellScript "nixos-build-info-metric.sh" ''
-            HOST="${config.networking.hostName}"
-            SHA=$(cat /etc/nixos/configuration-revision 2>/dev/null || echo "dirty")
-            TS_FILE="/var/lib/node_exporter/textfiles/nixos_build_timestamp.val"
-
-            # Only update the timestamp when the SHA changes (i.e. a new deploy happened).
-            # We persist the last-seen SHA alongside the timestamp so we can detect this.
-            LAST_SHA_FILE="/var/lib/node_exporter/textfiles/nixos_build_last_sha"
-            LAST_SHA=$(cat "$LAST_SHA_FILE" 2>/dev/null || echo "")
-
-            mkdir -p /var/lib/node_exporter/textfiles
-
-            if [[ "$SHA" != "dirty" && "$SHA" != "$LAST_SHA" ]]; then
-              echo $(( $(date +%s) * 1000 )) > "$TS_FILE"
-              echo "$SHA" > "$LAST_SHA_FILE"
-            fi
-
-            TS=$(cat "$TS_FILE" 2>/dev/null || echo "0")
-
-            # Migrate existing values that were written as seconds (< 1e12) to milliseconds
-            if [[ "$TS" -gt 0 && "$TS" -lt 1000000000000 ]]; then
-              TS=$(( TS * 1000 ))
-              echo "$TS" > "$TS_FILE"
-            fi
-            SHORT_SHA=''${SHA:0:7}
-
-            cat > /var/lib/node_exporter/textfiles/nixos_build_info.prom <<EOF
-            # HELP nixos_build_info NixOS build info: SHA label + deploy timestamp
-            # TYPE nixos_build_info gauge
-            nixos_build_info{host="$HOST", sha="$SHA", short_sha="$SHORT_SHA"} $TS
-            EOF
-          '';
-        };
-      };
-
-      nixos-revision-metric = {
-        description = "Emit NixOS upstream revision metrics";
-        serviceConfig = {
-          Type = "oneshot";
-          ExecStart = pkgs.writeShellScript "nixos-revision-metric.sh" ''
-            set -euo pipefail
+          StateDirectory = "nixos-deploy-state";
+          ExecStart = pkgs.writeShellScript "nixos-deploy-state-metric.sh" ''
+            set -uo pipefail
 
             CURL=${pkgs.curl}/bin/curl
             JQ=${pkgs.jq}/bin/jq
 
-            OWNER="fredsystems"
-            REPO="nixos"
             HOST="${config.networking.hostName}"
+            MANIFEST_URL="https://raw.githubusercontent.com/fredsystems/nixos/fleet-manifest/manifest.json"
 
-            # --- Revision this system was actually built and activated from.
-            # Written persistently by the activationScript in mk-system.nix on
-            # every colmena apply, so it survives reboots and never requires a
-            # local git checkout on the node. ---
-            LOCAL=$(cat /etc/nixos/configuration-revision 2>/dev/null || echo "")
+            STATE_DIR=/var/lib/nixos-deploy-state
+            CACHE="$STATE_DIR/manifest.json"
+            TS_FILE="$STATE_DIR/deploy_timestamp_seconds"
+            LAST_TOPLEVEL_FILE="$STATE_DIR/last_toplevel"
+            TEXTFILE_DIR=/var/lib/node_exporter/textfiles
+            OUT="$TEXTFILE_DIR/nixos_deploy_state.prom"
 
-            if [[ -z "$LOCAL" || "$LOCAL" = "dirty" ]]; then
-                # No recorded revision (pre-activation or dirty build) — emit
-                # zeroed metrics so the alert doesn't fire spuriously.
-                BEHIND=0
-                LAG=0
+            mkdir -p "$STATE_DIR" "$TEXTFILE_DIR"
+
+            RUNNING=$(readlink -f /run/current-system 2>/dev/null || echo "")
+
+            # Refresh the manifest into a temp file first: a truncated or
+            # error-page response must not clobber a good cached copy, or a
+            # transient GitHub failure would flip the whole fleet to unknown.
+            FETCH_OK=0
+            TMP="$CACHE.tmp"
+            if $CURL -sfL --max-time 30 -o "$TMP" "$MANIFEST_URL" \
+              && $JQ -e '.schema == 1 and (.hosts | type == "object")' "$TMP" >/dev/null 2>&1; then
+              mv "$TMP" "$CACHE"
+              FETCH_OK=1
             else
-                # --- Remote commit SHA from GitHub (main) ---
-                API_COMMIT="https://api.github.com/repos/$OWNER/$REPO/commits/main"
-                REMOTE=$($CURL -s "$API_COMMIT" | $JQ -r .sha)
-
-                if [[ "$REMOTE" = "null" || -z "$REMOTE" ]]; then
-                    # GitHub API unavailable — don't flip the alert
-                    BEHIND=0
-                    LAG=0
-                else
-                    # Compare LOCAL (base) ... REMOTE (head):
-                    # ahead_by = commits REMOTE has that LOCAL doesn't
-                    #            i.e. how many commits the running system is behind main
-                    API_COMPARE="https://api.github.com/repos/$OWNER/$REPO/compare/$LOCAL...$REMOTE"
-                    COMPARE=$($CURL -s "$API_COMPARE")
-
-                    BEHIND_BY=$(echo "$COMPARE" | $JQ -r .ahead_by)
-
-                    # Default safe values
-                    BEHIND=0
-                    LAG=0
-
-                    if [[ "$BEHIND_BY" != "null" && "$BEHIND_BY" =~ ^[0-9]+$ ]]; then
-                        if [[ "$BEHIND_BY" -gt 0 ]]; then
-                            BEHIND=1
-                            LAG=$BEHIND_BY
-                        fi
-                    fi
-                fi
+              rm -f "$TMP"
             fi
 
-            mkdir -p /var/lib/node_exporter/textfiles
+            STATE="unknown"
+            EXPECTED=""
+            EXPECTED_REV=""
+            CHANGED_AT=0
+            GENERATED_AT=0
 
-            cat > /var/lib/node_exporter/textfiles/nixos_revision.prom <<EOF
-            nixos_revision_behind{host="$HOST"} $BEHIND
-            nixos_revision_lag{host="$HOST"} $LAG
-            EOF
+            if [[ -s "$CACHE" ]]; then
+              GENERATED_AT=$($JQ -r '.generated_at // 0' "$CACHE" 2>/dev/null || echo 0)
+              # history is newest-first and history[0] is the currently
+              # expected closure; see scripts/gen-fleet-manifest.sh.
+              EXPECTED=$($JQ -r --arg h "$HOST" '.hosts[$h].history[0].toplevel // ""' "$CACHE" 2>/dev/null || echo "")
+              EXPECTED_REV=$($JQ -r --arg h "$HOST" '.hosts[$h].history[0].rev // ""' "$CACHE" 2>/dev/null || echo "")
+              CHANGED_AT=$($JQ -r --arg h "$HOST" '.hosts[$h].history[0].at // 0' "$CACHE" 2>/dev/null || echo 0)
+            fi
+
+            if [[ -n "$RUNNING" && -n "$EXPECTED" ]]; then
+              if [[ "$RUNNING" == "$EXPECTED" ]]; then
+                STATE="up_to_date"
+              elif $JQ -e --arg h "$HOST" --arg p "$RUNNING" \
+                '[.hosts[$h].history[].toplevel] | index($p) != null' "$CACHE" >/dev/null 2>&1; then
+                # A closure main published previously: genuinely a deploy behind.
+                STATE="drifted"
+              else
+                # Never published by main -- a local, dirty or branch build.
+                # Distinguishing this from "drifted" is the whole point: the old
+                # script reported it as healthy.
+                STATE="unmanaged"
+              fi
+            fi
+
+            # Revision the running closure came from, recovered by reverse
+            # lookup now that the SHA is deliberately not baked into the system.
+            RUNNING_REV=""
+            if [[ -s "$CACHE" && -n "$RUNNING" ]]; then
+              RUNNING_REV=$($JQ -r --arg h "$HOST" --arg p "$RUNNING" \
+                'first(.hosts[$h].history[] | select(.toplevel == $p) | .rev) // ""' \
+                "$CACHE" 2>/dev/null || echo "")
+            fi
+
+            # Deploy timestamp: observed locally, keyed on the running closure
+            # changing. Keying on the closure rather than on a git SHA means
+            # redeploying an identical system does not reset it, and a commit
+            # that does not touch this host does not either.
+            #
+            # Stored and exported in seconds. The superseded metric used
+            # milliseconds implicitly and had to carry a runtime "migrate values
+            # below 1e12" fixup as a result; naming the unit in the metric
+            # removes that class of bug. Grafana wants ms, so the dashboard
+            # multiplies rather than the exporter guessing.
+            LEGACY_TS_FILE=/var/lib/node_exporter/textfiles/nixos_build_timestamp.val
+            LAST_TOPLEVEL=$(cat "$LAST_TOPLEVEL_FILE" 2>/dev/null || echo "")
+            if [[ -n "$RUNNING" && "$RUNNING" != "$LAST_TOPLEVEL" ]]; then
+              SEEDED=0
+              if [[ -z "$LAST_TOPLEVEL" && -s "$LEGACY_TS_FILE" ]]; then
+                # First run after replacing the old services: adopt the previous
+                # deploy timestamp rather than reporting a bogus "deployed just
+                # now" for every host in the fleet simultaneously.
+                #
+                # The legacy file's unit is genuinely ambiguous, which is the
+                # whole reason the replacement names its unit. The old script
+                # wrote milliseconds but carried a runtime fixup that multiplied
+                # any value below 1e12 by 1000, so a host whose timer had not
+                # run since before that fixup shipped can still hold seconds.
+                # Applying the same magnitude test rather than dividing
+                # unconditionally avoids turning such a value into a 1970
+                # timestamp.
+                LEGACY_TS=$(cat "$LEGACY_TS_FILE" 2>/dev/null || echo 0)
+                if [[ "$LEGACY_TS" =~ ^[0-9]+$ && "$LEGACY_TS" -gt 0 ]]; then
+                  if [[ "$LEGACY_TS" -ge 1000000000000 ]]; then
+                    echo $(( LEGACY_TS / 1000 )) > "$TS_FILE"
+                  else
+                    echo "$LEGACY_TS" > "$TS_FILE"
+                  fi
+                  SEEDED=1
+                fi
+              fi
+              [[ "$SEEDED" -eq 0 ]] && date +%s > "$TS_FILE"
+              echo "$RUNNING" > "$LAST_TOPLEVEL_FILE"
+            fi
+            DEPLOY_TS=$(cat "$TS_FILE" 2>/dev/null || echo 0)
+            rm -f "$LEGACY_TS_FILE" /var/lib/node_exporter/textfiles/nixos_build_last_sha
+
+            MANIFEST_AGE=0
+            if [[ "$GENERATED_AT" -gt 0 ]]; then
+              MANIFEST_AGE=$(( $(date +%s) - GENERATED_AT ))
+              [[ "$MANIFEST_AGE" -lt 0 ]] && MANIFEST_AGE=0
+            fi
+
+            # Store paths are safe as label values (no quotes, backslashes or
+            # newlines are possible in a /nix/store path), so no escaping is
+            # needed here. Basenames only: the /nix/store prefix is noise in a
+            # dashboard and the hash is what identifies the closure.
+            TMP_OUT="$OUT.tmp"
+            {
+              echo "# HELP nixos_deploy_state Deploy state vs the fleet manifest (1 on the active state)."
+              echo "# TYPE nixos_deploy_state gauge"
+              # Every state is emitted on every run, including the zeros. An
+              # alert must never depend on a series being absent: absence is
+              # indistinguishable from a broken exporter, and scripts/
+              # check-alert-metrics.sh exists precisely because a rule matching
+              # nothing is reported healthy.
+              for s in up_to_date drifted unmanaged unknown; do
+                if [[ "$s" == "$STATE" ]]; then v=1; else v=0; fi
+                echo "nixos_deploy_state{host=\"$HOST\",state=\"$s\"} $v"
+              done
+
+              echo "# HELP nixos_expected_change_timestamp_seconds Unix time main last changed this host's expected closure."
+              echo "# TYPE nixos_expected_change_timestamp_seconds gauge"
+              echo "nixos_expected_change_timestamp_seconds{host=\"$HOST\"} $CHANGED_AT"
+
+              # Value is always 1: this is an identity/"info" metric whose
+              # payload is its labels. Keeping the value at 1 is what lets the
+              # NixOSDeployDrift rule pull these labels into its annotations
+              # with `* on (host) group_left (...)` without the join altering
+              # the alert expression's value.
+              echo "# HELP nixos_deploy_info Running and expected closure identity for this host."
+              echo "# TYPE nixos_deploy_info gauge"
+              echo "nixos_deploy_info{host=\"$HOST\",running=\"$(basename "$RUNNING")\",expected=\"$(basename "$EXPECTED")\",rev=\"$RUNNING_REV\",short_rev=\"''${RUNNING_REV:0:7}\",expected_rev=\"$EXPECTED_REV\",short_expected_rev=\"''${EXPECTED_REV:0:7}\"} 1"
+
+              echo "# HELP nixos_deploy_timestamp_seconds Unix time this host's running closure last changed."
+              echo "# TYPE nixos_deploy_timestamp_seconds gauge"
+              echo "nixos_deploy_timestamp_seconds{host=\"$HOST\"} $DEPLOY_TS"
+
+              echo "# HELP nixos_manifest_age_seconds Age of the fleet manifest this host compared against."
+              echo "# TYPE nixos_manifest_age_seconds gauge"
+              echo "nixos_manifest_age_seconds{host=\"$HOST\"} $MANIFEST_AGE"
+
+              echo "# HELP nixos_manifest_fetch_success Whether the last manifest refresh succeeded."
+              echo "# TYPE nixos_manifest_fetch_success gauge"
+              echo "nixos_manifest_fetch_success{host=\"$HOST\"} $FETCH_OK"
+            } > "$TMP_OUT"
+            mv "$TMP_OUT" "$OUT"
+
+            # Retire the files written by the three superseded services so a
+            # stale .prom does not keep re-exporting removed metrics forever.
+            # The textfile collector has no concept of expiry: whatever is in
+            # the directory is exported until the file is deleted.
+            rm -f "$TEXTFILE_DIR/nixos_branch.prom" \
+                  "$TEXTFILE_DIR/nixos_build_info.prom" \
+                  "$TEXTFILE_DIR/nixos_revision.prom"
+
+            # Also retire the baked-in revision file itself. Nothing reads it
+            # any more, and leaving it behind invites someone to trust a value
+            # that is now frozen at whatever commit last deployed with the old
+            # activation script. Cleaning it up from here rather than from a new
+            # system.activationScripts entry is deliberate: the point of this
+            # change was getting rev-bearing state out of the closure, and a
+            # cleanup activation script would be a confusing thing to find
+            # there next to the comment forbidding exactly that.
+            rm -f /etc/nixos/configuration-revision
           '';
         };
       };
@@ -224,13 +317,6 @@
     };
 
     timers = {
-      nixos-branch-metric = {
-        wantedBy = [ "timers.target" ];
-        timerConfig = {
-          OnCalendar = "*:0/10"; # every 10 minutes
-        };
-      };
-
       nixos-needs-reboot-metric = {
         wantedBy = [ "timers.target" ];
         timerConfig = {
@@ -238,19 +324,18 @@
         };
       };
 
-      nixos-build-info-metric = {
+      nixos-deploy-state-metric = {
         wantedBy = [ "timers.target" ];
         timerConfig = {
-          OnCalendar = "*:0/5"; # every 5 minutes — cheap, just reads a file
+          # Every 10 minutes. One conditional-GET-friendly fetch of a small
+          # JSON file per host; raw.githubusercontent.com serves it from a CDN,
+          # so this is far cheaper than the two unauthenticated api.github.com
+          # calls per host per run that this replaces (those were also subject
+          # to a 60/hour/IP rate limit the whole fleet shared behind one NAT).
+          OnCalendar = "*:0/10";
           Persistent = true;
-        };
-      };
-
-      nixos-revision-metric = {
-        wantedBy = [ "timers.target" ];
-        timerConfig = {
-          OnCalendar = "*:0/15"; # every 15 minutes
-          Persistent = true;
+          # Without this the whole fleet fetches on the same wall-clock minute.
+          RandomizedDelaySec = "120";
         };
       };
     }

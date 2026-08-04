@@ -460,6 +460,37 @@ in
                 group_interval = "1m";
                 repeat_interval = "2m";
               }
+              # Fleet-wide deploy-state alerts, grouped by alertname ALONE so a
+              # single cause produces a single notification.
+              #
+              # The parent route groups by (alertname, hostname), which is right
+              # for per-host faults but wrong here: one legitimate change to a
+              # shared input (a nixpkgs-stable bump, a modules/ edit) moves every
+              # server's closure at once, and under the parent grouping that
+              # arrives as seven separate Pushover pushes for one action. The
+              # action is fleet-wide -- deploy the servers -- so the
+              # notification should be too.
+              #
+              # Matched before the severity routes below, which would otherwise
+              # claim these on severity="warning". Individual hosts remain
+              # identifiable: each alert instance is still listed in the grouped
+              # notification body, which pushoverMessage renders per-alert.
+              {
+                matchers = [
+                  ''alertname=~"NixOSDeployDrift|NixOSUnmanagedSystem|NixOSDeployStateUnknown|NixOSManifestFetchStalled|NixOSFleetManifestStale"''
+                ];
+                receiver = "pushover-warning";
+                group_by = [ "alertname" ];
+                # Longer than the parent's 30s: a fleet-wide change trips hosts a
+                # few scrape intervals apart, and a short group_wait would split
+                # one cause across two notifications anyway.
+                group_wait = "5m";
+                group_interval = "30m";
+                # Deploy drift is not urgent and self-resolves on the next
+                # deploy. Daily is enough to stay on the radar without becoming
+                # background noise -- the failure mode this rewrite targets.
+                repeat_interval = "24h";
+              }
               {
                 matchers = [ ''severity="critical"'' ];
                 receiver = "pushover-critical";

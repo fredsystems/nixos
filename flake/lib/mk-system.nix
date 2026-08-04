@@ -137,20 +137,24 @@ let
     ./../../modules/base/deployment-meta.nix
     ./../../hosts/linux/${hostName}/configuration.nix
     ./../../modules/base/system.nix
-    {
-      # Bake the git revision of the flake that built this system into a
-      # persistent file so node_exporter can compare it against GitHub main
-      # without needing a local git checkout on the node.
-      # self.rev is only set when the flake was built from a clean git tree;
-      # self.dirtyRev is set for dirty trees; fall back to "dirty" if neither.
-      system.activationScripts.configRevision = {
-        text = ''
-          mkdir -p /etc/nixos
-          echo "${self.rev or self.dirtyRev or "dirty"}" > /etc/nixos/configuration-revision
-        '';
-        deps = [ ];
-      };
-    }
+    # NOTE: do NOT bake the flake's git revision into this system.
+    #
+    # An earlier revision of this file wrote `self.rev` to
+    # /etc/nixos/configuration-revision from a `system.activationScripts`
+    # entry. Activation scripts are part of `system.build.toplevel`, so the
+    # 40-character commit SHA ended up inside every host's store path. That
+    # made every commit to main change every host's closure hash, whether or
+    # not the commit touched that host -- which destroyed the only signal
+    # capable of answering "does this host actually need a deploy?".
+    #
+    # Deploy state is now derived by comparing the host's running closure
+    # against the fleet manifest published by .github/workflows/fleet-manifest.yaml
+    # (see modules/monitoring/agent/node_exporter.nix). The manifest maps each
+    # host to the toplevel store path main currently expects, so the git
+    # revision is recovered by reverse lookup instead of being baked in.
+    # Reintroducing a rev-bearing activation script, `environment.etc` entry or
+    # `system.configurationRevision` would silently break drift detection for
+    # the whole fleet.
     hmInput.nixosModules.home-manager
     {
       home-manager = {

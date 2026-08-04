@@ -75,6 +75,7 @@ and HFDL decoders.
     │   ├── ci-linux.yaml        # Linux CI
     │   ├── ci-darwin.yaml       # macOS CI
     │   ├── ci-lint.yaml         # Pre-commit / linting
+    │   ├── fleet-manifest.yaml  # Publishes per-host expected closure paths
     │   └── update-flakes.yaml   # Per-input flake update (1 PR per input)
     ├── merge-queue-ci-skipper/  # Composite action: skip redundant merge-queue builds
     └── renovate.json5           # Renovate Bot config
@@ -202,6 +203,16 @@ would change their derivation hashes and force local source builds.
   hack) -> register it in `.github/tracked-upstream-fixes.json` so the
   `track-upstream-fixes.yaml` workflow flags it for removal once the fix
   lands; load `nixos-track-upstream-fix`.
+- **Never put the flake's git revision into a host's closure.** No
+  `self.rev` in `system.activationScripts`, no `environment.etc` entry
+  holding it, no `system.configurationRevision`. Anything reachable from
+  `system.build.toplevel` that embeds the commit SHA makes every commit
+  change every host's store path, which destroys the fleet's only exact
+  "does this host need a deploy?" signal. Deploy state is derived by
+  comparing `/run/current-system` against the manifest published by
+  `fleet-manifest.yaml`; the revision is recovered by reverse lookup.
+  See the note in `flake/lib/mk-system.nix` and
+  `scripts/gen-fleet-manifest.sh`.
 
 ---
 
