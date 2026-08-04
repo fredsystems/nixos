@@ -1,0 +1,127 @@
+---
+name: Fleet Manifest
+
+# Publishes the fleet deploy manifest: a map from host -> the
+# `system.build.toplevel` store path that main currently expects for that host.
+# Hosts compare it against `readlink -f /run/current-system` to decide whether
+# they genuinely need a deploy (see modules/monitoring/agent/node_exporter.nix).
+#
+# Why this exists as its own workflow rather than a job in ci-linux.yaml:
+# ci-linux.yaml runs on `merge_group` / `pull_request` / `workflow_dispatch` and
+# has no push-to-main trigger, so it has nowhere to hang a post-merge step. The
+# manifest must describe main's HEAD specifically, so it needs `push: [main]`.
+#
+# Commits reaching main have already passed the merge queue's ci-linux run, so
+# this does not re-gate on builds. It evaluates rather than builds, and it
+# deliberately evaluates EVERY host instead of reusing the impacted-hosts path
+# filter -- see the rationale block in scripts/gen-fleet-manifest.sh.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Serialise pushes to the manifest branch. Two runs racing would make one of
+# them lose its carry-forward history to a non-fast-forward rejection.
+# cancel-in-progress must stay false: a cancelled run would skip publishing a
+# commit's manifest entirely, and the next run would attribute that commit's
+# closure changes to a later revision.
+concurrency:
+  group: fleet-manifest
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Publish fleet manifest
+    runs-on: [self-hosted, Linux]
+    # Skip on forks: they have neither the substituters nor a manifest branch
+    # worth writing, and the push would fail on permissions anyway.
+    if: github.repository == 'fredsystems/nixos'
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
+        with:
+          trust-runner-user: true
+          extra-conf: |
+            access-tokens = github.com=${{ github.token }}
+            accept-flake-config = true
+            substituters = http://192.168.31.14/fred https://niri.cachix.org https://niri-epireyn.cachix.org https://cache.nixos.org/
+            trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= fred:JjyhvRSvKfkk8r4HS0mS5r5I7dT4GociEFbrR9OgBZ0= niri.cachix.org-1:Wv0OmO7PsuocRKzfDoJ3mulSl7Z6oezYhGhR+3W2964= niri-epireyn.cachix.org-1:tlVyFN7CtsDT+ZcLPS+ekFWeT1X6X4OqvWqbBMyIzFA=
+
+      - name: Generate and publish manifest
+        shell: bash
+        env:
+          # Actions masks GITHUB_TOKEN in log output, so embedding it in the
+          # remote URL does not leak it. Nothing here echoes the URL regardless.
+          REMOTE_URL: https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git
+          BRANCH: fleet-manifest
+        run: |
+          set -euo pipefail
+
+          REV="$(git rev-parse HEAD)"
+          WORK="${RUNNER_TEMP}/fleet-manifest"
+          rm -rf "$WORK"
+
+          # The manifest lives on an orphan branch so it never appears in a
+          # source diff and never triggers ci-linux's path filter. Bootstrap it
+          # on first run.
+          if git ls-remote --exit-code --heads "$REMOTE_URL" "$BRANCH" >/dev/null 2>&1; then
+            git clone --quiet --depth 1 --branch "$BRANCH" --single-branch "$REMOTE_URL" "$WORK"
+          else
+            echo "Branch '$BRANCH' does not exist yet -- bootstrapping it."
+            mkdir -p "$WORK"
+            git -C "$WORK" init --quiet --initial-branch="$BRANCH"
+            git -C "$WORK" remote add origin "$REMOTE_URL"
+          fi
+
+          git -C "$WORK" config user.name  "github-actions[bot]"
+          git -C "$WORK" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # `--inputs-from .` resolves nixpkgs# against this flake's LOCKED
+          # nixpkgs input rather than the runner's flake registry, so the jq
+          # used here is pinned and already in the store from the eval above.
+          # This mirrors how ci-linux.yaml obtains attic-client.
+          nix shell --inputs-from . nixpkgs#jq --command \
+            ./scripts/gen-fleet-manifest.sh "$WORK/manifest.json" "$REV"
+
+          # Heredoc body sits at this script's base indentation on purpose: the
+          # YAML block scalar strips only the block's own indent, and <<'EOF'
+          # (deliberately not <<-'EOF', which would also eat tabs only) keeps
+          # whatever remains. Indenting it further would emit a README whose
+          # every line began with stray spaces.
+          cat >"$WORK/README.md" <<'EOF'
+          # Fleet manifest branch
+
+          Generated content. Do not edit by hand, and do not merge this branch
+          into `main` -- it is an orphan branch with no shared history.
+
+          `manifest.json` maps each host in `nixosConfigurations` to the
+          `system.build.toplevel` store path that `main` expects for it. Hosts
+          fetch this file and compare it against
+          `readlink -f /run/current-system` to determine their deploy state.
+
+          Produced by `.github/workflows/fleet-manifest.yaml` on every push to
+          `main`. The generator, the manifest schema and the reasoning behind
+          the design live in `scripts/gen-fleet-manifest.sh` on `main`.
+          EOF
+
+          git -C "$WORK" add manifest.json README.md
+
+          if git -C "$WORK" diff --cached --quiet; then
+            echo "Manifest unchanged -- no host's expected closure moved at ${REV}."
+            exit 0
+          fi
+
+          git -C "$WORK" commit --quiet \
+            -m "chore(fleet-manifest): update for ${REV}"
+          git -C "$WORK" push --quiet origin "HEAD:${BRANCH}"
+
+          echo "Published manifest for ${REV}."
