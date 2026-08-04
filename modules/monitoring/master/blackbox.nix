@@ -30,10 +30,57 @@ let
   # respond as classified, from sdrhub, with a clean chain (ssl_verify_result=0).
 
   # Vhosts that serve real content and must answer 2xx directly.
+  #
+  # PRIMARY endpoints: exactly one per TLS certificate. The cert-expiry rules in
+  # alert-rules/blackbox-alerts.yaml select on these jobs alone, so this list and
+  # publicRedirectEndpoints below must stay one-target-per-certificate. Anything
+  # sharing a cert with an entry here belongs in the *Secondary lists.
   publicAppEndpoints = [
     "https://fredclausen.com/" # nginx -> fredsite on 127.0.0.1:4200
     "https://acarshub.app/" # nginx -> acarshub on 127.0.0.1:8085
     "https://flipaholics.pro/" # nginx -> 127.0.0.1:8078
+  ];
+
+  # Additional 2xx targets that share a certificate with a primary endpoint
+  # above, so they are probed for availability but excluded from the cert-expiry
+  # rules. Without that split every shared cert would be reported twice, on two
+  # instance labels, for one renewal fault.
+  #
+  # Two groups:
+  #
+  #   * www aliases. Every vhost in fredvps/nginx.nix carries
+  #     `serverAliases = [ "www.<domain>" ]`, and the nginx module folds those
+  #     into the same ACME cert -- so expiry is already covered by the apex, but
+  #     *availability* is not. A dropped or typo'd serverAlias breaks www.* while
+  #     the apex stays green and nothing notices. This file already justifies the
+  #     internal probes with exactly that reasoning; the public set was
+  #     inconsistent with it.
+  #
+  #   * Sub-path applications on fredclausen.com. The apex probe only exercises
+  #     `/` (fredsite on :4200). Two further backends hang off path prefixes on
+  #     that same vhost and had no availability coverage at all: nothing scrapes
+  #     them, so either could be down while `https://fredclausen.com/` still
+  #     answered 200. `/acarshub/` is deliberately omitted -- it proxies to the
+  #     same :8085 the acarshub.app probe already covers.
+  #
+  # Verified as classified: every entry below answers 200, and every www alias
+  # answers exactly as its apex does.
+  publicAppSecondaryEndpoints = [
+    "https://www.fredclausen.com/"
+    "https://www.acarshub.app/"
+    "https://www.flipaholics.pro/"
+
+    # tar1090 container on 127.0.0.1:8081.
+    "https://fredclausen.com/tar1090/"
+
+    # imageapi (sdre-image-api) on 127.0.0.1:3001. Probes a real route rather
+    # than the prefix root: the app is an Express API with no `/` handler, so
+    # `/imageapi/` answers 404 by design and a 2xx probe there would fire
+    # permanently. This route also exercises the app's database, since it reads
+    # the newest lastUpdated row. Freshness of that value is a separate concern
+    # and is covered by the imageapi_last_updated_seconds metric on
+    # fredvps -- blackbox can assert a status code but cannot compute an age.
+    "https://fredclausen.com/imageapi/api/v1/last-updated"
   ];
 
   # Vhosts whose entire job is a globalRedirect. These must answer 3xx; a 2xx
@@ -50,6 +97,23 @@ let
     "https://therightradio.com/" # -> fredclausen.com
     "https://sdr-e.org/" # -> github.com/sdr-enthusiasts
     "https://sdr-enthusiasts.org/" # -> github.com/sdr-enthusiasts
+  ];
+
+  # www aliases of the redirect vhosts. Same rationale as
+  # publicAppSecondaryEndpoints: shared certificate, so availability-only.
+  # All eleven were verified to answer 301, identically to their apex.
+  publicRedirectSecondaryEndpoints = [
+    "https://www.acarshub.com/"
+    "https://www.adsb-pi.com/"
+    "https://www.atcfreq.com/"
+    "https://www.epicspam.com/"
+    "https://www.freminal.com/"
+    "https://www.onemorefoot.com/"
+    "https://www.politicalpileon.com/"
+    "https://www.sdrdockerconfig.com/"
+    "https://www.therightradio.com/"
+    "https://www.sdr-e.org/"
+    "https://www.sdr-enthusiasts.org/"
   ];
 
   # LAN-only HTTP vhosts served by nginx on this host (see the virtualHosts
@@ -212,6 +276,15 @@ in
     scrapeConfigs = [
       (mkProbeJob "blackbox-https" "https_2xx" publicAppEndpoints)
       (mkProbeJob "blackbox-https-redirect" "https_redirect" publicRedirectEndpoints)
+
+      # The `-secondary` suffix is load-bearing, not cosmetic: the cert-expiry
+      # rules in alert-rules/blackbox-alerts.yaml select `job!~".*-secondary"`
+      # so a certificate shared with a primary target is reported once rather
+      # than once per probed URL. Renaming these jobs without updating those
+      # rules would silently restore the duplicate cert alerts.
+      (mkProbeJob "blackbox-https-secondary" "https_2xx" publicAppSecondaryEndpoints)
+      (mkProbeJob "blackbox-https-redirect-secondary" "https_redirect" publicRedirectSecondaryEndpoints)
+
       (mkProbeJob "blackbox-http-internal" "http_2xx" internalEndpoints)
 
       # The exporter's own operational metrics -- not a probe, a normal scrape.

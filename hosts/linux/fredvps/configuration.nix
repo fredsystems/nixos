@@ -13,6 +13,7 @@
     ../../../modules/services/python-venv-app.nix
     ./nginx.nix
     ./discord-backup.nix
+    ./imageapi-metrics.nix
   ];
 
   # Tailscale MagicDNS name — fill in your tailnet name, e.g. "fredvps.tail1234.ts.net"

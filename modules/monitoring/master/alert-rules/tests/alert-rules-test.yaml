@@ -558,3 +558,219 @@ tests:
       - eval_time: 2h
         alertname: NixOSManifestFetchStalled
         exp_alerts: []
+
+  # ---------------------------------------------------------------------------
+  # imageapi freshness. The metric pair exists because blackbox can assert the
+  # endpoint answers but cannot assert the value is recent; these cases pin the
+  # distinction between "data is stale" and "nothing answered".
+  # ---------------------------------------------------------------------------
+
+  - interval: 1m
+    name: ImageApiUpdatesStale fires when data is stale but the endpoint answers
+    input_series:
+      # Timestamp frozen well in the past, so time() - it exceeds 3h during the
+      # evaluation window below.
+      - series: 'imageapi_last_updated_seconds{host="fredvps", hostname="fredvps", role="agent"}'
+        values: "0+0x400"
+      - series: 'imageapi_last_updated_scrape_success{host="fredvps", hostname="fredvps", role="agent"}'
+        values: "1+0x400"
+    alert_rule_test:
+      - eval_time: 4h
+        alertname: ImageApiUpdatesStale
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              host: fredvps
+              hostname: fredvps
+              role: agent
+            exp_annotations:
+              summary: "imageapi image data is stale on fredvps"
+              description: "The newest imageapi lastUpdated row is over 3h old while the endpoint is still answering, so the hourly update loop has stopped making progress. Check the imageapi container logs on fredvps -- an expired GitHub token or a failing Octokit call will stall it silently while it keeps serving 200s."
+
+  # A container that is down leaves the age metric at 0, which would look
+  # infinitely stale. The scrape_success term is what stops this rule blaming the
+  # update loop for what is actually an unreachable endpoint -- that case belongs
+  # to the blackbox probe and the docker rules.
+  - interval: 1m
+    name: ImageApiUpdatesStale stays silent when the endpoint did not answer
+    input_series:
+      - series: 'imageapi_last_updated_seconds{host="fredvps", hostname="fredvps", role="agent"}'
+        values: "0+0x400"
+      - series: 'imageapi_last_updated_scrape_success{host="fredvps", hostname="fredvps", role="agent"}'
+        values: "0+0x400"
+    alert_rule_test:
+      - eval_time: 4h
+        alertname: ImageApiUpdatesStale
+        exp_alerts: []
+
+  # Fresh data must not fire. The timestamp tracks the clock here, holding the
+  # age near zero throughout.
+  - interval: 1m
+    name: ImageApiUpdatesStale stays silent while updates are fresh
+    input_series:
+      - series: 'imageapi_last_updated_seconds{host="fredvps", hostname="fredvps", role="agent"}'
+        values: "0+60x400"
+      - series: 'imageapi_last_updated_scrape_success{host="fredvps", hostname="fredvps", role="agent"}'
+        values: "1+0x400"
+    alert_rule_test:
+      - eval_time: 4h
+        alertname: ImageApiUpdatesStale
+        exp_alerts: []
+
+  # ---------------------------------------------------------------------------
+  # Tailscale node key expiry.
+  #
+  # The first case is the most important one in this file's tailscale coverage:
+  # with key expiry disabled -- the desired end state, and the live state of both
+  # tailscale hosts -- the expiry metric is 0. Without the
+  # tailscale_key_expiry_disabled guard, `0 - time()` is hugely negative and
+  # TailscaleKeyExpiryCritical would fire forever, so configuring Tailscale
+  # correctly would page continuously.
+  # ---------------------------------------------------------------------------
+
+  - interval: 1m
+    name: Tailscale expiry alerts stay silent when key expiry is disabled
+    input_series:
+      - series: 'tailscale_key_expiry_seconds{host="sdrhub", hostname="sdrhub", role="master"}'
+        values: "0+0x200"
+      - series: 'tailscale_key_expiry_disabled{host="sdrhub", hostname="sdrhub", role="master"}'
+        values: "1+0x200"
+      - series: 'tailscale_status_scrape_success{host="sdrhub", hostname="sdrhub", role="master"}'
+        values: "1+0x200"
+    alert_rule_test:
+      - eval_time: 2h
+        alertname: TailscaleKeyExpiryCritical
+        exp_alerts: []
+      - eval_time: 2h
+        alertname: TailscaleKeyExpiringSoon
+        exp_alerts: []
+
+  # A dead tailscaled also reports expiry 0. That must surface as a daemon fault,
+  # not as an expiry, or the alert would send someone to re-authenticate a key
+  # that is perfectly valid.
+  - interval: 1m
+    name: Tailscale expiry alerts stay silent when the status read failed
+    input_series:
+      - series: 'tailscale_key_expiry_seconds{host="sdrhub", hostname="sdrhub", role="master"}'
+        values: "0+0x200"
+      - series: 'tailscale_key_expiry_disabled{host="sdrhub", hostname="sdrhub", role="master"}'
+        values: "0+0x200"
+      - series: 'tailscale_status_scrape_success{host="sdrhub", hostname="sdrhub", role="master"}'
+        values: "0+0x200"
+    alert_rule_test:
+      - eval_time: 2h
+        alertname: TailscaleKeyExpiryCritical
+        exp_alerts: []
+
+  # 14 days out: warning fires, critical must not. Proves the >= 7d floor keeps
+  # the two mutually exclusive. time() at eval_time 2h is 7200, so an expiry of
+  # 7200 + 14d lands exactly 14 days ahead.
+  - interval: 1m
+    name: TailscaleKeyExpiringSoon fires at 14 days and critical does not
+    input_series:
+      - series: 'tailscale_key_expiry_seconds{host="sdrhub", hostname="sdrhub", role="master"}'
+        values: "1216800+0x200"
+      - series: 'tailscale_key_expiry_disabled{host="sdrhub", hostname="sdrhub", role="master"}'
+        values: "0+0x200"
+      - series: 'tailscale_status_scrape_success{host="sdrhub", hostname="sdrhub", role="master"}'
+        values: "1+0x200"
+    alert_rule_test:
+      - eval_time: 2h
+        alertname: TailscaleKeyExpiringSoon
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              host: sdrhub
+              hostname: sdrhub
+              role: master
+            exp_annotations:
+              summary: "Tailscale node key on sdrhub expires in under 21 days"
+              description: "The node key for sdrhub expires in less than 21 days, after which the host drops off the tailnet until re-authenticated interactively. Rotating the sops auth key will NOT renew it. Prefer disabling key expiry for this device in the admin console, or making it a tagged device, so this stops recurring."
+      - eval_time: 2h
+        alertname: TailscaleKeyExpiryCritical
+        exp_alerts: []
+
+  # 3 days out: critical fires, warning must not.
+  - interval: 1m
+    name: TailscaleKeyExpiryCritical fires at 3 days and warning does not
+    input_series:
+      - series: 'tailscale_key_expiry_seconds{host="sdrhub", hostname="sdrhub", role="master"}'
+        values: "266400+0x200"
+      - series: 'tailscale_key_expiry_disabled{host="sdrhub", hostname="sdrhub", role="master"}'
+        values: "0+0x200"
+      - series: 'tailscale_status_scrape_success{host="sdrhub", hostname="sdrhub", role="master"}'
+        values: "1+0x200"
+    alert_rule_test:
+      - eval_time: 2h
+        alertname: TailscaleKeyExpiryCritical
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              host: sdrhub
+              hostname: sdrhub
+              role: master
+            exp_annotations:
+              summary: "Tailscale node key on sdrhub expires in under 7 days"
+              description: "The node key for sdrhub expires in less than 7 days (or has already expired). When it goes, sdrhub stops advertising the LAN subnet route and fredvps becomes unreachable over the tailnet, which also removes it from Prometheus. Re-authenticate and then disable key expiry for this device."
+      - eval_time: 2h
+        alertname: TailscaleKeyExpiringSoon
+        exp_alerts: []
+
+  # NeedsLogin after an expiry is a healthy process that has stopped working, so
+  # SystemdUnitFailed cannot see it. This is the rule that does.
+  - interval: 1m
+    name: TailscaleBackendNotRunning fires when the backend is not Running
+    input_series:
+      - series: 'tailscale_backend_running{host="fredvps", hostname="fredvps", role="agent"}'
+        values: "0+0x200"
+      - series: 'tailscale_status_scrape_success{host="fredvps", hostname="fredvps", role="agent"}'
+        values: "1+0x200"
+    alert_rule_test:
+      - eval_time: 1h
+        alertname: TailscaleBackendNotRunning
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              host: fredvps
+              hostname: fredvps
+              role: agent
+            exp_annotations:
+              summary: "Tailscale is not running on fredvps"
+              description: "tailscaled on fredvps reports a backend state other than Running for 15 minutes. If the node key has expired the state will be NeedsLogin and the host needs interactive re-authentication."
+
+  # A failed status read suppresses all three other tailscale rules by design,
+  # so the failure itself has to be alertable or the whole section goes quiet
+  # precisely when it can no longer see anything.
+  - interval: 1m
+    name: TailscaleStatusScrapeFailed fires while the expiry rules stay silent
+    input_series:
+      - series: 'tailscale_status_scrape_success{host="sdrhub", hostname="sdrhub", role="master"}'
+        values: "0+0x200"
+      - series: 'tailscale_key_expiry_seconds{host="sdrhub", hostname="sdrhub", role="master"}'
+        values: "0+0x200"
+      - series: 'tailscale_key_expiry_disabled{host="sdrhub", hostname="sdrhub", role="master"}'
+        values: "0+0x200"
+      - series: 'tailscale_backend_running{host="sdrhub", hostname="sdrhub", role="master"}'
+        values: "0+0x200"
+    alert_rule_test:
+      - eval_time: 1h
+        alertname: TailscaleStatusScrapeFailed
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              host: sdrhub
+              hostname: sdrhub
+              role: master
+            exp_annotations:
+              summary: "Cannot read Tailscale status on sdrhub"
+              description: "tailscale status --json has been unreadable on sdrhub for 30 minutes, so key expiry and backend state are both unmonitored there. The collector bounds the call at 10s and reports the failure rather than hanging, so this points at tailscaled being wedged or absent rather than at the metric unit."
+      # The three suppressed rules must all stay silent on the same input.
+      - eval_time: 1h
+        alertname: TailscaleKeyExpiryCritical
+        exp_alerts: []
+      - eval_time: 1h
+        alertname: TailscaleKeyExpiringSoon
+        exp_alerts: []
+      - eval_time: 1h
+        alertname: TailscaleBackendNotRunning
+        exp_alerts: []

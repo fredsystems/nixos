@@ -5,9 +5,25 @@
 #
 # Three probe jobs feed these rules:
 #
-#   blackbox-https           public HTTPS vhosts on fredvps that must answer 2xx
-#   blackbox-https-redirect  public HTTPS vhosts that must answer 3xx
-#   blackbox-http-internal   LAN-only nginx vhosts on sdrhub
+#   blackbox-https                     public HTTPS vhosts on fredvps that
+#                                      must answer 2xx -- one per certificate
+#   blackbox-https-redirect            public HTTPS vhosts that must answer 3xx
+#                                      -- one per certificate
+#   blackbox-https-secondary           www aliases and sub-path apps that must
+#                                      answer 2xx, sharing a cert with a primary
+#   blackbox-https-redirect-secondary  www aliases that must answer 3xx,
+#                                      sharing a cert with a primary
+#   blackbox-http-internal             LAN-only nginx vhosts on sdrhub
+#
+# THE `-secondary` JOBS AND TLS
+#
+# Availability rules below apply to every job. The TLS rules deliberately do
+# NOT: a `-secondary` target shares its certificate with a primary one (a www
+# alias is folded into the apex's ACME cert, and a sub-path is the same vhost),
+# so including them would report a single renewal failure once per probed URL
+# instead of once per certificate. Each `-secondary` selector below is therefore
+# `job!~".*-secondary"`, and the primary lists in blackbox.nix must stay
+# one-target-per-certificate for that to remain true.
 #
 # LABELS AVAILABLE HERE -- read this before adding an annotation
 #
@@ -62,10 +78,19 @@ groups:
         #   flipaholics.pro         ~0.62s  (slowest backend; consistently so)
         #   LAN nginx vhosts        0.007s - 0.03s
         #
-        # Worst single observation across all 20 targets was 1.03s, on a cold
-        # first probe. 5s is roughly a 5x margin over that and an 8x margin
-        # over the slowest steady-state target, so this cannot fire on normal
-        # variance -- only on genuine degradation.
+        # Worst single observation was 1.03s, on a cold first probe. 5s is
+        # roughly a 5x margin over that and an 8x margin over the slowest
+        # steady-state target, so this cannot fire on normal variance -- only on
+        # genuine degradation.
+        #
+        # That baseline was measured across the 20 targets that existed when it
+        # was taken. The 16 `-secondary` targets added later were verified to
+        # respond as classified but were NOT separately timed. They are not
+        # expected to shift it: the www aliases are the same nginx vhosts and
+        # certificates as their apex, and the two sub-path targets proxy to
+        # loopback backends on the same host as an already-measured vhost. If a
+        # future target is added that is not in one of those classes, re-measure
+        # rather than assuming this margin still holds.
         #
         # Deliberately below the module timeout (10s) and the job's
         # scrape_timeout (15s), so a slow-but-working endpoint surfaces here
@@ -97,9 +122,9 @@ groups:
         # means renewal has already been attempted and has not succeeded --
         # there is a real fault, with three weeks of slack to fix it.
         expr: |
-          (probe_ssl_earliest_cert_expiry - time()) < (21 * 24 * 60 * 60)
+          (probe_ssl_earliest_cert_expiry{job!~".*-secondary"} - time()) < (21 * 24 * 60 * 60)
           and
-          (probe_ssl_earliest_cert_expiry - time()) >= (7 * 24 * 60 * 60)
+          (probe_ssl_earliest_cert_expiry{job!~".*-secondary"} - time()) >= (7 * 24 * 60 * 60)
         # 1h: cert expiry is a slowly-moving fact, not an event. A long `for`
         # costs nothing here and makes the alert immune to a single bad scrape.
         for: 1h
@@ -114,7 +139,7 @@ groups:
         # the remaining margin is smaller than a weekend plus a work week.
         # Fires for already-expired certificates too, since the difference
         # simply goes negative.
-        expr: (probe_ssl_earliest_cert_expiry - time()) < (7 * 24 * 60 * 60)
+        expr: (probe_ssl_earliest_cert_expiry{job!~".*-secondary"} - time()) < (7 * 24 * 60 * 60)
         for: 1h
         labels:
           severity: critical
