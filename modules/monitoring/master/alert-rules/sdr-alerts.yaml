@@ -27,3 +27,42 @@ groups:
         annotations:
           summary: "Ultrafeeder receiving no RF messages on {{ $labels.hostname }}"
           description: "readsb has processed zero valid messages for 15 minutes. The SDR hardware is likely disconnected, crashed, or the decoder has stopped."
+
+      # imageapi (sdre-image-api on fredvps) refreshes its image table on a loop
+      # that reschedules itself an hour after each run finishes, so the newest
+      # lastUpdated row should never be much more than an hour old.
+      #
+      # Metric source: hosts/linux/fredvps/imageapi-metrics.nix. The companion
+      # blackbox probe of /imageapi/api/v1/last-updated asserts the endpoint
+      # answers 2xx; it cannot assert the value is recent, because blackbox
+      # compares status codes and has no way to compute an age. A stuck updater
+      # serves a healthy 200 with a week-old timestamp, which is precisely the
+      # failure this rule exists to catch.
+      - alert: ImageApiUpdatesStale
+        # 3h, not 1h: the period is one hour PLUS however long a run takes, and a
+        # run walks a set of GitHub releases, so back-to-back cycles are not
+        # evenly spaced. Three hours tolerates two consecutive missed or slow
+        # cycles before complaining.
+        #
+        # The scrape_success term matters. If the container is down the endpoint
+        # does not answer, the exporter leaves the age metric at 0, and
+        # `time() - 0` is enormous -- this rule would fire and blame a stale
+        # update loop when the real fault is that nothing responded. Requiring a
+        # successful scrape keeps the two distinguishable; the container being
+        # down is reported by the blackbox probe and the docker rules instead.
+        expr: |
+          (
+            time() - imageapi_last_updated_seconds
+          ) > (3 * 60 * 60)
+          and on (host) (imageapi_last_updated_scrape_success == 1)
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "imageapi image data is stale on {{ $labels.host }}"
+          description: >-
+            The newest imageapi lastUpdated row is over 3h old while the endpoint
+            is still answering, so the hourly update loop has stopped making
+            progress. Check the imageapi container logs on {{ $labels.host }} --
+            an expired GitHub token or a failing Octokit call will stall it
+            silently while it keeps serving 200s.

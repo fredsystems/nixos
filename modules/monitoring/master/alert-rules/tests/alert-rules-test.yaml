@@ -558,3 +558,61 @@ tests:
       - eval_time: 2h
         alertname: NixOSManifestFetchStalled
         exp_alerts: []
+
+  # ---------------------------------------------------------------------------
+  # imageapi freshness. The metric pair exists because blackbox can assert the
+  # endpoint answers but cannot assert the value is recent; these cases pin the
+  # distinction between "data is stale" and "nothing answered".
+  # ---------------------------------------------------------------------------
+
+  - interval: 1m
+    name: ImageApiUpdatesStale fires when data is stale but the endpoint answers
+    input_series:
+      # Timestamp frozen well in the past, so time() - it exceeds 3h during the
+      # evaluation window below.
+      - series: 'imageapi_last_updated_seconds{host="fredvps", hostname="fredvps", role="agent"}'
+        values: "0+0x400"
+      - series: 'imageapi_last_updated_scrape_success{host="fredvps", hostname="fredvps", role="agent"}'
+        values: "1+0x400"
+    alert_rule_test:
+      - eval_time: 4h
+        alertname: ImageApiUpdatesStale
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              host: fredvps
+              hostname: fredvps
+              role: agent
+            exp_annotations:
+              summary: "imageapi image data is stale on fredvps"
+              description: "The newest imageapi lastUpdated row is over 3h old while the endpoint is still answering, so the hourly update loop has stopped making progress. Check the imageapi container logs on fredvps -- an expired GitHub token or a failing Octokit call will stall it silently while it keeps serving 200s."
+
+  # A container that is down leaves the age metric at 0, which would look
+  # infinitely stale. The scrape_success term is what stops this rule blaming the
+  # update loop for what is actually an unreachable endpoint -- that case belongs
+  # to the blackbox probe and the docker rules.
+  - interval: 1m
+    name: ImageApiUpdatesStale stays silent when the endpoint did not answer
+    input_series:
+      - series: 'imageapi_last_updated_seconds{host="fredvps", hostname="fredvps", role="agent"}'
+        values: "0+0x400"
+      - series: 'imageapi_last_updated_scrape_success{host="fredvps", hostname="fredvps", role="agent"}'
+        values: "0+0x400"
+    alert_rule_test:
+      - eval_time: 4h
+        alertname: ImageApiUpdatesStale
+        exp_alerts: []
+
+  # Fresh data must not fire. The timestamp tracks the clock here, holding the
+  # age near zero throughout.
+  - interval: 1m
+    name: ImageApiUpdatesStale stays silent while updates are fresh
+    input_series:
+      - series: 'imageapi_last_updated_seconds{host="fredvps", hostname="fredvps", role="agent"}'
+        values: "0+60x400"
+      - series: 'imageapi_last_updated_scrape_success{host="fredvps", hostname="fredvps", role="agent"}'
+        values: "1+0x400"
+    alert_rule_test:
+      - eval_time: 4h
+        alertname: ImageApiUpdatesStale
+        exp_alerts: []
