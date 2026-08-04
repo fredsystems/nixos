@@ -168,8 +168,8 @@
     {
       "id": 5,
       "type": "stat",
-      "title": "Nodes Behind Main",
-      "description": "Nodes whose deployed commit is behind GitHub main",
+      "title": "Nodes Needing Deploy",
+      "description": "Nodes whose running system closure differs from the one main expects for them. Counts real deploys, not commit distance: a commit that does not change a node's closure never appears here.",
       "gridPos": { "h": 4, "w": 6, "x": 18, "y": 1 },
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "options": {
@@ -207,8 +207,8 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "count(nixos_revision_behind{role!=\"desktop\"} == 1) or vector(0)",
-          "legendFormat": "Behind",
+          "expr": "count(nixos_deploy_state{role!=\"desktop\", state=\"drifted\"} == 1) or vector(0)",
+          "legendFormat": "Needing deploy",
           "instant": true
         }
       ]
@@ -475,7 +475,7 @@
       "id": 11,
       "type": "table",
       "title": "Node Deployment Status",
-      "description": "Per-node: deployed SHA, deploy time, commits behind main, reboot needed, and node up status",
+      "description": "Per-node: running closure's source commit, deploy time, whether the running closure differs from the one main expects, how long it has differed, reboot needed, and node up status",
       "gridPos": { "h": 8, "w": 24, "x": 0, "y": 10 },
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "options": {
@@ -553,7 +553,7 @@
             ]
           },
           {
-            "matcher": { "id": "byName", "options": "Behind Main" },
+            "matcher": { "id": "byName", "options": "Needs Deploy" },
             "properties": [
               {
                 "id": "mappings",
@@ -567,7 +567,7 @@
                   {
                     "type": "value",
                     "options": {
-                      "1": { "text": "BEHIND", "color": "yellow", "index": 1 }
+                      "1": { "text": "DEPLOY", "color": "yellow", "index": 1 }
                     }
                   }
                 ]
@@ -580,16 +580,17 @@
             ]
           },
           {
-            "matcher": { "id": "byName", "options": "Commits Behind" },
+            "matcher": { "id": "byName", "options": "Drift Age (h)" },
             "properties": [
+              { "id": "decimals", "value": 1 },
               {
                 "id": "thresholds",
                 "value": {
                   "mode": "absolute",
                   "steps": [
                     { "color": "green", "value": null },
-                    { "color": "yellow", "value": 1 },
-                    { "color": "red", "value": 10 }
+                    { "color": "yellow", "value": 6 },
+                    { "color": "red", "value": 72 }
                   ]
                 }
               },
@@ -630,24 +631,23 @@
           "options": {
             "renameByName": {
               "host": "Host",
-              "short_sha": "SHA",
+              "short_rev": "SHA",
               "Value #build": "Last Deployed",
-              "Value #behind": "Behind Main",
-              "Value #lag": "Commits Behind",
+              "Value #behind": "Needs Deploy",
+              "Value #lag": "Drift Age (h)",
               "Value #reboot": "Reboot Needed",
               "Value #up": "Up"
             },
             "excludeByName": {
-              "Time": true,
-              "sha": true
+              "Time": true
             },
             "indexByName": {
               "Host": 0,
               "Up": 1,
               "SHA": 2,
               "Last Deployed": 3,
-              "Behind Main": 4,
-              "Commits Behind": 5,
+              "Needs Deploy": 4,
+              "Drift Age (h)": 5,
               "Reboot Needed": 6
             }
           }
@@ -657,7 +657,7 @@
         {
           "refId": "build",
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "max by (host, short_sha) (nixos_build_info)",
+          "expr": "max by (host, short_rev) (nixos_deploy_timestamp_seconds * on (host) group_left (short_rev) nixos_deploy_info) * 1000",
           "instant": true,
           "legendFormat": "__auto",
           "format": "table"
@@ -665,7 +665,7 @@
         {
           "refId": "behind",
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "max by (host) (nixos_revision_behind)",
+          "expr": "max by (host) (nixos_deploy_state{state=\"drifted\"})",
           "instant": true,
           "legendFormat": "__auto",
           "format": "table"
@@ -673,7 +673,7 @@
         {
           "refId": "lag",
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "max by (host) (nixos_revision_lag)",
+          "expr": "(time() - max by (host) (nixos_expected_change_timestamp_seconds)) / 3600 * max by (host) (nixos_deploy_state{state=\"drifted\"})",
           "instant": true,
           "legendFormat": "__auto",
           "format": "table"

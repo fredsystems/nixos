@@ -1,20 +1,16 @@
 groups:
+  # Deploy-state alerts are driven by nixos_deploy_state, emitted by
+  # modules/monitoring/agent/node_exporter.nix from the fleet manifest that
+  # .github/workflows/fleet-manifest.yaml publishes. The manifest records the
+  # system.build.toplevel store path main expects per host, so "needs a deploy"
+  # is decided by comparing closures rather than by counting commits.
+  #
+  # NixOSNotOnMain and NixOSRevisionBehind previously lived here. Both keyed off
+  # a git SHA and a GitHub compare-API commit distance, which meant any commit
+  # touching any host alerted on every host, and a dirty build reported healthy.
+  # They are replaced by NixOSDeployDrift and NixOSUnmanagedSystem below.
   - name: nixos-alerts
     rules:
-      - alert: NixOSNotOnMain
-        # Desktops track feature branches routinely, so they are excluded.
-        # This previously matched host!~"daytona|maranello", which never
-        # excluded Daytona: the host label is "Daytona" and PromQL regexes
-        # are case-sensitive. Selecting on role is both correct and
-        # consistent with NixOSRevisionBehind below.
-        expr: nixos_branch{role!="desktop"} == 0
-        for: 6h
-        labels:
-          severity: warning
-        annotations:
-          summary: "NixOS repo not on main branch"
-          description: "The NixOS configuration on {{ $labels.host }} is not checked out on main for more than 6 hours."
-
       - alert: NixOSNeedsReboot
         expr: nixos_needs_reboot == 1
         for: 1h
@@ -24,15 +20,149 @@ groups:
           summary: "NixOS system requires a reboot"
           description: "Host {{ $labels.host }} has pending upgrades and needs a reboot."
 
-      - alert: NixOSRevisionBehind
-        # Desktops are updated manually on a different cadence than servers.
-        expr: nixos_revision_behind{role!="desktop"} == 1
-        for: 6h
+      - alert: NixOSDeployDrift
+        # Fires only when main has actually changed THIS host's system closure
+        # and the host has not taken it up for six hours.
+        #
+        # The elapsed-time term is the crux. nixos_expected_change_timestamp_seconds
+        # only moves when the host's expected closure changes, so a commit that
+        # does not affect this host never starts the clock -- which is what makes
+        # frequent no-op churn (a nightly overlay bump for a package this host
+        # does not install, a flake input only desktops consume) silent instead
+        # of paging. Using `for: 6h` on a plain boolean could not express this:
+        # the boolean would already be true the moment main moved.
+        #
+        # Desktops are excluded: they are rebuilt by hand on their own cadence
+        # and legitimately run local builds. Selecting on role rather than host
+        # matters -- an earlier rule used host!~"daytona|maranello" and never
+        # excluded Daytona, because the label is "Daytona" and PromQL regexes
+        # are case-sensitive.
+        #
+        # The trailing group_left join pulls the closure/revision labels off
+        # nixos_deploy_info so the annotations can name what is actually stale.
+        # nixos_deploy_info is an identity metric with a constant value of 1,
+        # which is what keeps this a label enrichment rather than an arithmetic
+        # change to the condition.
+        expr: |
+          (
+            nixos_deploy_state{state="drifted", role!="desktop"} == 1
+            and on (host) (
+              (time() - max by (host) (nixos_expected_change_timestamp_seconds)) > 21600
+            )
+          )
+          * on (host) group_left (running, expected, short_rev, short_expected_rev)
+          max by (host, running, expected, short_rev, short_expected_rev) (nixos_deploy_info)
+        # Short: the six-hour grace already lives in the expression above. This
+        # only needs to ride out a scrape gap or an in-flight deploy.
+        for: 15m
         labels:
           severity: warning
         annotations:
-          summary: "NixOS checkout is behind GitHub main"
-          description: "Host {{ $labels.host }} is behind GitHub main."
+          summary: "NixOS host is running an outdated system closure"
+          description: >-
+            {{ $labels.host }} is running {{ $labels.running }} (from
+            {{ $labels.short_rev }}) but main expects {{ $labels.expected }}
+            (from {{ $labels.short_expected_rev }}). This commit range genuinely
+            changes this host's closure, so a deploy is required.
+
+      - alert: NixOSUnmanagedSystem
+        # The running closure is not one the manifest has ever published for
+        # this host: a local, dirty or feature-branch build. The superseded
+        # nixos-revision-metric script reported exactly this case as healthy,
+        # because it hard-coded BEHIND=0 whenever the recorded revision was the
+        # string "dirty" -- so a server left on a WIP build never alerted no
+        # matter how far main moved.
+        #
+        # Same group_left label enrichment as NixOSDeployDrift; see the note
+        # there for why the constant-valued info metric makes this safe.
+        expr: |
+          (nixos_deploy_state{state="unmanaged", role!="desktop"} == 1)
+          * on (host) group_left (running, expected)
+          max by (host, running, expected) (nixos_deploy_info)
+        for: 2h
+        labels:
+          severity: warning
+        annotations:
+          summary: "NixOS host is running an unmanaged system closure"
+          description: >-
+            {{ $labels.host }} is running {{ $labels.running }}, which main has
+            never produced (main expects {{ $labels.expected }}). It was
+            probably deployed from a dirty or feature-branch checkout and will
+            not converge on its own.
+
+      - alert: NixOSDeployStateUnknown
+        # Cannot determine drift at all: no manifest was ever fetched, or this
+        # host is absent from it (newly added and not yet published). Distinct
+        # from the states above because the check itself is blind here, and a
+        # blind check that stays quiet is the failure mode this whole rule set
+        # was rewritten to eliminate.
+        expr: nixos_deploy_state{state="unknown", role!="desktop"} == 1
+        for: 12h
+        labels:
+          severity: warning
+        annotations:
+          summary: "NixOS deploy state cannot be determined"
+          description: >-
+            {{ $labels.host }} could not resolve its expected closure from the
+            fleet manifest for 12 hours. Drift detection is not running on this
+            host. Check the fleet-manifest workflow and the host's egress to
+            raw.githubusercontent.com.
+
+      - alert: NixOSFleetManifestStale
+        # If the publishing workflow breaks, hosts keep fetching the last good
+        # manifest successfully and every one of them keeps reporting
+        # up_to_date. Drift detection silently freezes with no other symptom:
+        # NixOSDeployStateUnknown cannot catch it, because the fetch succeeds
+        # and the host is present in the file. This is the watchdog for that.
+        #
+        # Aggregated with min() and deliberately not `by (host)`: a stale
+        # manifest is one fault in one workflow, so it should page once rather
+        # than once per host. min() also makes the condition specific -- if even
+        # the freshest host in the fleet is looking at a day-old manifest, the
+        # publisher is broken rather than one host's network.
+        expr: min(nixos_manifest_age_seconds{role!="desktop"}) > 86400
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Fleet deploy manifest is stale"
+          description: >-
+            The newest fleet manifest any host can see is over 24h old, so
+            deploy-drift detection is effectively disabled fleet-wide. Check the
+            Fleet Manifest workflow.
+
+      - alert: NixOSManifestFetchStalled
+        # Complements NixOSFleetManifestStale by covering the opposite fault: a
+        # single host that has lost egress (or is being served a stale cached
+        # copy) while the publisher is healthy. Such a host keeps comparing
+        # against its last good manifest, so it happily reports up_to_date
+        # against an expectation that has since moved -- drift goes undetected on
+        # that host and nothing else here would notice. Same class of silent
+        # blindness the commit-distance check suffered from.
+        #
+        # Expressed as a differential against the freshest host in the fleet
+        # rather than an absolute age. An absolute per-host threshold would also
+        # fire on every host during a publisher outage, reintroducing exactly the
+        # seven-notifications-for-one-fault noise this rewrite removes; a
+        # publisher outage raises every host's age together, so the differential
+        # stays near zero and only this rule's true condition can trip it. It
+        # also catches a stale-but-successful fetch, which a
+        # nixos_manifest_fetch_success term would miss.
+        expr: |
+          (
+            nixos_manifest_age_seconds{role!="desktop"}
+            - on () group_left () min(nixos_manifest_age_seconds{role!="desktop"})
+          ) > 43200
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "NixOS host is not refreshing the fleet manifest"
+          description: >-
+            {{ $labels.host }} is comparing against a manifest at least 12h
+            older than the freshest one in the fleet, so its drift detection is
+            stale even though it may report up to date. Check the host's egress
+            to raw.githubusercontent.com.
 
       - alert: AdGuardHomeDown
         expr: node_systemd_unit_state{state="active", name="adguardhome.service", hostname="sdrhub"} == 0
