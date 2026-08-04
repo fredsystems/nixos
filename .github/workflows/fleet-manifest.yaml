@@ -19,6 +19,29 @@ name: Fleet Manifest
 on:
   push:
     branches: [main]
+
+  # Every 6 hours, independently of whether anything merged.
+  #
+  # Hosts derive nixos_manifest_age_seconds from this manifest's generated_at,
+  # and NixOSFleetManifestStale fires when the freshest copy any host can see is
+  # over 24h old. On a push-only trigger that metric actually measures "time
+  # since something was merged", so a quiet weekend would trip the alert and
+  # report fleet-wide drift detection as disabled while everything was in fact
+  # working -- the publisher had simply had nothing to publish.
+  #
+  # Refreshing on a schedule makes the metric mean what the alert claims, and
+  # four runs per day against a 24h threshold leaves three missed runs of slack
+  # before it fires.
+  #
+  # The cost is one commit per run carrying a two-line diff. That is immaterial:
+  # the file is capped at ~50 KiB, hosts fetch it as a single file over raw.
+  # githubusercontent.com, and the workflow clones with --depth 1, so none of the
+  # three consumers pays for branch history. Note this relies on the
+  # changed-hosts report diffing paths rather than matching on revision --
+  # otherwise every scheduled run would claim all nine hosts had changed.
+  schedule:
+    - cron: "17 */6 * * *"
+
   workflow_dispatch:
 
 # Serialise pushes to the manifest branch. Two runs racing would make one of
