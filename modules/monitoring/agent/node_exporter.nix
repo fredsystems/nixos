@@ -195,18 +195,12 @@
             # both a wiped StateDirectory and a reboot.
             #
             # An earlier version tracked this in state: it recorded the running
-            # closure and stamped the clock whenever that changed, seeding from
-            # the superseded metric's file on first run to avoid every host
-            # reporting "deployed just now" at once. That reasoning was wrong.
-            # This unit's first run can only ever happen on a closure that was
-            # just activated, because installing the unit requires activating
-            # one -- so "just now" was the correct answer, and seeding replaced it
-            # with the host's PREVIOUS deploy time. Every host in the fleet
-            # reported a deploy several hours older than the one that had just
-            # happened, and the value then froze there until the next real deploy
-            # because the legacy file it seeded from was deleted on the same run.
-            #
             # Retire the state and textfiles the superseded services left behind.
+            # The deploy timestamp is now derived from the system profile mtime
+            # near the top of this script, so none of these files are read any
+            # more; removing them stops a stale .prom re-exporting withdrawn
+            # metric names forever, since the textfile collector has no concept
+            # of expiry.
             rm -f /var/lib/node_exporter/textfiles/nixos_build_timestamp.val \
                   /var/lib/node_exporter/textfiles/nixos_build_last_sha \
                   "$STATE_DIR/deploy_timestamp_seconds" \

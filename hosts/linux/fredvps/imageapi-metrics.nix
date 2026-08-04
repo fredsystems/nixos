@@ -76,9 +76,10 @@ in
             echo "imageapi_last_updated_seconds{host=\"$HOST\"} $LAST_UPDATED"
 
             # Emitted unconditionally so the age alert can require a successful
-            # scrape. Without it, a container that is down would leave the age
-            # metric at its last value and the alert would describe a stale
-            # update loop when the real fault is that nothing answered.
+            # scrape. When nothing answers, the age metric above is written as 0,
+            # so `time() - 0` reads as an enormous age -- without this flag the
+            # alert would describe a stalled update loop when the real fault is
+            # that the endpoint was unreachable.
             echo "# HELP imageapi_last_updated_scrape_success Whether the last-updated endpoint answered and parsed."
             echo "# TYPE imageapi_last_updated_scrape_success gauge"
             echo "imageapi_last_updated_scrape_success{host=\"$HOST\"} $SCRAPE_OK"

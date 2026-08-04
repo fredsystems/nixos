@@ -77,7 +77,11 @@ while [[ $# -gt 0 ]]; do
         --wait) WAIT=1 ;;
         --) shift; COLMENA_ARGS=("$@"); break ;;
         -h | --help)
-            sed -n '2,55p' "$0" | sed 's/^# \{0,1\}//'
+            # Print the whole header block by structure rather than by line
+            # number: a hardcoded range silently truncates the moment the header
+            # grows, which it already had -- the `--` passthrough line was being
+            # cut off.
+            awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "$0"
             exit 0
             ;;
         *)
@@ -222,8 +226,15 @@ for node in "${NODES[@]}"; do
         continue
     fi
 
+    # StrictHostKeyChecking is deliberately left at the user's default rather
+    # than set to accept-new. This script decides whether to deploy, so
+    # silently trusting an unrecognised host key is the wrong default: an
+    # unknown host should be surfaced, not adopted. Under BatchMode an unknown
+    # key simply fails, which lands the node in UNREACHABLE below and is
+    # reported rather than skipped. Every node here is already in known_hosts
+    # because colmena connects to them, so this costs nothing in practice.
     if ! running="$(
-        ssh -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new \
+        ssh -o BatchMode=yes -o ConnectTimeout=10 \
             -p "$port" "${user}@${host}" 'readlink -f /run/current-system' 2>/dev/null
     )"; then
         UNREACHABLE+=("$node ($host)")

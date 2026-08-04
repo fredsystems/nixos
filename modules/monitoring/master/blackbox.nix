@@ -78,7 +78,7 @@ let
     # `/imageapi/` answers 404 by design and a 2xx probe there would fire
     # permanently. This route also exercises the app's database, since it reads
     # the newest lastUpdated row. Freshness of that value is a separate concern
-    # and is covered by the sdre_image_api_last_updated_seconds metric on
+    # and is covered by the imageapi_last_updated_seconds metric on
     # fredvps -- blackbox can assert a status code but cannot compute an age.
     "https://fredclausen.com/imageapi/api/v1/last-updated"
   ];
@@ -278,7 +278,7 @@ in
       (mkProbeJob "blackbox-https-redirect" "https_redirect" publicRedirectEndpoints)
 
       # The `-secondary` suffix is load-bearing, not cosmetic: the cert-expiry
-      # rules in alert-rules/blackbox-alerts.yaml exclude `job=~".*-secondary"`
+      # rules in alert-rules/blackbox-alerts.yaml select `job!~".*-secondary"`
       # so a certificate shared with a primary target is reported once rather
       # than once per probed URL. Renaming these jobs without updating those
       # rules would silently restore the duplicate cert alerts.

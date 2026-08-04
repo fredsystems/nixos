@@ -58,7 +58,15 @@
           RUNNING=0
           STATUS_OK=0
 
-          STATUS=$("$TAILSCALE" status --json 2>/dev/null || echo "")
+          # Bounded deliberately. `tailscale status` talks to tailscaled's local
+          # API, which blocks if the daemon is wedged -- and an unbounded read
+          # would hang this oneshot until systemd's start timeout killed it,
+          # leaving the previous .prom in place and the metrics silently frozen
+          # at their last values. Timing out instead falls through to
+          # STATUS_OK=0, which is the honest report and is what
+          # TailscaleBackendNotRunning and the expiry guards expect. Matches the
+          # --max-time already used by the imageapi metric on fredvps.
+          STATUS=$(${pkgs.coreutils}/bin/timeout 10 "$TAILSCALE" status --json 2>/dev/null || echo "")
 
           if [[ -n "$STATUS" ]] && $JQ -e . <<<"$STATUS" >/dev/null 2>&1; then
             STATUS_OK=1
