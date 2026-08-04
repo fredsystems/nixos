@@ -8,6 +8,7 @@
   imports = [
     ./hardware-configuration.nix
     ../../../profiles/desktop.nix
+    ./tailscale.nix
   ];
 
   # Hardware profile settings
