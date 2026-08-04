@@ -130,7 +130,20 @@ echo "Evaluated $(jq -r 'length' <<<"$PATHS_JSON") host(s)." >&2
 
 # Previous manifest, if any. A malformed existing file is treated as absent
 # rather than fatal so a corrupted manifest self-heals on the next run.
-if [[ -f "$OUT" ]] && jq -e . "$OUT" >/dev/null 2>&1; then
+#
+# The structure is validated, not just the syntax. A bare `jq -e .` would accept
+# any valid JSON, including shapes this script then indexes as an object --
+# `[]`, `"string"`, or a `history` that is not an array. Those raise a jq error
+# rather than returning null, and under `set -e` that aborts the run instead of
+# self-healing, which would leave the whole fleet without a manifest until
+# someone hand-repaired the branch. Checking the shape up front makes the
+# self-heal claim above actually true for any corruption, not only for invalid
+# JSON.
+if [[ -f "$OUT" ]] && jq -e '
+    type == "object"
+    and ((.hosts // {}) | type == "object")
+    and ((.hosts // {}) | all(.[]; (.history // []) | type == "array"))
+' "$OUT" >/dev/null 2>&1; then
     OLD_JSON="$(cat "$OUT")"
 else
     OLD_JSON='{}'
