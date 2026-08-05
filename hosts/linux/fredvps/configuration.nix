@@ -185,7 +185,7 @@
       ###############################################################
       {
         name = "tar1090";
-        image = "ghcr.io/sdr-enthusiasts/docker-tar1090:telegraf-build-1468@sha256:03f26103d7b3ab37651f0f581d65e7fd764a31bb0918304fe8f4314b1d0bd428";
+        image = "ghcr.io/sdr-enthusiasts/docker-tar1090:telegraf-build-1469@sha256:f279157af9be21279f32cddd797a08404063925df563be1a3713d0feb0f0c9e8";
 
         environmentFiles = [
           config.sops.secrets."docker/fredvps/tar1090.env".path
@@ -214,7 +214,7 @@
       ###############################################################
       {
         name = "acars_router";
-        image = "ghcr.io/sdr-enthusiasts/acars_router:latest-build-586@sha256:5046a468a1adefd5f84b19dc2dba868d7335b5e6695a1ce969c4a5a7bf90c155";
+        image = "ghcr.io/sdr-enthusiasts/acars_router:latest-build-587@sha256:de236bc97c84e34679d2d0086524d9ebe2dc2252ed47799916a04e19578e4a67";
 
         environmentFiles = [
           config.sops.secrets."docker/fredvps/acars_router.env".path
@@ -236,7 +236,7 @@
       ###############################################################
       {
         name = "acarshub";
-        image = "ghcr.io/sdr-enthusiasts/docker-acarshub:latest-build-1505@sha256:cc9a6aa709700b4fdd040f605576d8d7b1448a3854dd2b5f293ca4fe0ef5eeaa";
+        image = "ghcr.io/sdr-enthusiasts/docker-acarshub:latest-build-1506@sha256:1ae9bb712fb3cbbc812da354431961812215306810675707277a319b07d52a91";
 
         environmentFiles = [
           config.sops.secrets."docker/fredvps/acarshub.env".path

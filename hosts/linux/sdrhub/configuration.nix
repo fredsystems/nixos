@@ -267,7 +267,7 @@ in
       ###############################################################
       {
         name = "ultrafeeder";
-        image = "ghcr.io/sdr-enthusiasts/docker-adsb-ultrafeeder:latest-build-950@sha256:34179c56a21ee69292a76375864a8a604e281d98a078b39088d137695394be73";
+        image = "ghcr.io/sdr-enthusiasts/docker-adsb-ultrafeeder:latest-build-951@sha256:6eee34af653137c358d97074455a3368d3989903922fab2a5fcd0be1165ffd81";
 
         hostname = "ultrafeeder";
         restart = "always";
@@ -325,7 +325,7 @@ in
         # set correctly below, so no other change is needed.
         #
         # Cost: the telegraf binary is ~310 MB uncompressed.
-        image = "ghcr.io/sdr-enthusiasts/docker-dump978:telegraf-build-801@sha256:9f52599c4651f91ad6b00e4589cd18fc0e6914a20e0c8b6b56a7b0d5884d9fca";
+        image = "ghcr.io/sdr-enthusiasts/docker-dump978:telegraf-build-802@sha256:0120c49e2153d25d3b0b81734d4aadbb29deef26c5c3c05d718d4d9cfcb0388a";
 
         hostname = "dump978";
         restart = "always";
@@ -376,7 +376,7 @@ in
       ###############################################################
       {
         name = "adsbhub";
-        image = "ghcr.io/sdr-enthusiasts/docker-adsbhub:latest-build-529@sha256:8d9953dc6b759539b2f7b236d31b2c143d934d6280591458526dc2c6d1363345";
+        image = "ghcr.io/sdr-enthusiasts/docker-adsbhub:latest-build-530@sha256:ca7615a577deb94be5b3a004c80fc291f325ec767802edf057ad0944596cf01a";
 
         restart = "always";
         tty = true;
@@ -396,7 +396,7 @@ in
       ###############################################################
       {
         name = "fr24";
-        image = "ghcr.io/sdr-enthusiasts/docker-flightradar24:latest-build-858@sha256:488a0b3018daa11581daf3bd53ca6b6d596a615e8fae4031f54b3e4e51963ced";
+        image = "ghcr.io/sdr-enthusiasts/docker-flightradar24:latest-build-859@sha256:998a80cc35b2db150843d1dece7dc99cb985d136503de9b46bc98c2f836030c5";
 
         restart = "always";
         tty = true;
@@ -420,7 +420,7 @@ in
       ###############################################################
       {
         name = "piaware";
-        image = "ghcr.io/sdr-enthusiasts/docker-piaware:latest-build-665@sha256:912921ca1800ca1cce4058aa04380f62d9214ad09be20f7addf67d31c119d1ec";
+        image = "ghcr.io/sdr-enthusiasts/docker-piaware:latest-build-666@sha256:3b6772353a562f3d6ac1ba6a2281f96b173a43b822fda14c7f0218a459c225aa";
 
         hostname = "piaware";
         restart = "always";
@@ -445,7 +445,7 @@ in
       ###############################################################
       {
         name = "planefinder";
-        image = "ghcr.io/sdr-enthusiasts/docker-planefinder:latest-build-540@sha256:b0521c923127bc9722a114a4bdab7ddf2b642f316bcc4a2503de6fdc125f2c7a";
+        image = "ghcr.io/sdr-enthusiasts/docker-planefinder:latest-build-541@sha256:1554ef9a9e34ea38c7765a4871afda9736cf85a47a60edb59e7eb43c4fc895c7";
 
         restart = "always";
         tty = true;
@@ -489,7 +489,7 @@ in
       ###############################################################
       {
         name = "radarvirtuel";
-        image = "ghcr.io/sdr-enthusiasts/docker-radarvirtuel:latest-build-799@sha256:b5b4236e0aed6b06d4112a3669d775e8cd2be1bde19e9e6225d7aab8ea4f4ec0";
+        image = "ghcr.io/sdr-enthusiasts/docker-radarvirtuel:latest-build-800@sha256:428a60bb83f61eaea7e351b6a1dd65573da828b716fcd94dacc593e5cf238b4e";
 
         hostname = "radarvirtuel";
         restart = "always";
@@ -518,7 +518,7 @@ in
       ###############################################################
       {
         name = "rbfeeder";
-        image = "ghcr.io/sdr-enthusiasts/docker-airnavradar:latest-build-882@sha256:73eabce0ea21aec929d132ccb576377ff8bb3c8d42f32cab39a8847d79ddcb48";
+        image = "ghcr.io/sdr-enthusiasts/docker-airnavradar:latest-build-883@sha256:ccbd54e6bc146c9aacb304a54ff2c1671952fb3df71849afa5917a3b15eaab56";
 
         restart = "always";
         tty = false;
@@ -543,7 +543,7 @@ in
       ###############################################################
       {
         name = "opensky";
-        image = "ghcr.io/sdr-enthusiasts/docker-opensky-network:latest-build-843@sha256:dddfeb06f6723ec99d5d646cfc97973dbad577ab97ef5208440ce8d142e12398";
+        image = "ghcr.io/sdr-enthusiasts/docker-opensky-network:latest-build-844@sha256:3db40e3942781387711ef08696112e0ff5f398bb86406023c1734d5aef3a92b7";
 
         restart = "always";
         tty = true;
@@ -563,7 +563,7 @@ in
       ###############################################################
       {
         name = "sdrmap";
-        image = "ghcr.io/sdr-enthusiasts/docker-sdrmap:latest-build-98@sha256:8aab9e1c416f01f955a10d330016e1fc4b2d979e91249a9d7d15a062d3735212";
+        image = "ghcr.io/sdr-enthusiasts/docker-sdrmap:latest-build-99@sha256:d53cede29cf07e607fa06ac8fe86deb53b2bdf8cdc22783aa2db3de33c886fb3";
 
         restart = "always";
 
@@ -577,7 +577,7 @@ in
       ###############################################################
       {
         name = "acarshub";
-        image = "ghcr.io/sdr-enthusiasts/docker-acarshub:latest-build-1505@sha256:cc9a6aa709700b4fdd040f605576d8d7b1448a3854dd2b5f293ca4fe0ef5eeaa";
+        image = "ghcr.io/sdr-enthusiasts/docker-acarshub:latest-build-1506@sha256:1ae9bb712fb3cbbc812da354431961812215306810675707277a319b07d52a91";
 
         restart = "always";
         tty = true;
@@ -680,7 +680,7 @@ in
       ###############################################################
       {
         name = "acars_router";
-        image = "ghcr.io/sdr-enthusiasts/acars_router:latest-build-586@sha256:5046a468a1adefd5f84b19dc2dba868d7335b5e6695a1ce969c4a5a7bf90c155";
+        image = "ghcr.io/sdr-enthusiasts/acars_router:latest-build-587@sha256:de236bc97c84e34679d2d0086524d9ebe2dc2252ed47799916a04e19578e4a67";
 
         restart = "always";
         tty = true;
