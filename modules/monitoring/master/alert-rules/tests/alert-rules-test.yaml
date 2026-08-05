@@ -723,6 +723,21 @@ tests:
 
   # NeedsLogin after an expiry is a healthy process that has stopped working, so
   # SystemdUnitFailed cannot see it. This is the rule that does.
+  # Desktops are excluded: a laptop off the tailnet is routine and its owner
+  # notices immediately, whereas a server off it withdraws the LAN subnet route
+  # or vanishes from Prometheus.
+  - interval: 1m
+    name: TailscaleBackendNotRunning ignores desktops
+    input_series:
+      - series: 'tailscale_backend_running{host="Daytona", hostname="Daytona", role="desktop"}'
+        values: "0+0x200"
+      - series: 'tailscale_status_scrape_success{host="Daytona", hostname="Daytona", role="desktop"}'
+        values: "1+0x200"
+    alert_rule_test:
+      - eval_time: 1h
+        alertname: TailscaleBackendNotRunning
+        exp_alerts: []
+
   - interval: 1m
     name: TailscaleBackendNotRunning fires when the backend is not Running
     input_series:
@@ -821,3 +836,63 @@ tests:
             exp_annotations:
               summary: "NixOS host is running an outdated system closure"
               description: "vdlmhub is running nixos-system-vdlmhub-old (from aaaaaaa) but main expects nixos-system-vdlmhub-new (from bbbbbbb). This commit range genuinely changes this host's closure, so a deploy is required."
+
+  # The sops auth key, not the per-device node keys. Warning-only by design: an
+  # expired auth key blocks registering a NEW host and leaves every running host
+  # untouched, which is why the previous one went unnoticed for months.
+  - interval: 1m
+    name: TailscaleAuthKeyExpiringSoon fires once for the fleet, not once per host
+    input_series:
+      # 14 days out. time() at eval_time 2h is 7200, so 7200 + 14d.
+      - series: 'tailscale_authkey_expiry_seconds{host="sdrhub", hostname="sdrhub", role="master"}'
+        values: "1216800+0x200"
+      - series: 'tailscale_authkey_expiry_seconds{host="fredvps", hostname="fredvps", role="agent"}'
+        values: "1216800+0x200"
+      - series: 'tailscale_authkey_expiry_seconds{host="Daytona", hostname="Daytona", role="desktop"}'
+        values: "1216800+0x200"
+    alert_rule_test:
+      - eval_time: 2h
+        alertname: TailscaleAuthKeyExpiringSoon
+        # One alert for three hosts sharing one key.
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: "Tailscale auth key expires in under 21 days"
+              description: 'The auth key in secrets.yaml expires within 21 days. Nothing already on the tailnet is affected, but registering a new host will fail with "invalid key: API key does not exist" once it lapses. Generate a replacement, update the sops secret, and update authKeyExpires in modules/services/tailscale/default.nix.'
+      - eval_time: 2h
+        alertname: TailscaleAuthKeyExpiryUnknown
+        exp_alerts: []
+
+  # A comfortable expiry must stay silent.
+  - interval: 1m
+    name: TailscaleAuthKeyExpiringSoon stays silent 60 days out
+    input_series:
+      - series: 'tailscale_authkey_expiry_seconds{host="sdrhub", hostname="sdrhub", role="master"}'
+        values: "5191200+0x200"
+    alert_rule_test:
+      - eval_time: 2h
+        alertname: TailscaleAuthKeyExpiringSoon
+        exp_alerts: []
+
+  # An unrecorded date must be reported, not silently drop out of the expiry
+  # rule's `> 0` filter. This is what keeps the hand-maintained date fail-safe.
+  - interval: 1m
+    name: TailscaleAuthKeyExpiryUnknown fires when the date is unrecorded
+    input_series:
+      - series: 'tailscale_authkey_expiry_seconds{host="sdrhub", hostname="sdrhub", role="master"}'
+        values: "0+0x2000"
+    alert_rule_test:
+      - eval_time: 25h
+        alertname: TailscaleAuthKeyExpiryUnknown
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: "Tailscale auth key expiry is unrecorded"
+              description: "At least one tailnet host reports no recorded auth key expiry, so TailscaleAuthKeyExpiringSoon cannot warn before the key lapses. Set authKeyExpires in modules/services/tailscale/default.nix to the current key's expiry date."
+      # And the expiry rule must NOT fire on a zero, which would otherwise read
+      # as "expired at the epoch".
+      - eval_time: 25h
+        alertname: TailscaleAuthKeyExpiringSoon
+        exp_alerts: []

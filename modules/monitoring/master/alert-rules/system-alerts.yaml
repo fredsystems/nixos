@@ -332,13 +332,78 @@ groups:
             rather than hanging, so this points at tailscaled being wedged or
             absent rather than at the metric unit.
 
+      - alert: TailscaleAuthKeyExpiringSoon
+        # The sops auth key, as opposed to the per-device node keys the rules
+        # above watch. Source: the recorded date in
+        # modules/services/tailscale/default.nix.
+        #
+        # Warning only, and no critical tier, because an expired auth key is not
+        # an outage. It is consulted solely when a node is not yet registered, so
+        # every running host is unaffected -- which is exactly why the previous
+        # key sat dead for months without anyone noticing. What it breaks is
+        # adding a host, and that is work you choose to start, so three weeks of
+        # notice is ample.
+        #
+        # Aggregated with min() and deliberately not `by (host)`: one key is
+        # shared by every tailnet host, so this is a single fact and should page
+        # once rather than once per host. The `> 0` filter drops hosts with no
+        # recorded date, which TailscaleAuthKeyExpiryUnknown handles instead --
+        # without it a single unrecorded host would drag min() to zero and fire
+        # this rule permanently.
+        expr: (min(tailscale_authkey_expiry_seconds > 0) - time()) < (21 * 24 * 60 * 60)
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Tailscale auth key expires in under 21 days"
+          description: >-
+            The auth key in secrets.yaml expires within 21 days. Nothing already
+            on the tailnet is affected, but registering a new host will fail with
+            "invalid key: API key does not exist" once it lapses. Generate a
+            replacement, update the sops secret, and update authKeyExpires in
+            modules/services/tailscale/default.nix.
+
+      - alert: TailscaleAuthKeyExpiryUnknown
+        # The expiry date is recorded by hand, so the recording itself has to be
+        # checked. Without this, clearing or forgetting the date would silence
+        # TailscaleAuthKeyExpiringSoon rather than tripping it, turning a
+        # fail-safe arrangement into a silent one.
+        #
+        # min() so a single host missing the value is enough to report it, and
+        # 24h so a deploy that is mid-rollout across the fleet does not.
+        expr: min(tailscale_authkey_expiry_seconds) == 0
+        for: 24h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Tailscale auth key expiry is unrecorded"
+          description: >-
+            At least one tailnet host reports no recorded auth key expiry, so
+            TailscaleAuthKeyExpiringSoon cannot warn before the key lapses. Set
+            authKeyExpires in modules/services/tailscale/default.nix to the
+            current key's expiry date.
+
       - alert: TailscaleBackendNotRunning
         # BackendState is not Running. The state after a key expires is
         # NeedsLogin, so this is the signal that the host is actually off the
         # tailnet right now, as opposed to heading that way. Distinct from
         # SystemdUnitFailed, which only notices tailscaled failing outright --
         # NeedsLogin is a perfectly healthy process that has stopped working.
-        expr: tailscale_backend_running == 0 and on (host) (tailscale_status_scrape_success == 1)
+        #
+        # Desktops excluded. Critical is right for a server: sdrhub off the
+        # tailnet withdraws the LAN subnet route, and fredvps off it disappears
+        # from Prometheus. A laptop being off the tailnet is routine -- wifi off,
+        # deliberately logged out, mid-suspend -- and its owner is the first to
+        # know. Paging critical for that is noise, and it very nearly did: adding
+        # tailscale to Daytona produced exactly this state for twenty minutes
+        # while its first registration was being sorted out.
+        #
+        # The expiry rules above deliberately do NOT exclude desktops. Those
+        # describe a silent, slowly-approaching fact that a laptop's owner cannot
+        # notice on their own, which is the opposite situation.
+        expr: |
+          tailscale_backend_running{role!="desktop"} == 0
+          and on (host) (tailscale_status_scrape_success == 1)
         for: 15m
         labels:
           severity: critical
