@@ -117,10 +117,20 @@
             # Refresh the manifest into a temp file first: a truncated or
             # error-page response must not clobber a good cached copy, or a
             # transient GitHub failure would flip the whole fleet to unknown.
+            #
+            # generated_at is type-checked here rather than only sanitised at
+            # emission. Age is derived from it, and a non-numeric value coerced to
+            # 0 would report the manifest as brand new -- silencing
+            # NixOSFleetManifestStale precisely when the manifest is unusable.
+            # There is no honest way to express an unknown age in that metric, so
+            # a manifest that cannot supply one is refused at the door and the
+            # last good cache is kept instead.
             FETCH_OK=0
             TMP="$CACHE.tmp"
             if $CURL -sfL --max-time 30 -o "$TMP" "$MANIFEST_URL" \
-              && $JQ -e '.schema == 1 and (.hosts | type == "object")' "$TMP" >/dev/null 2>&1; then
+              && $JQ -e '.schema == 1
+                          and (.generated_at | type == "number")
+                          and (.hosts | type == "object")' "$TMP" >/dev/null 2>&1; then
               mv "$TMP" "$CACHE"
               FETCH_OK=1
             else
@@ -128,6 +138,7 @@
             fi
 
             STATE="unknown"
+            DRIFTED_SINCE=0
             EXPECTED=""
             EXPECTED_REV=""
             CHANGED_AT=0
@@ -142,13 +153,55 @@
               CHANGED_AT=$($JQ -r --arg h "$HOST" '.hosts[$h].history[0].at // 0' "$CACHE" 2>/dev/null || echo 0)
             fi
 
+            # Every value that reaches the exposition below is validated here
+            # rather than trusted.
+            #
+            # `// 0` only substitutes for null or false, so a manifest carrying a
+            # string where a number belongs passes straight through and is emitted
+            # verbatim. One invalid sample makes the textfile collector reject the
+            # ENTIRE file, so a single corrupt field silences every deploy-state
+            # metric for the host -- and with it the alerts that depend on them.
+            # Demonstrated: a string `at` produced
+            # `nixos_expected_change_timestamp_seconds{...} corrupt`.
+            #
+            # The label values get the same treatment. Legitimate store paths and
+            # revisions cannot contain a quote, backslash or newline, but a corrupt
+            # cached file could, and that breaks the exposition the same way.
+            # Stripping to the characters those values can legitimately hold is
+            # cheaper than escaping and fails closed.
+            [[ "$CHANGED_AT" =~ ^[0-9]+$ ]] || CHANGED_AT=0
+            [[ "$GENERATED_AT" =~ ^[0-9]+$ ]] || GENERATED_AT=0
+            EXPECTED="''${EXPECTED//[^A-Za-z0-9._:\/+-]/}"
+            EXPECTED_REV="''${EXPECTED_REV//[^A-Za-z0-9]/}"
+
+            # Position of the running closure in the history, and the oldest entry
+            # still retained. Both feed the classification below.
+            RUNNING_IDX=-1
+            OLDEST_AT=0
+            if [[ -s "$CACHE" && -n "$RUNNING" ]]; then
+              RUNNING_IDX=$($JQ -r --arg h "$HOST" --arg p "$RUNNING" \
+                '[.hosts[$h].history[].toplevel] | (index($p) // -1)' "$CACHE" 2>/dev/null || echo -1)
+              OLDEST_AT=$($JQ -r --arg h "$HOST" '.hosts[$h].history[-1].at // 0' "$CACHE" 2>/dev/null || echo 0)
+            fi
+            [[ "$RUNNING_IDX" =~ ^-?[0-9]+$ ]] || RUNNING_IDX=-1
+            [[ "$OLDEST_AT" =~ ^[0-9]+$ ]] || OLDEST_AT=0
+
             if [[ -n "$RUNNING" && -n "$EXPECTED" ]]; then
               if [[ "$RUNNING" == "$EXPECTED" ]]; then
                 STATE="up_to_date"
-              elif $JQ -e --arg h "$HOST" --arg p "$RUNNING" \
-                '[.hosts[$h].history[].toplevel] | index($p) != null' "$CACHE" >/dev/null 2>&1; then
+              elif [[ "$RUNNING_IDX" -ge 1 ]]; then
                 # A closure main published previously: genuinely a deploy behind.
+                # The entry one position newer is the one that superseded it, so
+                # its timestamp is when this host started being behind.
                 STATE="drifted"
+                DRIFTED_SINCE=$($JQ -r --arg h "$HOST" --argjson i "$RUNNING_IDX" \
+                  '.hosts[$h].history[$i - 1].at // 0' "$CACHE" 2>/dev/null || echo 0)
+                # Validated like the other jq-derived values. A malformed `at` in
+                # a cached manifest would otherwise be emitted verbatim, and one
+                # invalid sample makes the textfile collector reject the entire
+                # file -- taking every deploy-state metric for this host with it
+                # and silencing the alerts that depend on them.
+                [[ "$DRIFTED_SINCE" =~ ^[0-9]+$ ]] || DRIFTED_SINCE=0
               elif [[ "$GENERATED_AT" -gt 0 && "$DEPLOY_TS" -gt 0 && "$GENERATED_AT" -lt "$DEPLOY_TS" ]]; then
                 # The manifest was generated BEFORE the running closure was
                 # activated, so it cannot possibly contain that closure and
@@ -169,10 +222,33 @@
                 # a normal deploy while still catching a genuinely stuck
                 # publisher, which is exactly when this must not stay quiet.
                 STATE="unknown"
+              elif [[ "$DEPLOY_TS" -gt 0 && "$OLDEST_AT" -gt 0 && "$DEPLOY_TS" -lt "$OLDEST_AT" ]]; then
+                # Not in the history, but this closure was activated BEFORE the
+                # oldest entry we still retain -- so it cannot be in the window,
+                # and its absence says nothing about whether main published it.
+                #
+                # Without this branch a host more than MAX_HISTORY closure
+                # changes behind would be reported `unmanaged`, whose alert text
+                # blames a dirty or feature-branch checkout. That is a misleading
+                # diagnosis for a host that is merely very far behind, and it
+                # arrives on a 2h fuse rather than the drift rule's 6h.
+                #
+                # drifted_since is the oldest retained timestamp, which
+                # understates the true age. That is the safe direction: the value
+                # is already old enough to fire immediately, and it can never
+                # claim the host fell behind more recently than it did.
+                STATE="drifted"
+                DRIFTED_SINCE="$OLDEST_AT"
               else
                 # Never published by main -- a local, dirty or branch build.
                 # Distinguishing this from "drifted" is the whole point: the old
                 # script reported it as healthy.
+                #
+                # A dirty build activated before the oldest retained entry is
+                # caught by the branch above and called `drifted` instead. That
+                # trade is deliberate: when the two are genuinely indistinguishable
+                # the remedy is identical -- deploy the host -- and "you are
+                # behind" is the less alarming way to say it.
                 STATE="unmanaged"
               fi
             fi
@@ -185,6 +261,7 @@
                 'first(.hosts[$h].history[] | select(.toplevel == $p) | .rev) // ""' \
                 "$CACHE" 2>/dev/null || echo "")
             fi
+            RUNNING_REV="''${RUNNING_REV//[^A-Za-z0-9]/}"
 
             # Deploy timestamp, read straight off the system profile symlink.
             #
@@ -234,6 +311,19 @@
               echo "# HELP nixos_expected_change_timestamp_seconds Unix time main last changed this host's expected closure."
               echo "# TYPE nixos_expected_change_timestamp_seconds gauge"
               echo "nixos_expected_change_timestamp_seconds{host=\"$HOST\"} $CHANGED_AT"
+
+              # How long this host has been behind, as opposed to how recently
+              # main moved. The two diverge whenever main changes this host again
+              # while it is already behind, and it is this one the drift alert
+              # measures: keying on the expected-change timestamp meant a stream
+              # of merges kept resetting the clock and could suppress the alert
+              # indefinitely for a host that had been stale for days.
+              #
+              # 0 when the host is not behind, so the alert must gate on the
+              # drifted state rather than on this value alone.
+              echo "# HELP nixos_drifted_since_seconds Unix time this host stopped running the expected closure (0 if not drifted)."
+              echo "# TYPE nixos_drifted_since_seconds gauge"
+              echo "nixos_drifted_since_seconds{host=\"$HOST\"} $DRIFTED_SINCE"
 
               # Value is always 1: this is an identity/"info" metric whose
               # payload is its labels. Keeping the value at 1 is what lets the

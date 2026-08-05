@@ -297,8 +297,13 @@ tests:
         values: "1+0x500"
       - series: 'nixos_deploy_state{host="vdlmhub", hostname="vdlmhub", role="agent", state="drifted"}'
         values: "0+0x500"
-      - series: 'nixos_expected_change_timestamp_seconds{host="vdlmhub", hostname="vdlmhub", role="agent"}'
-        values: "100+0x500"
+      # 0, matching the exporter contract for a host that is not behind. A
+      # non-zero value here would still pass -- the state selector alone keeps the
+      # rule silent -- but it would mask a regression that emitted a stale
+      # timestamp for a healthy host, which the dashboard's `> 0` filter would
+      # then render as an enormous bogus age.
+      - series: 'nixos_drifted_since_seconds{host="vdlmhub", hostname="vdlmhub", role="agent"}'
+        values: "0+0x500"
       - series: 'nixos_deploy_info{host="vdlmhub", hostname="vdlmhub", role="agent", running="nixos-system-vdlmhub-1", expected="nixos-system-vdlmhub-1", short_rev="aaaaaaa", short_expected_rev="aaaaaaa"}'
         values: "1+0x500"
     alert_rule_test:
@@ -314,7 +319,7 @@ tests:
     input_series:
       - series: 'nixos_deploy_state{host="vdlmhub", hostname="vdlmhub", role="agent", state="drifted"}'
         values: "1+0x500"
-      - series: 'nixos_expected_change_timestamp_seconds{host="vdlmhub", hostname="vdlmhub", role="agent"}'
+      - series: 'nixos_drifted_since_seconds{host="vdlmhub", hostname="vdlmhub", role="agent"}'
         values: "21000+0x500"
       - series: 'nixos_deploy_info{host="vdlmhub", hostname="vdlmhub", role="agent", running="nixos-system-vdlmhub-1", expected="nixos-system-vdlmhub-2", short_rev="aaaaaaa", short_expected_rev="bbbbbbb"}'
         values: "1+0x500"
@@ -332,7 +337,7 @@ tests:
     input_series:
       - series: 'nixos_deploy_state{host="vdlmhub", hostname="vdlmhub", role="agent", state="drifted"}'
         values: "1+0x500"
-      - series: 'nixos_expected_change_timestamp_seconds{host="vdlmhub", hostname="vdlmhub", role="agent"}'
+      - series: 'nixos_drifted_since_seconds{host="vdlmhub", hostname="vdlmhub", role="agent"}'
         values: "100+0x500"
       - series: 'nixos_deploy_info{host="vdlmhub", hostname="vdlmhub", role="agent", running="nixos-system-vdlmhub-1", expected="nixos-system-vdlmhub-2", short_rev="aaaaaaa", short_expected_rev="bbbbbbb"}'
         values: "1+0x500"
@@ -365,9 +370,9 @@ tests:
         values: "1+0x500"
       - series: 'nixos_deploy_state{host="maranello", hostname="maranello", role="desktop", state="drifted"}'
         values: "1+0x500"
-      - series: 'nixos_expected_change_timestamp_seconds{host="Daytona", hostname="Daytona", role="desktop"}'
+      - series: 'nixos_drifted_since_seconds{host="Daytona", hostname="Daytona", role="desktop"}'
         values: "100+0x500"
-      - series: 'nixos_expected_change_timestamp_seconds{host="maranello", hostname="maranello", role="desktop"}'
+      - series: 'nixos_drifted_since_seconds{host="maranello", hostname="maranello", role="desktop"}'
         values: "100+0x500"
     alert_rule_test:
       - eval_time: 7h
@@ -718,6 +723,21 @@ tests:
 
   # NeedsLogin after an expiry is a healthy process that has stopped working, so
   # SystemdUnitFailed cannot see it. This is the rule that does.
+  # Desktops are excluded: a laptop off the tailnet is routine and its owner
+  # notices immediately, whereas a server off it withdraws the LAN subnet route
+  # or vanishes from Prometheus.
+  - interval: 1m
+    name: TailscaleBackendNotRunning ignores desktops
+    input_series:
+      - series: 'tailscale_backend_running{host="Daytona", hostname="Daytona", role="desktop"}'
+        values: "0+0x200"
+      - series: 'tailscale_status_scrape_success{host="Daytona", hostname="Daytona", role="desktop"}'
+        values: "1+0x200"
+    alert_rule_test:
+      - eval_time: 1h
+        alertname: TailscaleBackendNotRunning
+        exp_alerts: []
+
   - interval: 1m
     name: TailscaleBackendNotRunning fires when the backend is not Running
     input_series:
@@ -773,4 +793,106 @@ tests:
         exp_alerts: []
       - eval_time: 1h
         alertname: TailscaleBackendNotRunning
+        exp_alerts: []
+
+  # Regression test for a suppression bug. The rule used to key on
+  # nixos_expected_change_timestamp_seconds, which moves every time main changes
+  # this host's closure -- including while the host is already behind. A stream
+  # of merges arriving more often than every six hours kept resetting the clock,
+  # so a host stale for days never alerted. That is the weekend-of-auto-merges
+  # case, and it is a silence, which is the worse direction to be wrong in.
+  #
+  # nixos_drifted_since_seconds is fixed at the moment the host fell behind, so
+  # it keeps climbing no matter how much churn arrives afterwards.
+  - interval: 1m
+    name: NixOSDeployDrift crosses its 6h threshold despite 24h of upstream churn
+    input_series:
+      - series: 'nixos_deploy_state{host="vdlmhub", hostname="vdlmhub", role="agent", state="drifted"}'
+        values: "1+0x1440"
+      # Fell behind at t=0 and has been behind ever since.
+      - series: 'nixos_drifted_since_seconds{host="vdlmhub", hostname="vdlmhub", role="agent"}'
+        values: "0+0x1440"
+      # Meanwhile main keeps changing this host: the expected-change timestamp
+      # advances in lockstep with the clock, staying an hour behind it. Under the
+      # old formulation this input produced no alert at all.
+      - series: 'nixos_expected_change_timestamp_seconds{host="vdlmhub", hostname="vdlmhub", role="agent"}'
+        values: "-3600+60x1440"
+      - series: 'nixos_deploy_info{host="vdlmhub", hostname="vdlmhub", role="agent", running="nixos-system-vdlmhub-old", expected="nixos-system-vdlmhub-new", short_rev="aaaaaaa", short_expected_rev="bbbbbbb"}'
+        values: "1+0x1440"
+    alert_rule_test:
+      - eval_time: 24h
+        alertname: NixOSDeployDrift
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              host: vdlmhub
+              hostname: vdlmhub
+              role: agent
+              state: drifted
+              running: nixos-system-vdlmhub-old
+              expected: nixos-system-vdlmhub-new
+              short_rev: aaaaaaa
+              short_expected_rev: bbbbbbb
+            exp_annotations:
+              summary: "NixOS host is running an outdated system closure"
+              description: "vdlmhub is running nixos-system-vdlmhub-old (from aaaaaaa) but main expects nixos-system-vdlmhub-new (from bbbbbbb). This commit range genuinely changes this host's closure, so a deploy is required."
+
+  # The sops auth key, not the per-device node keys. Warning-only by design: an
+  # expired auth key blocks registering a NEW host and leaves every running host
+  # untouched, which is why the previous one went unnoticed for months.
+  - interval: 1m
+    name: TailscaleAuthKeyExpiringSoon fires once for the fleet, not once per host
+    input_series:
+      # 14 days out. time() at eval_time 2h is 7200, so 7200 + 14d.
+      - series: 'tailscale_authkey_expiry_seconds{host="sdrhub", hostname="sdrhub", role="master"}'
+        values: "1216800+0x200"
+      - series: 'tailscale_authkey_expiry_seconds{host="fredvps", hostname="fredvps", role="agent"}'
+        values: "1216800+0x200"
+      - series: 'tailscale_authkey_expiry_seconds{host="Daytona", hostname="Daytona", role="desktop"}'
+        values: "1216800+0x200"
+    alert_rule_test:
+      - eval_time: 2h
+        alertname: TailscaleAuthKeyExpiringSoon
+        # One alert for three hosts sharing one key.
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: "Tailscale auth key expires in under 21 days"
+              description: 'The auth key in secrets.yaml expires within 21 days. Nothing already on the tailnet is affected, but registering a new host will fail with "invalid key: API key does not exist" once it lapses. Generate a replacement, update the sops secret, and update authKeyExpires in modules/services/tailscale/default.nix.'
+      - eval_time: 2h
+        alertname: TailscaleAuthKeyExpiryUnknown
+        exp_alerts: []
+
+  # A comfortable expiry must stay silent.
+  - interval: 1m
+    name: TailscaleAuthKeyExpiringSoon stays silent 60 days out
+    input_series:
+      - series: 'tailscale_authkey_expiry_seconds{host="sdrhub", hostname="sdrhub", role="master"}'
+        values: "5191200+0x200"
+    alert_rule_test:
+      - eval_time: 2h
+        alertname: TailscaleAuthKeyExpiringSoon
+        exp_alerts: []
+
+  # An unrecorded date must be reported, not silently drop out of the expiry
+  # rule's `> 0` filter. This is what keeps the hand-maintained date fail-safe.
+  - interval: 1m
+    name: TailscaleAuthKeyExpiryUnknown fires when the date is unrecorded
+    input_series:
+      - series: 'tailscale_authkey_expiry_seconds{host="sdrhub", hostname="sdrhub", role="master"}'
+        values: "0+0x2000"
+    alert_rule_test:
+      - eval_time: 25h
+        alertname: TailscaleAuthKeyExpiryUnknown
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: "Tailscale auth key expiry is unrecorded"
+              description: "At least one tailnet host reports no recorded auth key expiry, so TailscaleAuthKeyExpiringSoon cannot warn before the key lapses. Set authKeyExpires in modules/services/tailscale/default.nix to the current key's expiry date."
+      # And the expiry rule must NOT fire on a zero, which would otherwise read
+      # as "expired at the epoch".
+      - eval_time: 25h
+        alertname: TailscaleAuthKeyExpiringSoon
         exp_alerts: []
