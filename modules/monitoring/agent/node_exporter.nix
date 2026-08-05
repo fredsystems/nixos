@@ -128,6 +128,7 @@
             fi
 
             STATE="unknown"
+            DRIFTED_SINCE=0
             EXPECTED=""
             EXPECTED_REV=""
             CHANGED_AT=0
@@ -142,13 +143,28 @@
               CHANGED_AT=$($JQ -r --arg h "$HOST" '.hosts[$h].history[0].at // 0' "$CACHE" 2>/dev/null || echo 0)
             fi
 
+            # Position of the running closure in the history, and the oldest entry
+            # still retained. Both feed the classification below.
+            RUNNING_IDX=-1
+            OLDEST_AT=0
+            if [[ -s "$CACHE" && -n "$RUNNING" ]]; then
+              RUNNING_IDX=$($JQ -r --arg h "$HOST" --arg p "$RUNNING" \
+                '[.hosts[$h].history[].toplevel] | (index($p) // -1)' "$CACHE" 2>/dev/null || echo -1)
+              OLDEST_AT=$($JQ -r --arg h "$HOST" '.hosts[$h].history[-1].at // 0' "$CACHE" 2>/dev/null || echo 0)
+            fi
+            [[ "$RUNNING_IDX" =~ ^-?[0-9]+$ ]] || RUNNING_IDX=-1
+            [[ "$OLDEST_AT" =~ ^[0-9]+$ ]] || OLDEST_AT=0
+
             if [[ -n "$RUNNING" && -n "$EXPECTED" ]]; then
               if [[ "$RUNNING" == "$EXPECTED" ]]; then
                 STATE="up_to_date"
-              elif $JQ -e --arg h "$HOST" --arg p "$RUNNING" \
-                '[.hosts[$h].history[].toplevel] | index($p) != null' "$CACHE" >/dev/null 2>&1; then
+              elif [[ "$RUNNING_IDX" -ge 1 ]]; then
                 # A closure main published previously: genuinely a deploy behind.
+                # The entry one position newer is the one that superseded it, so
+                # its timestamp is when this host started being behind.
                 STATE="drifted"
+                DRIFTED_SINCE=$($JQ -r --arg h "$HOST" --argjson i "$RUNNING_IDX" \
+                  '.hosts[$h].history[$i - 1].at // 0' "$CACHE" 2>/dev/null || echo 0)
               elif [[ "$GENERATED_AT" -gt 0 && "$DEPLOY_TS" -gt 0 && "$GENERATED_AT" -lt "$DEPLOY_TS" ]]; then
                 # The manifest was generated BEFORE the running closure was
                 # activated, so it cannot possibly contain that closure and
@@ -169,10 +185,33 @@
                 # a normal deploy while still catching a genuinely stuck
                 # publisher, which is exactly when this must not stay quiet.
                 STATE="unknown"
+              elif [[ "$DEPLOY_TS" -gt 0 && "$OLDEST_AT" -gt 0 && "$DEPLOY_TS" -lt "$OLDEST_AT" ]]; then
+                # Not in the history, but this closure was activated BEFORE the
+                # oldest entry we still retain -- so it cannot be in the window,
+                # and its absence says nothing about whether main published it.
+                #
+                # Without this branch a host more than MAX_HISTORY closure
+                # changes behind would be reported `unmanaged`, whose alert text
+                # blames a dirty or feature-branch checkout. That is a misleading
+                # diagnosis for a host that is merely very far behind, and it
+                # arrives on a 2h fuse rather than the drift rule's 6h.
+                #
+                # drifted_since is the oldest retained timestamp, which
+                # understates the true age. That is the safe direction: the value
+                # is already old enough to fire immediately, and it can never
+                # claim the host fell behind more recently than it did.
+                STATE="drifted"
+                DRIFTED_SINCE="$OLDEST_AT"
               else
                 # Never published by main -- a local, dirty or branch build.
                 # Distinguishing this from "drifted" is the whole point: the old
                 # script reported it as healthy.
+                #
+                # A dirty build activated before the oldest retained entry is
+                # caught by the branch above and called `drifted` instead. That
+                # trade is deliberate: when the two are genuinely indistinguishable
+                # the remedy is identical -- deploy the host -- and "you are
+                # behind" is the less alarming way to say it.
                 STATE="unmanaged"
               fi
             fi
@@ -234,6 +273,19 @@
               echo "# HELP nixos_expected_change_timestamp_seconds Unix time main last changed this host's expected closure."
               echo "# TYPE nixos_expected_change_timestamp_seconds gauge"
               echo "nixos_expected_change_timestamp_seconds{host=\"$HOST\"} $CHANGED_AT"
+
+              # How long this host has been behind, as opposed to how recently
+              # main moved. The two diverge whenever main changes this host again
+              # while it is already behind, and it is this one the drift alert
+              # measures: keying on the expected-change timestamp meant a stream
+              # of merges kept resetting the clock and could suppress the alert
+              # indefinitely for a host that had been stale for days.
+              #
+              # 0 when the host is not behind, so the alert must gate on the
+              # drifted state rather than on this value alone.
+              echo "# HELP nixos_drifted_since_seconds Unix time this host stopped running the expected closure (0 if not drifted)."
+              echo "# TYPE nixos_drifted_since_seconds gauge"
+              echo "nixos_drifted_since_seconds{host=\"$HOST\"} $DRIFTED_SINCE"
 
               # Value is always 1: this is an identity/"info" metric whose
               # payload is its labels. Keeping the value at 1 is what lets the

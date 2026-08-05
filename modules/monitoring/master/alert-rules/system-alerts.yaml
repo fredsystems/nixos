@@ -24,13 +24,27 @@ groups:
         # Fires only when main has actually changed THIS host's system closure
         # and the host has not taken it up for six hours.
         #
-        # The elapsed-time term is the crux. nixos_expected_change_timestamp_seconds
-        # only moves when the host's expected closure changes, so a commit that
-        # does not affect this host never starts the clock -- which is what makes
-        # frequent no-op churn (a nightly overlay bump for a package this host
-        # does not install, a flake input only desktops consume) silent instead
-        # of paging. Using `for: 6h` on a plain boolean could not express this:
-        # the boolean would already be true the moment main moved.
+        # The elapsed-time term measures how long this host has been BEHIND, not
+        # how recently main moved. That distinction is the crux, and getting it
+        # wrong is a suppression bug rather than a noise one.
+        #
+        # This previously keyed on nixos_expected_change_timestamp_seconds, which
+        # moves every time main changes this host's closure -- including while the
+        # host is already behind. A stream of merges arriving more often than
+        # every six hours therefore kept resetting the clock, and a host stale for
+        # days would never alert. Proven with promtool: drifted continuously for
+        # 24h with the expected-change timestamp advancing produced no alert.
+        #
+        # nixos_drifted_since_seconds is the timestamp of the entry that
+        # superseded the closure the host is actually running, so it is fixed at
+        # the moment the host fell behind and is unaffected by later churn.
+        #
+        # No-op churn is still silent, and never depended on the timestamp: a
+        # commit that does not alter this host's closure leaves running ==
+        # expected, so the state stays up_to_date and the rule cannot match at
+        # all. `for: 6h` on the bare state would also have worked, but Prometheus
+        # loses pending state on restart -- which happens on every sdrhub deploy
+        # -- so an absolute timestamp is the more durable formulation.
         #
         # Desktops are excluded: they are rebuilt by hand on their own cadence
         # and legitimately run local builds. Selecting on role rather than host
@@ -47,7 +61,7 @@ groups:
           (
             nixos_deploy_state{state="drifted", role!="desktop"} == 1
             and on (host) (
-              (time() - max by (host) (nixos_expected_change_timestamp_seconds)) > 21600
+              (time() - max by (host) (nixos_drifted_since_seconds)) > 21600
             )
           )
           * on (host) group_left (running, expected, short_rev, short_expected_rev)

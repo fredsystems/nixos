@@ -297,7 +297,7 @@ tests:
         values: "1+0x500"
       - series: 'nixos_deploy_state{host="vdlmhub", hostname="vdlmhub", role="agent", state="drifted"}'
         values: "0+0x500"
-      - series: 'nixos_expected_change_timestamp_seconds{host="vdlmhub", hostname="vdlmhub", role="agent"}'
+      - series: 'nixos_drifted_since_seconds{host="vdlmhub", hostname="vdlmhub", role="agent"}'
         values: "100+0x500"
       - series: 'nixos_deploy_info{host="vdlmhub", hostname="vdlmhub", role="agent", running="nixos-system-vdlmhub-1", expected="nixos-system-vdlmhub-1", short_rev="aaaaaaa", short_expected_rev="aaaaaaa"}'
         values: "1+0x500"
@@ -314,7 +314,7 @@ tests:
     input_series:
       - series: 'nixos_deploy_state{host="vdlmhub", hostname="vdlmhub", role="agent", state="drifted"}'
         values: "1+0x500"
-      - series: 'nixos_expected_change_timestamp_seconds{host="vdlmhub", hostname="vdlmhub", role="agent"}'
+      - series: 'nixos_drifted_since_seconds{host="vdlmhub", hostname="vdlmhub", role="agent"}'
         values: "21000+0x500"
       - series: 'nixos_deploy_info{host="vdlmhub", hostname="vdlmhub", role="agent", running="nixos-system-vdlmhub-1", expected="nixos-system-vdlmhub-2", short_rev="aaaaaaa", short_expected_rev="bbbbbbb"}'
         values: "1+0x500"
@@ -332,7 +332,7 @@ tests:
     input_series:
       - series: 'nixos_deploy_state{host="vdlmhub", hostname="vdlmhub", role="agent", state="drifted"}'
         values: "1+0x500"
-      - series: 'nixos_expected_change_timestamp_seconds{host="vdlmhub", hostname="vdlmhub", role="agent"}'
+      - series: 'nixos_drifted_since_seconds{host="vdlmhub", hostname="vdlmhub", role="agent"}'
         values: "100+0x500"
       - series: 'nixos_deploy_info{host="vdlmhub", hostname="vdlmhub", role="agent", running="nixos-system-vdlmhub-1", expected="nixos-system-vdlmhub-2", short_rev="aaaaaaa", short_expected_rev="bbbbbbb"}'
         values: "1+0x500"
@@ -365,9 +365,9 @@ tests:
         values: "1+0x500"
       - series: 'nixos_deploy_state{host="maranello", hostname="maranello", role="desktop", state="drifted"}'
         values: "1+0x500"
-      - series: 'nixos_expected_change_timestamp_seconds{host="Daytona", hostname="Daytona", role="desktop"}'
+      - series: 'nixos_drifted_since_seconds{host="Daytona", hostname="Daytona", role="desktop"}'
         values: "100+0x500"
-      - series: 'nixos_expected_change_timestamp_seconds{host="maranello", hostname="maranello", role="desktop"}'
+      - series: 'nixos_drifted_since_seconds{host="maranello", hostname="maranello", role="desktop"}'
         values: "100+0x500"
     alert_rule_test:
       - eval_time: 7h
@@ -774,3 +774,45 @@ tests:
       - eval_time: 1h
         alertname: TailscaleBackendNotRunning
         exp_alerts: []
+
+  # Regression test for a suppression bug. The rule used to key on
+  # nixos_expected_change_timestamp_seconds, which moves every time main changes
+  # this host's closure -- including while the host is already behind. A stream
+  # of merges arriving more often than every six hours kept resetting the clock,
+  # so a host stale for days never alerted. That is the weekend-of-auto-merges
+  # case, and it is a silence, which is the worse direction to be wrong in.
+  #
+  # nixos_drifted_since_seconds is fixed at the moment the host fell behind, so
+  # it keeps climbing no matter how much churn arrives afterwards.
+  - interval: 1m
+    name: NixOSDeployDrift fires after 24h behind even while upstream keeps moving
+    input_series:
+      - series: 'nixos_deploy_state{host="vdlmhub", hostname="vdlmhub", role="agent", state="drifted"}'
+        values: "1+0x1440"
+      # Fell behind at t=0 and has been behind ever since.
+      - series: 'nixos_drifted_since_seconds{host="vdlmhub", hostname="vdlmhub", role="agent"}'
+        values: "0+0x1440"
+      # Meanwhile main keeps changing this host: the expected-change timestamp
+      # advances in lockstep with the clock, staying an hour behind it. Under the
+      # old formulation this input produced no alert at all.
+      - series: 'nixos_expected_change_timestamp_seconds{host="vdlmhub", hostname="vdlmhub", role="agent"}'
+        values: "-3600+60x1440"
+      - series: 'nixos_deploy_info{host="vdlmhub", hostname="vdlmhub", role="agent", running="nixos-system-vdlmhub-old", expected="nixos-system-vdlmhub-new", short_rev="aaaaaaa", short_expected_rev="bbbbbbb"}'
+        values: "1+0x1440"
+    alert_rule_test:
+      - eval_time: 24h
+        alertname: NixOSDeployDrift
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              host: vdlmhub
+              hostname: vdlmhub
+              role: agent
+              state: drifted
+              running: nixos-system-vdlmhub-old
+              expected: nixos-system-vdlmhub-new
+              short_rev: aaaaaaa
+              short_expected_rev: bbbbbbb
+            exp_annotations:
+              summary: "NixOS host is running an outdated system closure"
+              description: "vdlmhub is running nixos-system-vdlmhub-old (from aaaaaaa) but main expects nixos-system-vdlmhub-new (from bbbbbbb). This commit range genuinely changes this host's closure, so a deploy is required."

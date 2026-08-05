@@ -702,7 +702,7 @@
         {
           "refId": "lag",
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "(time() - max by (host) (nixos_expected_change_timestamp_seconds)) / 3600 * max by (host) (nixos_deploy_state{state=~\"drifted|unmanaged\"})",
+          "expr": "(time() - max by (host) (nixos_drifted_since_seconds > 0)) / 3600",
           "instant": true,
           "legendFormat": "__auto",
           "format": "table"
