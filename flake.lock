@@ -829,11 +829,11 @@
         "systems": "systems_5"
       },
       "locked": {
-        "lastModified": 1775414913,
-        "narHash": "sha256-XtBqlNB1B50EuRfpNI4egecM7dcbuPWF+uYpvMrMx/s=",
+        "lastModified": 1785876574,
+        "narHash": "sha256-+ylxRlYTnPfSYxa4QtjAP85CkUz0w5tYG3zP8BoR/5g=",
         "owner": "lordkekz",
         "repo": "nix-yazi-plugins",
-        "rev": "a0caa6cbd1b6dbed93e42c215a28edf493fa191a",
+        "rev": "8877028ee13b0653c1b370ad2281e1ad04160662",
         "type": "github"
       },
       "original": {
