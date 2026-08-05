@@ -1,4 +1,30 @@
 { config, pkgs, ... }:
+let
+  # Expiry date of the auth key currently in sops, recorded by hand.
+  #
+  # WHY THIS IS NOT DISCOVERED AUTOMATICALLY
+  #
+  # An auth key's expiry lives only in the Tailscale control plane -- the key is
+  # not a JWT and carries nothing locally. Reading it would mean querying
+  # /api/v2/tailnet/*/keys, which needs a second credential that has its own
+  # expiry and would want the same treatment, so the recursion has to stop
+  # somewhere. Recording the date alongside the key is where it stops.
+  #
+  # WHY A HAND-MAINTAINED DATE IS ACCEPTABLE HERE
+  #
+  # It fails in the right direction. Forget to update this when rotating and the
+  # date stays in the past, so the alert fires and reminds you. A forgotten value
+  # produces a false positive, never a silent miss -- which is the opposite of how
+  # the old arrangement failed, where a dead key sat unnoticed for months because
+  # nothing consulted it until a new host tried to register.
+  # Anything `date -d` accepts. Empty means unrecorded, which
+  # TailscaleAuthKeyExpiryUnknown reports rather than passing over in silence.
+  #
+  # A plain binding rather than a NixOS option: there is one key in secrets.yaml
+  # shared by every tailnet host, so there is nothing to override per host and an
+  # option would only put the declaration and its single value in the same file.
+  authKeyExpires = "2026-11-02";
+in
 {
   sops.secrets."tailscale/authkey" = {
     mode = "0400";
@@ -71,6 +97,16 @@
           # which would leave the oneshot active and the previous .prom in place
           # -- the exact silently-frozen-metrics outcome the bound exists to
           # prevent. SIGKILL five seconds later guarantees the fall-through.
+          # Parsed at runtime rather than in Nix: `date -d` accepts far more
+          # spellings than a Nix date helper would, and a value it cannot parse
+          # must degrade to "unrecorded" instead of failing the build for a host
+          # whose tailnet is otherwise fine.
+          AUTHKEY_EXPIRY=0
+          if [ -n "${authKeyExpires}" ]; then
+            AUTHKEY_EXPIRY=$(date -d "${authKeyExpires}" +%s 2>/dev/null || echo 0)
+            [[ "$AUTHKEY_EXPIRY" =~ ^[0-9]+$ ]] || AUTHKEY_EXPIRY=0
+          fi
+
           STATUS=$(${pkgs.coreutils}/bin/timeout --kill-after=5 10 \
             "$TAILSCALE" status --json 2>/dev/null || echo "")
 
@@ -116,6 +152,13 @@
             echo "# HELP tailscale_status_scrape_success Whether tailscale status --json was read successfully."
             echo "# TYPE tailscale_status_scrape_success gauge"
             echo "tailscale_status_scrape_success{host=\"$HOST\"} $STATUS_OK"
+
+            # Independent of tailscaled: this is a recorded fact about the key in
+            # sops, not something read from the daemon, so it is emitted even when
+            # the status read failed. 0 means unrecorded.
+            echo "# HELP tailscale_authkey_expiry_seconds Unix time the sops auth key expires (0 if unrecorded)."
+            echo "# TYPE tailscale_authkey_expiry_seconds gauge"
+            echo "tailscale_authkey_expiry_seconds{host=\"$HOST\"} $AUTHKEY_EXPIRY"
           } > "$TMP"
           mv "$TMP" "$OUT"
         '';
