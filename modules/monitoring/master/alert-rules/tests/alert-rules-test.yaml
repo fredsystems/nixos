@@ -297,8 +297,13 @@ tests:
         values: "1+0x500"
       - series: 'nixos_deploy_state{host="vdlmhub", hostname="vdlmhub", role="agent", state="drifted"}'
         values: "0+0x500"
+      # 0, matching the exporter contract for a host that is not behind. A
+      # non-zero value here would still pass -- the state selector alone keeps the
+      # rule silent -- but it would mask a regression that emitted a stale
+      # timestamp for a healthy host, which the dashboard's `> 0` filter would
+      # then render as an enormous bogus age.
       - series: 'nixos_drifted_since_seconds{host="vdlmhub", hostname="vdlmhub", role="agent"}'
-        values: "100+0x500"
+        values: "0+0x500"
       - series: 'nixos_deploy_info{host="vdlmhub", hostname="vdlmhub", role="agent", running="nixos-system-vdlmhub-1", expected="nixos-system-vdlmhub-1", short_rev="aaaaaaa", short_expected_rev="aaaaaaa"}'
         values: "1+0x500"
     alert_rule_test:
@@ -785,7 +790,7 @@ tests:
   # nixos_drifted_since_seconds is fixed at the moment the host fell behind, so
   # it keeps climbing no matter how much churn arrives afterwards.
   - interval: 1m
-    name: NixOSDeployDrift fires after 24h behind even while upstream keeps moving
+    name: NixOSDeployDrift crosses its 6h threshold despite 24h of upstream churn
     input_series:
       - series: 'nixos_deploy_state{host="vdlmhub", hostname="vdlmhub", role="agent", state="drifted"}'
         values: "1+0x1440"
