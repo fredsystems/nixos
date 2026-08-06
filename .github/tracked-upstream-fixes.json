@@ -125,7 +125,7 @@
         "https://github.com/NixOS/nixpkgs/blob/master/pkgs/by-name/sb/sbomnix/package.nix"
       ],
       "workaround": "overlays/default.nix -- `sbomnix` overlay overriding makeWrapperArgs to prepend nixVersions.nix_2_34 (emits schema version 4) instead of the upstream-pinned nix_2_31 (see FIXME(nixpkgs-sbomnix-nix231-pin)); flake/dev/packages.nix exposes it as `.#sbomnix`; cve-scan.yaml invokes `.#sbomnix` instead of `nixpkgs#sbomnix`.",
-      "revert_action": "sbomnix#267 is already CLOSED (the parser was fixed in 1.8.0); the residual bug is purely nixpkgs' stale wrapper pin, for which no upstream issue exists yet. `pkgs-min-version` with `min_version: null` keeps this BLOCKED (never falsely resolved) — it is a reminder to re-check manually. When a future nixpkgs sbomnix update drops the nix_2_31 PATH pin (verify pkgs/by-name/sb/sbomnix/package.nix in our pinned nixpkgs no longer references nixVersions.nix_2_31), delete the `sbomnix` overlay from overlays/default.nix and its FIXME, revert flake/dev/packages.nix to `import nixpkgs { inherit system; }` with no overlays and drop the `inherit (pkgs) sbomnix;` line, revert cve-scan.yaml to `nix shell --inputs-from . nixpkgs#sbomnix --command sbomnix`, confirm a manual `workflow_dispatch` CVE scan is green, then set `done: true`. If it becomes urgent, file a nixpkgs issue to establish a real `issue-closed`/`nixpkgs-pin-contains-commit` signal and retarget this entry."
+      "revert_action": "sbomnix#267 is already CLOSED (the parser was fixed in 1.8.0); the residual bug is purely nixpkgs' stale wrapper pin, for which no upstream issue exists yet. `pkgs-min-version` with `min_version: null` keeps this BLOCKED (never falsely resolved) \u2014 it is a reminder to re-check manually. When a future nixpkgs sbomnix update drops the nix_2_31 PATH pin (verify pkgs/by-name/sb/sbomnix/package.nix in our pinned nixpkgs no longer references nixVersions.nix_2_31), delete the `sbomnix` overlay from overlays/default.nix and its FIXME, revert flake/dev/packages.nix to `import nixpkgs { inherit system; }` with no overlays and drop the `inherit (pkgs) sbomnix;` line, revert cve-scan.yaml to `nix shell --inputs-from . nixpkgs#sbomnix --command sbomnix`, confirm a manual `workflow_dispatch` CVE scan is green, then set `done: true`. If it becomes urgent, file a nixpkgs issue to establish a real `issue-closed`/`nixpkgs-pin-contains-commit` signal and retarget this entry."
     },
     {
       "id": "nixpkgs-536365-ld64-mac-notification-sys",
@@ -188,6 +188,21 @@
       "workaround": "features/desktop/print/default.nix -- `system-config-printer-iconfix` overrides system-config-printer's .desktop `Icon=printer` to an absolute path pointing at the package's own bundled `i-network-printer.png`, bypassing icon-theme-name resolution entirely (see FIXME(vicinae-468-printer-icon)).",
       "revert_action": "No upstream PR/issue exists yet for this specific \"printer\" name bug (only the linked discussion, where multiple reporters hit the identical symptom, unresolved as of Oct 2025) so `min_version` stays null (BLOCKED) until one is filed and a fix version is known. Once vicinae ships a fix and our pinned nixpkgs' `vicinae` package version reflects it, set `min_version` accordingly (or `done: true` after manually confirming `Icon=printer` renders correctly in vicinae), then delete `system-config-printer-iconfix` and its FIXME from features/desktop/print/default.nix, reverting to a plain `programs.system-config-printer.enable = true;`.",
       "$comment": "No upstream_pr recorded yet -- if one is opened for this specific bug, add its number here so the checker nudges once merged."
+    },
+    {
+      "id": "attic-gc-sqlite-chunk-limit",
+      "done": false,
+      "summary": "attic's orphan-chunk reaper deletes at most 500 chunks per GC pass on SQLite and does not loop, so a cache producing more orphans per day than 500 x passes/day can never converge. The 500 cites SQLite's pre-3.32 999-variable limit; the SQLite compiled into the binary reports MAX_VARIABLE_NUMBER=32766.",
+      "repo": "zhaofengli/attic",
+      "check": "pkgs-min-version",
+      "package": "attic-server",
+      "eval_host": "fredhub",
+      "min_version": null,
+      "tracking": [
+        "https://github.com/zhaofengli/attic/blob/main/server/src/gc.rs"
+      ],
+      "workaround": "overlays/attic-server.nix -- postPatch substituteInPlace raising `DatabaseBackend::Sqlite => 500` to 10000 (see FIXME(attic-gc-sqlite-chunk-limit)); wired in overlays/default.nix. Paired with a 15-minute garbage-collection interval in modules/services/attic/attic_server.nix.",
+      "revert_action": "NOT YET REPORTED UPSTREAM -- file an issue/PR against zhaofengli/attic first (either raise the SQLite limit or make run_reap_orphan_chunks loop until drained), then set `upstream_pr` and add the issue URL to `tracking`. Once a fix ships and lands in our pinned nixpkgs, set `min_version` to the carrying attic-server version; when the checker confirms it, delete overlays/attic-server.nix, its entry in overlays/default.nix and the FIXME, rebuild fredhub, and set this entry `done: true`. min_version is null so this entry stays BLOCKED and can never falsely resolve."
     }
   ]
 }
