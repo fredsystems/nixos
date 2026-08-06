@@ -1,0 +1,148 @@
+---
+name: update-apple-fonts
+
+# overlays/apple-fonts.nix pins Apple's font dmgs by flat sha256. Apple
+# serves them from a single mutable CDN path with no version in the URL
+# and keeps no history, so the only way to notice a new release is to
+# re-hash the file and compare.
+#
+# Unlike most update workflows, this one is NOT urgent and its PR is not
+# a fix for anything. A stale hash here breaks nothing: evaluation never
+# touches the dmg (it only needs the hash string), and the patched font
+# output already lives in Attic, so no build fetches it either. This is
+# purely a "new fonts exist, do you want them" notification.
+#
+# That is the entire reason the fonts were vendored out of the
+# apple-fonts flake input on 2026-08-06. As a `flake = false` input the
+# same event was a hard evaluation failure across every desktop and the
+# fleet-manifest job, because flake inputs are materialised during eval
+# and hash-checked against flake.lock. See overlays/apple-fonts.nix.
+#
+# Weekly rather than daily: Apple's observed cadence is roughly annual
+# (the families carried timestamps of 2025-07-10 until 2026-08-05), and
+# each run re-downloads ~383 MB to hash it. If that ever needs to be
+# cheaper, gate the download on a HEAD request comparing the CDN's ETag
+# against a committed baseline.
+#
+# No build step here on purpose. Nerd Fonts-patching SF Pro is far too
+# slow for a GitHub-hosted runner; the PR's own ci-linux desktop matrix
+# builds and caches it.
+
+on:
+  schedule:
+    - cron: "15 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-apple-fonts:
+    name: Check Apple font dmgs for updates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # PAT (not GITHUB_TOKEN) so the pushed branch triggers CI on the
+          # resulting PR -- see the same note in renovate-relock.yaml.
+          token: ${{ secrets.PAT }}
+          persist-credentials: true
+
+      - uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
+        with:
+          extra-conf: accept-flake-config = true
+
+      - name: Configure Git identity
+        run: |
+          git config --global user.email "noreply@github.com"
+          git config --global user.name "github[bot]"
+
+      - name: Re-hash the dmgs
+        id: check
+        run: |
+          set -euo pipefail
+
+          base="https://devimages-cdn.apple.com/design/resources/download"
+          overlay="overlays/apple-fonts.nix"
+
+          # Attribute name -> dmg basename, mirroring `families` in the
+          # overlay. Keep in sync when adding a family.
+          declare -A files=(
+            [sf-pro]="SF-Pro.dmg"
+            [sf-compact]="SF-Compact.dmg"
+            [sf-mono]="SF-Mono.dmg"
+            [ny]="NY.dmg"
+          )
+
+          changed=""
+
+          for name in "${!files[@]}"; do
+            file="${files[$name]}"
+
+            # The committed hash inside this family's block.
+            current=$(awk -v fam="    $name = {" '
+              $0 == fam { inblock = 1 }
+              inblock && /hash = / {
+                match($0, /"[^"]+"/)
+                print substr($0, RSTART + 1, RLENGTH - 2)
+                exit
+              }
+            ' "$overlay")
+
+            if [ -z "$current" ]; then
+              echo "::error::could not read current hash for $name from $overlay"
+              exit 1
+            fi
+
+            latest=$(nix store prefetch-file --json --name "$file" "$base/$file" \
+              | nix shell --inputs-from . nixpkgs#jq --command jq -r .hash)
+
+            if [ "$current" = "$latest" ]; then
+              echo "$name: unchanged ($current)"
+              continue
+            fi
+
+            echo "$name: $current -> $latest"
+
+            # Each hash appears exactly once in the file, so a global
+            # substitution of the old value is unambiguous.
+            sed -i "s|$current|$latest|" "$overlay"
+            changed="${changed:+$changed, }$name"
+          done
+
+          if [ -z "$changed" ]; then
+            echo "No font updates."
+            echo "changed=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "changed=$changed" >> "$GITHUB_OUTPUT"
+
+      - name: Open pull request
+        if: steps.check.outputs.changed != ''
+        env:
+          GH_TOKEN: ${{ secrets.PAT }}
+          CHANGED: ${{ steps.check.outputs.changed }}
+        run: |
+          set -euo pipefail
+
+          branch="update-apple-fonts-$(date +%Y%m%d)"
+
+          git checkout -b "$branch"
+          git add overlays/apple-fonts.nix
+          git commit -m "chore(apple-fonts): refresh dmg hashes ($CHANGED)"
+          git push --force-with-lease origin "$branch"
+
+          gh pr create \
+            --title "chore(apple-fonts): refresh dmg hashes ($CHANGED)" \
+            --body "Apple re-published the following font families: $CHANGED.
+
+          The vendored hashes in \`overlays/apple-fonts.nix\` have been updated to
+          match. This is not a fix for a broken state -- a stale hash does not
+          break evaluation or any cached build. Merging simply picks up whatever
+          Apple changed.
+
+          Opened automatically by \`.github/workflows/update-apple-fonts.yaml\`." \
+            --base main \
+            --head "$branch"

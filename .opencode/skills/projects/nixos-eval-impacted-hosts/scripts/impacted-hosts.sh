@@ -111,7 +111,6 @@ declare -A INPUT_CATEGORY=(
   [frext]="desktop"
   [solaar]="desktop"
   [nix-flatpak]="desktop"
-  [apple-fonts]="desktop"
   [walls-catppuccin]="desktop"
   [walls-zhichaoh]="desktop"
   [walls-cozypixels]="desktop"

@@ -15,6 +15,12 @@
 #   derivation ...
 
 final: prev: {
+  # Apple's SF / New York families, vendored rather than pulled from the
+  # apple-fonts flake input. See overlays/apple-fonts.nix for why (short
+  # version: Apple mutates the dmg URLs in place, which breaks *evaluation*
+  # when they are flake inputs but is harmless for a fetchurl FOD).
+  apple-fonts = final.callPackage ./apple-fonts.nix { };
+
   cider3 = final.callPackage ./cider.nix { };
 
   # Pin opencode to the latest upstream release rather than nixpkgs'
