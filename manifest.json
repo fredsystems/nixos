@@ -1,8 +1,13 @@
 {
-  "generated_at": 1786007372,
+  "generated_at": 1786029281,
   "hosts": {
     "Daytona": {
       "history": [
+        {
+          "at": 1786029281,
+          "rev": "f3fb2ef188e1c85684b0fb7b216e523448625cdd",
+          "toplevel": "/nix/store/qkxikl1c62bv4csfwc33g3y90w37vbhb-nixos-system-Daytona-26.11.20260802.6438090"
+        },
         {
           "at": 1785997769,
           "rev": "7ee620ed9991680ca027939e35e68862b8553bf6",
@@ -213,6 +218,11 @@
     "maranello": {
       "history": [
         {
+          "at": 1786029281,
+          "rev": "f3fb2ef188e1c85684b0fb7b216e523448625cdd",
+          "toplevel": "/nix/store/1yhq6wihmad5ll8r9yandxzvdgq2silj-nixos-system-maranello-26.11.20260802.6438090"
+        },
+        {
           "at": 1785997769,
           "rev": "7ee620ed9991680ca027939e35e68862b8553bf6",
           "toplevel": "/nix/store/gksrfla9wxih2ndq7y3rna732ci05v4v-nixos-system-maranello-26.11.20260802.6438090"
@@ -318,6 +328,6 @@
       ]
     }
   },
-  "rev": "7ee620ed9991680ca027939e35e68862b8553bf6",
+  "rev": "f3fb2ef188e1c85684b0fb7b216e523448625cdd",
   "schema": 1
 }
