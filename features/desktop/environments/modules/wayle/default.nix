@@ -225,9 +225,22 @@ let
           ;;
         unknown)
           # The manifest predates the running closure, i.e. this host was
-          # deployed more recently than the manifest was published. Normal
-          # for a few minutes after a deploy and not actionable.
-          emit "clean" "clean" "Deployed ahead of the published manifest; state will settle shortly"
+          # deployed more recently than the manifest was published.
+          #
+          # Normally that is a deploy racing the publisher and is not
+          # actionable -- but a STUCK publisher produces the same state
+          # indefinitely, so treating it as unconditionally clean would hide
+          # a broken deploy-state pipeline behind the 24h guard above.
+          #
+          # fleet-manifest.yaml publishes every 6h and on every push to main,
+          # so a manifest older than two cycles is not "catching up", it is
+          # stuck. Below that, stay quiet; above it, say so.
+          if [ "$manifest_age" -gt 43200 ]; then
+            emit "update" "updates" \
+              "Deploy state indeterminate: manifest is $(human_age "$manifest_age") old and predates the running closure"
+          else
+            emit "clean" "clean" "Deployed ahead of the published manifest; state will settle shortly"
+          fi
           ;;
         up_to_date)
           emit "clean" "clean" "Running the closure main expects (''${running_rev:-unknown})"

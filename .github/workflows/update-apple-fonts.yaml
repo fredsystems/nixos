@@ -134,6 +134,20 @@ jobs:
           git commit -m "chore(apple-fonts): refresh dmg hashes ($CHANGED)"
           git push --force-with-lease origin "$branch"
 
+          # The branch name is date-stamped, so a same-day re-run (a retry, or
+          # a workflow_dispatch) pushes to a branch that already has an open
+          # PR. `gh pr create` errors in that case, failing the job AFTER it
+          # has already pushed the update -- the work is done but the run is
+          # red. Force-pushing above already updated the existing PR's head,
+          # so there is nothing left to do.
+          existing="$(gh pr list --head "$branch" --state open --json number \
+            --jq '.[0].number // empty')"
+
+          if [ -n "$existing" ]; then
+            echo "PR #$existing already open for $branch; updated it in place."
+            exit 0
+          fi
+
           gh pr create \
             --title "chore(apple-fonts): refresh dmg hashes ($CHANGED)" \
             --body "Apple re-published the following font families: $CHANGED.

@@ -652,24 +652,6 @@ jobs:
               ".#packages.${system}.${attr}" >> devshell.paths
           done <<< "$pkg_attrs"
 
-          # Flake checks (pre-commit-check, prometheus-alert-rules).
-          #
-          # lint.yaml builds `.#checks.x86_64-linux.pre-commit-check` but runs
-          # on ubuntu-latest, which cannot reach the LAN cache, so it can
-          # neither push nor pull it. Building here means `nix flake check`
-          # on any fleet machine substitutes instead of re-running the whole
-          # hook suite. Linux only: the darwin dev shell already pulls the
-          # check's `enabledPackages` in via devShells, which is the part
-          # that actually costs time to build.
-          check_attrs=$(nix eval --raw ".#checks.${system}" \
-            --apply 'cs: builtins.concatStringsSep "\n" (builtins.attrNames cs)')
-          while read -r attr; do
-            [ -z "$attr" ] && continue
-            echo "  building checks.${system}.${attr}"
-            nix build --no-link --print-out-paths \
-              ".#checks.${system}.${attr}" >> devshell.paths
-          done <<< "$check_attrs"
-
           echo "Pushing built dev outputs to Attic..."
           # Push the realised store paths (and their closures) directly.
           xargs -r -a devshell.paths ./scripts/attic-push.sh

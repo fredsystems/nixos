@@ -48,11 +48,17 @@ let
       exit 0
     fi
 
+    # per_page=100 because the endpoint defaults to 30. fredhub alone now
+    # registers 8 and the Mac Studio 4, and stale entries accumulate on top
+    # of that, so a stale runner could land on page 2 and never be deleted --
+    # after which re-registration fails on the duplicate name. 100 covers the
+    # fleet with room to spare; full pagination would be ceremony for a
+    # 12-runner estate.
     if ! RUNNER_LIST="$(
       ${pkgs.curl}/bin/curl -sf --max-time 30 \
         -H "Authorization: token $TOKEN" \
         -H "Accept: application/vnd.github+json" \
-        "https://api.github.com/repos/$REPO/actions/runners"
+        "https://api.github.com/repos/$REPO/actions/runners?per_page=100"
     )"; then
       echo "WARNING: could not list runners (GitHub API unreachable or erroring);" \
            "skipping cleanup for $RUNNER_NAME" >&2
