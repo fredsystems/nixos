@@ -106,27 +106,44 @@ let
     '';
   };
 
-  # ── NixOS config state indicator (ports fred-bar's waybar-updates.sh) ──
-  # Reports, in priority order: a pending reboot (/run/reboot-required), a
-  # checked-out branch other than main, or how many commits the local config
-  # is behind its upstream. Emits wayle-custom-module JSON ({text,class,
-  # tooltip}); the `class` is carried for when wayle ships custom CSS, while
-  # the Nerd Font glyph conveys state today.
+  # ── NixOS deploy state indicator ──────────────────────────────────────
+  # Reports whether THIS MACHINE is running the closure main expects for it.
   #
-  # The network `git fetch` is throttled to at most once per hour via a
-  # timestamp stamp file, so the wayle display poll (every 60s) only ever
-  # reads cheap local git state and never blocks on the network.
-  nixosStateRepo = "/home/${user}/GitHub/nixos";
+  # This used to compare the local git checkout against its upstream and
+  # report "behind by N commits", which was wrong in both directions:
+  #
+  #   1. False clean. `git pull` with no deploy made the widget go quiet
+  #      while the machine carried on running the old generation. The thing
+  #      being measured was the checkout, not the system.
+  #   2. False dirty. Any commit touching only servers put every desktop
+  #      into "behind by N", so the indicator was lit most of the time and
+  #      therefore ignored.
+  #
+  # Both fall out of measuring the wrong object. The right one already
+  # exists: nixos-deploy-state-metric.service (modules/monitoring/agent/
+  # node_exporter.nix) compares `readlink -f /run/current-system` against
+  # the per-host expected closure in the fleet manifest published by
+  # .github/workflows/fleet-manifest.yaml. That is per-host, so a
+  # server-only commit is correctly invisible here, and it is keyed on what
+  # is actually activated, so pulling without deploying still reads as
+  # drifted.
+  #
+  # This widget deliberately does NOT reimplement that comparison -- it
+  # reads the .prom the service already emits (world-readable 0644,
+  # refreshed every 10 minutes). One state machine, one place to be wrong.
+  # It also means the widget does no network I/O at all, so the git fetch
+  # and its throttle stamp are gone.
+  #
+  # States, from that service: up_to_date | drifted | unmanaged | unknown.
+  nixosStateProm = "/var/lib/node_exporter/textfiles/nixos_deploy_state.prom";
   nixosStateScript = pkgs.writeShellApplication {
     name = "wayle-nixos-state";
     runtimeInputs = [
-      pkgs.git
       pkgs.coreutils
+      pkgs.gnused
     ];
     text = ''
-      repo="''${NIXOS_REPO:-${nixosStateRepo}}"
-      main_branch="''${MAIN_BRANCH:-main}"
-      fetch_max_age=3600 # seconds (1 hour)
+      prom="''${DEPLOY_STATE_PROM:-${nixosStateProm}}"
 
       # The module renders the icon via the icon slot: the JSON `alt` field
       # keys into the custom module's icon-map (reboot|update|clean), and the
@@ -137,62 +154,88 @@ let
         printf '{"text":"","alt":"%s","class":"%s","tooltip":"%s"}\n' "$1" "$2" "$3"
       }
 
+      # Pull a label out of the single nixos_deploy_info sample. The leading
+      # [,{] anchors the match to a whole label name, so `short_rev` cannot
+      # match inside `short_expected_rev`.
+      info_label() {
+        sed -n "s/^nixos_deploy_info{.*[,{]$1=\"\([^\"]*\)\".*/\1/p" "$prom" | head -1
+      }
+
+      gauge() {
+        sed -n "s/^$1{[^}]*} \([0-9][0-9]*\).*/\1/p" "$prom" | head -1
+      }
+
+      human_age() {
+        secs="$1"
+        if [ "$secs" -lt 3600 ]; then
+          printf '%dm' "$((secs / 60))"
+        elif [ "$secs" -lt 86400 ]; then
+          printf '%dh' "$((secs / 3600))"
+        else
+          printf '%dd' "$((secs / 86400))"
+        fi
+      }
+
       # 1. Reboot required (highest priority).
       if [ -f /run/reboot-required ]; then
         emit "reboot" "reboot" "Reboot required"
         exit 0
       fi
 
-      # 2. Must be a git repository to say anything further. Styled as the
-      #    neutral "clean" state (non-actionable) but with its own tooltip.
-      if [ ! -d "$repo/.git" ]; then
-        emit "clean" "clean" "NixOS config is not a git repository"
-        exit 0
-      fi
-      cd "$repo"
-
-      # 3. Non-main branch is treated as "dirty".
-      current_branch="$(git symbolic-ref --short HEAD 2>/dev/null || true)"
-      if [ -n "$current_branch" ] && [ "$current_branch" != "$main_branch" ]; then
-        emit "update" "updates" "On non-main branch: $current_branch"
+      # 2. No metrics. Deliberately NOT styled clean: the previous widget's
+      #    worst failure mode was looking healthy while saying nothing
+      #    meaningful, and "the exporter never ran" is exactly that.
+      if [ ! -r "$prom" ]; then
+        emit "update" "updates" "Deploy state unknown: nixos-deploy-state-metric has not produced metrics"
         exit 0
       fi
 
-      # 4. Resolve upstream tracking ref.
-      upstream="$(git for-each-ref --format='%(upstream:short)' \
-        "$(git symbolic-ref -q HEAD)" 2>/dev/null || true)"
-      if [ -z "$upstream" ]; then
-        emit "update" "updates" "No upstream configured for $main_branch"
-        exit 0
-      fi
-
-      # 5. Throttled network fetch: only fetch if the stamp is older than
-      #    fetch_max_age (or missing). Failures are non-fatal.
-      stamp="''${XDG_RUNTIME_DIR:-/tmp}/wayle-nixos-state.fetch"
+      state="$(sed -n 's/^nixos_deploy_state{[^}]*state="\([^"]*\)"} 1$/\1/p' "$prom" | head -1)"
+      running_rev="$(info_label short_rev)"
+      expected_rev="$(info_label short_expected_rev)"
+      drifted_since="$(gauge nixos_drifted_since_seconds)"
+      manifest_age="$(gauge nixos_manifest_age_seconds)"
       now="$(date +%s)"
-      last=0
-      if [ -f "$stamp" ]; then
-        last="$(cat "$stamp" 2>/dev/null || echo 0)"
-      fi
-      if [ "$((now - last))" -ge "$fetch_max_age" ]; then
-        if git fetch --quiet 2>/dev/null; then
-          echo "$now" > "$stamp"
-        fi
-      fi
 
-      # 6. Count commits behind upstream (local state only, no network).
-      behind="$(git rev-list --count "HEAD..$upstream" 2>/dev/null || echo 0)"
-      if [ "$behind" -gt 0 ]; then
-        if [ "$behind" -eq 1 ]; then
-          emit "update" "updates" "Config behind upstream by 1 commit"
-        else
-          emit "update" "updates" "Config behind upstream by $behind commits"
-        fi
+      : "''${state:=}"
+      : "''${drifted_since:=0}"
+      : "''${manifest_age:=0}"
+
+      # A manifest nobody has refreshed in a day makes every verdict below
+      # suspect, "up to date" included. Surface that rather than trust it.
+      if [ "$manifest_age" -gt 86400 ]; then
+        emit "update" "updates" "Fleet manifest is $(human_age "$manifest_age") old; deploy state cannot be trusted"
         exit 0
       fi
 
-      # 7. Clean and up to date.
-      emit "clean" "clean" "System configuration up to date"
+      case "$state" in
+        drifted)
+          behind=""
+          if [ "$drifted_since" -gt 0 ] && [ "$now" -gt "$drifted_since" ]; then
+            behind=" for $(human_age "$((now - drifted_since))")"
+          fi
+          emit "update" "updates" \
+            "Deploy needed$behind: running ''${running_rev:-unknown}, main expects ''${expected_rev:-unknown}"
+          ;;
+        unmanaged)
+          # Running something main never published: a local, dirty or
+          # feature-branch build. Same remedy, different cause, so say which.
+          emit "update" "updates" \
+            "Running a closure main never published (local or branch build); deploy to return to main"
+          ;;
+        unknown)
+          # The manifest predates the running closure, i.e. this host was
+          # deployed more recently than the manifest was published. Normal
+          # for a few minutes after a deploy and not actionable.
+          emit "clean" "clean" "Deployed ahead of the published manifest; state will settle shortly"
+          ;;
+        up_to_date)
+          emit "clean" "clean" "Running the closure main expects (''${running_rev:-unknown})"
+          ;;
+        *)
+          emit "update" "updates" "Deploy state could not be read from the metrics file"
+          ;;
+      esac
     '';
   };
 
