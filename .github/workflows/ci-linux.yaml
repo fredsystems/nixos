@@ -389,7 +389,7 @@ jobs:
           extra-conf: |
             access-tokens = github.com=${{ github.token }}
             accept-flake-config = true
-            substituters = http://192.168.31.14/fred https://niri.cachix.org https://niri-epireyn.cachix.org https://cache.nixos.org/
+            substituters = http://192.168.31.14:8080/fred https://niri.cachix.org https://niri-epireyn.cachix.org https://cache.nixos.org/
             trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= fred:JjyhvRSvKfkk8r4HS0mS5r5I7dT4GociEFbrR9OgBZ0= niri.cachix.org-1:Wv0OmO7PsuocRKzfDoJ3mulSl7Z6oezYhGhR+3W2964= niri-epireyn.cachix.org-1:tlVyFN7CtsDT+ZcLPS+ekFWeT1X6X4OqvWqbBMyIzFA=
 
       - name: Build server system
@@ -412,7 +412,7 @@ jobs:
           fi
 
           echo "Pushing first result..."
-          nix shell --inputs-from . nixpkgs#attic-client --command attic push fred result --ignore-upstream-cache-filter -j 2
+          ./scripts/attic-push.sh result
 
           : > build.stderr
           echo "Building home-manager for: ${{ matrix.system }}"
@@ -423,7 +423,7 @@ jobs:
           fi
 
           echo "Pushing second result..."
-          nix shell --inputs-from . nixpkgs#attic-client --command attic push fred result --ignore-upstream-cache-filter -j 2
+          ./scripts/attic-push.sh result
 
           if [ "$error" -ne 0 ]; then
             echo "One or more warnings were detected during the build."
@@ -457,7 +457,7 @@ jobs:
           extra-conf: |
             access-tokens = github.com=${{ github.token }}
             accept-flake-config = true
-            substituters = http://192.168.31.14/fred https://niri.cachix.org https://niri-epireyn.cachix.org https://cache.nixos.org/
+            substituters = http://192.168.31.14:8080/fred https://niri.cachix.org https://niri-epireyn.cachix.org https://cache.nixos.org/
             trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= fred:JjyhvRSvKfkk8r4HS0mS5r5I7dT4GociEFbrR9OgBZ0= niri.cachix.org-1:Wv0OmO7PsuocRKzfDoJ3mulSl7Z6oezYhGhR+3W2964= niri-epireyn.cachix.org-1:tlVyFN7CtsDT+ZcLPS+ekFWeT1X6X4OqvWqbBMyIzFA=
 
       - name: Build desktop system
@@ -480,7 +480,7 @@ jobs:
           fi
 
           echo "Pushing first result..."
-          nix shell --inputs-from . nixpkgs#attic-client --command attic push fred result --ignore-upstream-cache-filter -j 2
+          ./scripts/attic-push.sh result
 
           : > build.stderr
           echo "Building home-manager for: ${{ matrix.system }}"
@@ -491,7 +491,7 @@ jobs:
           fi
 
           echo "Pushing second result..."
-          nix shell --inputs-from . nixpkgs#attic-client --command attic push fred result --ignore-upstream-cache-filter -j 2
+          ./scripts/attic-push.sh result
 
           if [ "$error" -ne 0 ]; then
             echo "One or more warnings were detected during the build."
@@ -622,7 +622,7 @@ jobs:
           extra-conf: |
             access-tokens = github.com=${{ github.token }}
             accept-flake-config = true
-            substituters = http://192.168.31.14/fred https://colmena.cachix.org https://catppuccin.cachix.org https://niri.cachix.org https://niri-epireyn.cachix.org https://cache.nixos.org/
+            substituters = http://192.168.31.14:8080/fred https://colmena.cachix.org https://catppuccin.cachix.org https://niri.cachix.org https://niri-epireyn.cachix.org https://cache.nixos.org/
             trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= fred:JjyhvRSvKfkk8r4HS0mS5r5I7dT4GociEFbrR9OgBZ0= colmena.cachix.org-1:7BzpDnjjH8ki2CT3f6GdOk7QAzPOl+1t3LvTLXqYcSg= catppuccin.cachix.org-1:noG/4HkbhJb+lUAdKrph6LaozJvAeEEZj4N732IysmU= niri.cachix.org-1:Wv0OmO7PsuocRKzfDoJ3mulSl7Z6oezYhGhR+3W2964= niri-epireyn.cachix.org-1:tlVyFN7CtsDT+ZcLPS+ekFWeT1X6X4OqvWqbBMyIzFA=
 
       - name: Build & push dev shell + packages
@@ -653,10 +653,27 @@ jobs:
               ".#packages.${system}.${attr}" >> devshell.paths
           done <<< "$pkg_attrs"
 
+          # Flake checks (pre-commit-check, prometheus-alert-rules).
+          #
+          # lint.yaml builds `.#checks.x86_64-linux.pre-commit-check` but runs
+          # on ubuntu-latest, which cannot reach the LAN cache, so it can
+          # neither push nor pull it. Building here means `nix flake check`
+          # on any fleet machine substitutes instead of re-running the whole
+          # hook suite. Linux only: the darwin dev shell already pulls the
+          # check's `enabledPackages` in via devShells, which is the part
+          # that actually costs time to build.
+          check_attrs=$(nix eval --raw ".#checks.${system}" \
+            --apply 'cs: builtins.concatStringsSep "\n" (builtins.attrNames cs)')
+          while read -r attr; do
+            [ -z "$attr" ] && continue
+            echo "  building checks.${system}.${attr}"
+            nix build --no-link --print-out-paths \
+              ".#checks.${system}.${attr}" >> devshell.paths
+          done <<< "$check_attrs"
+
           echo "Pushing built dev outputs to Attic..."
           # Push the realised store paths (and their closures) directly.
-          xargs -r nix shell --inputs-from . nixpkgs#attic-client --command \
-            attic push fred --ignore-upstream-cache-filter -j 2 < devshell.paths
+          xargs -r -a devshell.paths ./scripts/attic-push.sh
 
   # =====================================================================
   # Required summary check

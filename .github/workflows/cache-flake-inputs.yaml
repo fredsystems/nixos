@@ -1,0 +1,98 @@
+---
+name: Cache Flake Inputs
+
+# Pushes every flake input's source to the Attic cache.
+#
+# Why this exists
+# ---------------
+# CI caches outputs -- host toplevels, home-manager activations, the dev
+# shell, packages. It never cached *inputs*. But evaluating any host
+# requires materialising every input source in the store first, so a cold
+# runner had to fetch ~90 sources from GitHub, releases.nixos.org and
+# (until they were vendored) Apple's CDN on every single job.
+#
+# That is not just bandwidth, it is a correctness problem. An input
+# source fetched from its origin is hash-checked against flake.lock, and
+# a mismatch is a hard *evaluation* error. On 2026-08-06 Apple silently
+# re-published SF-Pro.dmg 86 bytes larger; the pinned narHash stopped
+# matching and every desktop eval plus the fleet-manifest job failed.
+# Nothing in this repo had changed.
+#
+# Flake input paths are substitutable like any other store path, so once
+# they are in Attic, Nix takes them off the LAN and never contacts the
+# origin. That makes evaluation independent of ~90 third parties' uptime
+# and byte-stability, and it would have prevented the incident above
+# outright.
+#
+# Note this is deliberately a Linux-only job with no darwin counterpart:
+# input sources are platform-independent, so archiving them once covers
+# the darwin runners too.
+#
+# Retention caveat: these paths are not part of any deployed closure, so
+# they are roots of nothing. If the `fred` cache is ever configured to
+# reap unreferenced NARs, this guard silently erodes -- the daily
+# schedule below re-warms it, but check the cache's retention settings
+# before relying on it.
+
+on:
+  # Any lock change can introduce a new source that nothing has cached.
+  push:
+    branches: [main]
+    paths:
+      - "flake.lock"
+      - ".github/workflows/cache-flake-inputs.yaml"
+
+  # Daily, so a cache that has lost paths (retention, manual GC) refills
+  # itself without waiting for the next lock bump.
+  schedule:
+    - cron: "45 4 * * *"
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  archive:
+    name: Archive flake inputs to Attic
+    runs-on: [self-hosted, Linux]
+    # Forks have no route to the LAN cache.
+    if: github.repository == 'fredsystems/nixos'
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
+        with:
+          trust-runner-user: true
+          extra-conf: |
+            access-tokens = github.com=${{ github.token }}
+            accept-flake-config = true
+            substituters = http://192.168.31.14:8080/fred https://colmena.cachix.org https://catppuccin.cachix.org https://niri.cachix.org https://niri-epireyn.cachix.org https://cache.nixos.org/
+            trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= fred:JjyhvRSvKfkk8r4HS0mS5r5I7dT4GociEFbrR9OgBZ0= colmena.cachix.org-1:7BzpDnjjH8ki2CT3f6GdOk7QAzPOl+1t3LvTLXqYcSg= catppuccin.cachix.org-1:noG/4HkbhJb+lUAdKrph6LaozJvAeEEZj4N732IysmU= niri.cachix.org-1:Wv0OmO7PsuocRKzfDoJ3mulSl7Z6oezYhGhR+3W2964= niri-epireyn.cachix.org-1:tlVyFN7CtsDT+ZcLPS+ekFWeT1X6X4OqvWqbBMyIzFA=
+
+      - name: Archive and push flake inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "Logging in to Attic..."
+          nix shell --inputs-from . nixpkgs#attic-client --command attic login fred http://192.168.31.14:8080 eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjIxNDgyMzMyODksIm5iZiI6MTc2OTU0MjA4OSwic3ViIjoiZnJlZCIsImh0dHBzOi8vand0LmF0dGljLnJzL3YxIjp7ImNhY2hlcyI6eyJmcmVkIjp7InIiOjEsInciOjEsImNjIjoxfX19fQ.WhR5ixdW0j-wV77Tl8VubJPEyEvgQ8nQWYbgJxI8pPiLJN6v4DVaqKPu15mcY0N0B0zKnq9-njG5EOn2Z2-4dMgfx9ttTA-lltxrvPf5nKR9zAXg6hgPYsnGQuRFBvAFzlfPCpcIU2rgEVzMajzjipQgfUnVPDuto9uPU1VG25fncVRYz5dUhOXTfvN_WWpzcgQ7HDHQufbui5IoG-nmFMFWcNkxTCw7XVNs1PYFpadMGn6zAeh9Hi6epYYllr1aTcmTCx6ut3-fbFdQaxGG_HsCyxFiIf9r6GNSQvZOeHbeLcE21RQ6qNrkKZuQiVoOAcQr7ngpQ2jjcWnajw_hCPi6rqByZxdZy8IAbPQ83nm9o5UlfKg99sr6YSV-6ZTBvsOm-ioUX9hSktWm3O7cdH74ygmbUC_QL-os6aYNhbyQjSEMgiOpS65VnFURG58gnnvVHncMvohyDKwZqcWVtiaQApNeL3_LEATtX_zdqlaWdCVXO3t3QlD0ebYVhb4rn2KEg0GOZHGpWPqJnszRSMwXgWM1fG37OF117Qz6O9280BoEMdjLvITr5Cq0kQqS0PzapLdI5maU6ZluyqvAvgqdHzwjey4hDDq3FjITA_JMUStRlH7sMwtaSGTiTTOHQPe7WT9PImqfm4G8Q3urOsHMBE_Au1dqnUz4Lq-yU4M
+
+          # Fetches every input (recursively) into the local store and
+          # prints the resulting store paths.
+          echo "Archiving flake inputs..."
+          nix flake archive --json > archive.json
+
+          # `.inputs` rather than the whole document: the root object's
+          # own `path` is this checkout, which is not worth caching.
+          nix shell --inputs-from . nixpkgs#jq --command \
+            jq -r '.inputs | .. | .path? // empty' archive.json \
+            | sort -u > input.paths
+
+          echo "Found $(wc -l < input.paths) input source path(s)."
+
+          xargs -r -a input.paths ./scripts/attic-push.sh
