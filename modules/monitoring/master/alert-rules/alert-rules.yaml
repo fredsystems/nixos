@@ -53,8 +53,24 @@ groups:
 
   - name: systemd-alerts
     rules:
+      # github-runner-runner-* is excluded and handled by GitHubRunnerFailed
+      # below instead. Those units are self-healing: modules/services/
+      # github-runners.nix runs a watchdog timer every 15 minutes that
+      # restarts any runner sitting in `failed`. Paging critical at 2
+      # minutes for a condition that repairs itself within 15 is noise --
+      # which is precisely what the 2026-08-06 GitHub outage produced.
+      #
+      # Note the exclusion is `github-runner-runner-.*`, not
+      # `github-runner-.*`: github-runner-watchdog.service deliberately
+      # stays covered by this rule, because nothing else would notice the
+      # watchdog itself dying.
       - alert: SystemdUnitFailed
-        expr: node_systemd_unit_state{state="failed", name!~"docker-.*", role!="desktop"} == 1
+        expr: |
+          node_systemd_unit_state{
+            state="failed",
+            name!~"docker-.*|github-runner-runner-.*",
+            role!="desktop"
+          } == 1
         for: 2m
         labels:
           severity: critical
@@ -79,6 +95,58 @@ groups:
         annotations:
           summary: "GitHub runner {{ $labels.name }} appears to be crash-looping"
           description: "The unit {{ $labels.name }} cycled state more than 6 times in 5 minutes — this is too rapid to be normal CI job cycling."
+
+      # Fires only for a runner the watchdog could NOT rescue.
+      #
+      # The self-healing sweep in modules/services/github-runners.nix runs
+      # every 15 minutes, so 20m means "a full sweep has been and gone and
+      # this unit is still failed" -- a genuine problem needing hands,
+      # rather than the transient GitHub-API failures that used to strand
+      # runners (see the cleanupRunner comment in that module).
+      #
+      # Keep this `for:` strictly greater than the watchdog's
+      # OnUnitActiveSec, or this becomes the 2-minute noise it replaced.
+      - alert: GitHubRunnerFailed
+        expr: |
+          node_systemd_unit_state{
+            state="failed",
+            name=~"github-runner-runner-.*",
+            role!="desktop"
+          } == 1
+        for: 20m
+        labels:
+          severity: critical
+        annotations:
+          summary: "GitHub runner {{ $labels.name }} is stuck FAILED on {{ $labels.hostname }}"
+          description: >-
+            {{ $labels.name }} has been failed for over 20 minutes, so the
+            github-runner-watchdog timer has already tried and failed to
+            restart it. Check `journalctl -u {{ $labels.name }}` and
+            `journalctl -u github-runner-watchdog`.
+
+      # Every runner on a host down at once. Distinct from the per-unit rule
+      # above because this is the state where CI stops moving entirely
+      # rather than losing one slot of capacity.
+      #
+      # Summing the "active" series rather than counting matching units
+      # matters: node_systemd_unit_state emits a series per (unit, state)
+      # with a 0/1 value, so the active series still exists (as 0) for a
+      # down runner. A `count(... == 1) == 0` formulation would produce an
+      # empty result and could never fire.
+      - alert: GitHubRunnersAllDown
+        expr: |
+          sum by (hostname) (
+            node_systemd_unit_state{state="active", name=~"github-runner-runner-.*"}
+          ) == 0
+        for: 20m
+        labels:
+          severity: critical
+        annotations:
+          summary: "All GitHub runners are down on {{ $labels.hostname }}"
+          description: >-
+            No github-runner unit on {{ $labels.hostname }} has been active
+            for 20 minutes. Self-hosted CI for this platform is stalled and
+            the watchdog has not recovered it.
 
   - name: container-alerts
     rules:

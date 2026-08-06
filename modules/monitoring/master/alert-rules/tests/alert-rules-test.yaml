@@ -896,3 +896,101 @@ tests:
       - eval_time: 25h
         alertname: TailscaleAuthKeyExpiringSoon
         exp_alerts: []
+
+  # ---------------------------------------------------------------------------
+  # GitHub runner self-healing rules
+  #
+  # These encode the division of labour introduced with the watchdog timer in
+  # modules/services/github-runners.nix: runner units repair themselves within
+  # 15 minutes, so the generic SystemdUnitFailed rule deliberately ignores them
+  # and GitHubRunnerFailed waits 20m to page only for a failure the watchdog
+  # could not fix. Both halves of that are asserted below, because getting the
+  # exclusion right in one rule and wrong in the other reintroduces exactly the
+  # 2-minute page storm it was meant to remove.
+  # ---------------------------------------------------------------------------
+
+  - interval: 1m
+    name: SystemdUnitFailed ignores runner units but still covers the watchdog
+    input_series:
+      - series: 'node_systemd_unit_state{state="failed", name="github-runner-runner-3.service", hostname="fredhub", role="agent"}'
+        values: "1+0x200"
+      - series: 'node_systemd_unit_state{state="failed", name="github-runner-watchdog.service", hostname="fredhub", role="agent"}'
+        values: "1+0x200"
+    alert_rule_test:
+      # The runner is the watchdog's job, not this rule's.
+      # The watchdog itself has no minder, so it must still page here.
+      - eval_time: 30m
+        alertname: SystemdUnitFailed
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              state: failed
+              name: github-runner-watchdog.service
+              hostname: fredhub
+              role: agent
+            exp_annotations:
+              summary: "Systemd unit github-runner-watchdog.service FAILED on fredhub"
+              description: "The unit github-runner-watchdog.service has been in a failed state for >2 minutes."
+
+  # A runner failure shorter than the watchdog's sweep is the transient case
+  # (GitHub API blip) and must stay silent.
+  - interval: 1m
+    name: GitHubRunnerFailed stays silent inside the watchdog's 15m window
+    input_series:
+      - series: 'node_systemd_unit_state{state="failed", name="github-runner-runner-3.service", hostname="fredhub", role="agent"}'
+        values: "1+0x200"
+    alert_rule_test:
+      - eval_time: 14m
+        alertname: GitHubRunnerFailed
+        exp_alerts: []
+
+  - interval: 1m
+    name: GitHubRunnerFailed fires once the watchdog has had its chance
+    input_series:
+      - series: 'node_systemd_unit_state{state="failed", name="github-runner-runner-3.service", hostname="fredhub", role="agent"}'
+        values: "1+0x200"
+    alert_rule_test:
+      - eval_time: 45m
+        alertname: GitHubRunnerFailed
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              state: failed
+              name: github-runner-runner-3.service
+              hostname: fredhub
+              role: agent
+            exp_annotations:
+              summary: "GitHub runner github-runner-runner-3.service is stuck FAILED on fredhub"
+              description: "github-runner-runner-3.service has been failed for over 20 minutes, so the github-runner-watchdog timer has already tried and failed to restart it. Check `journalctl -u github-runner-runner-3.service` and `journalctl -u github-runner-watchdog`."
+
+  # One live runner is enough to keep CI moving, so the fleet-level rule must
+  # not fire just because some runners are between jobs.
+  - interval: 1m
+    name: GitHubRunnersAllDown stays silent while one runner is active
+    input_series:
+      - series: 'node_systemd_unit_state{state="active", name="github-runner-runner-1.service", hostname="fredhub", role="agent"}'
+        values: "0+0x200"
+      - series: 'node_systemd_unit_state{state="active", name="github-runner-runner-2.service", hostname="fredhub", role="agent"}'
+        values: "1+0x200"
+    alert_rule_test:
+      - eval_time: 45m
+        alertname: GitHubRunnersAllDown
+        exp_alerts: []
+
+  - interval: 1m
+    name: GitHubRunnersAllDown fires when every runner on the host is down
+    input_series:
+      - series: 'node_systemd_unit_state{state="active", name="github-runner-runner-1.service", hostname="fredhub", role="agent"}'
+        values: "0+0x200"
+      - series: 'node_systemd_unit_state{state="active", name="github-runner-runner-2.service", hostname="fredhub", role="agent"}'
+        values: "0+0x200"
+    alert_rule_test:
+      - eval_time: 45m
+        alertname: GitHubRunnersAllDown
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              hostname: fredhub
+            exp_annotations:
+              summary: "All GitHub runners are down on fredhub"
+              description: "No github-runner unit on fredhub has been active for 20 minutes. Self-hosted CI for this platform is stalled and the watchdog has not recovered it."
