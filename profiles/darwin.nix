@@ -93,7 +93,23 @@
         rrdtool
       ];
 
-      programs.firefox.enable = true;
+      # No programs.firefox here on purpose.
+      #
+      # It was a bare `enable = true` with no settings, extensions or
+      # policies -- purely "install a browser" -- and nixpkgs' firefox on
+      # darwin is a full Gecko source build. That is only substitutable
+      # when Hydra's aarch64-darwin builders have caught up with the
+      # nixpkgs pin, which they routinely have not: as of 2026-08-06 the
+      # newest firefox-unwrapped built for aarch64-darwin was 153.0.1
+      # while x86_64-linux was already on 153.0.3, so a freshly bumped
+      # pin meant compiling Firefox from source on the Mac.
+      #
+      # Paying hours of build time for a browser nobody here uses, with
+      # zero declarative configuration to show for it, is a bad trade.
+      # If it is ever wanted back, `homebrew.casks` in
+      # modules/services/homebrew.nix is the native answer on macOS --
+      # the linux desktops keep the real, configured firefox via
+      # features/desktop/firefox, which is unaffected by this.
     };
 
   fonts = {
