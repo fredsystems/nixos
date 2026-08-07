@@ -146,7 +146,6 @@ jobs:
               [frext]="desktop"
               [solaar]="desktop"
               [nix-flatpak]="desktop"
-              [apple-fonts]="desktop"
               [walls-catppuccin]="desktop"
               [walls-zhichaoh]="desktop"
               [walls-cozypixels]="desktop"
@@ -389,7 +388,7 @@ jobs:
           extra-conf: |
             access-tokens = github.com=${{ github.token }}
             accept-flake-config = true
-            substituters = http://192.168.31.14/fred https://niri.cachix.org https://niri-epireyn.cachix.org https://cache.nixos.org/
+            substituters = http://192.168.31.14:8080/fred https://niri.cachix.org https://niri-epireyn.cachix.org https://cache.nixos.org/
             trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= fred:JjyhvRSvKfkk8r4HS0mS5r5I7dT4GociEFbrR9OgBZ0= niri.cachix.org-1:Wv0OmO7PsuocRKzfDoJ3mulSl7Z6oezYhGhR+3W2964= niri-epireyn.cachix.org-1:tlVyFN7CtsDT+ZcLPS+ekFWeT1X6X4OqvWqbBMyIzFA=
 
       - name: Build server system
@@ -412,7 +411,7 @@ jobs:
           fi
 
           echo "Pushing first result..."
-          nix shell --inputs-from . nixpkgs#attic-client --command attic push fred result --ignore-upstream-cache-filter -j 2
+          ./scripts/attic-push.sh result
 
           : > build.stderr
           echo "Building home-manager for: ${{ matrix.system }}"
@@ -423,7 +422,7 @@ jobs:
           fi
 
           echo "Pushing second result..."
-          nix shell --inputs-from . nixpkgs#attic-client --command attic push fred result --ignore-upstream-cache-filter -j 2
+          ./scripts/attic-push.sh result
 
           if [ "$error" -ne 0 ]; then
             echo "One or more warnings were detected during the build."
@@ -457,7 +456,7 @@ jobs:
           extra-conf: |
             access-tokens = github.com=${{ github.token }}
             accept-flake-config = true
-            substituters = http://192.168.31.14/fred https://niri.cachix.org https://niri-epireyn.cachix.org https://cache.nixos.org/
+            substituters = http://192.168.31.14:8080/fred https://niri.cachix.org https://niri-epireyn.cachix.org https://cache.nixos.org/
             trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= fred:JjyhvRSvKfkk8r4HS0mS5r5I7dT4GociEFbrR9OgBZ0= niri.cachix.org-1:Wv0OmO7PsuocRKzfDoJ3mulSl7Z6oezYhGhR+3W2964= niri-epireyn.cachix.org-1:tlVyFN7CtsDT+ZcLPS+ekFWeT1X6X4OqvWqbBMyIzFA=
 
       - name: Build desktop system
@@ -480,7 +479,7 @@ jobs:
           fi
 
           echo "Pushing first result..."
-          nix shell --inputs-from . nixpkgs#attic-client --command attic push fred result --ignore-upstream-cache-filter -j 2
+          ./scripts/attic-push.sh result
 
           : > build.stderr
           echo "Building home-manager for: ${{ matrix.system }}"
@@ -491,7 +490,7 @@ jobs:
           fi
 
           echo "Pushing second result..."
-          nix shell --inputs-from . nixpkgs#attic-client --command attic push fred result --ignore-upstream-cache-filter -j 2
+          ./scripts/attic-push.sh result
 
           if [ "$error" -ne 0 ]; then
             echo "One or more warnings were detected during the build."
@@ -622,7 +621,7 @@ jobs:
           extra-conf: |
             access-tokens = github.com=${{ github.token }}
             accept-flake-config = true
-            substituters = http://192.168.31.14/fred https://colmena.cachix.org https://catppuccin.cachix.org https://niri.cachix.org https://niri-epireyn.cachix.org https://cache.nixos.org/
+            substituters = http://192.168.31.14:8080/fred https://colmena.cachix.org https://catppuccin.cachix.org https://niri.cachix.org https://niri-epireyn.cachix.org https://cache.nixos.org/
             trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= fred:JjyhvRSvKfkk8r4HS0mS5r5I7dT4GociEFbrR9OgBZ0= colmena.cachix.org-1:7BzpDnjjH8ki2CT3f6GdOk7QAzPOl+1t3LvTLXqYcSg= catppuccin.cachix.org-1:noG/4HkbhJb+lUAdKrph6LaozJvAeEEZj4N732IysmU= niri.cachix.org-1:Wv0OmO7PsuocRKzfDoJ3mulSl7Z6oezYhGhR+3W2964= niri-epireyn.cachix.org-1:tlVyFN7CtsDT+ZcLPS+ekFWeT1X6X4OqvWqbBMyIzFA=
 
       - name: Build & push dev shell + packages
@@ -655,8 +654,16 @@ jobs:
 
           echo "Pushing built dev outputs to Attic..."
           # Push the realised store paths (and their closures) directly.
-          xargs -r nix shell --inputs-from . nixpkgs#attic-client --command \
-            attic push fred --ignore-upstream-cache-filter -j 2 < devshell.paths
+          # Guarded rather than relying on `xargs -r`: BSD xargs on the
+          # darwin runners has historically differed on whether -r is a
+          # no-op, and running attic-push.sh with no arguments is a usage
+          # error. `-a` is avoided outright -- it is GNU-only and is what
+          # broke the darwin dev-shell job ("xargs: invalid option -- a").
+          if [ -s devshell.paths ]; then
+            xargs ./scripts/attic-push.sh < devshell.paths
+          else
+            echo "No dev outputs to push."
+          fi
 
   # =====================================================================
   # Required summary check

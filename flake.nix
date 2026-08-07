@@ -115,11 +115,6 @@
     };
 
     # CI: desktop
-    apple-fonts = {
-      url = "github:Lyndeno/apple-fonts.nix";
-    };
-
-    # CI: desktop
     home-manager = {
       url = "github:nix-community/home-manager";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -260,7 +255,6 @@
       catppuccin,
       catppuccin-stable,
       sops-nix-stable,
-      apple-fonts,
       nixvim,
       nix-flatpak,
       niri,
@@ -383,7 +377,6 @@
           darwin
           nixvim
           niri
-          apple-fonts
           solaar
           colmena
           walls-catppuccin

@@ -2,7 +2,6 @@
   lib,
   pkgs,
   config,
-  inputs,
   ...
 }:
 let
@@ -20,10 +19,17 @@ in
     #   pkgs.fira-code-symbols
     # ];
 
+    # Apple's font licence permits use but not redistribution, so the
+    # vendored SF / New York packages (overlays/apple-fonts.nix) are marked
+    # unfree and have to be named here explicitly.
     nixpkgs.config.allowUnfreePredicate =
       pkg:
       builtins.elem (lib.getName pkg) [
         "joypixels"
+        "ny-nerd"
+        "sf-compact-nerd"
+        "sf-mono-nerd"
+        "sf-pro-nerd"
       ];
     nixpkgs.config.joypixels.acceptLicense = true;
 
@@ -43,8 +49,10 @@ in
         twemoji-color-font
         noto-fonts-color-emoji
         google-fonts
-        inputs.apple-fonts.packages.${pkgs.stdenv.hostPlatform.system}.sf-pro-nerd
-        inputs.apple-fonts.packages.${pkgs.stdenv.hostPlatform.system}.ny-nerd
+        apple-fonts.sf-pro-nerd
+        apple-fonts.ny-nerd
+        apple-fonts.sf-compact-nerd
+        apple-fonts.sf-mono-nerd
         # corefonts
         # cifs-utils
         # dina-font

@@ -186,7 +186,6 @@ let
             ;
           inherit (inputs)
             catppuccin
-            apple-fonts
             nixvim
             niri
             ;

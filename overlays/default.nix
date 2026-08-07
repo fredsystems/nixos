@@ -15,6 +15,19 @@
 #   derivation ...
 
 final: prev: {
+  # Apple's SF / New York families, vendored rather than pulled from the
+  # apple-fonts flake input. See overlays/apple-fonts.nix for why (short
+  # version: Apple mutates the dmg URLs in place, which breaks *evaluation*
+  # when they are flake inputs but is harmless for a fetchurl FOD).
+  apple-fonts = final.callPackage ./apple-fonts.nix { };
+
+  # Raise attic's hardcoded 500-chunk-per-GC-pass SQLite limit. See
+  # overlays/attic-server.nix for the full rationale and the revert
+  # condition (FIXME id: attic-gc-sqlite-chunk-limit).
+  attic-server = final.callPackage ./attic-server.nix {
+    inherit (prev) attic-server;
+  };
+
   cider3 = final.callPackage ./cider.nix { };
 
   # Pin opencode to the latest upstream release rather than nixpkgs'

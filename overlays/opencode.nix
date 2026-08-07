@@ -38,7 +38,7 @@ opencode.overrideAttrs (
 
     node_modules = prevAttrs.node_modules.overrideAttrs (_: {
       inherit version src;
-      outputHash = "sha256-3BrsXBSchRXPoqJif7GXSLD8NW2VuSIL0kgOj8IUmq8=";
+      outputHash = "sha256-GBLs3nXtfSeXb4jXxSNM8ElMa/e/EB4sZn3c2inHnco=";
     });
   }
 )

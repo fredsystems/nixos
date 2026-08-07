@@ -15,8 +15,14 @@
   # copy the non root one to `.github/workflows/ci-linux.yaml`
   # attic login local http://localhost:8080 <token above>
   # attic cache create fred
-  # attic cache configure --retention-period "30 days" fred
   # attic cache configure fred --public
+  #
+  # Deliberately NOT run: `attic cache configure --retention-period ... fred`.
+  # Retention is set declaratively below via the server-wide default, so it
+  # survives the cache being destroyed and recreated. A per-cache value
+  # overrides the global default (attic coalesces cache.retention_period with
+  # the server default), so setting it by hand would silently take precedence
+  # over this file.
 
   sops.secrets = {
     "atticd_env" = { };
@@ -37,6 +43,60 @@
         min-size = 16 * 1024;
         avg-size = 64 * 1024;
         max-size = 256 * 1024;
+      };
+
+      garbage-collection = {
+        # NOT the upstream default of 12 hours, deliberately.
+        #
+        # Orphan chunk reaping is capped at 500 chunks per pass, hardcoded
+        # per database backend in attic's gc.rs (`DatabaseBackend::Sqlite
+        # => 500`, sized to SQLite's old 999-variable statement limit), and
+        # the reaper does NOT loop -- it deletes one batch and returns. So
+        # throughput is entirely a function of how often a pass runs:
+        #
+        #   capacity = 500 chunks x passes per day
+        #
+        # This cache produces roughly 16,000 orphan chunks/day (3.1M
+        # accumulated between 2026-01-27 and 2026-08-06). At the upstream
+        # 12h interval capacity is 1,000/day -- 16x short, so the backlog
+        # grows forever. That is exactly what happened: by 2026-08-06 there
+        # were 3,120,701 unreclaimed chunks holding ~82 GiB, on a 138 GiB
+        # store, and nothing had ever been reaped.
+        #
+        # 15 minutes gives 96 passes/day = 48,000 chunks/day, ~3x headroom.
+        # The per-pass cost is one full-table UPDATE over the chunk table
+        # (~1.0s at 4.9M rows, ~0.4s at 1.8M), so this is ~40s/day of write
+        # locking against the live daemon.
+        #
+        # To drain a large existing backlog, temporarily set this to "5s",
+        # deploy, watch `sudo du -sh /var/lib/atticd/storage` until it
+        # levels off, then restore. Do it while CI is quiet: the repeated
+        # write lock contends with pushes.
+        interval = "15 minutes";
+        #interval = "5s";
+
+        # Time-based expiry. Attic deletes an object only when BOTH its
+        # created_at and last_accessed_at are older than the cutoff, and
+        # last_accessed_at is bumped only when a client actually downloads
+        # the NAR (not on a bare .narinfo lookup). So this is "delete
+        # anything nothing has fetched in 30 days", not an LRU eviction:
+        # there is no size cap and nothing is freed early under disk
+        # pressure.
+        #
+        # Until this was set, default-retention-period was the upstream
+        # default of zero, which excludes every cache from time-based GC
+        # entirely.
+        #
+        # Interaction with the cache-warming jobs, worth knowing before
+        # shortening this:
+        #   - cache-flake-inputs.yaml pushes flake input sources. Cold CI
+        #     runners download every one of them on every job, so they are
+        #     bumped constantly and never expire.
+        #   - scripts/attic-push.sh pushes build closures. Those are only
+        #     downloaded when CI actually has to build something, so a
+        #     rarely used build dep can expire. That is fine: the next
+        #     build refetches it from cache.nixos.org and re-pushes it.
+        default-retention-period = "30 days";
       };
     };
   };
