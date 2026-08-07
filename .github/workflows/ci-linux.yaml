@@ -654,7 +654,16 @@ jobs:
 
           echo "Pushing built dev outputs to Attic..."
           # Push the realised store paths (and their closures) directly.
-          xargs -r -a devshell.paths ./scripts/attic-push.sh
+          # Guarded rather than relying on `xargs -r`: BSD xargs on the
+          # darwin runners has historically differed on whether -r is a
+          # no-op, and running attic-push.sh with no arguments is a usage
+          # error. `-a` is avoided outright -- it is GNU-only and is what
+          # broke the darwin dev-shell job ("xargs: invalid option -- a").
+          if [ -s devshell.paths ]; then
+            xargs ./scripts/attic-push.sh < devshell.paths
+          else
+            echo "No dev outputs to push."
+          fi
 
   # =====================================================================
   # Required summary check

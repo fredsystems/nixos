@@ -78,8 +78,15 @@ attic_push_file() {
     return 0
   fi
 
-  xargs -r -a "$file" nix shell --inputs-from . nixpkgs#attic-client --command \
-    attic push "$CACHE" --ignore-upstream-cache-filter -j "$JOBS"
+  # Feed the list on stdin rather than with `xargs -a`. `-a` is a GNU
+  # extension and this script runs on the darwin runners too, where BSD
+  # xargs rejects it outright:
+  #
+  #   xargs: invalid option -- a
+  #
+  # `-r` is fine on both.
+  xargs -r nix shell --inputs-from . nixpkgs#attic-client --command \
+    attic push "$CACHE" --ignore-upstream-cache-filter -j "$JOBS" <"$file"
 }
 
 workdir="$(mktemp -d)"
@@ -115,7 +122,7 @@ if [ -s "$workdir/all" ]; then
 
   # Outputs this machine never realised (substituted parents, unbuilt
   # branches). attic cannot push what does not exist.
-  xargs -r -a "$workdir/all" nix-store --check-validity --print-invalid \
+  xargs -r nix-store --check-validity --print-invalid <"$workdir/all" \
     2>/dev/null | sort -u >"$workdir/invalid" || true
 
   comm -23 "$workdir/all" "$workdir/invalid" >"$workdir/push"
