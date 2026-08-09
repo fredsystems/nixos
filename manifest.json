@@ -1,5 +1,5 @@
 {
-  "generated_at": 1786248224,
+  "generated_at": 1786249040,
   "hosts": {
     "Daytona": {
       "history": [
@@ -180,6 +180,11 @@
     },
     "fredvps": {
       "history": [
+        {
+          "at": 1786249040,
+          "rev": "66113d3c17b1b796fcb09aac6905a1e44bbe4fc8",
+          "toplevel": "/nix/store/dhb3lpbfhghvqvawp6sj52k3iwm6v9ii-nixos-system-fredvps-26.05.20260807.ee48b14"
+        },
         {
           "at": 1786239840,
           "rev": "e196eb63ba61d7f251c8035c1db48c6466ea0bf6",
@@ -528,6 +533,6 @@
       ]
     }
   },
-  "rev": "62a2ac1097dadd29f767e263c0823979110cd80d",
+  "rev": "66113d3c17b1b796fcb09aac6905a1e44bbe4fc8",
   "schema": 1
 }
