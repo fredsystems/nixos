@@ -124,7 +124,9 @@ This repo uses the shared orchestration model. `autonomy-boundaries`
 governs when to continue versus stop: the assigned scope is the
 boundary, not a step count, and irreversible operations still need
 explicit approval. `agent-orchestration-protocol` governs sub-agent
-scoping, `plan-decomposition` governs turning plans into subtasks, and
+scoping, `plan-decomposition` governs turning plans into subtasks,
+`plan-sequencing-discipline` governs the numbered plan set (ordering,
+cross-plan dependencies, status at merge), and
 `parallel-work-isolation` governs concurrent work.
 
 Note what that declaration does. opencode discovers the shared skills

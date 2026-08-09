@@ -37,6 +37,12 @@ permits concurrent work on adjacent incomplete plans, and that weakness
 is the point -- strict serial ordering would forbid the parallel
 sub-agent execution that `parallel-work-isolation` exists to enable.
 
+Read precisely what it permits, though: concurrent **work**, not
+concurrent **completion**. Since merge is the completion trigger,
+merging a higher-numbered plan while a lower one is unfinished breaks
+this invariant immediately. The merge barrier that follows from that is
+spelled out under "Deciding whether two plans may run concurrently".
+
 What it forbids is a completed plan sitting above an unstarted or
 in-progress one. When that happens the numbering no longer describes
 execution order, and it must be corrected rather than explained.
@@ -133,14 +139,32 @@ verification. This skill adds the **plan-graph-level** test, and both
 must pass:
 
 - Neither plan depends on the other (directly or transitively).
-- Running them concurrently cannot produce a `complete` plan above an
-  incomplete one -- i.e. if one finishes first, the prefix invariant
-  still holds.
+- **Merges are ordered lowest-number-first.** Concurrent *work* is
+  allowed; concurrent *completion* is not.
+
+That second condition is a hard barrier, not a prediction. Because merge
+is the completion trigger, letting the higher-numbered plan merge first
+makes it `complete` while a lower-numbered plan is still in progress --
+which violates the prefix invariant directly. Two independent plans race
+to finish, so roughly half the time the wrong one wins.
+
+So the rule is: **the higher-numbered plan may be worked on in
+parallel, but must hold at `pending merge` until every lower-numbered
+plan it is racing has merged.** If the lower one turns out to need
+another week, the higher one waits at `pending merge`, or the two are
+renumbered before either starts.
 
 Two plans that are adjacent, mutually independent, and forward-clean
-are eligible for concurrent execution. Eligible is not the same as
-advisable: apply the code-level test before actually running them in
-parallel.
+are eligible for concurrent execution under that barrier. Eligible is
+not advisable on its own: apply the code-level test from
+`parallel-work-isolation` before actually running them in parallel.
+
+Note what this costs. The barrier serialises the *merge*, not the work,
+so the parallelism is real but the payoff is smaller than it looks -- a
+finished higher plan sitting at `pending merge` is capital tied up, and
+it still needs a rebase after the lower plan lands. If the merge order
+is going to be a problem, renumbering before work starts is cheaper
+than a long-held barrier.
 
 ## Hard rules
 
@@ -151,6 +175,8 @@ parallel.
 - Do NOT renumber a plan that has started.
 - Do NOT number a subtask under any plan but its own.
 - Do NOT leave a plan at `pending merge` after its PR has merged.
+- Do NOT merge a higher-numbered plan while a lower-numbered one it ran
+  concurrently with is still incomplete. Hold at `pending merge`.
 - Do NOT update an index without updating the plan document in the same
   commit, or vice versa.
 

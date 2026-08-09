@@ -61,10 +61,19 @@ Add to the repo's `agents.md`, near the top:
 
 This repo uses the shared orchestration model. `autonomy-boundaries`
 governs when to continue versus stop: the assigned scope is the
-boundary, not a step count. `agent-orchestration-protocol` governs
-sub-agent scoping, `plan-decomposition` governs turning plans into
-subtasks, and `parallel-work-isolation` governs concurrent work.
+boundary, not a step count, and irreversible operations still need
+explicit approval. `agent-orchestration-protocol` governs sub-agent
+scoping, `plan-decomposition` governs turning plans into subtasks,
+`plan-sequencing-discipline` governs the numbered plan set (ordering,
+cross-plan dependencies, status at merge), and
+`parallel-work-isolation` governs concurrent work.
 ```
+
+Name every shared skill the repo is granting authority to. A skill left
+out of this list is still discovered and still loaded, but it does not
+outrank the repo's own `agents.md`, so a conflict silently resolves the
+old way. Drop any line that does not apply -- a repo with no numbered
+plan set does not need the `plan-sequencing-discipline` clause.
 
 Absent that declaration, the repo keeps whatever its `agents.md`
 already says.
