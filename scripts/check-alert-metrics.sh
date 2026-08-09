@@ -145,6 +145,36 @@ for name in sorted(os.listdir(rules_dir)):
         cleaned = re.sub(r"'[^']*'", " ", cleaned)
         cleaned = re.sub(r"\[[^\]]*\]", " ", cleaned)
 
+        # Same reasoning, second syntax. Label names also appear as bare
+        # identifiers inside the PARENTHESISED argument of a grouping or
+        # vector-matching clause, which the brace strip above cannot see:
+        #
+        #   * on (host) group_left (running, expected, short_rev, ...)
+        #     max by (host, running, expected, short_rev, ...) (nixos_deploy_info)
+        #
+        # The keywords themselves are in RESERVED, but their argument lists
+        # were not removed, so every label named there leaked into the
+        # identifier scan. The `"_" not in ident` heuristic below then silently
+        # absorbed the ones without underscores (`running`, `expected`) while
+        # reporting the ones with them (`short_rev`, `short_expected_rev`) as
+        # MISSING metrics -- two permanent false positives that made this
+        # script exit 1 on a clean tree.
+        #
+        # That matters more than the two names suggest: a checker that always
+        # fails is one people learn to ignore, which is exactly how the five
+        # rotted rules in the header comment accumulated in the first place.
+        #
+        # Safe against the empty-parens form (`on () group_left () min(...)`,
+        # used in system-alerts, capacity-alerts and smart-alerts): the
+        # [^()]* body matches the empty string, so only the clause itself is
+        # consumed and the following expression is left intact. Verified
+        # against all four grouping clauses currently in this directory.
+        cleaned = re.sub(
+            r"\b(?:by|without|on|ignoring|group_left|group_right)\s*\([^()]*\)",
+            " ",
+            cleaned,
+        )
+
         for ident in re.findall(r"\b[a-zA-Z_][a-zA-Z0-9_:]*\b", cleaned):
             if ident in RESERVED:
                 continue
