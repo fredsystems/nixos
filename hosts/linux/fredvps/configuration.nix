@@ -87,9 +87,16 @@ in
     useNetworkd = true;
     useDHCP = false;
     networkmanager.enable = lib.mkForce false;
+    # SSH only. 80 and 443 are opened by nginx.nix.
+    #
+    # 8078 (the flipaholics uvicorn app) used to be here. It is reached
+    # exclusively through nginx's proxy_pass on the loopback -- `ss` showed no
+    # direct client ever, and the vhost has proxied it the whole time -- so
+    # the public opening served nothing but scanners. Removed together with
+    # the app's own 0.0.0.0 bind below; re-add both if the app ever needs to
+    # be reached without going through nginx.
     firewall.allowedTCPPorts = [
       2269
-      8078
     ];
   };
 
@@ -292,7 +299,11 @@ in
         # proxy_pass, so dropping it loses no coverage. Revisit if :8078 is
         # ever exposed directly, since then nginx would no longer see
         # everything.
-        execStart = "$VENV/bin/uvicorn app.main:app --host 0.0.0.0 --port 8078 --workers 2 --no-access-log";
+        # --host 127.0.0.1: nginx proxies this on the loopback, so binding
+        # 0.0.0.0 only ever exposed it to the internet. Belt and braces with
+        # the firewall change above -- the bind is the real control, since a
+        # firewall rule is one edit away from being reopened by accident.
+        execStart = "$VENV/bin/uvicorn app.main:app --host 127.0.0.1 --port 8078 --workers 2 --no-access-log";
       };
 
       discord-bot = {
