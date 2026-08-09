@@ -397,6 +397,7 @@
         "defaults": {
           "unit": "s",
           "mappings": [],
+          "noValue": "0",
           "color": {
             "mode": "thresholds"
           },
@@ -463,6 +464,7 @@
         "defaults": {
           "unit": "s",
           "mappings": [],
+          "noValue": "0",
           "color": {
             "mode": "thresholds"
           },
@@ -492,7 +494,7 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "time() - f2b_ban_metrics_generated_timestamp_seconds",
+          "expr": "max(time() - f2b_ban_metrics_generated_timestamp_seconds)",
           "legendFormat": "",
           "instant": true
         }
@@ -502,7 +504,7 @@
       "id": 31,
       "type": "table",
       "title": "Currently Banned Addresses",
-      "description": "Every address banned right now, across all jails, with how long the ban runs and how much is left. Ban Length grows with repeat offences: 1h, 2h, 4h, 8h, 16h, 32h, 64h. Sourced from a node_exporter textfile, since the fail2ban exporter publishes only per-jail totals.",
+      "description": "Every address banned right now, across all jails, with how long the ban runs and how much is left. Ban Length grows with repeat offences: 1h, 2h, 4h, 8h, 16h, 32h, 64h, 128h, then 168h. Bans are host-wide and silent (DROP on all ports), so a listed address cannot reach any service. Sourced from a node_exporter textfile, since the fail2ban exporter publishes only per-jail totals.",
       "gridPos": {
         "h": 11,
         "w": 14,
@@ -607,7 +609,7 @@
               },
               {
                 "id": "max",
-                "value": 57600
+                "value": 604800
               },
               {
                 "id": "min",
@@ -621,7 +623,7 @@
         {
           "id": "joinByField",
           "options": {
-            "byField": "ip",
+            "byField": "ban_id",
             "mode": "outer"
           }
         },
@@ -650,16 +652,21 @@
               "role": true,
               "role 1": true,
               "role 2": true,
-              "jail 2": true
+              "jail 2": true,
+              "ban_id": true,
+              "ban_id 1": true,
+              "ban_id 2": true,
+              "ip 2": true
             },
             "indexByName": {
-              "ip": 0,
+              "ip 1": 0,
               "jail 1": 1,
               "Value #B": 2,
               "Value #A": 3
             },
             "renameByName": {
               "ip": "IP",
+              "ip 1": "IP",
               "jail": "Jail",
               "jail 1": "Jail",
               "Value #A": "Time Left",
