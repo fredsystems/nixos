@@ -104,6 +104,20 @@ jobs:
                 flake_lock_changed=true ;;
               modules/*|profiles/*|home-profiles/*|dotfiles/*|overlays/*)
                 global=true ;;
+              .opencode/skills/*)
+                # Currently a no-op for darwin: Freds-MacBook-Pro sets
+                # `ai.opencode.enable = false` (NixOS/nix#15638 workaround)
+                # and Freds-Mac-Studio does not import the feature at all,
+                # so the skills tree reaches no darwin closure. Verified by
+                # diffing the toplevel drvPath with and without a skills
+                # change -- identical.
+                #
+                # Kept as an explicit case rather than left to fall through,
+                # because the moment opencode is re-enabled on darwin the
+                # tree lands in that host's home-manager closure and this
+                # must become `global=true`. An explicit case with this note
+                # is a breadcrumb; silence in the catch-all is a trap.
+                ;;
               features/*)
                 global=true ;;
               .github/renovate.json5)
