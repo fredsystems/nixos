@@ -54,6 +54,33 @@
           promtool test rules ./*.yaml
         '';
       };
+
+      # Verifies the flake-input -> CI-category mapping agrees across all
+      # four locations that hold a copy of it (the `# CI:` comments in
+      # flake.nix, the two workflow `input_category` arrays, and the
+      # impacted-hosts script's `INPUT_CATEGORY`).
+      #
+      # This was previously enforced only by an agent remembering the
+      # `nixos-input-category-sync` skill, and that failed silently:
+      # `nixpkgs-kernel` shipped with a `# CI: server` comment but was
+      # absent from both bash arrays, so it fell through to the `global`
+      # default and every monthly kernel bump rebuilt two desktops that
+      # no-op the pin. Under-building is the worse failure in the same
+      # class, hence a machine check rather than a documented habit.
+      inputCategorySync = pkgs.writeShellApplication {
+        name = "check-input-category-sync";
+        runtimeInputs = [ pkgs.python3 ];
+        text = ''
+          script=".opencode/skills/projects/nixos-input-category-sync/scripts/check-input-category-sync.py"
+
+          if [ ! -f "$script" ]; then
+            echo "error: $script not found (run from the repository root)" >&2
+            exit 1
+          fi
+
+          python3 "$script"
+        '';
+      };
     in
     {
       # precommit-base exposes composable modules (`{ hooks, excludes,
@@ -63,9 +90,9 @@
       #
       # git-hooks is reached through precommit-base's own inputs rather than
       # being added as a new input to this flake. A new input would have to be
-      # classified in four places (the `# CI:` comment, agents.md, ci-linux.yaml
-      # and the impacted-hosts script) per the input-category sync invariant,
-      # which is a lot of ceremony for a build-time-only tool.
+      # classified in four places (the `# CI:` comment, ci-linux.yaml,
+      # ci-darwin.yaml and the impacted-hosts script) per the input-category
+      # sync invariant, which is a lot of ceremony for a build-time-only tool.
       pre-commit-check =
         let
           base = inputs.precommit-base.lib.mkBaseCheck {
@@ -92,6 +119,21 @@
                 files = "^modules/monitoring/master/alert-rules/.*\\.ya?ml$";
                 pass_filenames = false;
               };
+
+              input-category-sync = {
+                enable = true;
+                name = "flake input CI category sync (4 locations)";
+                entry = "${pkgs.lib.getExe inputCategorySync}";
+
+                # Fires on any file that holds a copy of the mapping, plus
+                # flake.lock (which decides *which* inputs must be present in
+                # each copy -- adding an input there without updating the
+                # arrays is the exact drift this catches). pass_filenames is
+                # off because the checker always cross-references the full
+                # set; a single-file view cannot detect disagreement.
+                files = "^(flake\\.nix|flake\\.lock|\\.github/workflows/ci-(linux|darwin)\\.yaml|\\.opencode/skills/projects/nixos-(eval-impacted-hosts/scripts/impacted-hosts\\.sh|input-category-sync/scripts/check-input-category-sync\\.py))$";
+                pass_filenames = false;
+              };
             };
           };
         in
@@ -112,6 +154,20 @@
           ''
             cd ${self}
             check-prometheus-alert-rules
+            touch "$out"
+          '';
+
+      # Standalone check so `nix flake check` and CI catch category drift
+      # even when the pre-commit hook is bypassed or the change arrives by
+      # a route that never ran hooks (bot PRs, web edits).
+      input-category-sync =
+        pkgs.runCommand "input-category-sync-check"
+          {
+            nativeBuildInputs = [ inputCategorySync ];
+          }
+          ''
+            cd ${self}
+            check-input-category-sync
             touch "$out"
           '';
     }

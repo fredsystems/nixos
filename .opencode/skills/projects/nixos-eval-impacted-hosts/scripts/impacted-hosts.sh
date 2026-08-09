@@ -116,6 +116,7 @@ declare -A INPUT_CATEGORY=(
   [walls-cozypixels]="desktop"
   [nixvim]="global"
   [nixpkgs-stable]="server"
+  [nixpkgs-kernel]="server"
   [home-manager-stable]="server"
   [catppuccin-stable]="server"
   [sops-nix-stable]="server"
