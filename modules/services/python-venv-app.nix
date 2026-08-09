@@ -59,6 +59,12 @@ let
         # them unless pointed at explicitly. app.extraLibraryPaths lets a
         # host add more (e.g. gfortran's runtime for scipy).
         LD_LIBRARY_PATH = lib.makeLibraryPath app.extraLibraryPaths;
+
+        # Point matplotlib at the systemd-managed CacheDirectory below.
+        # Without this it tries $HOME/.cache, which ProtectHome=read-only
+        # blocks, and silently rebuilds its font cache into a throwaway /tmp
+        # directory on every single start.
+        MPLCONFIGDIR = "/var/cache/pyapp-${name}";
       };
 
       serviceConfig = {
@@ -83,16 +89,84 @@ let
         Restart = "on-failure";
         RestartSec = "5s";
 
-        # Modest hardening. Deliberately no ProtectHome / ProtectSystem —
-        # the whole point of this module is that the app's code + venv
-        # live under the service user's own $HOME, outside the Nix store,
-        # and need full read/write access there.
+        # Sandboxing.
+        #
+        # These services run unvetted third-party code from PyPI, reachable
+        # from the internet through nginx, so the blast radius of a bug in
+        # the app or one of its pinned dependencies is worth bounding.
+        #
+        # BOTH ProtectSystem AND ProtectHome are required, and the reason is
+        # not obvious. `ProtectSystem=strict` is documented as mounting "the
+        # entire file system hierarchy" read-only, but /home is exempt in
+        # practice -- verified on fredvps, where a service with
+        # ProtectSystem=strict could still write freely to /home/nik and
+        # /home/nik/.cache. Since these apps live entirely under $HOME, that
+        # setting alone protects almost nothing that matters here.
+        #
+        # ProtectHome=read-only covers the gap. Not "tmpfs": that replaces
+        # /home with an empty mount, and the unit then fails to start at all
+        # with "Failed to set up mount namespacing: /home/nik/<app>: No such
+        # file or directory", because ReadWritePaths cannot resolve a path
+        # that no longer exists.
+        #
+        # ReadWritePaths then punches a hole for the app's own directory,
+        # which is the only place either app writes:
+        #
+        #   * test-site   -- a 98 MB SQLite database at
+        #                    app/database/discord_db.sqlite. Its two
+        #                    plt.savefig() calls target BytesIO, not disk.
+        #   * discord-bot -- 2085 PNGs written with RELATIVE filenames
+        #                    (`plt.savefig(f"{name}.png")`), which resolve
+        #                    against WorkingDirectory = app.path.
+        #
+        # Confirmed no writes land outside those directories.
+        ProtectSystem = "strict";
+        ProtectHome = "read-only";
+        ReadWritePaths = [ app.path ];
+
+        # matplotlib needs a writable cache and defaults to $HOME/.cache,
+        # which ProtectHome has just made read-only. It does not fail -- it
+        # silently falls back to a fresh /tmp directory and rebuilds the font
+        # cache on every start, which costs seconds of CPU per restart and
+        # then throws the result away.
+        #
+        # CacheDirectory gives it somewhere real: systemd creates
+        # /var/cache/<name> owned by the service user and it survives
+        # restarts. MPLCONFIGDIR points matplotlib at it. Verified the cache
+        # persists (fontlist-v330.json is written and reused).
+        CacheDirectory = "pyapp-${name}";
+
         NoNewPrivileges = true;
         PrivateTmp = true;
         ProtectKernelTunables = true;
         ProtectKernelModules = true;
+        ProtectKernelLogs = true;
         ProtectControlGroups = true;
+        ProtectClock = true;
+        ProtectHostname = true;
         RestrictSUIDSGID = true;
+        RestrictRealtime = true;
+        LockPersonality = true;
+
+        # Network access is the point of these services, so AF_INET stays.
+        # AF_UNIX is needed for DNS resolution via nsswitch. Everything else
+        # -- raw packet sockets, netlink, bluetooth -- has no business here.
+        RestrictAddressFamilies = [
+          "AF_INET"
+          "AF_INET6"
+          "AF_UNIX"
+        ];
+
+        # No @privileged / @obsolete syscalls. Deliberately not a tighter set:
+        # CPython plus compiled manylinux wheels (numpy, scipy, matplotlib)
+        # reach for a wide syscall surface, and an over-tight filter fails at
+        # import time rather than obviously.
+        SystemCallFilter = [
+          "@system-service"
+          "~@privileged"
+          "~@obsolete"
+        ];
+        SystemCallArchitectures = "native";
       };
     };
 in
