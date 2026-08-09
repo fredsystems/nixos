@@ -354,6 +354,344 @@
       ]
     },
     {
+      "id": 30,
+      "type": "row",
+      "title": "Active Bans",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 6
+      },
+      "panels": []
+    },
+    {
+      "id": 32,
+      "type": "stat",
+      "title": "Longest Active Ban",
+      "description": "Highest ban length currently in force. Climbs as the escalation ladder engages.",
+      "gridPos": {
+        "h": 5,
+        "w": 5,
+        "x": 0,
+        "y": 7
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "mappings": [],
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 7200
+              },
+              {
+                "color": "orange",
+                "value": 14400
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "max(f2b_banned_ip_bantime_seconds)",
+          "legendFormat": "",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 33,
+      "type": "stat",
+      "title": "Ban Data Age",
+      "description": "Seconds since the ban table was regenerated. The timer runs every 2 minutes, so a value climbing past ~3 minutes means the generator has stopped and the table below is stale rather than empty.",
+      "gridPos": {
+        "h": 5,
+        "w": 5,
+        "x": 5,
+        "y": 7
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "mappings": [],
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 200
+              },
+              {
+                "color": "red",
+                "value": 600
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "time() - f2b_ban_metrics_generated_timestamp_seconds",
+          "legendFormat": "",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 31,
+      "type": "table",
+      "title": "Currently Banned Addresses",
+      "description": "Every address banned right now, across all jails, with how long the ban runs and how much is left. Ban Length grows with repeat offences: 1h, 2h, 4h, 8h, 16h, 32h, 64h. Sourced from a node_exporter textfile, since the fail2ban exporter publishes only per-jail totals.",
+      "gridPos": {
+        "h": 11,
+        "w": 14,
+        "x": 10,
+        "y": 7
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "Ban Length",
+            "desc": true
+          }
+        ],
+        "footer": {
+          "show": true,
+          "reducer": ["count"],
+          "fields": ["IP"]
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "filterable": true
+          },
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Ban Length"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 7200
+                    },
+                    {
+                      "color": "orange",
+                      "value": 14400
+                    },
+                    {
+                      "color": "red",
+                      "value": 57600
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Time Left"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge"
+                }
+              },
+              {
+                "id": "max",
+                "value": 57600
+              },
+              {
+                "id": "min",
+                "value": 0
+              }
+            ]
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "ip",
+            "mode": "outer"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "Time 1": true,
+              "Time 2": true,
+              "__name__": true,
+              "__name__ 1": true,
+              "__name__ 2": true,
+              "instance": true,
+              "instance 1": true,
+              "instance 2": true,
+              "job": true,
+              "job 1": true,
+              "job 2": true,
+              "hostname": true,
+              "hostname 1": true,
+              "hostname 2": true,
+              "exporter": true,
+              "exporter 1": true,
+              "exporter 2": true,
+              "role": true,
+              "role 1": true,
+              "role 2": true,
+              "jail 2": true
+            },
+            "indexByName": {
+              "ip": 0,
+              "jail 1": 1,
+              "Value #B": 2,
+              "Value #A": 3
+            },
+            "renameByName": {
+              "ip": "IP",
+              "jail": "Jail",
+              "jail 1": "Jail",
+              "Value #A": "Time Left",
+              "Value #B": "Ban Length"
+            }
+          }
+        }
+      ],
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "refId": "A",
+          "format": "table",
+          "instant": true,
+          "expr": "f2b_banned_ip_expiry_timestamp_seconds - time()"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "refId": "B",
+          "format": "table",
+          "instant": true,
+          "expr": "f2b_banned_ip_bantime_seconds"
+        }
+      ]
+    },
+    {
       "id": 7,
       "type": "row",
       "title": "Per Jail",
@@ -362,7 +700,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 6
+        "y": 18
       },
       "panels": []
     },
@@ -375,7 +713,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 7
+        "y": 19
       },
       "datasource": {
         "type": "prometheus",
@@ -457,10 +795,44 @@
               "Time 1": true,
               "Time 2": true,
               "Time 3": true,
-              "Time 4": true
+              "Time 4": true,
+              "__name__": true,
+              "__name__ 1": true,
+              "__name__ 2": true,
+              "__name__ 3": true,
+              "__name__ 4": true,
+              "instance": true,
+              "instance 1": true,
+              "instance 2": true,
+              "instance 3": true,
+              "instance 4": true,
+              "job": true,
+              "job 1": true,
+              "job 2": true,
+              "job 3": true,
+              "job 4": true,
+              "hostname": true,
+              "hostname 1": true,
+              "hostname 2": true,
+              "hostname 3": true,
+              "hostname 4": true,
+              "exporter": true,
+              "exporter 1": true,
+              "exporter 2": true,
+              "exporter 3": true,
+              "exporter 4": true,
+              "role": true,
+              "role 1": true,
+              "role 2": true,
+              "role 3": true,
+              "role 4": true,
+              "jail 2": true,
+              "jail 3": true,
+              "jail 4": true
             },
             "renameByName": {
               "jail": "Jail",
+              "jail 1": "Jail",
               "Value #A": "Banned Now",
               "Value #B": "Banned Total",
               "Value #C": "Failed Now",
@@ -521,7 +893,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 7
+        "y": 19
       },
       "datasource": {
         "type": "prometheus",
@@ -578,7 +950,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 15
+        "y": 27
       },
       "datasource": {
         "type": "prometheus",
@@ -635,7 +1007,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 15
+        "y": 27
       },
       "datasource": {
         "type": "prometheus",
@@ -692,7 +1064,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 23
+        "y": 35
       },
       "panels": []
     },
@@ -705,7 +1077,7 @@
         "h": 10,
         "w": 12,
         "x": 0,
-        "y": 24
+        "y": 36
       },
       "datasource": {
         "type": "loki",
@@ -737,7 +1109,7 @@
         "h": 10,
         "w": 12,
         "x": 12,
-        "y": 24
+        "y": 36
       },
       "datasource": {
         "type": "loki",
@@ -794,7 +1166,7 @@
         "h": 10,
         "w": 24,
         "x": 0,
-        "y": 34
+        "y": 46
       },
       "datasource": {
         "type": "loki",
