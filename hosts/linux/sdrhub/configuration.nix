@@ -882,6 +882,13 @@ in
   sops.secrets = {
     "docker/sdrhub/dozzle.env" = mkContainerSecret "dozzle";
 
+    # Deliberately NOT mkContainerSecret. Both are declared but unconsumed:
+    # the dozzle-agent container takes no environmentFiles (its secret is
+    # "intentionally empty (no env vars required)"), and the airspy_adsb
+    # container is commented out entirely. Attaching restartUnits to either
+    # would name a container that does not read it, which is a claim the
+    # config cannot honour. If airspy_adsb is uncommented, or dozzle-agent
+    # ever gains real env vars, convert them then.
     "docker/sdrhub/dozzle-agent.env" = {
       format = "yaml";
     };

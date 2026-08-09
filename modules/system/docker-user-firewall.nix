@@ -82,6 +82,19 @@ in
         "docker.service"
         "network-online.target"
       ];
+      # Requires= (not just After=) is what makes the rules survive a Docker
+      # restart. Docker recreates its chains when the daemon restarts, so
+      # these rules have to be reapplied afterwards, not only at activation.
+      #
+      # Requires= already propagates the restart: systemd stops this unit
+      # when docker.service stops and starts it again when docker comes back.
+      # Verified on fredvps -- `systemctl restart docker.service` produced
+      # "Stopped ... DOCKER-USER" followed by "Finished ... DOCKER-USER" in
+      # the journal, and the rules were present and effective afterwards.
+      #
+      # PartOf= is therefore not needed here. It would be the right tool if
+      # this unit were only ordered with After=, which does not propagate
+      # anything.
       requires = [ "docker.service" ];
       wants = [ "network-online.target" ];
       wantedBy = [ "multi-user.target" ];
@@ -103,8 +116,18 @@ in
         ''
           set -euo pipefail
 
-          # Idempotent: wipe our own rules before re-adding. -F only empties
-          # the chain, it does not remove the FORWARD jump Docker installs.
+          # Flush before re-adding, so re-running this unit is idempotent
+          # rather than appending a second copy of every rule.
+          #
+          # Note the scope: this empties the ENTIRE DOCKER-USER chain, not
+          # just the rules added below. That is deliberate -- this module
+          # treats DOCKER-USER as exclusively its own -- but it does mean any
+          # rule inserted there by hand or by another module is discarded on
+          # the next activation or docker restart. Anything that needs to
+          # survive belongs in `allowedTCPPorts`/`allowedUDPPorts` above.
+          #
+          # -F empties the chain without deleting it, so the `-A FORWARD -j
+          # DOCKER-USER` jump that Docker installs is left intact.
           ${ipt} -F DOCKER-USER
 
           # Return traffic for connections we or a container initiated. This
