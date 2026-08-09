@@ -1,5 +1,5 @@
 {
-  "generated_at": 1786309039,
+  "generated_at": 1786318746,
   "hosts": {
     "Daytona": {
       "history": [
@@ -230,6 +230,11 @@
     },
     "fredvps": {
       "history": [
+        {
+          "at": 1786318746,
+          "rev": "4d3b8096d799f09332d649f0202551f774dd32c3",
+          "toplevel": "/nix/store/im7v5sf9952vwlrhsv5w2jhdrrxs4lbg-nixos-system-fredvps-26.05.20260807.ee48b14"
+        },
         {
           "at": 1786309039,
           "rev": "7640bb1264f7730f207de0878017723afdcd6357",
@@ -547,6 +552,11 @@
     "sdrhub": {
       "history": [
         {
+          "at": 1786318746,
+          "rev": "4d3b8096d799f09332d649f0202551f774dd32c3",
+          "toplevel": "/nix/store/7yjnhnxx6fhrc8f50rggq3kcaczsql9n-nixos-system-sdrhub-26.05.20260807.ee48b14"
+        },
+        {
           "at": 1786309039,
           "rev": "7640bb1264f7730f207de0878017723afdcd6357",
           "toplevel": "/nix/store/gf3wwn62slvk6q6b8b0ff6jy8kmxzp82-nixos-system-sdrhub-26.05.20260807.ee48b14"
@@ -688,6 +698,6 @@
       ]
     }
   },
-  "rev": "7640bb1264f7730f207de0878017723afdcd6357",
+  "rev": "4d3b8096d799f09332d649f0202551f774dd32c3",
   "schema": 1
 }
