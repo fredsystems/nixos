@@ -28,6 +28,32 @@ in
         enable = true;
         settings = {
           "$schema" = "https://opencode.ai/config.json";
+
+          permission = {
+            # `external_directory` defaults to "ask", which stalls any
+            # unattended session the moment an agent reads a dependency's
+            # real source to write code against its actual API surface
+            # rather than a hallucinated one. These are read-only
+            # reference trees; opencode expands `~` itself, so the same
+            # patterns are correct on darwin.
+            external_directory = {
+              "~/.cargo/registry/src/**" = "allow";
+              "~/.cargo/git/checkouts/**" = "allow";
+              "~/.rustup/toolchains/**" = "allow";
+              "/nix/store/**" = "allow";
+            };
+
+            # Directories allowed above inherit the workspace defaults,
+            # and `edit` defaults to "allow" -- so without these denies
+            # the allowances above would also hand out write access to
+            # the dependency caches. Catch-all first: last match wins.
+            edit = {
+              "*" = "allow";
+              "~/.cargo/**" = "deny";
+              "~/.rustup/**" = "deny";
+              "/nix/store/**" = "deny";
+            };
+          };
         };
       };
 
