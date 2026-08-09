@@ -40,7 +40,7 @@ _: {
         cp /mnt/discord/discord_db.sqlite /mnt/discord-storage/backups/discord_db-$(date +"%Y-%m-%d-%H%M").sqlite
 
 
-        find /mnt/discord-storage/backups -mtime +30 -type f -delete
+        find /mnt/discord-storage/backups -mtime +14 -type f -delete
       '';
     };
 
