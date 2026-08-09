@@ -100,18 +100,21 @@ is the safe fallback -- it may over-build but never under-builds.
 
 ## Verification
 
-1. After editing, the four locations must agree on every input. A
-   one-shot check:
+1. Run the checker. It cross-references the reference table in this
+   skill against all four machine-readable locations, using
+   `flake.lock`'s root inputs as the source of truth for which inputs
+   must be present:
 
    ```sh
-   # Inputs declared in flake.nix (root-level inputs only)
-   grep -E '^\s+\w[\w-]*\.url' flake.nix | awk -F. '{print $1}' | tr -d ' '
+   ./.opencode/skills/projects/nixos-input-category-sync/scripts/check-input-category-sync.py
    ```
 
-   Cross-reference against the keys in the `input_category` arrays in
-   the two scripts and the table in `agents.md`. A missing entry in
-   any of those falls back to `global` -- usually safe, occasionally
-   wasteful.
+   It reports missing entries, categories that disagree between
+   locations, values outside the valid vocabulary, and stale entries
+   for inputs that no longer exist. This also runs as the
+   `input-category-sync` pre-commit hook and as the
+   `.#checks.<system>.input-category-sync` flake check, so drift is
+   caught even when nobody remembers to run it by hand.
 
 2. Run the impacted-hosts script against a synthetic `flake.lock`
    change for the new input to confirm the category is honored. The

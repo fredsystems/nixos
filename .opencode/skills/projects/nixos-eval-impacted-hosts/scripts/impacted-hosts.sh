@@ -95,8 +95,14 @@ is_desktop() {
 # Union means the local answer can be a superset of CI's when the working
 # tree is dirty. That is the correct direction to err: over-evaluating
 # wastes time, under-evaluating ships a broken host.
-if ! git rev-parse --verify --quiet "$BASE_REF" >/dev/null; then
-  printf 'ERROR: base ref %q does not resolve.\n' "$BASE_REF" >&2
+# `^{commit}` is load-bearing: bare `--verify` accepts ANY object, so a blob
+# or tree id passes validation and then `git diff A...HEAD` fails with
+# "not a commit" on stderr. Because that diff is inside a command
+# substitution whose failure is swallowed by `|| true`, the script would
+# carry on with an empty path set and print "no impacted hosts" -- a false
+# all-clear, which is the precise failure mode this script exists to remove.
+if ! git rev-parse --verify --quiet "${BASE_REF}^{commit}" >/dev/null 2>&1; then
+  printf 'ERROR: base ref %q does not resolve to a commit.\n' "$BASE_REF" >&2
   exit 1
 fi
 

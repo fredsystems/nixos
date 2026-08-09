@@ -86,13 +86,14 @@ If you observe the script saying "X hosts" but CI rebuilding a different
 set, **the script is wrong, not CI**. The CI workflow is the source of
 truth. Cases where drift happens:
 
-- A new flake input was added to `flake.nix` but the
-  `INPUT_CATEGORY` array in this script (and in
-  `.github/workflows/ci-linux.yaml`) was not updated. Per
-  `agents.md` -> "Adding a new flake input", all three locations
-  (`flake.nix` comments, `agents.md` table, `ci-linux.yaml` array)
-  must be updated, and now this script's `INPUT_CATEGORY` array as
-  well. Default to `global` for any unknown input — safe over-build.
+- A new flake input was added to `flake.nix` but the `INPUT_CATEGORY`
+  array in this script was not updated. All four locations must agree
+  (`flake.nix` comments, `ci-linux.yaml`, `ci-darwin.yaml`, and this
+  script's array); the reference table lives in the
+  `nixos-input-category-sync` skill. Default to `global` for any
+  unknown input — safe over-build. Run that skill's
+  `check-input-category-sync.py` to confirm; it also runs as a
+  pre-commit hook and a flake check.
 - A new desktop host was added but `desktop_names=(...)` in CI was not
   updated. This script reads `desktop_names` from CI at runtime so it
   auto-recovers, but CI itself will be broken until the array is fixed.
@@ -100,8 +101,9 @@ truth. Cases where drift happens:
   into the script's `case` block.
 
 If you find yourself updating this script to track a CI change, also
-update the related skill: `nixos-input-category-sync` (which tracks the
-flake input -> CI category mapping in its three sync points).
+update the related skill: `nixos-input-category-sync` (which holds the
+reference table and tracks the flake input -> CI category mapping
+across its four sync points).
 
 ## What the script does NOT do
 
