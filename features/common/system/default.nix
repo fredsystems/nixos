@@ -32,8 +32,19 @@
     ];
 
     services = {
+      # mDNS/Bonjour, for `<host>.local` discovery on the LAN.
+      #
+      # Disabled on internet-facing nodes. It is a LAN discovery protocol
+      # with nothing to discover on a VPS, and enabling it there means a
+      # daemon bound to the public interface advertising the host's
+      # existence, plus UDP 5353 open in the firewall.
+      #
+      # Not currently exploitable -- mDNS is link-local by design (TTL 1,
+      # and responders ignore off-link unicast queries), and a query sent
+      # to fredvps's public address from off-net got no reply. This is
+      # removing surface that serves no purpose, not closing a live hole.
       avahi = {
-        enable = true;
+        enable = !config.deployment.internetFacing;
         nssmdns4 = true;
         publish = {
           enable = true;
