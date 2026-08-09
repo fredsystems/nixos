@@ -143,16 +143,26 @@ must pass:
   allowed; concurrent *completion* is not.
 
 That second condition is a hard barrier, not a prediction. Because merge
-is the completion trigger, letting the higher-numbered plan merge first
-makes it `complete` while a lower-numbered plan is still in progress --
-which violates the prefix invariant directly. Two independent plans race
-to finish, so roughly half the time the wrong one wins.
+is the completion trigger, letting a higher-numbered plan merge first
+makes it `complete` while a lower-numbered one is not -- which violates
+the prefix invariant directly.
 
-So the rule is: **the higher-numbered plan may be worked on in
-parallel, but must hold at `pending merge` until every lower-numbered
-plan it is racing has merged.** If the lower one turns out to need
-another week, the higher one waits at `pending merge`, or the two are
-renumbered before either starts.
+State the barrier from the invariant, not from the concurrency:
+
+> **A plan may merge only when every lower-numbered plan is already
+> `complete`.**
+
+Do not weaken this to "every lower-numbered plan it was racing".
+Whether two plans overlapped in time is irrelevant to the invariant --
+the prefix is broken by *any* incomplete lower plan, including one that
+never started and one nobody is working on. Plan 31 merging while plan 5
+sits at `stub` is the same violation as plan 31 beating plan 30 in a
+race.
+
+If a lower plan turns out to need another week, the higher one waits at
+`pending merge`. If that wait is unacceptable, renumber **before** work
+starts -- once either plan is active its number is frozen and this
+option is gone.
 
 Two plans that are adjacent, mutually independent, and forward-clean
 are eligible for concurrent execution under that barrier. Eligible is
@@ -175,8 +185,9 @@ than a long-held barrier.
 - Do NOT renumber a plan that has started.
 - Do NOT number a subtask under any plan but its own.
 - Do NOT leave a plan at `pending merge` after its PR has merged.
-- Do NOT merge a higher-numbered plan while a lower-numbered one it ran
-  concurrently with is still incomplete. Hold at `pending merge`.
+- Do NOT merge a plan while **any** lower-numbered plan is incomplete,
+  whether or not the two ran concurrently, and whether or not the lower
+  one has started. Hold at `pending merge`.
 - Do NOT update an index without updating the plan document in the same
   commit, or vice versa.
 
@@ -194,3 +205,9 @@ than a long-held barrier.
 - A repo's status vocabulary does not map onto the one-directional
   shape above (e.g. it has a `blocked` or `withdrawn` state). Ask how
   that state interacts with the prefix invariant rather than assuming.
+- A finished plan is stuck at `pending merge` behind a lower-numbered
+  plan that is stalled, abandoned, or much larger than estimated. The
+  legitimate options -- wait, split the lower plan so its blocking part
+  lands, or accept a documented exception -- are all decisions for the
+  user. Do not merge out of order to unblock yourself, and do not
+  renumber started work to dodge the barrier.
