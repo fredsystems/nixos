@@ -213,13 +213,29 @@ let
             # program that dies. The only signal that is consistent across
             # the whole container family, and it covers dumphfdl and
             # hfdlobserver, neither of which ships a HEALTHCHECK.
+            #
+            # `sdrplay` is excluded from the prefix match. The SDRplay vendor
+            # daemon (sdrplay_apiService) segfaults during its own teardown
+            # whenever it is stopped while a decoder still holds a device
+            # handle, so every container restart produced a CAUTION line and
+            # a critical page. That is a shutdown artefact, not a decoder
+            # crash: the decoder in question came back and resumed
+            # normally. The real bug is fixed in docker-dumphfdl (the
+            # decoder now execs so s6 supervises it directly, instead of
+            # reporting "successfully stopped" while it is still running),
+            # but the vendor daemon will segfault again for anyone else who
+            # kills it with a client attached, so the exclusion stays.
+            #
+            # A decoder death still pages, because those lines carry the
+            # decoder's own prefix (`[dumphfdl]`, `[hfdlobserver]`, ...).
+            # This narrows the match; it does not disable the alert.
             alert = "SDRDecoderCrashed";
-            expr = ''sum by (host, hostname, unit) (count_over_time({unit=~"docker-.*"} |= `[s6wrap] !!! CAUTION !!!` [15m])) > 0'';
+            expr = ''sum by (host, hostname, unit) (count_over_time({unit=~"docker-.*"} |= `[s6wrap] !!! CAUTION !!!` != `[sdrplay] [s6wrap]` [15m])) > 0'';
             for = "0m";
             labels.severity = "critical";
             annotations = {
               summary = "Decoder process crashed in {{ $labels.unit }} on {{ $labels.host }}";
-              description = "s6wrap reported a supervised program terminating on a signal in the last 15 minutes.";
+              description = "s6wrap reported a supervised program terminating on a signal in the last 15 minutes. The SDRplay API daemon is excluded -- it segfaults on teardown by design flaw, see the rule comment.";
             };
           }
 
@@ -269,13 +285,30 @@ let
           }
 
           {
+            # `ReleaseDevice` is excluded deliberately. The API daemon being
+            # gone while a decoder releases its device is the *shutdown*
+            # path: s6-rc stops the sdrplay service, the vendor daemon
+            # segfaults on teardown, and the decoder's ReleaseDevice() then
+            # finds nothing listening and throws. Every container restart
+            # therefore produced a critical page for a decoder that was
+            # about to come back healthy.
+            #
+            # What remains is the case the alert is actually named for: a
+            # decoder that cannot *acquire* its radio because the daemon is
+            # not answering. That is genuinely unrecoverable without
+            # intervention, which is why it stays critical.
+            #
+            # Note the annotation used to claim "cannot acquire its radio"
+            # while matching the release path -- it described the opposite
+            # of what had happened, which is worse than not alerting during
+            # triage.
             alert = "SDRPlayApiUnresponsive";
-            expr = ''sum by (host, hostname, unit) (count_over_time({unit=~"docker-.*"} |= `sdrplay_api_ServiceNotResponding` [30m])) > 0'';
+            expr = ''sum by (host, hostname, unit) (count_over_time({unit=~"docker-.*"} |= `sdrplay_api_ServiceNotResponding` != `ReleaseDevice` [30m])) > 0'';
             for = "0m";
             labels.severity = "critical";
             annotations = {
               summary = "SDRplay API unresponsive on {{ $labels.host }}";
-              description = "sdrplay_apiService is not answering. The decoder in {{ $labels.unit }} cannot acquire its radio until the service is restarted.";
+              description = "sdrplay_apiService is not answering a device-acquire call. The decoder in {{ $labels.unit }} cannot start until the service is restarted. Release-path failures during container shutdown are excluded -- see the rule comment.";
             };
           }
 
