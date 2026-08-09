@@ -97,6 +97,42 @@ in
     access-tokens = github.com=${config.sops.placeholder.github_pat}
   '';
 
+  # Explicit journal retention. Previously unset everywhere, which meant every
+  # host silently inherited journald's defaults -- and those defaults are the
+  # reason all seven servers sat at the same ~4G: SystemMaxUse defaults to 10%
+  # of the filesystem but is hard-capped at 4G, so a 74G root resolved to
+  # 7.4G -> clamped to 4G. Nothing was leaking; the cap was simply doing its
+  # job invisibly, and the only way to find that out was to go read journald's
+  # source-level defaults. Stating the policy here makes it reviewable and
+  # per-host overridable via lib.mkForce.
+  #
+  # Compression is NOT configured because it is already active -- journal
+  # headers report COMPRESSED-ZSTD, so there is no win available there.
+  services.journald.extraConfig = ''
+    # Total on-disk journal budget. 1G is ~20 days at fredvps's (post
+    # --no-access-log) rate and far more on the quieter decoder hubs, while
+    # returning ~3G per host versus the implicit 4G default.
+    SystemMaxUse=1G
+
+    # Cap per-file size so vacuuming is fine-grained. Files were landing at
+    # 50-67M, meaning journald could only ever reclaim space in chunks that
+    # coarse; 64M keeps rotation predictable rather than lumpy.
+    SystemMaxFileSize=64M
+
+    # Time ceiling, which was previously unbounded -- fredvps was holding 82
+    # days purely because 4G happened to span that long. Retention should be a
+    # decision, not a side effect of volume: a quiet host keeping a year and a
+    # noisy one keeping a week is exactly the inconsistency that makes
+    # cross-host incident correlation unreliable. Loki (sdrhub) is the
+    # long-term store at retention_period=30d, so the local journal only needs
+    # to cover the window where you would log into the box directly.
+    MaxRetentionSec=30day
+
+    # Force rotation by age so a low-traffic host still produces file
+    # boundaries, keeping MaxRetentionSec able to expire whole files.
+    MaxFileSec=1day
+  '';
+
   # The goModules fixed-output derivation in nixpkgs includes "GOPROXY" in
   # impureEnvVars, meaning it inherits GOPROXY from the Nix daemon's environment.
   # proxy.golang.org redirects Go module downloads to a GCS bucket
