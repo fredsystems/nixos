@@ -37,6 +37,12 @@ permits concurrent work on adjacent incomplete plans, and that weakness
 is the point -- strict serial ordering would forbid the parallel
 sub-agent execution that `parallel-work-isolation` exists to enable.
 
+Read precisely what it permits, though: concurrent **work**, not
+concurrent **completion**. Since merge is the completion trigger,
+merging a higher-numbered plan while a lower one is unfinished breaks
+this invariant immediately. The merge barrier that follows from that is
+spelled out under "Deciding whether two plans may run concurrently".
+
 What it forbids is a completed plan sitting above an unstarted or
 in-progress one. When that happens the numbering no longer describes
 execution order, and it must be corrected rather than explained.
@@ -133,14 +139,42 @@ verification. This skill adds the **plan-graph-level** test, and both
 must pass:
 
 - Neither plan depends on the other (directly or transitively).
-- Running them concurrently cannot produce a `complete` plan above an
-  incomplete one -- i.e. if one finishes first, the prefix invariant
-  still holds.
+- **Merges are ordered lowest-number-first.** Concurrent *work* is
+  allowed; concurrent *completion* is not.
+
+That second condition is a hard barrier, not a prediction. Because merge
+is the completion trigger, letting a higher-numbered plan merge first
+makes it `complete` while a lower-numbered one is not -- which violates
+the prefix invariant directly.
+
+State the barrier from the invariant, not from the concurrency:
+
+> **A plan may merge only when every lower-numbered plan is already
+> `complete`.**
+
+Do not weaken this to "every lower-numbered plan it was racing".
+Whether two plans overlapped in time is irrelevant to the invariant --
+the prefix is broken by *any* incomplete lower plan, including one that
+never started and one nobody is working on. Plan 31 merging while plan 5
+sits at `stub` is the same violation as plan 31 beating plan 30 in a
+race.
+
+If a lower plan turns out to need another week, the higher one waits at
+`pending merge`. If that wait is unacceptable, renumber **before** work
+starts -- once either plan is active its number is frozen and this
+option is gone.
 
 Two plans that are adjacent, mutually independent, and forward-clean
-are eligible for concurrent execution. Eligible is not the same as
-advisable: apply the code-level test before actually running them in
-parallel.
+are eligible for concurrent execution under that barrier. Eligible is
+not advisable on its own: apply the code-level test from
+`parallel-work-isolation` before actually running them in parallel.
+
+Note what this costs. The barrier serialises the *merge*, not the work,
+so the parallelism is real but the payoff is smaller than it looks -- a
+finished higher plan sitting at `pending merge` is capital tied up, and
+it still needs a rebase after the lower plan lands. If the merge order
+is going to be a problem, renumbering before work starts is cheaper
+than a long-held barrier.
 
 ## Hard rules
 
@@ -151,6 +185,9 @@ parallel.
 - Do NOT renumber a plan that has started.
 - Do NOT number a subtask under any plan but its own.
 - Do NOT leave a plan at `pending merge` after its PR has merged.
+- Do NOT merge a plan while **any** lower-numbered plan is incomplete,
+  whether or not the two ran concurrently, and whether or not the lower
+  one has started. Hold at `pending merge`.
 - Do NOT update an index without updating the plan document in the same
   commit, or vice versa.
 
@@ -168,3 +205,9 @@ parallel.
 - A repo's status vocabulary does not map onto the one-directional
   shape above (e.g. it has a `blocked` or `withdrawn` state). Ask how
   that state interacts with the prefix invariant rather than assuming.
+- A finished plan is stuck at `pending merge` behind a lower-numbered
+  plan that is stalled, abandoned, or much larger than estimated. The
+  legitimate options -- wait, split the lower plan so its blocking part
+  lands, or accept a documented exception -- are all decisions for the
+  user. Do not merge out of order to unblock yourself, and do not
+  renumber started work to dodge the barrier.
