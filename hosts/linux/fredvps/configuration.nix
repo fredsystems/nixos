@@ -181,14 +181,27 @@ in
         maxtime = "168h";
       };
 
-      # Never ban ourselves off the box. Loopback plus the tailnet, so a
-      # misfiring filter cannot cut off the Tailscale management path -- the
-      # jails below key on nginx behaviour, and sdrhub's monitoring probes
+      # Never ban ourselves off the box.
+      #
+      # Loopback and the tailnet, so a misfiring filter cannot cut the
+      # Tailscale management path or ban sdrhub's monitoring, which probes
       # every vhost on a schedule.
+      #
+      # 73.26.160.99 is the home Comcast address. It is listed because a live
+      # test of the nginx-probe jail banned it within seconds -- three
+      # deliberate requests to /.env from a workstation behind that address
+      # were enough. The ADS-B feeds themselves now run over Tailscale and
+      # were unaffected, but a ban still blocks ordinary HTTPS access to every
+      # vhost from home, which is a self-inflicted outage for the exact
+      # behaviour someone debugging this host is most likely to produce.
+      #
+      # This is a dynamic address, so it will eventually go stale. That fails
+      # safe: the entry stops matching and the jail simply applies normally.
       ignoreIP = [
         "127.0.0.1/8"
         "::1"
         "100.64.0.0/10"
+        "73.26.160.99"
       ];
 
       jails = {
