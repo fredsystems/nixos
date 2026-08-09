@@ -13,9 +13,35 @@ the impacted hosts using a `case` statement in
 exact logic locally**, so an agent or human can run the same filter
 before pushing and catch eval errors that would otherwise blow up CI.
 
+## `git add` any new file before evaluating
+
+**Nix flakes evaluate the git index, not the working directory.** A
+file that exists on disk but is untracked is invisible to `nix eval`.
+Modifications to already-tracked files _are_ picked up without staging;
+it is only new files that vanish.
+
+The failure mode is nasty because it is green: add
+`hosts/linux/newhost/configuration.nix`, run the eval, watch it pass,
+and conclude the new host is fine. It was never evaluated at all.
+
+So, before any eval:
+
+```sh
+git add -A          # or `git add` the specific new paths
+```
+
+You do **not** need to commit. Staging is enough for the flake to see
+the file. This matters because the whole point of the gate is to verify
+_before_ committing.
+
+The script enforces this: it warns whenever untracked files are present,
+and `--eval` hard-fails rather than producing a PASS that proves
+nothing.
+
 ## Procedure
 
-1. Make your changes and stage them (or commit them).
+1. Make your changes. `git add -A` if you created any new files (see
+   above) -- committing is not required.
 2. From the repo root, run:
 
    ```sh
@@ -24,8 +50,20 @@ before pushing and catch eval errors that would otherwise blow up CI.
 
    Output is one host attribute name per line (e.g. `Daytona`,
    `fredhub`), or the single token `GLOBAL` if every host needs a
-   rebuild. Empty output means no Linux host is impacted (e.g. only
-   `darwin` input changed, or only `renovate.json5`).
+   rebuild. `no impacted hosts` on stderr means nothing needs a rebuild
+   (e.g. only the `darwin` input changed, or only `renovate.json5`).
+
+   The script considers committed, staged, unstaged, and untracked
+   changes -- it is designed to be run against a dirty tree, which is
+   the normal pre-commit state. A header line on stderr reports exactly
+   what it compared:
+
+   ```text
+   base: origin/main (ef501737)  |  commits: 0  |  modified: 2  |  untracked: 0
+   ```
+
+   Pass `--committed-only` to ignore the working tree and reproduce
+   CI's view (`$BASE_REF...HEAD`) exactly.
 
 3. To not just _list_ the impacted hosts but actually eval them as a
    pre-push correctness gate, add `--eval`:
@@ -90,6 +128,10 @@ flake input -> CI category mapping in its three sync points).
   hit one or two hosts. Either the `case` logic genuinely flagged a
   broad path (e.g. you edited `modules/`), or there's a script bug. Run
   with `bash -x` to see which branch fired.
+- The script reports `no impacted hosts` for a change you are certain
+  touches a host. Check the stderr header first: if `modified` and
+  `untracked` are both `0` on a tree you believe is dirty, you are
+  probably in the wrong directory or diffing the wrong base ref.
 - A host eval fails with a warning rather than an error. CI fails on
   any `evaluation warning:` in stderr (see ci-linux.yaml step 9), so
   treat warnings as fatal too.
