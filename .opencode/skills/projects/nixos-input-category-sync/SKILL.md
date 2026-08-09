@@ -14,12 +14,68 @@ worse).
 
 ## The four sync points
 
-| #   | Location                                                                        | Form                                                                           |
-| --- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| 1   | `flake.nix`                                                                     | `# CI: <category>` comment immediately above each input declaration            |
-| 2   | `agents.md` (this repo)                                                         | The "Input-to-category mapping" markdown table                                 |
-| 3   | `.github/workflows/ci-linux.yaml`                                               | The `input_category` bash associative array in the `Detect changed paths` step |
-| 4   | `.opencode/skills/projects/nixos-eval-impacted-hosts/scripts/impacted-hosts.sh` | The `INPUT_CATEGORY` bash associative array                                    |
+| #   | Location                                                                        | Form                                                                            |
+| --- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| 1   | `flake.nix`                                                                     | `# CI: <category>` comment immediately above each input declaration             |
+| 2   | `.github/workflows/ci-linux.yaml`                                               | The `input_category` bash associative array in the `Detect changed paths` step  |
+| 3   | `.github/workflows/ci-darwin.yaml`                                              | Its own `input_category` array, using the **Darwin** categories (see below)     |
+| 4   | `.opencode/skills/projects/nixos-eval-impacted-hosts/scripts/impacted-hosts.sh` | The `INPUT_CATEGORY` bash associative array                                     |
+
+The reference table below (in this skill) is the human-readable
+statement of intent. The four locations above are the machine-readable
+copies that must agree with it.
+
+**Do not put the mapping table in `agents.md`.** It used to be cited
+there, and `agents.md` now explicitly delegates it here -- for a while
+both documents pointed at each other and the concrete table existed in
+neither, which is exactly how `nixpkgs-kernel` went unnoticed in two of
+the arrays. The table lives here; `agents.md` links to it.
+
+Run `scripts/check-input-category-sync.py` (bundled with this skill) to
+verify all four mechanically. It runs in pre-commit and CI, so drift is
+caught rather than remembered.
+
+## Reference table (statement of intent)
+
+Linux categories, as of the `nixpkgs-kernel` sync fix:
+
+| Input                     | Linux category    | Why                                                    |
+| ------------------------- | ----------------- | ------------------------------------------------------ |
+| `nixpkgs`                 | `desktop+fredhub` | Unstable; desktops plus the one server pulling from it |
+| `nixpkgs-stable`          | `server`          | Stable channel; all servers                            |
+| `nixpkgs-kernel`          | `server`          | Server kernel pin only; desktops no-op the pin         |
+| `home-manager`            | `desktop`         | Unstable home-manager                                  |
+| `home-manager-stable`     | `server`          | Stable home-manager                                    |
+| `catppuccin`              | `desktop`         | Unstable theming                                       |
+| `catppuccin-stable`       | `server`          | Stable theming                                         |
+| `sops-nix`                | `desktop`         | Unstable secrets                                       |
+| `sops-nix-stable`         | `server`          | Stable secrets                                         |
+| `nix-yazi-plugins`        | `desktop`         | Unstable yazi plugins                                  |
+| `nix-yazi-plugins-stable` | `server`          | Stable yazi plugins                                    |
+| `niri`                    | `desktop`         | Desktop compositor                                     |
+| `nix-flatpak`             | `desktop`         | Desktop-only flatpak module                            |
+| `solaar`                  | `desktop`         | Desktop peripheral daemon                              |
+| `freminal`                | `desktop`         | Terminal emulator, desktops only                       |
+| `frext`                   | `desktop`         | Desktop tooling                                        |
+| `walls-catppuccin`        | `desktop`         | Wallpapers                                             |
+| `walls-zhichaoh`          | `desktop`         | Wallpapers                                             |
+| `walls-cozypixels`        | `desktop`         | Wallpapers                                             |
+| `nixvim`                  | `global`          | Editor config on every Linux host                      |
+| `nixos-needsreboot`       | `global`          | Reboot helper on every Linux host                      |
+| `darwin`                  | `skip`            | macOS only                                             |
+| `colmena`                 | `skip`            | Deployment tool; no effect on host closures            |
+| `flake-utils`             | `skip`            | Utility lib                                            |
+| `precommit-base`          | `skip`            | Dev tooling only                                       |
+
+Darwin uses its own two-value vocabulary in `ci-darwin.yaml`: `darwin`
+(rebuild the Mac) or `skip`. An input is `darwin` only if it actually
+reaches `mkDarwinSystem` -- note `nix-yazi-plugins` (unstable) does,
+while `nix-yazi-plugins-stable`, `nix-flatpak`, and `nixpkgs-kernel` do
+not.
+
+Note that a `skip` for Linux is not automatically a `skip` for Darwin,
+and vice versa: `darwin` is `skip` in `ci-linux.yaml` and `darwin` in
+`ci-darwin.yaml`. Reason about each workflow separately.
 
 ## Valid categories
 
@@ -44,18 +100,21 @@ is the safe fallback -- it may over-build but never under-builds.
 
 ## Verification
 
-1. After editing, the four locations must agree on every input. A
-   one-shot check:
+1. Run the checker. It cross-references the reference table in this
+   skill against all four machine-readable locations, using
+   `flake.lock`'s root inputs as the source of truth for which inputs
+   must be present:
 
    ```sh
-   # Inputs declared in flake.nix (root-level inputs only)
-   grep -E '^\s+\w[\w-]*\.url' flake.nix | awk -F. '{print $1}' | tr -d ' '
+   ./.opencode/skills/projects/nixos-input-category-sync/scripts/check-input-category-sync.py
    ```
 
-   Cross-reference against the keys in the `input_category` arrays in
-   the two scripts and the table in `agents.md`. A missing entry in
-   any of those falls back to `global` -- usually safe, occasionally
-   wasteful.
+   It reports missing entries, categories that disagree between
+   locations, values outside the valid vocabulary, and stale entries
+   for inputs that no longer exist. This also runs as the
+   `input-category-sync` pre-commit hook and as the
+   `.#checks.<system>.input-category-sync` flake check, so drift is
+   caught even when nobody remembers to run it by hand.
 
 2. Run the impacted-hosts script against a synthetic `flake.lock`
    change for the new input to confirm the category is honored. The

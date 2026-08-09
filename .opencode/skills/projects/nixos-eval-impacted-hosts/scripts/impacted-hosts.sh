@@ -18,14 +18,29 @@
 
 set -euo pipefail
 
-BASE_REF="${1:-origin/main}"
-shift || true
 DO_EVAL=0
+COMMITTED_ONLY=0
+BASE_REF=""
+
 for arg in "$@"; do
   case "$arg" in
     --eval) DO_EVAL=1 ;;
+    --committed-only) COMMITTED_ONLY=1 ;;
+    -*)
+      printf 'ERROR: unknown flag %q\n' "$arg" >&2
+      exit 1
+      ;;
+    *)
+      if [[ -n "$BASE_REF" ]]; then
+        printf 'ERROR: base ref given twice (%q, %q)\n' "$BASE_REF" "$arg" >&2
+        exit 1
+      fi
+      BASE_REF="$arg"
+      ;;
   esac
 done
+
+BASE_REF="${BASE_REF:-origin/main}"
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 cd "$REPO_ROOT"
@@ -56,8 +71,90 @@ is_desktop() {
   return 1
 }
 
-# Get the list of changed paths against the base ref.
-CHANGED="$(git diff --name-only "$BASE_REF"...HEAD 2>/dev/null || git diff --name-only "$BASE_REF")"
+# Get the list of changed paths.
+#
+# The point of this script is to verify a change *before* it is pushed,
+# which in practice means before it is committed. So the path set is the
+# union of four sources:
+#
+#   1. committed:  $BASE_REF...HEAD
+#   2. staged:     git diff --cached
+#   3. unstaged:   git diff
+#   4. untracked:  git ls-files --others --exclude-standard
+#
+# Only (1) used to be consulted. Because `A...B` diffs the merge base
+# against B -- never the index or working tree -- the script reported an
+# empty host list for any uncommitted change, which reads identically to
+# "nothing is impacted, you are clear to push". That is the exact case
+# this gate exists to catch, so the silence was worse than useless.
+#
+# (4) matters for new hosts and new feature modules: an untracked
+# `hosts/linux/newhost/configuration.nix` is a real impact that shows up
+# in none of the diff forms.
+#
+# Union means the local answer can be a superset of CI's when the working
+# tree is dirty. That is the correct direction to err: over-evaluating
+# wastes time, under-evaluating ships a broken host.
+# `^{commit}` is load-bearing: bare `--verify` accepts ANY object, so a blob
+# or tree id passes validation and then `git diff A...HEAD` fails with
+# "not a commit" on stderr. Because that diff is inside a command
+# substitution whose failure is swallowed by `|| true`, the script would
+# carry on with an empty path set and print "no impacted hosts" -- a false
+# all-clear, which is the precise failure mode this script exists to remove.
+if ! git rev-parse --verify --quiet "${BASE_REF}^{commit}" >/dev/null 2>&1; then
+  printf 'ERROR: base ref %q does not resolve to a commit.\n' "$BASE_REF" >&2
+  exit 1
+fi
+
+CHANGED="$(
+  {
+    git diff --name-only "$BASE_REF...HEAD"
+    if [[ $COMMITTED_ONLY -eq 0 ]]; then
+      git diff --cached --name-only
+      git diff --name-only
+      git ls-files --others --exclude-standard
+    fi
+  } | sort -u | grep -v '^$' || true
+)"
+
+# Say what was actually compared. The old failure mode was silent, and a
+# silent empty result is indistinguishable from a clean tree.
+DIRTY_COUNT=0
+UNTRACKED=""
+if [[ $COMMITTED_ONLY -eq 0 ]]; then
+  DIRTY_COUNT="$(
+    {
+      git diff --cached --name-only
+      git diff --name-only
+    } | sort -u | grep -c '^..*$' || true
+  )"
+  UNTRACKED="$(git ls-files --others --exclude-standard | grep -v '^$' || true)"
+fi
+UNTRACKED_COUNT=0
+[[ -n "$UNTRACKED" ]] && UNTRACKED_COUNT="$(printf '%s\n' "$UNTRACKED" | grep -c '^')"
+
+printf 'base: %s (%s)  |  commits: %s  |  modified: %s  |  untracked: %s\n' \
+  "$BASE_REF" \
+  "$(git rev-parse --short "$BASE_REF")" \
+  "$(git rev-list --count "$BASE_REF..HEAD" 2>/dev/null || echo '?')" \
+  "$DIRTY_COUNT" \
+  "$UNTRACKED_COUNT" >&2
+
+# Untracked files are counted for impact detection above, but Nix flakes
+# only see git-tracked files -- an untracked path is invisible to
+# `nix eval` no matter that it exists on disk. So an untracked file can
+# make a host show up as impacted while the eval that follows silently
+# runs against a tree that does not contain it: a green result that
+# proves nothing. Report the fact; `git add` is the caller's move.
+if [[ -n "$UNTRACKED" ]]; then
+  {
+    echo "WARNING: untracked files are INVISIBLE to nix eval (flakes read the git index):"
+    while IFS= read -r u; do
+      [[ -n "$u" ]] && printf '  %s\n' "$u"
+    done <<<"$UNTRACKED"
+    echo "         \`git add\` them first or any eval below is evaluating a tree you did not write."
+  } >&2
+fi
 
 # Walk the changed paths through the same `case` logic CI uses.
 declare GLOBAL=0
@@ -116,6 +213,7 @@ declare -A INPUT_CATEGORY=(
   [walls-cozypixels]="desktop"
   [nixvim]="global"
   [nixpkgs-stable]="server"
+  [nixpkgs-kernel]="server"
   [home-manager-stable]="server"
   [catppuccin-stable]="server"
   [sops-nix-stable]="server"
@@ -206,11 +304,29 @@ else
       HOSTS+=("$h")
     fi
   done
-  printf '%s\n' "${HOSTS[@]}"
+  # An empty host list is a legitimate answer (e.g. only renovate.json5
+  # changed), but it looks exactly like the old "diff saw nothing" bug.
+  # Say so on stderr so the two are never confused again.
+  if [[ ${#HOSTS[@]} -eq 0 ]]; then
+    echo "no impacted hosts" >&2
+  else
+    printf '%s\n' "${HOSTS[@]}"
+  fi
 fi
 
 # Optional: actually evaluate each host so we catch eval errors before push.
 if [[ $DO_EVAL -eq 1 ]]; then
+  # Refuse to produce a green checkmark that means nothing. With untracked
+  # files present the flake cannot see them, so a passing eval would be
+  # actively misleading -- worse than no eval at all.
+  if [[ -n "$UNTRACKED" ]]; then
+    echo "ERROR: refusing to --eval with untracked files present." >&2
+    echo "       Nix flakes evaluate the git index, so the run would not" >&2
+    echo "       include the files above and a PASS would be meaningless." >&2
+    echo "       Run \`git add\` on them, then re-run. (\`--committed-only\`" >&2
+    echo "       skips the working tree entirely if that is what you want.)" >&2
+    exit 1
+  fi
   echo "--- eval pass ---" >&2
   for h in "${HOSTS[@]}"; do
     echo "[eval] $h" >&2

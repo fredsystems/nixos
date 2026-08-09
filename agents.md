@@ -146,10 +146,14 @@ and pushes to the Attic binary cache at `192.168.31.14`. Any
 `evaluation warning:` in stderr fails the build. `build-linux-summary`
 is the required status check.
 
-The full input-to-category mapping (the source of truth shared between
-`flake.nix` comments, this file, `ci-linux.yaml`, and the impacted-hosts
-script) is in the `nixos-input-category-sync` skill. When changing it,
-load that skill.
+The full input-to-category mapping lives in the
+`nixos-input-category-sync` skill -- both the reference table and the
+list of the four machine-readable copies that must agree with it
+(`flake.nix` comments, `ci-linux.yaml`, `ci-darwin.yaml`, and the
+impacted-hosts script). It is deliberately **not** duplicated here.
+When changing it, load that skill; the
+`input-category-sync` pre-commit hook and flake check enforce
+agreement mechanically.
 
 Both `ci-linux.yaml` and `ci-darwin.yaml` also carry a `dev-shell`
 build-and-push job (one per OS, on the self-hosted runners). The host
