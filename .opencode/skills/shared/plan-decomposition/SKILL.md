@@ -9,6 +9,12 @@ This skill governs **planning time**: turning a goal into subtasks that
 a sub-agent can execute without judgement calls. It is the companion to
 `agent-orchestration-protocol`, which governs **execution time**.
 
+Scope boundary: this skill is about **one** plan's internals. For the
+plan **set** -- numbering as execution order, dependencies between
+plans, the contiguous-completed-prefix invariant, status transitions at
+merge time, and keeping a roadmap index in sync -- load
+`plan-sequencing-discipline`.
+
 ## Decompose just in time, against real code
 
 Plan documents should be written in two tiers:
