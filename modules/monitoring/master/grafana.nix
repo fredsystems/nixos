@@ -52,6 +52,13 @@
       group = "grafana";
       mode = "0444";
     };
+
+    "grafana/provisioning/dashboards/security/security.json" = {
+      source = ./dashboards/security.json;
+      user = "grafana";
+      group = "grafana";
+      mode = "0444";
+    };
   };
 
   services = {
@@ -156,6 +163,19 @@
 
                 options = {
                   path = "/etc/grafana/provisioning/dashboards/fleet";
+                };
+              }
+
+              {
+                name = "security";
+                orgId = 1;
+                folder = "Security";
+                type = "file";
+                disableDeletion = true;
+                updateIntervalSeconds = 60;
+
+                options = {
+                  path = "/etc/grafana/provisioning/dashboards/security";
                 };
               }
             ];

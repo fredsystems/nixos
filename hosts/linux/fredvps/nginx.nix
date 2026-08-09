@@ -30,6 +30,49 @@ let
     # invisible to real users and only bites sustained automation.
     limit_req zone=general burst=60 nodelay;
 
+    # Security response headers.
+    #
+    # None of the backends set any of these -- verified by fetching each
+    # vhost -- so there is nothing to conflict with and nginx is the right
+    # place to add them once for all fifteen server blocks.
+    #
+    # `always` matters: without it nginx omits add_header on error responses,
+    # which is exactly where a missing header is most useful to an attacker.
+
+    # HSTS. Every vhost here is forceSSL + ACME, so there is no plaintext
+    # service to break. Two years is the submission-list minimum; includeSubDomains
+    # is safe because no subdomain is served over plain HTTP -- the only
+    # aliases are www.*, which redirect through the same TLS vhosts.
+    #
+    # Deliberately NO `preload`. Preloading is effectively irreversible: it
+    # is baked into browser binaries and removal takes months. Not worth it
+    # for personal domains that might later need a plain-HTTP subdomain.
+    add_header Strict-Transport-Security "max-age=63072000; includeSubDomains" always;
+
+    # Clickjacking. No page on any of these vhosts uses an iframe -- checked
+    # the rendered HTML of every app, including tar1090 and acarshub, which
+    # commonly do -- so denying cross-origin framing costs nothing.
+    add_header X-Frame-Options "SAMEORIGIN" always;
+
+    # Stop browsers guessing a content type different from the declared one,
+    # which is the mechanism behind a chunk of stored-XSS-via-upload bugs.
+    add_header X-Content-Type-Options "nosniff" always;
+
+    # Send the origin but not the path on cross-origin navigations, and
+    # nothing at all when downgrading to HTTP. Keeps referrer analytics
+    # working while not leaking full URLs to third parties.
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+    # Drop the ambient authority for hardware APIs none of these apps use.
+    add_header Permissions-Policy "geolocation=(), microphone=(), camera=(), payment=(), usb=()" always;
+
+    # NOTE: no Content-Security-Policy. A useful CSP has to be written
+    # per-application -- tar1090 and the acarshub UI both use inline scripts
+    # and would need 'unsafe-inline' or nonces to keep working, at which
+    # point the policy stops meaning much. Adding a permissive one here
+    # would look like protection without providing it. Left for a
+    # per-vhost change made against each app's actual asset inventory.
+
     ${existing}
   '';
 in

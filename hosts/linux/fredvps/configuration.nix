@@ -31,10 +31,30 @@ let
   # Tailscale, so nothing legitimate needs a public bind.
   localhost = "127.0.0.1";
 
-  # fredvps's stable Tailscale address. Feed ports bind here so sdrhub can
-  # reach them while the public internet cannot. Hardcoded rather than
-  # discovered because container `-p` flags are rendered at build time, long
-  # before tailscaled has an address to report.
+  # ---------------------------------------------------------------------
+  # THE ONE PLACE TO EDIT IF THIS HOST'S TAILSCALE ADDRESS EVER CHANGES.
+  # ---------------------------------------------------------------------
+  #
+  # Every Tailscale bind on this host -- twelve container port mappings, the
+  # Dozzle agent, node_exporter, cAdvisor and the fail2ban exporter -- is
+  # derived from this single binding, which is published to the rest of the
+  # config as deployment.tailscaleAddress below.
+  #
+  # A literal is required here, not the MagicDNS name: `docker run -p` rejects
+  # a hostname outright ("docker: invalid IP address: ..."), and exporter
+  # listen addresses are baked into unit files at build time, before
+  # tailscaled exists to resolve anything.
+  #
+  # Everything that resolves at RUNTIME deliberately does not use this. The
+  # feed targets in secrets.yaml and Prometheus's scrapeAddress all use
+  # fredvps.tailc21fc7.ts.net, so they follow a re-IP with no edit at all.
+  #
+  # Tailscale addresses are stable while a node stays registered, but they do
+  # change if the node is removed and re-added, reinstalled, or has its disk
+  # wiped. The tailscale-address-drift unit (modules/base/deployment-meta.nix)
+  # re-runs on every activation, compares this value against the live one, and
+  # warns if they diverge -- so a stale entry is reported at deploy time
+  # rather than discovered when a container refuses to start.
   tailscaleIP = "100.82.147.29";
 in
 {
@@ -190,6 +210,28 @@ in
     # LAN services (Attic, Loki, etc.) are reachable without config changes.
     tailscale.extraUpFlags = [ "--accept-routes" ];
 
+    # Ban/jail metrics for Prometheus, so the security dashboard shows live
+    # state rather than requiring an ssh + `fail2ban-client status` per jail.
+    #
+    # Bound to the tailnet for the same reason as node_exporter and cAdvisor:
+    # this host faces the internet, and the exporter would otherwise publish
+    # jail names and banned-IP counts to anyone who asked. Reusing
+    # deployment.tailscaleAddress keeps that decision in one place.
+    prometheus.exporters.fail2ban = {
+      enable = true;
+      # `host`, NOT `listenAddress`. Both options exist on this exporter --
+      # listenAddress comes from the shared exporter boilerplate -- but only
+      # `host` is interpolated into --web.listen-address. Setting
+      # listenAddress alone is silently ignored and leaves the exporter on
+      # 127.0.0.1, where Prometheus cannot reach it, while the config reads as
+      # though it were bound to the tailnet.
+      host = tailscaleIP;
+      port = 9191;
+      # No openFirewall: Prometheus reaches this over Tailscale, which does
+      # not traverse nixos-fw's port rules.
+      openFirewall = false;
+    };
+
     fail2ban = {
       enable = true;
       maxretry = 5;
@@ -288,6 +330,13 @@ in
       test-site = {
         path = "/home/nik/test_site";
         user = "nik";
+        # Reads the shared database at /mnt/discord. main_db.py prefers
+        # app/database/discord_db.sqlite but that exact filename does not
+        # exist (the local file is discord_db_TEST.sqlite), so the /mnt
+        # fallback is the path actually used. Listed even though this app
+        # only reads: SQLite needs to create -wal/-shm alongside the
+        # database file, which is a write to the directory.
+        extraWritablePaths = [ "/mnt/discord" ];
         # scipy==1.10.1 (pinned in requirements.txt) has no cp312+ wheel.
         python = pkgs.python311;
         # --no-access-log: uvicorn's per-request log was 248780 of this unit's
@@ -309,6 +358,9 @@ in
       discord-bot = {
         path = "/home/nik/discord-bot";
         user = "nik";
+        # The live 729 MB database, with 22 write sites in main-discord.py.
+        # Confirmed open by the running process, not inferred from source.
+        extraWritablePaths = [ "/mnt/discord" ];
         # matplotlib==3.7.5 (pinned in requirements.txt) has no cp313 wheel.
         python = pkgs.python312;
         execStart = "$VENV/bin/python main-discord.py";

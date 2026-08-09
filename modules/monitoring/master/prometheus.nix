@@ -333,6 +333,23 @@ in
         }
 
         {
+          # fail2ban ban/jail state. fredvps only -- it is the sole host with
+          # a public interface and therefore the only one running fail2ban.
+          # Scraped over Tailscale, like every other exporter on that host.
+          job_name = "fail2ban";
+          static_configs = [
+            {
+              targets = [ "${agentScrapeMap.fredvps}:9191" ];
+              labels = {
+                hostname = "fredvps";
+                role = "agent";
+                exporter = "fail2ban";
+              };
+            }
+          ];
+        }
+
+        {
           job_name = "prometheus";
           static_configs = [
             {

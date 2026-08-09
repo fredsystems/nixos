@@ -59,6 +59,12 @@ let
         # them unless pointed at explicitly. app.extraLibraryPaths lets a
         # host add more (e.g. gfortran's runtime for scipy).
         LD_LIBRARY_PATH = lib.makeLibraryPath app.extraLibraryPaths;
+
+        # Point matplotlib at the systemd-managed CacheDirectory below.
+        # Without this it tries $HOME/.cache, which ProtectHome=read-only
+        # blocks, and silently rebuilds its font cache into a throwaway /tmp
+        # directory on every single start.
+        MPLCONFIGDIR = "/var/cache/pyapp-${name}";
       };
 
       serviceConfig = {
@@ -83,16 +89,96 @@ let
         Restart = "on-failure";
         RestartSec = "5s";
 
-        # Modest hardening. Deliberately no ProtectHome / ProtectSystem —
-        # the whole point of this module is that the app's code + venv
-        # live under the service user's own $HOME, outside the Nix store,
-        # and need full read/write access there.
+        # Sandboxing.
+        #
+        # These services run unvetted third-party code from PyPI, reachable
+        # from the internet through nginx, so the blast radius of a bug in
+        # the app or one of its pinned dependencies is worth bounding.
+        #
+        # BOTH ProtectSystem AND ProtectHome are required, and the reason is
+        # not obvious. `ProtectSystem=strict` is documented as mounting "the
+        # entire file system hierarchy" read-only, but /home is exempt in
+        # practice -- verified on fredvps, where a service with
+        # ProtectSystem=strict could still write freely to /home/nik and
+        # /home/nik/.cache. Since these apps live entirely under $HOME, that
+        # setting alone protects almost nothing that matters here.
+        #
+        # ProtectHome=read-only covers the gap. Not "tmpfs": that replaces
+        # /home with an empty mount, and the unit then fails to start at all
+        # with "Failed to set up mount namespacing: /home/nik/<app>: No such
+        # file or directory", because ReadWritePaths cannot resolve a path
+        # that no longer exists.
+        #
+        # ReadWritePaths re-opens the app's own directory, plus anything
+        # listed in extraWritablePaths.
+        #
+        # Do NOT assume an app only writes inside its own checkout. Both of
+        # these write outside it, and the code does not make that obvious:
+        #
+        #   * discord-bot -- 2085 PNGs land in app.path (relative
+        #                    `plt.savefig(f"{name}.png")` against
+        #                    WorkingDirectory), but its live 729 MB SQLite
+        #                    database is /mnt/discord/discord_db.sqlite,
+        #                    with 22 write sites.
+        #   * test-site   -- reads the SAME /mnt/discord database. main_db.py
+        #                    looks for app/database/discord_db.sqlite first
+        #                    and only falls back to /mnt, and the local
+        #                    directory contains discord_db_TEST.sqlite --
+        #                    a different filename -- so the fallback is what
+        #                    actually runs. Its two plt.savefig() calls
+        #                    target BytesIO, not disk.
+        #
+        # The failure mode if this is wrong is quiet: reads keep working and
+        # only writes fail, with SQLite reporting "attempt to write a
+        # readonly database" at query time. Verify against the running
+        # process (`ls -l /proc/<pid>/fd`), not against the source.
+        ProtectSystem = "strict";
+        ProtectHome = "read-only";
+        ReadWritePaths = [ app.path ] ++ app.extraWritablePaths;
+
+        # matplotlib needs a writable cache and defaults to $HOME/.cache,
+        # which ProtectHome has just made read-only. It does not fail -- it
+        # silently falls back to a fresh /tmp directory and rebuilds the font
+        # cache on every start, which costs seconds of CPU per restart and
+        # then throws the result away.
+        #
+        # CacheDirectory gives it somewhere real: systemd creates
+        # /var/cache/<name> owned by the service user and it survives
+        # restarts. MPLCONFIGDIR points matplotlib at it. Verified the cache
+        # persists (fontlist-v330.json is written and reused).
+        CacheDirectory = "pyapp-${name}";
+
         NoNewPrivileges = true;
         PrivateTmp = true;
         ProtectKernelTunables = true;
         ProtectKernelModules = true;
+        ProtectKernelLogs = true;
         ProtectControlGroups = true;
+        ProtectClock = true;
+        ProtectHostname = true;
         RestrictSUIDSGID = true;
+        RestrictRealtime = true;
+        LockPersonality = true;
+
+        # Network access is the point of these services, so AF_INET stays.
+        # AF_UNIX is needed for DNS resolution via nsswitch. Everything else
+        # -- raw packet sockets, netlink, bluetooth -- has no business here.
+        RestrictAddressFamilies = [
+          "AF_INET"
+          "AF_INET6"
+          "AF_UNIX"
+        ];
+
+        # No @privileged / @obsolete syscalls. Deliberately not a tighter set:
+        # CPython plus compiled manylinux wheels (numpy, scipy, matplotlib)
+        # reach for a wide syscall surface, and an over-tight filter fails at
+        # import time rather than obviously.
+        SystemCallFilter = [
+          "@system-service"
+          "~@privileged"
+          "~@obsolete"
+        ];
+        SystemCallArchitectures = "native";
       };
     };
 in
@@ -173,6 +259,31 @@ in
               but that don't exist anywhere on NixOS's FHS-less
               filesystem otherwise. Add more per-app as needed, e.g.
               `pkgs.gfortran.cc.lib` for scipy's libgfortran/libquadmath.
+            '';
+          };
+
+          extraWritablePaths = lib.mkOption {
+            type = lib.types.listOf lib.types.str;
+            default = [ ];
+            example = [ "/mnt/discord" ];
+            description = ''
+              Additional host paths the service may write to, on top of its
+              own `path`.
+
+              The sandbox below makes the whole filesystem read-only and
+              then re-opens exactly `path`. Anything an app writes OUTSIDE
+              its own directory has to be listed here or it will fail --
+              and SQLite in particular fails at write time with
+              "attempt to write a readonly database" rather than at
+              startup, so the breakage surfaces later and looks like an
+              application bug.
+
+              Establish the real value by inspecting the running service
+              (`ls -l /proc/<pid>/fd`) rather than reading the code: the
+              discord-bot resolves its database to /mnt/discord, not to
+              anything under its own checkout, and the test-site falls
+              through to the same path because the local filename it looks
+              for does not exist.
             '';
           };
 

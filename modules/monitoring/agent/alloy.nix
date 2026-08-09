@@ -25,10 +25,43 @@
 # why the roaming laptop works the same way.
 {
   config,
+  lib,
   pkgs,
   ...
 }:
 let
+  # nginx's access log is a FILE, not a journal stream. nginx writes it via
+  # its compiled-in default path (there is no access_log directive in the
+  # generated config), and only stderr goes to the journal -- so the journal
+  # source below never sees a single request line.
+  #
+  # That matters because the 444s emitted by the probe-blocking rule are the
+  # raw record of who is scanning us, and they are what the nginx-probe
+  # fail2ban jail keys on. Without this source the security dashboard can
+  # show that bans happened but not what provoked them.
+  #
+  # Redirecting nginx to log to stdout instead would put it in the journal
+  # for free, but fail2ban's jails read the file, so that would mean moving
+  # them onto a journal backend at the same time. Tailing the file is the
+  # smaller change and leaves the jails untouched.
+  nginxLogSource = lib.optionalString config.services.nginx.enable ''
+    // nginx access log (file, not journal -- see the comment in alloy.nix).
+    local.file_match "nginx" {
+      path_targets = [{
+        __path__ = "/var/log/nginx/access.log",
+        job      = "nginx",
+        hostname = "${config.networking.hostName}",
+        host     = "${config.networking.hostName}",
+        unit     = "nginx-access",
+      }]
+    }
+
+    loki.source.file "nginx" {
+      targets    = local.file_match.nginx.targets
+      forward_to = [loki.write.default.receiver]
+    }
+  '';
+
   alloyConfig = pkgs.writeText "agent.alloy" ''
     // Journal source: tail systemd journal and emit Loki entries.
     loki.source.journal "journal" {
@@ -60,6 +93,8 @@ let
       }
     }
 
+    ${nginxLogSource}
+
     // Push to the central Loki master.
     loki.write "default" {
       endpoint {
@@ -79,4 +114,12 @@ in
     enable = true;
     configPath = alloyConfig;
   };
+
+  # /var/log/nginx/access.log is nginx:nginx 0640, and Alloy runs as a
+  # DynamicUser whose only supplementary group is systemd-journal. Without
+  # this it cannot open the file, and loki.source.file fails silently -- the
+  # dashboard would show an empty panel with no error anywhere obvious.
+  systemd.services.alloy.serviceConfig.SupplementaryGroups = lib.mkIf config.services.nginx.enable [
+    config.services.nginx.group
+  ];
 }
