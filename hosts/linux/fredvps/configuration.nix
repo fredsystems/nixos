@@ -236,9 +236,41 @@ in
       enable = true;
       maxretry = 5;
       bantime = "1h";
+
+      # How long ban history is retained, which is what the escalation above
+      # counts against. The stock value is 1d, so an address that stays away
+      # for a day has its ban count purged and starts again at 1h -- and the
+      # scanners hitting this host reappear on roughly that cadence, which
+      # would have defeated the escalation even after fixing the multipliers.
+      #
+      # 30d means a persistent scanner keeps climbing the ladder across weeks
+      # instead of resetting daily. Cost is a slightly larger sqlite file;
+      # it was 200 KB holding 113 bans, so a month of history is negligible.
+      daemonSettings.Definition.dbpurgeage = "30d";
+      # Escalating bans for repeat offenders.
+      #
+      # `multipliers` is a SEQUENCE indexed by ban count, not a factor. It was
+      # previously "2", a one-element list, and fail2ban reuses the last
+      # element once the ban count exceeds the list length -- so every ban
+      # after the first was multiplied by exactly 2 and the duration flatlined
+      # at 2h regardless of maxtime.
+      #
+      # Observed on 34.44.183.157 before this change:
+      #
+      #   ban 1  3600s      ban 4  7200s   (should have been 28800)
+      #   ban 2  7200s      ban 5  7200s   (should have been 57600)
+      #   ban 3  7200s
+      #
+      # That mattered practically: the same addresses reappeared roughly every
+      # three hours, so a 2h ban had already expired by the time they came
+      # back and the escalation never bit. 161 bans against 100 unbans in 48
+      # hours, with single addresses banned up to five times.
+      #
+      # The explicit sequence gives 1h, 2h, 4h, 8h, 16h, 32h, 64h and then
+      # holds at 64h, with maxtime capping at a week.
       bantime-increment = {
         enable = true;
-        multipliers = "2";
+        multipliers = "1 2 4 8 16 32 64";
         maxtime = "168h";
       };
 
