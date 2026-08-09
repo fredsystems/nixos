@@ -120,6 +120,140 @@ in
     ];
   };
 
+  # Per-IP ban metrics, for the "Active Bans" panel on the security dashboard.
+  #
+  # WHY node_exporter AND NOT THE FAIL2BAN EXPORTER
+  #
+  # prometheus-fail2ban-exporter reports only per-JAIL aggregates
+  # (f2b_jail_banned_current and friends). It has no per-IP series, so "which
+  # addresses are banned and for how long" cannot be answered from it.
+  #
+  # It does ship a --collector.textfile.directory flag, and that was tried
+  # first. It is broken: the exporter gzips its own metrics and then appends
+  # the textfile content UNCOMPRESSED, so Prometheus rejects the whole scrape
+  # with "gzip: invalid header" and every fail2ban metric disappears. That was
+  # observed in production, not inferred.
+  #
+  # node_exporter's textfile collector is a separate, working implementation
+  # that is already enabled fleet-wide and already serving four .prom files on
+  # this host, so this follows an established path instead of a novel one.
+  #
+  # WHY fail2ban-client AND NOT THE SQLITE DATABASE
+  #
+  # The running daemon holds fail2ban.sqlite3 open; concurrent reads fail with
+  # "database is locked". `fail2ban-client get <jail> banip --with-time` is the
+  # supported interface and already returns everything needed:
+  #
+  #   20.199.183.210 <TAB> 2026-08-09 14:23:56 + 3600 = 2026-08-09 15:23:56
+  systemd = {
+    services.fail2ban-ban-metrics = {
+      description = "Write per-IP fail2ban ban metrics for node_exporter";
+      after = [ "fail2ban.service" ];
+      wants = [ "fail2ban.service" ];
+
+      serviceConfig = {
+        Type = "oneshot";
+        # Deliberately no sandboxing beyond the default. This needs to talk to
+        # the fail2ban socket as root and write into a root-owned directory
+        # shared with the other generators, matching how those units are
+        # written in modules/monitoring/agent/node_exporter.nix.
+        ExecStart = pkgs.writeShellScript "fail2ban-ban-metrics.sh" ''
+          set -uo pipefail
+
+          export PATH=${
+            lib.makeBinPath [
+              pkgs.fail2ban
+              pkgs.coreutils
+              pkgs.gnused
+            ]
+          }
+
+          TEXTFILE_DIR=/var/lib/node_exporter/textfiles
+          OUT="$TEXTFILE_DIR/fail2ban_bans.prom"
+          TMP="$OUT.$$"
+
+          mkdir -p "$TEXTFILE_DIR"
+
+          # Cap per jail. Only CURRENTLY banned addresses are emitted, so this
+          # normally sits around ten and expires down on its own -- but a
+          # distributed sweep during a 64h escalated bantime could pile up, and
+          # unbounded per-IP labels are how a metrics backend gets hurt. Anything
+          # past the cap is counted, not emitted.
+          MAX_PER_JAIL=200
+
+          {
+            echo "# HELP f2b_banned_ip_bantime_seconds Length of the current ban for this address."
+            echo "# TYPE f2b_banned_ip_bantime_seconds gauge"
+            echo "# HELP f2b_banned_ip_expiry_timestamp_seconds Unix time at which this ban expires."
+            echo "# TYPE f2b_banned_ip_expiry_timestamp_seconds gauge"
+            echo "# HELP f2b_banned_ip_truncated Banned addresses omitted because the per-jail cap was hit."
+            echo "# TYPE f2b_banned_ip_truncated gauge"
+            echo "# HELP f2b_ban_metrics_generated_timestamp_seconds Unix time this file was last written."
+            echo "# TYPE f2b_ban_metrics_generated_timestamp_seconds gauge"
+
+            # If fail2ban is down this yields nothing and the loop is skipped,
+            # leaving a file with headers and a fresh timestamp rather than
+            # failing the unit or leaving a stale file in place.
+            jails=$(fail2ban-client status 2>/dev/null \
+              | sed -n 's/.*Jail list:[[:space:]]*//p' \
+              | tr -d ' ' | tr ',' ' ') || jails=""
+
+            for jail in $jails; do
+              n=0
+              omitted=0
+
+              # Output line: <ip> \t <start> + <bantime> = <expiry>
+              while IFS= read -r line; do
+                [ -z "$line" ] && continue
+
+                ip=''${line%%[[:space:]]*}
+                bantime=$(printf '%s' "$line" | sed -n 's/.* + \([0-9][0-9]*\) = .*/\1/p')
+                expiry=$(printf '%s' "$line" | sed -n 's/.* = //p')
+
+                [ -z "$ip" ] && continue
+                [ -z "$bantime" ] && continue
+                [ -z "$expiry" ] && continue
+
+                epoch=$(date -d "$expiry" +%s 2>/dev/null) || continue
+
+                n=$((n + 1))
+                if [ "$n" -gt "$MAX_PER_JAIL" ]; then
+                  omitted=$((omitted + 1))
+                  continue
+                fi
+
+                printf 'f2b_banned_ip_bantime_seconds{jail="%s",ip="%s"} %s\n' "$jail" "$ip" "$bantime"
+                printf 'f2b_banned_ip_expiry_timestamp_seconds{jail="%s",ip="%s"} %s\n' "$jail" "$ip" "$epoch"
+              done <<< "$(fail2ban-client get "$jail" banip --with-time 2>/dev/null || true)"
+
+              printf 'f2b_banned_ip_truncated{jail="%s"} %s\n' "$jail" "$omitted"
+            done
+
+            # Freshness. If this stops advancing the panel is showing stale data,
+            # which is otherwise indistinguishable from "nobody is banned".
+            printf 'f2b_ban_metrics_generated_timestamp_seconds %s\n' "$(date +%s)"
+          } > "$TMP"
+
+          # Atomic replace: node_exporter reads this directory on every scrape
+          # and must never see a partially written file.
+          mv "$TMP" "$OUT"
+        '';
+      };
+    };
+
+    timers.fail2ban-ban-metrics = {
+      wantedBy = [ "timers.target" ];
+      timerConfig = {
+        # Every 2 minutes. The other textfile generators run at 10, but this one
+        # backs a live countdown, and each run is two socket round-trips to the
+        # local fail2ban daemon.
+        OnBootSec = "2min";
+        OnUnitActiveSec = "2min";
+        AccuracySec = "10s";
+      };
+    };
+  };
+
   # Filter backing the nginx-probe jail above. Matches the 444 that the
   # $blocked_probe map in nginx.nix returns for credential-theft and
   # WordPress/PHP scans.
