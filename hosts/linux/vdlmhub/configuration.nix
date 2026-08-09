@@ -3,6 +3,12 @@
   stateVersion,
   ...
 }:
+let
+  inherit (import ../../../modules/services/mk-container-secret.nix)
+    mkContainerSecret
+    ;
+
+in
 {
   imports = [
     ./hardware-configuration.nix
@@ -20,18 +26,10 @@
 
   sops.secrets = {
 
-    "docker/vdlmhub/dumpvdl2-1.env" = {
-      format = "yaml";
-    };
-    "docker/vdlmhub/dumpvdl2-2.env" = {
-      format = "yaml";
-    };
-    "docker/vdlmhub/dumpvdl2-3.env" = {
-      format = "yaml";
-    };
-    "docker/vdlmhub/dumpvdl2-4.env" = {
-      format = "yaml";
-    };
+    "docker/vdlmhub/dumpvdl2-1.env" = mkContainerSecret "dumpvdl2-1";
+    "docker/vdlmhub/dumpvdl2-2.env" = mkContainerSecret "dumpvdl2-2";
+    "docker/vdlmhub/dumpvdl2-3.env" = mkContainerSecret "dumpvdl2-3";
+    "docker/vdlmhub/dumpvdl2-4.env" = mkContainerSecret "dumpvdl2-4";
   };
 
   services = {

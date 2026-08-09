@@ -123,6 +123,15 @@ in
       - `dependsOn` -- list of sibling container names; becomes systemd
         `After=docker-<name>.service`, ordering only
       - `environment` (attrset), `environmentFiles` (list of paths)
+
+        NOTE: a secret referenced here is referenced by PATH, and that path
+        does not change when the secret's contents do. Editing the value in
+        secrets.yaml therefore produces an identical unit and systemd will
+        NOT restart the container -- it keeps running with the old
+        environment. Declare the secret with `mkContainerSecret` from
+        modules/services/mk-container-secret.nix so the restart is wired up;
+        that file explains why the wiring cannot live in this module.
+
       - `volumes`, `tmpfs`, `ports` (lists)
       - `devices`, `deviceCgroupRules` (lists)
       - `restart` (default "always"), `exec`, `tty`, `extraDockerArgs`

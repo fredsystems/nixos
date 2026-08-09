@@ -5,6 +5,10 @@
   ...
 }:
 let
+  inherit (import ../../../modules/services/mk-container-secret.nix)
+    mkContainerSecrets
+    ;
+
   hfdlObserver = pkgs.writeText "settings.yaml" (
     builtins.readFile ./docker-data/hfdlobserver/settings.yaml
   );
@@ -20,9 +24,10 @@ in
   system.stateVersion = stateVersion;
 
   sops.secrets = {
-    "docker/hfdlhub2.env" = {
-      format = "yaml";
-    };
+    "docker/hfdlhub2.env" = mkContainerSecrets [
+      "dozzle-agent"
+      "hfdlobserver"
+    ];
   };
 
   # Override the default activation script to include hfdlobserver setup
