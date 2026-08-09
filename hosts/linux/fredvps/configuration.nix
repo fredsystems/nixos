@@ -115,9 +115,32 @@ in
     # the public opening served nothing but scanners. Removed together with
     # the app's own 0.0.0.0 bind below; re-add both if the app ever needs to
     # be reached without going through nginx.
-    firewall.allowedTCPPorts = [
-      2269
-    ];
+    firewall = {
+      allowedTCPPorts = [
+        2269
+      ];
+
+      # Catches anything knocking on port 22, feeding the ssh-decoy jail.
+      #
+      # sshd listens on 2269, so nothing legitimate ever addresses 22 on this
+      # host. That makes a SYN to 22 a zero-false-positive signal: it is a
+      # scanner every single time. The firewall drops those packets anyway,
+      # but silently, so the address was free to keep probing everything else.
+      # Logging them gives fail2ban something to match, which puts a port-22
+      # knock on the same escalation ladder as everything else.
+      #
+      # Appended to nixos-fw ahead of the final log-refuse jump. It only LOGs
+      # -- the packet still falls through to the normal refuse path, so this
+      # changes what is recorded, not what is allowed. Rate-limited because
+      # this host is internet-facing and an unthrottled LOG on a scanned port
+      # is a self-inflicted journal flood; the jail needs 2 hits in a day, so
+      # the limit is far above what detection requires.
+      extraCommands = ''
+        ip46tables -w -A nixos-fw -p tcp --dport 22 --syn \
+          -m limit --limit 12/m --limit-burst 6 \
+          -j LOG --log-level info --log-prefix "ssh-decoy: "
+      '';
+    };
   };
 
   # Per-IP ban metrics, for the "Active Bans" panel on the security dashboard.
@@ -190,13 +213,29 @@ in
             echo "# TYPE f2b_banned_ip_truncated gauge"
             echo "# HELP f2b_ban_metrics_generated_timestamp_seconds Unix time this file was last written."
             echo "# TYPE f2b_ban_metrics_generated_timestamp_seconds gauge"
+            echo "# HELP f2b_ban_metrics_fail2ban_up Whether the jail list could be read from fail2ban."
+            echo "# TYPE f2b_ban_metrics_fail2ban_up gauge"
+            echo "# HELP f2b_ban_metrics_parse_failures Lines from fail2ban-client that did not parse."
+            echo "# TYPE f2b_ban_metrics_parse_failures gauge"
 
-            # If fail2ban is down this yields nothing and the loop is skipped,
-            # leaving a file with headers and a fresh timestamp rather than
-            # failing the unit or leaving a stale file in place.
-            jails=$(fail2ban-client status 2>/dev/null \
+            # Health, kept separate from freshness on purpose.
+            #
+            # The timestamp below is written unconditionally, so a failed query
+            # still produces a fresh file rather than a stale one. That alone
+            # would make "fail2ban is down" look identical to "nobody is
+            # banned" -- both render as an empty table with a green age panel,
+            # and the down case is the one worth paging on. This flag is what
+            # separates them.
+            if jails=$(fail2ban-client status 2>/dev/null \
               | sed -n 's/.*Jail list:[[:space:]]*//p' \
-              | tr -d ' ' | tr ',' ' ') || jails=""
+              | tr -d ' ' | tr ',' ' '); then
+              echo "f2b_ban_metrics_fail2ban_up 1"
+            else
+              jails=""
+              echo "f2b_ban_metrics_fail2ban_up 0"
+            fi
+
+            parse_failures=0
 
             for jail in $jails; do
               n=0
@@ -210,11 +249,18 @@ in
                 bantime=$(printf '%s' "$line" | sed -n 's/.* + \([0-9][0-9]*\) = .*/\1/p')
                 expiry=$(printf '%s' "$line" | sed -n 's/.* = //p')
 
-                [ -z "$ip" ] && continue
-                [ -z "$bantime" ] && continue
-                [ -z "$expiry" ] && continue
+                # A non-empty line that does not parse means the output format
+                # drifted. Counted rather than skipped silently, since the
+                # symptom would otherwise be an empty table that looks healthy.
+                if [ -z "$ip" ] || [ -z "$bantime" ] || [ -z "$expiry" ]; then
+                  parse_failures=$((parse_failures + 1))
+                  continue
+                fi
 
-                epoch=$(date -d "$expiry" +%s 2>/dev/null) || continue
+                if ! epoch=$(date -d "$expiry" +%s 2>/dev/null); then
+                  parse_failures=$((parse_failures + 1))
+                  continue
+                fi
 
                 n=$((n + 1))
                 if [ "$n" -gt "$MAX_PER_JAIL" ]; then
@@ -222,12 +268,21 @@ in
                   continue
                 fi
 
-                printf 'f2b_banned_ip_bantime_seconds{jail="%s",ip="%s"} %s\n' "$jail" "$ip" "$bantime"
-                printf 'f2b_banned_ip_expiry_timestamp_seconds{jail="%s",ip="%s"} %s\n' "$jail" "$ip" "$epoch"
+                # ban_id exists so the dashboard can join the two series on a
+                # key that is actually unique. An address in two jails at once
+                # is routine here -- the three nginx jails read the same log --
+                # and joining on ip alone pairs the wrong ban length with the
+                # wrong jail, producing a plausible-looking wrong row.
+                printf 'f2b_banned_ip_bantime_seconds{jail="%s",ip="%s",ban_id="%s:%s"} %s\n' \
+                  "$jail" "$ip" "$jail" "$ip" "$bantime"
+                printf 'f2b_banned_ip_expiry_timestamp_seconds{jail="%s",ip="%s",ban_id="%s:%s"} %s\n' \
+                  "$jail" "$ip" "$jail" "$ip" "$epoch"
               done <<< "$(fail2ban-client get "$jail" banip --with-time 2>/dev/null || true)"
 
               printf 'f2b_banned_ip_truncated{jail="%s"} %s\n' "$jail" "$omitted"
             done
+
+            printf 'f2b_ban_metrics_parse_failures %s\n' "$parse_failures"
 
             # Freshness. If this stops advancing the panel is showing stale data,
             # which is otherwise indistinguishable from "nobody is banned".
@@ -263,23 +318,74 @@ in
   # access log, written by our own rule. That makes it an unambiguous marker
   # for "this request was a probe", unlike 404 or 403 which legitimate traffic
   # also produces here in volume.
-  environment.etc."fail2ban/filter.d/nginx-probe.conf".text = ''
-    [Definition]
-    # `.*` between the host and the request rather than an explicit
-    # `\S+ \S+ \[timestamp\]`: fail2ban extracts the timestamp with
-    # datepattern and hands the failregex a line with that section already
-    # substituted, so a regex that tries to match the literal
-    # "- - [09/Aug/2026:01:34:08 -0600]" never fires. That was verified the
-    # hard way -- the stricter pattern matched 0 of 94 real 444 lines.
+  environment.etc = {
+    "fail2ban/filter.d/nginx-probe.conf".text = ''
+      [Definition]
+      # `.*` between the host and the request rather than an explicit
+      # `\S+ \S+ \[timestamp\]`: fail2ban extracts the timestamp with
+      # datepattern and hands the failregex a line with that section already
+      # substituted, so a regex that tries to match the literal
+      # "- - [09/Aug/2026:01:34:08 -0600]" never fires. That was verified the
+      # hard way -- the stricter pattern matched 0 of 94 real 444 lines.
+      #
+      # The trailing \s keeps this anchored to the status field so it cannot
+      # match a 444 appearing anywhere else in the line, e.g. in a URL or a
+      # user agent.
+      failregex = ^<HOST> .* "[A-Z]+ [^"]*" 444\s
+      ignoreregex =
+      datepattern = ^[^\[]*\[({DATE})
+                    {^LN-BEG}
+    '';
+
+    # Host-wide, silent bans.
     #
-    # The trailing \s keeps this anchored to the status field so it cannot
-    # match a 444 appearing anywhere else in the line, e.g. in a URL or a
-    # user agent.
-    failregex = ^<HOST> .* "[A-Z]+ [^"]*" 444\s
-    ignoreregex =
-    datepattern = ^[^\[]*\[({DATE})
-                  {^LN-BEG}
-  '';
+    # Two deviations from the stock `iptables-multiport` + REJECT default,
+    # both deliberate.
+    #
+    # ALLPORTS, NOT MULTIPORT. The stock action installs the jump into INPUT
+    # as `-p tcp -m multiport --dports http,https -j f2b-nginx-probe`, so a
+    # prober banned by an nginx jail was still free to hit sshd on 2269. Note
+    # that this is NOT visible in `iptables -L f2b-nginx-probe`: the per-
+    # address rules in that chain always read `all -- <ip> 0.0.0.0/0`, because
+    # the port match lives on the INPUT jump rule, not on the ban rules. The
+    # chain listing looks host-wide under both actions; `iptables -L INPUT -n`
+    # is where the difference actually shows. `type = allports` drops the port
+    # match from the jump, which makes the "all" in the chain listing mean
+    # what it appears to.
+    #
+    # DROP, NOT REJECT. The default answers with ICMP port-unreachable, which
+    # tells a scanner immediately that it is blocked and frees it to move on.
+    # DROP makes it wait for its own TCP timeout on every connection, and
+    # since our bans are host-wide that cost applies to every port it tries.
+    #
+    # blocktype is set for both families -- iptables.conf overrides it under
+    # [Init?family=inet6] for the ICMPv6 variant, so setting only the v4 value
+    # would leave IPv6 offenders on REJECT.
+    "fail2ban/action.d/iptables-allports-drop.conf".text = ''
+      [INCLUDES]
+      before = iptables.conf
+
+      [Definition]
+      type = allports
+
+      [Init]
+      blocktype = DROP
+
+      [Init?family=inet6]
+      blocktype = DROP
+    '';
+
+    # Filter for the port-22 decoy rule (networking.firewall.extraCommands).
+    #
+    # Anchored on both the log prefix and DPT=22 so it cannot match any other
+    # kernel LOG line -- notably `logRefusedConnections`, if that is ever
+    # turned on, which uses the same field layout with a different prefix.
+    "fail2ban/filter.d/ssh-decoy.conf".text = ''
+      [Definition]
+      failregex = ^.*\bssh-decoy:\s.*\bSRC=<HOST>\b.*\bDPT=22\b
+      ignoreregex =
+    '';
+  };
 
   # Backstop for the Docker/nixos-fw gap described at the top of this file.
   # Every container port is now published on an explicit bind address, so in
@@ -371,6 +477,12 @@ in
       maxretry = 5;
       bantime = "1h";
 
+      # Host-wide silent bans for every jail. See the action definition above
+      # for why allports and why DROP. Both are set because banaction-allports
+      # is what the recidive jail below uses.
+      banaction = "iptables-allports-drop";
+      banaction-allports = "iptables-allports-drop";
+
       # How long ban history is retained, which is what the escalation above
       # counts against. The stock value is 1d, so an address that stays away
       # for a day has its ban count purged and starts again at 1h -- and the
@@ -400,11 +512,22 @@ in
       # back and the escalation never bit. 161 bans against 100 unbans in 48
       # hours, with single addresses banned up to five times.
       #
-      # The explicit sequence gives 1h, 2h, 4h, 8h, 16h, 32h, 64h and then
-      # holds at 64h, with maxtime capping at a week.
+      # Ladder: 1h, 2h, 4h, 8h, 16h, 32h, 64h, 128h, then 168h from the ninth
+      # offence on, where maxtime clamps 256h down to the week.
+      #
+      # The two trailing entries are what make maxtime load-bearing. Ending
+      # the sequence at 64 topped the ladder out at 64h, so `min(ban, maxtime)`
+      # never bound and `maxtime = 168h` was decorative -- it described a
+      # ceiling the ladder could not reach. 128 is still under the cap; 256 is
+      # the first step that exceeds it and therefore the first one maxtime
+      # actually clamps.
+      #
+      # The leading 1 is never evaluated (fail2ban skips the formula entirely
+      # on the first ban) but is load-bearing as index padding: the lookup is
+      # multipliers[banCount], so removing it shifts every later step down one.
       bantime-increment = {
         enable = true;
-        multipliers = "1 2 4 8 16 32 64";
+        multipliers = "1 2 4 8 16 32 64 128 256";
         maxtime = "168h";
       };
 
@@ -429,6 +552,7 @@ in
         "::1"
         "100.64.0.0/10"
         "73.26.160.99"
+        "209.40.70.5"
       ];
 
       jails = {
@@ -437,6 +561,51 @@ in
           port = "2269";
           filter = "sshd";
           maxretry = 3;
+        };
+
+        # Anything that SYNs port 22.
+        #
+        # sshd is on 2269, so there is no legitimate traffic to 22 on this
+        # host and no false-positive surface at all -- one knock is already
+        # proof of a scan. maxretry = 2 rather than 1 only because a single
+        # retransmitted SYN can log twice.
+        #
+        # findtime is deliberately long. Slow scanners spread a sweep over
+        # hours specifically to stay under short windows, and since the signal
+        # here is unambiguous there is no reason to give them that.
+        #
+        # backend/logpath are inherited from DEFAULT (systemd), which is
+        # correct: these lines come from the kernel via the journal.
+        ssh-decoy.settings = {
+          enabled = true;
+          filter = "ssh-decoy";
+          maxretry = 2;
+          findtime = "1d";
+        };
+
+        # Escalation across jails, which is the part per-jail bans cannot do.
+        #
+        # Ban counts are tracked per jail, so an address that trips
+        # nginx-probe once, nginx-bad-request once and ssh-decoy once is on
+        # step 1 of three separate ladders and never escalates, despite being
+        # obviously hostile. This jail reads fail2ban's own Ban lines and
+        # treats "banned anywhere, 3 times in a week" as its own offence.
+        #
+        # It cannot feed itself: the stock filter's failregex carries a
+        # `(?!recidive\])` guard, so recidive's own Ban lines are skipped.
+        # Verified with fail2ban-regex, not assumed.
+        #
+        # No logpath. Upstream's jail.conf points this at
+        # /var/log/fail2ban.log, which does not exist here -- NixOS sets
+        # `logtarget = SYSLOG`, so the daemon's own log only reaches the
+        # journal. Inheriting the systemd backend from DEFAULT is what makes
+        # this work, and setting a logpath would break it.
+        recidive.settings = {
+          enabled = true;
+          filter = "recidive";
+          maxretry = 3;
+          findtime = "1w";
+          bantime = "1w";
         };
 
         # Exploit probes, keyed on the 444s produced by the nginx map.
