@@ -175,6 +175,12 @@ while IFS= read -r path; do
     modules/*|profiles/*|home-profiles/*|dotfiles/*|overlays/*)
       GLOBAL=1
       ;;
+    .opencode/skills/*)
+      # features/ai/opencode bakes this tree into every host's
+      # home-manager closure via `skillsSource`, so a skill edit changes
+      # activationPackage on all of them.
+      GLOBAL=1
+      ;;
     features/desktop/*)
       DESKTOP_GLOBAL=1
       ;;

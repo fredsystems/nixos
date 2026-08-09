@@ -106,6 +106,14 @@ jobs:
                 flake_lock_changed=true ;;
               modules/*|profiles/*|home-profiles/*|dotfiles/*|overlays/*)
                 global=true ;;
+              .opencode/skills/*)
+                # features/ai/opencode bakes this tree into every host's
+                # home-manager closure via `skillsSource`, so a skill edit
+                # changes activationPackage on all of them. Verified by
+                # diffing the activation drvPath with and without a skill
+                # change. Without this case it fell through to the
+                # catch-all and shipped with no host verification at all.
+                global=true ;;
               features/desktop/*)
                 desktop_global=true ;;
               features/*)
