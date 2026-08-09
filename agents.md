@@ -67,7 +67,14 @@ and HFDL decoders.
 │       ├── shared/        # Cross-repo policies (precommit, commits,
 │       │                  # testing, no-summary-documents, flaky tests,
 │       │                  # performance benchmarks, flake dev-shell,
-│       │                  # markdown-lint-discipline)
+│       │                  # markdown-lint-discipline) plus the
+│       │                  # orchestration model: agent-orchestration-
+│       │                  # protocol, autonomy-boundaries, plan-
+│       │                  # decomposition, parallel-work-isolation,
+│       │                  # module-cohesion, state-representation,
+│       │                  # adopt-orchestration-model. The
+│       │                  # orchestration set is OPT-IN per repo --
+│       │                  # a repo declares it in its own agents.md.
 │       ├── languages/     # Per-language rules (rust, typescript)
 │       └── projects/      # nixos-specific procedures only
 └── .github/
@@ -121,6 +128,13 @@ the task. The full bodies live under `.opencode/skills/`.
 | `nixos-input-category-sync` | When editing flake inputs / `flake.lock` / `ci-linux.yaml` / the impacted-hosts script.            |
 | `nixos-add-host`            | When adding a new host (server or desktop).                                                        |
 | `nixos-add-flake-input`     | When adding (or removing) a flake input.                                                           |
+| `agent-orchestration-protocol` | Before spawning sub-agents. Action classes, scope, prohibitions, stop conditions.               |
+| `autonomy-boundaries`       | Executing a multi-step plan. Scope is the boundary, not a step count.                              |
+| `plan-decomposition`        | Turning a plan or epic into implementable subtasks.                                                |
+| `parallel-work-isolation`   | Running more than one implementation agent at once. Worktrees, foundation-first, merge-back.       |
+| `adopt-orchestration-model` | Migrating another repo onto the shared orchestration model.                                        |
+| `module-cohesion`           | Adding a type to a file that names a different concept.                                            |
+| `state-representation`      | Adding a `bool` field or parameter, or crossing a boundary with one.                               |
 | `precommit-fix-loop`        | When a commit is rejected by pre-commit hooks.                                                     |
 | `commit-discipline`         | Before any commit / PR.                                                                            |
 | `testing-mandate`           | Before declaring any task done.                                                                    |
