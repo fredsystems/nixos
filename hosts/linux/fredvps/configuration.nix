@@ -134,7 +134,16 @@
         user = "nik";
         # scipy==1.10.1 (pinned in requirements.txt) has no cp312+ wheel.
         python = pkgs.python311;
-        execStart = "$VENV/bin/uvicorn app.main:app --host 0.0.0.0 --port 8078 --workers 2";
+        # --no-access-log: uvicorn's per-request log was 248780 of this unit's
+        # 373819 journal lines over two days (67%), making it the single
+        # largest log producer on the host by a wide margin. It is also pure
+        # duplication -- nginx already records every one of these requests in
+        # /var/log/nginx/access.log (1.3M entries in the current file), and
+        # `ss` confirms nothing reaches :8078 except via the flipaholics.pro
+        # proxy_pass, so dropping it loses no coverage. Revisit if :8078 is
+        # ever exposed directly, since then nginx would no longer see
+        # everything.
+        execStart = "$VENV/bin/uvicorn app.main:app --host 0.0.0.0 --port 8078 --workers 2 --no-access-log";
       };
 
       discord-bot = {
