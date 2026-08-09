@@ -111,10 +111,23 @@ one requires a real justification that fits one of the three
 
 ## The cost is not the argument
 
-The runtime cost of a fieldless enum versus a bool is zero in every
-language fred's repos use. Performance is never the reason to keep a
-bool. If someone reaches for that argument, the real reason is that the
-change is tedious -- which is a scheduling question, not a design one.
+In Rust, a fieldless enum with two variants is one byte, the same as a
+`bool`, and the conversion is a measured zero-cost change. TypeScript
+string-literal union types and Python enums are not automatically free:
+a string union is wider than a boolean in a serialized payload, and a
+Python `enum.Enum` member is an object rather than an interned
+singleton.
+
+So "it costs nothing" is a Rust claim, not a universal one. What _is_
+universal: the cost is small, bounded, and paid at a boundary you
+control, and it is almost never the real objection. If someone reaches
+for performance here, ask for the measurement. Usually the actual reason
+is that the change is tedious -- a scheduling question, not a design
+one.
+
+Where the representation genuinely is on a hot path or in a
+size-constrained wire format, measure it and record the number, per
+`performance-benchmarks`.
 
 ## When to stop and ask
 

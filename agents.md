@@ -117,6 +117,23 @@ unstable `nixpkgs`. CI treats changes to the `nixpkgs` input as
 
 ---
 
+## Execution model
+
+This repo uses the shared orchestration model. `autonomy-boundaries`
+governs when to continue versus stop: the assigned scope is the
+boundary, not a step count, and irreversible operations still need
+explicit approval. `agent-orchestration-protocol` governs sub-agent
+scoping, `plan-decomposition` governs turning plans into subtasks, and
+`parallel-work-isolation` governs concurrent work.
+
+Note what that declaration does. opencode discovers the shared skills
+globally and loads them by description match, so their presence is not
+opt-in. What this section opts into is **authority**: `agents.md` is
+always-on core context and therefore outranks an on-demand skill, so
+without this declaration a repo's own `agents.md` would win any
+conflict. Repos that have not declared the model are followed as
+written. See `adopt-orchestration-model`.
+
 ## Skills you will need in this repo
 
 These are loaded on demand by opencode when their description matches

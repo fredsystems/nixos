@@ -5,17 +5,38 @@ description: Use when migrating one of fred's repos onto the shared orchestratio
 
 # Adopting the shared orchestration model
 
-The shared skills in the nixos config repo
-(`agent-orchestration-protocol`, `autonomy-boundaries`,
-`plan-decomposition`, `parallel-work-isolation`, `module-cohesion`,
-`state-representation`) are installed on every machine and available in
-every repo. But they only take effect where a repo's `agents.md` does
-not contradict them.
+The shared skills (`agent-orchestration-protocol`,
+`autonomy-boundaries`, `plan-decomposition`,
+`parallel-work-isolation`, `module-cohesion`, `state-representation`)
+are installed at `~/.config/opencode/skills/` on every machine.
 
-**This migration is opt-in and per-repo.** Most repos should not do it.
-It is worth the effort only where multi-step plan-driven work actually
-happens. A small repo with occasional one-off changes gains nothing and
-should be left exactly as it is.
+## What is and is not opt-in
+
+Be precise about the mechanism, because it is easy to overstate:
+
+- **Discovery is global and cannot be opted out of.** opencode scans
+  the global skills directory and loads any skill whose description
+  matches the task. There is no per-repo switch that hides them.
+- **What is opt-in is authority.** `agents.md` is always-on core
+  context; skills are loaded on demand. So when a repo's `agents.md`
+  says "stop and confirm after every step" and `autonomy-boundaries`
+  says "run the whole scope", **the repo's `agents.md` wins**. The
+  shared skill is loaded but overridden.
+
+The declaration below is what resolves that conflict. Adding it is the
+act of adoption; without it, a repo that still carries a
+confirm-every-step rule keeps that behaviour even though the skill is
+present.
+
+**The agent-side rule, stated once:** if a repo's `agents.md` declares
+the shared orchestration model, `autonomy-boundaries` governs
+continue-versus-stop. If it does not, follow that repo's `agents.md` as
+written and do not apply scope-bounded autonomy on your own initiative.
+
+**Migration is per-repo and most repos should not do it.** It is worth
+the effort only where multi-step plan-driven work actually happens. A
+small repo with occasional one-off changes gains nothing and should be
+left exactly as it is.
 
 ## Is this repo a candidate?
 
@@ -86,8 +107,17 @@ gotchas, domain rules, plan-status conventions tied to this repo's
 documents.
 
 Delete as generic: orchestration protocol, subtask contracts, commit
-format, testing mandate, markdown lint rules, module cohesion,
-state representation, panic-free policy.
+format, testing mandate, markdown lint rules, module cohesion, state
+representation.
+
+One qualification on language policy. The panic-free rule
+(`unwrap`/`expect` forbidden outside tests) lives in
+`rust-best-practices`, which is a **language** skill, not a shared one.
+Delete a local copy only if the repo is Rust and the rule genuinely
+matches; a non-Rust repo's equivalent rule (unchecked assertions,
+swallowed exceptions) has no shared skill covering it yet, so keep it
+locally or raise the gap first. Do not delete a language-specific rule
+on the assumption that a shared skill covers it -- check.
 
 A local skill that is 80% generic and 20% specific gets **rewritten
 down to the 20%**, with a line pointing at the shared skill for the
@@ -110,20 +140,27 @@ Hand this to a sub-agent, one repo at a time. Fill in the bracket.
 
 ```text
 ACTION CLASS: READ-ONLY. Do NOT edit, write, or create any files.
-Do NOT commit.
+Do NOT commit. Do NOT run any command that mutates state (no git
+checkout/stash/add/commit, no package installs, no formatters). Do NOT
+proceed to the next subtask or begin the migration itself.
 
 Audit the repository at [PATH] for migration onto the shared agent
 orchestration model. The shared skills are installed at
 ~/.config/opencode/skills/shared/ -- read agent-orchestration-protocol,
 autonomy-boundaries, plan-decomposition, parallel-work-isolation,
-module-cohesion, and state-representation first so you know what is
-already covered generically.
+module-cohesion, state-representation, and adopt-orchestration-model
+itself first, so you know both what is already covered generically and
+what the migration criteria are.
 
 Then report, with file:line citations for every finding:
 
-1. CANDIDACY. Does this repo meet the migration criteria in
-   adopt-orchestration-model? Quote the evidence. If it does not,
-   say so and stop -- do not produce the rest of the report.
+1. CANDIDACY. A repo is a candidate only if MOST of these hold:
+   work is driven by plan/roadmap documents with numbered tasks;
+   sessions routinely span many steps; sub-agents are used for
+   decomposition; local skills duplicate generic policy; agents.md
+   forces confirmation after every step. Quote the evidence for each.
+   If the repo is not a candidate, say so and stop -- do not produce
+   the rest of the report.
 
 2. AUTONOMY BLOCKERS. Every rule in agents.md / AGENTS.md (and in any
    plan documents) that forces confirmation after each step, forbids
@@ -131,8 +168,11 @@ Then report, with file:line citations for every finding:
    each one exactly.
 
 3. GENUINE STOP TRIGGERS. Every rule that should be KEPT because it
-   guards scope, invariants, or unresolved decisions. These must
-   survive migration.
+   guards scope, invariants, unresolved decisions, or irreversible
+   operations. These must survive migration. The distinction: a rule
+   that stops correct in-scope work is a blocker (section 2); a rule
+   that stops work outside scope or on a broken assumption is a
+   keeper.
 
 4. LOCAL SKILL TRIAGE. For each skill in .opencode/skills/, classify
    as DELETE (fully covered by a shared skill -- name which),

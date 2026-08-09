@@ -112,8 +112,24 @@ Rules that follow:
 git worktree add ../<repo>-<task> -b <task-branch> <integration-branch>
 ```
 
-Each worktree gets its own build directory automatically, because
-build tools default to a path relative to the tree root.
+A worktree does **not** guarantee a separate build directory. Build
+tools default to a tree-relative output path, but an environment
+variable or tool configuration overrides that default -- and an
+exported `CARGO_TARGET_DIR`, a dev-shell that sets one, or a global
+config file applies to every worktree at once, silently collapsing
+them onto one output directory.
+
+Before running anything concurrently, verify each build tool's actual
+output path per worktree:
+
+```sh
+# Rust: must be empty, or a DIFFERENT path per worktree
+echo "${CARGO_TARGET_DIR:-<unset: tree-relative, good>}"
+```
+
+Check the dev shell too, not just the interactive environment -- a
+`mkShell` that exports a build-output variable is invisible until you
+enter it.
 
 ### Teardown
 

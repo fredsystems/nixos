@@ -26,7 +26,7 @@ incorrect kind.
 
 > **"Do plan X" means all of plan X, front to back, and nothing else.**
 
-Continue to the next step **without asking** while all four hold:
+Continue to the next step **without asking** while all five hold:
 
 1. **Verification is green.** The repo's mandatory suite passes (see
    `testing-mandate`). A red suite is a full stop, never a "fix it
@@ -38,9 +38,35 @@ Continue to the next step **without asking** while all four hold:
    rather than _implement_, that is a stop.
 4. **Nothing unforeseen.** No pre-existing bug, no wrong assumption in
    the plan, no upstream surprise. The plan describes reality.
+5. **The step is reversible.** See below -- irreversible operations
+   need explicit approval even when they are squarely in scope.
 
-If all four hold, keep going. Do not post a summary and wait. Do not
+If all five hold, keep going. Do not post a summary and wait. Do not
 ask "shall I continue?". Finish the scope.
+
+### Irreversible operations always need approval
+
+Being in scope is not sufficient authority to do something that cannot
+be undone. A plan can legitimately contain a destructive step, and the
+other four conditions can all pass for it.
+
+Stop and get explicit approval before:
+
+- Deleting data, dropping a database, or removing a volume.
+- Rewriting published history (`push --force`, `rebase` of pushed
+  commits, `filter-branch`).
+- Deploying, restarting a production service, or applying
+  infrastructure changes to live hosts.
+- Changing access control: keys, tokens, permissions, firewall rules,
+  user accounts.
+- Transmitting repository contents anywhere external.
+- Any `rm -rf` outside a build/scratch directory.
+
+Reversible-by-design work -- editing tracked files, committing to a
+feature branch, opening a PR -- is not in this list and proceeds
+normally. The test is whether an error is recoverable with a local
+`git` operation. If undoing it needs a backup, a provider console, or
+an apology, it needs approval first.
 
 The moment any one fails: **stop, and report.** Not "stop, work around
 it, and mention it later".
