@@ -107,7 +107,18 @@ in
     # prefix match ahead of any regex location, so renewal never reaches the
     # rule below. Verified against the generated nginx.conf.
     commonHttpConfig = ''
-      map $request_uri $blocked_probe {
+      # Keyed on $uri, NOT $request_uri.
+      #
+      # $request_uri is the raw path exactly as the client sent it, with
+      # percent-encoding intact; $uri is the normalised path, after nginx has
+      # decoded %XX sequences. Matching the raw form is trivially bypassable:
+      # with $request_uri, /.env was correctly dropped but /%2eenv sailed
+      # through and returned 200. Verified against the deployed host before
+      # and after this change.
+      #
+      # Consequence of the switch: $uri excludes the query string, so the PHP
+      # pattern below no longer needs (and must not have) a `\?` branch.
+      map $uri $blocked_probe {
         default 0;
 
         # Dotfile directories that only ever appear in credential-theft
@@ -116,8 +127,8 @@ in
         "~*^/\.(?!well-known/)"                     1;
 
         # PHP. Nothing on this host runs PHP, so any request for it is a
-        # probe by definition.
-        "~*\.php(\?|$|/)"                           1;
+        # probe by definition. No `\?` branch: $uri has no query string.
+        "~*\.php(/|$)"                              1;
 
         # WordPress. Likewise not deployed anywhere here.
         "~*^/(wp-admin|wp-content|wp-includes|wordpress|xmlrpc)"  1;
