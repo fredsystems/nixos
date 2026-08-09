@@ -70,8 +70,9 @@ and HFDL decoders.
 │       │                  # markdown-lint-discipline) plus the
 │       │                  # orchestration model: agent-orchestration-
 │       │                  # protocol, autonomy-boundaries, plan-
-│       │                  # decomposition, parallel-work-isolation,
-│       │                  # module-cohesion, state-representation,
+│       │                  # decomposition, plan-sequencing-discipline,
+│       │                  # parallel-work-isolation, module-cohesion,
+│       │                  # state-representation,
 │       │                  # adopt-orchestration-model. The
 │       │                  # orchestration set is OPT-IN per repo --
 │       │                  # a repo declares it in its own agents.md.
@@ -148,6 +149,7 @@ the task. The full bodies live under `.opencode/skills/`.
 | `agent-orchestration-protocol` | Before spawning sub-agents. Action classes, scope, prohibitions, stop conditions.               |
 | `autonomy-boundaries`       | Executing a multi-step plan. Scope is the boundary, not a step count.                              |
 | `plan-decomposition`        | Turning a plan or epic into implementable subtasks.                                                |
+| `plan-sequencing-discipline` | Maintaining a numbered plan set: ordering, cross-plan deps, status at merge, index drift.         |
 | `parallel-work-isolation`   | Running more than one implementation agent at once. Worktrees, foundation-first, merge-back.       |
 | `adopt-orchestration-model` | Migrating another repo onto the shared orchestration model.                                        |
 | `module-cohesion`           | Adding a type to a file that names a different concept.                                            |
