@@ -217,6 +217,10 @@ in
             echo "# TYPE f2b_ban_metrics_fail2ban_up gauge"
             echo "# HELP f2b_ban_metrics_parse_failures Lines from fail2ban-client that did not parse."
             echo "# TYPE f2b_ban_metrics_parse_failures gauge"
+            echo "# HELP f2b_ban_metrics_jail_query_failures Jails whose ban list could not be read."
+            echo "# TYPE f2b_ban_metrics_jail_query_failures gauge"
+            echo "# HELP f2b_banned_ip_max_bantime_seconds Longest ban in force in this jail, including addresses omitted by the cap."
+            echo "# TYPE f2b_banned_ip_max_bantime_seconds gauge"
 
             # Health, kept separate from freshness on purpose.
             #
@@ -236,10 +240,27 @@ in
             fi
 
             parse_failures=0
+            jail_query_failures=0
 
             for jail in $jails; do
               n=0
               omitted=0
+              max_bantime=0
+
+              # Captured into a variable rather than piped directly into the
+              # loop so the exit status is observable. Previously this ended
+              # in `|| true`, which turned a failed query into an empty result:
+              # the jail silently contributed no bans while fail2ban_up stayed
+              # 1 and the timestamp stayed fresh, so every health signal read
+              # green with data missing. A per-jail failure is distinct from
+              # the daemon being unreachable, so it gets its own counter
+              # rather than clearing fail2ban_up.
+              if ! banlist=$(fail2ban-client get "$jail" banip --with-time 2>/dev/null); then
+                jail_query_failures=$((jail_query_failures + 1))
+                printf 'f2b_banned_ip_truncated{jail="%s"} 0\n' "$jail"
+                printf 'f2b_banned_ip_max_bantime_seconds{jail="%s"} 0\n' "$jail"
+                continue
+              fi
 
               # Output line: <ip> \t <start> + <bantime> = <expiry>
               while IFS= read -r line; do
@@ -262,6 +283,22 @@ in
                   continue
                 fi
 
+                # Tracked before the cap, so the aggregate stays correct even
+                # when per-IP series are dropped.
+                #
+                # `banip --with-time` returns bans sorted ascending by EXPIRY
+                # (banmanager.py getBanList -> lst.sort on end-of-ban), and
+                # expiry order is not bantime order -- a fresh 1h ban expires
+                # before an older 2h one. So the cap removes an arbitrary
+                # slice with respect to duration, and max() over the emitted
+                # series alone can under-report the longest ban in force.
+                # Which is exactly the number the "Longest Active Ban" panel
+                # exists to show, and exactly when it matters: a sweep large
+                # enough to hit the cap.
+                if [ "$bantime" -gt "$max_bantime" ]; then
+                  max_bantime=$bantime
+                fi
+
                 n=$((n + 1))
                 if [ "$n" -gt "$MAX_PER_JAIL" ]; then
                   omitted=$((omitted + 1))
@@ -277,12 +314,14 @@ in
                   "$jail" "$ip" "$jail" "$ip" "$bantime"
                 printf 'f2b_banned_ip_expiry_timestamp_seconds{jail="%s",ip="%s",ban_id="%s:%s"} %s\n' \
                   "$jail" "$ip" "$jail" "$ip" "$epoch"
-              done <<< "$(fail2ban-client get "$jail" banip --with-time 2>/dev/null || true)"
+              done <<< "$banlist"
 
               printf 'f2b_banned_ip_truncated{jail="%s"} %s\n' "$jail" "$omitted"
+              printf 'f2b_banned_ip_max_bantime_seconds{jail="%s"} %s\n' "$jail" "$max_bantime"
             done
 
             printf 'f2b_ban_metrics_parse_failures %s\n' "$parse_failures"
+            printf 'f2b_ban_metrics_jail_query_failures %s\n' "$jail_query_failures"
 
             # Freshness. If this stops advancing the panel is showing stale data,
             # which is otherwise indistinguishable from "nobody is banned".
