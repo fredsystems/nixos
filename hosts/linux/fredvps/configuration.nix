@@ -51,7 +51,19 @@ in
 
   # Tailscale MagicDNS name — fill in your tailnet name, e.g. "fredvps.tail1234.ts.net"
   # Run `tailscale status` after first deploy to confirm the assigned name.
-  deployment.scrapeAddress = "fredvps.tailc21fc7.ts.net";
+  deployment = {
+    scrapeAddress = "fredvps.tailc21fc7.ts.net";
+
+    # The only node in this fleet with a public interface. Everything else
+    # sits behind NAT, which is why the monitoring exporters bind 0.0.0.0 and
+    # open their own firewall ports by default -- harmless on the LAN, but on
+    # this host it published node_exporter (3021 lines of host metrics) and
+    # cAdvisor (per-container stats, including every container name)
+    # unauthenticated to the internet. Prometheus already scrapes this node
+    # over Tailscale, so binding the tailnet address costs nothing.
+    internetFacing = true;
+    tailscaleAddress = tailscaleIP;
+  };
 
   # The common packages module unconditionally enables systemd-boot and
   # networkmanager; override both since this VPS uses GRUB + systemd-networkd.
