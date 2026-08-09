@@ -789,7 +789,7 @@
       "id": 15,
       "type": "logs",
       "title": "Blocked Probes (nginx 444)",
-      "description": "Live feed of requests dropped by the probe rule -- the raw scanner traffic that feeds the nginx-probe jail.",
+      "description": "Live feed of requests dropped by the probe rule. Sourced from the nginx ACCESS LOG, which Alloy tails as a file and labels unit=\"nginx-access\" -- nginx writes it to disk, not the journal, so unit=\"nginx.service\" would match nothing.",
       "gridPos": {
         "h": 10,
         "w": 24,
@@ -812,7 +812,7 @@
             "type": "loki",
             "uid": "${ds_loki}"
           },
-          "expr": "{host=\"fredvps\", unit=\"nginx.service\"} |= \" 444 \"",
+          "expr": "{host=\"fredvps\", unit=\"nginx-access\"} |= \" 444 \"",
           "refId": "A"
         }
       ]

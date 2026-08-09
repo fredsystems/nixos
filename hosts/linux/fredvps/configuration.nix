@@ -52,9 +52,9 @@ let
   # Tailscale addresses are stable while a node stays registered, but they do
   # change if the node is removed and re-added, reinstalled, or has its disk
   # wiped. The tailscale-address-drift unit (modules/base/deployment-meta.nix)
-  # compares this value against the live one on every activation and warns if
-  # they diverge, so a stale entry is reported rather than discovered when a
-  # container refuses to start.
+  # re-runs on every activation, compares this value against the live one, and
+  # warns if they diverge -- so a stale entry is reported at deploy time
+  # rather than discovered when a container refuses to start.
   tailscaleIP = "100.82.147.29";
 in
 {

@@ -2,6 +2,7 @@
   config,
   lib,
   pkgs,
+  isDarwin ? false,
   ...
 }:
 let
@@ -94,67 +95,111 @@ in
     };
   };
 
-  config = lib.mkMerge [
-    {
-      assertions = [
-        {
-          assertion = cfg.internetFacing -> cfg.tailscaleAddress != null;
-          message = "deployment.internetFacing requires deployment.tailscaleAddress to be set.";
-        }
-      ];
-    }
+  # The isDarwin guard on the drift unit is load-bearing.
+  #
+  # This module is imported by BOTH mk-system.nix and mk-darwin-system.nix,
+  # and nix-darwin has no `systemd` option at all. `lib.mkIf false { systemd
+  # = ...; }` does NOT avoid that: mkIf defers the value, but the option path
+  # is still resolved during merging, so Darwin fails to evaluate with
+  # "The option `systemd' does not exist". The definition must be absent from
+  # the merge list entirely, which is what lib.optional does here.
+  config = lib.mkMerge (
+    [
+      {
+        assertions = [
+          {
+            assertion = cfg.internetFacing -> cfg.tailscaleAddress != null;
+            message = "deployment.internetFacing requires deployment.tailscaleAddress to be set.";
+          }
+        ];
+      }
+    ]
+    ++
+      lib.optional (!isDarwin)
+        # Detect a stale deployment.tailscaleAddress.
+        #
+        # The literal is baked into container port bindings and exporter listen
+        # addresses at build time. If the node's real address changes, those
+        # binds point at an address the host no longer holds: containers fail to
+        # start and exporters fail to listen. Both are loud, but they are loud at
+        # the wrong moment -- mid-deploy, with no indication of the cause.
+        #
+        # This compares the configured value against `tailscale ip -4` after
+        # activation and logs a warning naming both. Deliberately a warning and
+        # not a failure: a re-IP is exactly when deploys need to keep working so
+        # the new value can be rolled out, and refusing to activate would leave
+        # the host stuck on its old generation.
+        # Guarded on isDarwin, not just on tailscaleAddress. This module is
+        # imported by BOTH mk-system.nix and mk-darwin-system.nix, and nix-darwin
+        # has no `systemd` option at all -- so `lib.mkIf false { systemd... }`
+        # still fails evaluation with "The option `systemd' does not exist".
+        # mkIf defers the VALUE, not the option lookup, so the attribute path has
+        # to be absent from the definition entirely on Darwin.
+        (
+          lib.mkIf (!isDarwin && cfg.tailscaleAddress != null) {
+            systemd.services.tailscale-address-drift = {
+              description = "Warn if deployment.tailscaleAddress no longer matches the running Tailscale address";
+              after = [ "tailscaled.service" ];
+              wants = [ "tailscaled.service" ];
+              wantedBy = [ "multi-user.target" ];
 
-    # Detect a stale deployment.tailscaleAddress.
-    #
-    # The literal is baked into container port bindings and exporter listen
-    # addresses at build time. If the node's real address changes, those
-    # binds point at an address the host no longer holds: containers fail to
-    # start and exporters fail to listen. Both are loud, but they are loud at
-    # the wrong moment -- mid-deploy, with no indication of the cause.
-    #
-    # This compares the configured value against `tailscale ip -4` after
-    # activation and logs a warning naming both. Deliberately a warning and
-    # not a failure: a re-IP is exactly when deploys need to keep working so
-    # the new value can be rolled out, and refusing to activate would leave
-    # the host stuck on its old generation.
-    (lib.mkIf (cfg.tailscaleAddress != null) {
-      systemd.services.tailscale-address-drift = {
-        description = "Warn if deployment.tailscaleAddress no longer matches the running Tailscale address";
-        after = [ "tailscaled.service" ];
-        wants = [ "tailscaled.service" ];
-        wantedBy = [ "multi-user.target" ];
+              # No RemainAfterExit. A successful oneshot that stays "active"
+              # is not restarted by switch-to-configuration when its definition
+              # is unchanged, so the check would only ever run at boot -- which
+              # is precisely when it is least useful, since a re-IP typically
+              # happens while the machine is up. Verified: the unit ran once at
+              # boot and did not re-run across a later deploy.
+              #
+              # Letting it go inactive on success, plus the restartTriggers
+              # below, makes every activation re-run it.
+              serviceConfig = {
+                Type = "oneshot";
+              };
 
-        serviceConfig = {
-          Type = "oneshot";
-          RemainAfterExit = true;
-        };
+              # Re-run on every activation.
+              #
+              # `unitConfig.X-Restart-Triggers` is deliberately NOT derived from
+              # config.system.build.toplevel -- that is the derivation this unit
+              # is part of, and referencing it here is an evaluation cycle
+              # ("infinite recursion", observed). system.configurationRevision is
+              # also unavailable: this repo forbids putting the flake's git rev
+              # into a closure, because it would change every host's store path
+              # on every commit (see flake/lib/mk-system.nix).
+              #
+              # Instead the unit is simply allowed to go inactive on success,
+              # and StartLimitIntervalSec=0 keeps repeated starts from being
+              # rate-limited. switch-to-configuration starts inactive units that
+              # are wantedBy an active target on every activation, which gives
+              # the desired behaviour without a synthetic trigger.
+              unitConfig.StartLimitIntervalSec = 0;
 
-        script = ''
-          set -uo pipefail
+              script = ''
+                set -uo pipefail
 
-          configured=${lib.escapeShellArg cfg.tailscaleAddress}
+                configured=${lib.escapeShellArg cfg.tailscaleAddress}
 
-          # tailscaled may still be coming up; this check is advisory, so a
-          # transient failure to read the address is not worth failing on.
-          actual="$(${pkgs.tailscale}/bin/tailscale ip -4 2>/dev/null | head -n1 || true)"
+                # tailscaled may still be coming up; this check is advisory, so a
+                # transient failure to read the address is not worth failing on.
+                actual="$(${pkgs.tailscale}/bin/tailscale ip -4 2>/dev/null | head -n1 || true)"
 
-          if [ -z "$actual" ]; then
-            echo "tailscale-address-drift: could not read the current Tailscale address; skipping check"
-            exit 0
-          fi
+                if [ -z "$actual" ]; then
+                  echo "tailscale-address-drift: could not read the current Tailscale address; skipping check"
+                  exit 0
+                fi
 
-          if [ "$actual" != "$configured" ]; then
-            echo "tailscale-address-drift: MISMATCH" >&2
-            echo "  deployment.tailscaleAddress = $configured" >&2
-            echo "  actual tailscale ip -4      = $actual" >&2
-            echo "  Container port bindings and exporter listen addresses are" >&2
-            echo "  built from the configured value and will fail to bind." >&2
-            echo "  Fix: set deployment.tailscaleAddress = \"$actual\" for this host." >&2
-          else
-            echo "tailscale-address-drift: ok ($actual)"
-          fi
-        '';
-      };
-    })
-  ];
+                if [ "$actual" != "$configured" ]; then
+                  echo "tailscale-address-drift: MISMATCH" >&2
+                  echo "  deployment.tailscaleAddress = $configured" >&2
+                  echo "  actual tailscale ip -4      = $actual" >&2
+                  echo "  Container port bindings and exporter listen addresses are" >&2
+                  echo "  built from the configured value and will fail to bind." >&2
+                  echo "  Fix: set deployment.tailscaleAddress = \"$actual\" for this host." >&2
+                else
+                  echo "tailscale-address-drift: ok ($actual)"
+                fi
+              '';
+            };
+          }
+        )
+  );
 }
