@@ -25,11 +25,4 @@ in
   networking.firewall.allowedTCPPorts = lib.optionals (!cfg.internetFacing) [
     4567 # cAdvisor
   ];
-
-  assertions = [
-    {
-      assertion = cfg.internetFacing -> cfg.tailscaleAddress != null;
-      message = "deployment.internetFacing requires deployment.tailscaleAddress to be set.";
-    }
-  ];
 }

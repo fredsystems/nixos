@@ -31,10 +31,30 @@ let
   # Tailscale, so nothing legitimate needs a public bind.
   localhost = "127.0.0.1";
 
-  # fredvps's stable Tailscale address. Feed ports bind here so sdrhub can
-  # reach them while the public internet cannot. Hardcoded rather than
-  # discovered because container `-p` flags are rendered at build time, long
-  # before tailscaled has an address to report.
+  # ---------------------------------------------------------------------
+  # THE ONE PLACE TO EDIT IF THIS HOST'S TAILSCALE ADDRESS EVER CHANGES.
+  # ---------------------------------------------------------------------
+  #
+  # Every Tailscale bind on this host -- twelve container port mappings, the
+  # Dozzle agent, node_exporter, cAdvisor and the fail2ban exporter -- is
+  # derived from this single binding, which is published to the rest of the
+  # config as deployment.tailscaleAddress below.
+  #
+  # A literal is required here, not the MagicDNS name: `docker run -p` rejects
+  # a hostname outright ("docker: invalid IP address: ..."), and exporter
+  # listen addresses are baked into unit files at build time, before
+  # tailscaled exists to resolve anything.
+  #
+  # Everything that resolves at RUNTIME deliberately does not use this. The
+  # feed targets in secrets.yaml and Prometheus's scrapeAddress all use
+  # fredvps.tailc21fc7.ts.net, so they follow a re-IP with no edit at all.
+  #
+  # Tailscale addresses are stable while a node stays registered, but they do
+  # change if the node is removed and re-added, reinstalled, or has its disk
+  # wiped. The tailscale-address-drift unit (modules/base/deployment-meta.nix)
+  # compares this value against the live one on every activation and warns if
+  # they diverge, so a stale entry is reported rather than discovered when a
+  # container refuses to start.
   tailscaleIP = "100.82.147.29";
 in
 {
@@ -189,6 +209,28 @@ in
     # Accept subnet routes advertised by sdrhub (192.168.31.0/24) so that
     # LAN services (Attic, Loki, etc.) are reachable without config changes.
     tailscale.extraUpFlags = [ "--accept-routes" ];
+
+    # Ban/jail metrics for Prometheus, so the security dashboard shows live
+    # state rather than requiring an ssh + `fail2ban-client status` per jail.
+    #
+    # Bound to the tailnet for the same reason as node_exporter and cAdvisor:
+    # this host faces the internet, and the exporter would otherwise publish
+    # jail names and banned-IP counts to anyone who asked. Reusing
+    # deployment.tailscaleAddress keeps that decision in one place.
+    prometheus.exporters.fail2ban = {
+      enable = true;
+      # `host`, NOT `listenAddress`. Both options exist on this exporter --
+      # listenAddress comes from the shared exporter boilerplate -- but only
+      # `host` is interpolated into --web.listen-address. Setting
+      # listenAddress alone is silently ignored and leaves the exporter on
+      # 127.0.0.1, where Prometheus cannot reach it, while the config reads as
+      # though it were bound to the tailnet.
+      host = tailscaleIP;
+      port = 9191;
+      # No openFirewall: Prometheus reaches this over Tailscale, which does
+      # not traverse nixos-fw's port rules.
+      openFirewall = false;
+    };
 
     fail2ban = {
       enable = true;
