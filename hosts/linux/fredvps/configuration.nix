@@ -440,7 +440,7 @@ in
       ###############################################################
       {
         name = "acarshub";
-        image = "ghcr.io/sdr-enthusiasts/docker-acarshub:latest-build-1506@sha256:1ae9bb712fb3cbbc812da354431961812215306810675707277a319b07d52a91";
+        image = "ghcr.io/sdr-enthusiasts/docker-acarshub:latest-build-1507@sha256:baedfebb6f6e5c7c31af583f709cce5e5df36207860c79a7276583e57d5e9bc9";
 
         environmentFiles = [
           config.sops.secrets."docker/fredvps/acarshub.env".path
