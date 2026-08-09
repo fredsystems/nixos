@@ -1,0 +1,197 @@
+groups:
+  # Alerts about the fail2ban ban-metrics pipeline on fredvps.
+  #
+  # WHAT THIS GROUP DOES NOT ALERT ON
+  #
+  # Bans. Not ban counts, not ban rate, not individual jails firing, not
+  # recidive, not ssh-decoy catching a scanner. All of that is the system
+  # working as designed, and on this host it happens constantly -- 161 bans in
+  # a 48-hour window before the escalation fix. Paging on success trains the
+  # channel to be ignored, which costs more than it buys. The "Bans Over Time"
+  # and "Ban Rate" panels on the security dashboard already carry the trend.
+  #
+  # Every rule here fires only when the security control itself is broken:
+  # fail2ban unreachable, the generator stalled, or the data it produces
+  # untrustworthy. Those are the cases where the dashboard looks fine and is
+  # lying, which is precisely when nobody is looking at it.
+  #
+  # SCOPE
+  #
+  # fredvps is the only host running fail2ban-ban-metrics.service, because it
+  # is the only internet-facing node in the fleet. Rules deliberately do NOT
+  # pin hostname="fredvps": if the generator is ever added to a second host,
+  # unpinned rules cover it automatically, whereas a pinned rule would silently
+  # exclude it. The one exception is the absent() rule below, which cannot work
+  # without naming the host it expects.
+  - name: fail2ban-pipeline
+    rules:
+      # The daemon is unreachable while the generator still runs.
+      #
+      # This is the case f2b_ban_metrics_fail2ban_up exists for. The generator
+      # writes a fresh timestamp unconditionally, so when the jail-list query
+      # fails the result is an empty ban table under a green "Ban Data Age"
+      # panel -- visually identical to "nobody is banned right now", which is
+      # a completely normal state. Without this rule the only signal that
+      # enforcement has stopped is a human noticing the table is emptier than
+      # usual.
+      #
+      # critical, not warning: fail2ban being down on the only internet-facing
+      # host means nothing is banning anything.
+      #
+      # 10m rather than something tighter because fail2ban is restarted by
+      # every activation that touches its config, and the generator can land
+      # in that window. Five consecutive failed runs is not a restart.
+      - alert: Fail2banDown
+        expr: f2b_ban_metrics_fail2ban_up == 0
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "fail2ban is unreachable on {{ $labels.hostname }}"
+          description: >-
+            fail2ban-client cannot retrieve the jail list, so no ban state is
+            being read and the security dashboard is showing an empty table
+            with a fresh timestamp. Bans may not be enforced at all. Check
+            fail2ban.service.
+
+      # Daemon reachable, individual jail queries failing.
+      #
+      # Distinct from Fail2banDown on purpose. This is the partial case: the
+      # jail list came back, but at least one `fail2ban-client get <jail> banip`
+      # failed, so that jail contributes no rows while every other health
+      # signal stays green. Before the exit status was captured this was
+      # completely invisible -- `|| true` turned the failure into an empty
+      # result.
+      #
+      # warning, not critical: enforcement is unaffected, the iptables rules
+      # are still in place. This is a visibility fault, not a security one.
+      - alert: Fail2banJailQueryFailing
+        expr: f2b_ban_metrics_jail_query_failures > 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "fail2ban jail queries failing on {{ $labels.hostname }}"
+          description: >-
+            {{ $value }} jail(s) could not be queried for their ban list. Those
+            jails are missing from the dashboard while the rest of the data
+            looks healthy. Usually a socket timeout or a jail that stopped
+            between the status call and the per-jail query.
+
+      # The generator has stopped producing fresh data.
+      #
+      # Deliberately overlaps SystemdTimerStale (capacity-alerts.yaml) rather
+      # than relying on it. That rule fires at 72 hours and excludes nothing
+      # relevant here, which is the right threshold for the daily and weekly
+      # timers it was written for and uselessly coarse for a timer that runs
+      # every 2 minutes. It also only knows whether the timer *triggered*,
+      # not whether the run produced anything -- a unit that starts, fails
+      # early and exits leaves the timer looking healthy.
+      #
+      # 600s is five missed ticks. The dashboard's own staleness panel turns
+      # orange at 200s, so this is deliberately well past "one slow run".
+      - alert: Fail2banBanMetricsStale
+        expr: time() - f2b_ban_metrics_generated_timestamp_seconds > 600
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "fail2ban ban metrics are stale on {{ $labels.hostname }}"
+          description: >-
+            The ban-metrics textfile has not been regenerated in over 10
+            minutes against a 2-minute timer. The Active Bans table is showing
+            stale data, which is indistinguishable from an empty one. Check
+            fail2ban-ban-metrics.service and its timer.
+
+      # The meta-rule: everything above matches nothing if the textfile
+      # disappears entirely.
+      #
+      # Modelled directly on NixOSDeployStateMetricsMissing in
+      # system-alerts.yaml, for the same reason documented there: Prometheus
+      # reports a rule whose expression matches nothing as health=ok, so a
+      # metric that stops existing makes every rule depending on it silently
+      # inert. Five rules in this repository rotted that way before anyone
+      # noticed, which is why scripts/check-alert-metrics.sh exists. This is
+      # the runtime equivalent for this group.
+      #
+      # f2b_ban_metrics_fail2ban_up is the right series to select: it is
+      # emitted unconditionally on every run -- including the failure path,
+      # where it is written as 0 -- so its absence always means "the generator
+      # is not reporting", never "the condition is false".
+      #
+      # This is the one rule that must name the host. absent() is only true
+      # when the vector is completely empty, and an unlabelled absent() would
+      # go off the moment fail2ban is deliberately removed from the fleet's
+      # only fail2ban host. Naming fredvps makes the expectation explicit: if
+      # this alert is wrong because the host was decommissioned, the fix is to
+      # delete this rule, and that is a deliberate decision rather than a
+      # silent loss of coverage.
+      #
+      # 1h because a host reboot or a long activation should not page.
+      - alert: Fail2banBanMetricsMissing
+        expr: absent(f2b_ban_metrics_fail2ban_up{hostname="fredvps"})
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "fail2ban ban metrics are missing entirely from fredvps"
+          description: >-
+            No f2b_ban_metrics_fail2ban_up series exists, so every other rule
+            in this group is silently matching nothing and cannot fire. Either
+            the node_exporter textfile collector has lost the file or
+            fail2ban-ban-metrics.service has never run. If fail2ban was
+            intentionally removed from this host, delete this rule group.
+
+  - name: fail2ban-data-quality
+    rules:
+      # fail2ban-client output no longer parses.
+      #
+      # The generator extracts ip, bantime and expiry from
+      # `banip --with-time` with sed patterns matched against a specific
+      # layout. A package bump that changes that layout would otherwise
+      # present as an empty Active Bans table with every health signal green,
+      # since unparsable lines used to be skipped silently.
+      #
+      # 30m because a single malformed line during a restart is noise. A
+      # sustained nonzero count means the format actually moved.
+      - alert: Fail2banParseFailures
+        expr: f2b_ban_metrics_parse_failures > 0
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "fail2ban ban output is not parsing on {{ $labels.hostname }}"
+          description: >-
+            {{ $value }} line(s) from fail2ban-client did not match the
+            expected `<ip> <start> + <bantime> = <expiry>` layout. Likely a
+            fail2ban upgrade changed the output format; the Active Bans table
+            is incomplete or empty. Compare
+            `fail2ban-client get <jail> banip --with-time` against the parser
+            in hosts/linux/fredvps/configuration.nix.
+
+      # A jail exceeded the 200-address per-jail cap.
+      #
+      # Two possible meanings, both worth knowing about: either the host is
+      # under a distributed sweep large enough to matter, or the cap needs
+      # raising. Per-IP rows beyond the cap are dropped from the table.
+      #
+      # Safe to alert on only because f2b_banned_ip_max_bantime_seconds is
+      # computed BEFORE truncation. Until that fix, hitting the cap also
+      # silently under-reported the longest active ban, so this alert would
+      # have fired alongside a panel that was quietly wrong.
+      #
+      # Peak concurrent bans in any jail to date is 84, so this has headroom
+      # and should not fire in normal operation.
+      - alert: Fail2banBanListTruncated
+        expr: f2b_banned_ip_truncated > 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "fail2ban jail {{ $labels.jail }} exceeded its ban-list cap on {{ $labels.hostname }}"
+          description: >-
+            {{ $value }} banned address(es) in jail {{ $labels.jail }} are
+            omitted from the exported metrics because the 200-per-jail cap was
+            hit. Aggregates stay correct, but the Active Bans table is
+            incomplete. Either an unusually large sweep is in progress or
+            MAX_PER_JAIL needs raising.

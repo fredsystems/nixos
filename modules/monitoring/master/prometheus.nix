@@ -198,6 +198,7 @@ in
         ./alert-rules/sdr-alerts.yaml
         ./alert-rules/meta-alerts.yaml
         ./alert-rules/capacity-alerts.yaml
+        ./alert-rules/fail2ban-alerts.yaml
       ];
 
       scrapeConfigs = [
