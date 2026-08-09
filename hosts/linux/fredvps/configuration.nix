@@ -92,7 +92,17 @@ in
   # also produces here in volume.
   environment.etc."fail2ban/filter.d/nginx-probe.conf".text = ''
     [Definition]
-    failregex = ^<HOST> \S+ \S+ \[[^\]]+\] "[A-Z]+ [^"]*" 444
+    # `.*` between the host and the request rather than an explicit
+    # `\S+ \S+ \[timestamp\]`: fail2ban extracts the timestamp with
+    # datepattern and hands the failregex a line with that section already
+    # substituted, so a regex that tries to match the literal
+    # "- - [09/Aug/2026:01:34:08 -0600]" never fires. That was verified the
+    # hard way -- the stricter pattern matched 0 of 94 real 444 lines.
+    #
+    # The trailing \s keeps this anchored to the status field so it cannot
+    # match a 444 appearing anywhere else in the line, e.g. in a URL or a
+    # user agent.
+    failregex = ^<HOST> .* "[A-Z]+ [^"]*" 444\s
     ignoreregex =
     datepattern = ^[^\[]*\[({DATE})
                   {^LN-BEG}
