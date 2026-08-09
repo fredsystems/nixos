@@ -5,6 +5,14 @@
   ...
 }:
 let
+  # Restart the consuming container when its --env-file secret changes.
+  # See modules/services/mk-container-secret.nix for why this is declared
+  # here rather than derived inside adsb-docker-units.nix.
+  inherit (import ../../../modules/services/mk-container-secret.nix)
+    mkContainerSecret
+    mkContainerSecrets
+    ;
+
   # Map of <bare hostname> -> <answer IP>. Each entry produces both
   # `<name>.lan` and `<name>.local` AdGuard rewrites so that either
   # TLD works on the LAN. Keep this in sync with the nginx vhosts
@@ -872,10 +880,15 @@ in
   };
 
   sops.secrets = {
-    "docker/sdrhub/dozzle.env" = {
-      format = "yaml";
-    };
+    "docker/sdrhub/dozzle.env" = mkContainerSecret "dozzle";
 
+    # Deliberately NOT mkContainerSecret. Both are declared but unconsumed:
+    # the dozzle-agent container takes no environmentFiles (its secret is
+    # "intentionally empty (no env vars required)"), and the airspy_adsb
+    # container is commented out entirely. Attaching restartUnits to either
+    # would name a container that does not read it, which is a claim the
+    # config cannot honour. If airspy_adsb is uncommented, or dozzle-agent
+    # ever gains real env vars, convert them then.
     "docker/sdrhub/dozzle-agent.env" = {
       format = "yaml";
     };
@@ -884,60 +897,36 @@ in
       format = "yaml";
     };
 
-    "docker/sdrhub/ultrafeeder.env" = {
-      format = "yaml";
-    };
+    "docker/sdrhub/ultrafeeder.env" = mkContainerSecret "ultrafeeder";
 
-    "docker/sdrhub/dump978.env" = {
-      format = "yaml";
-    };
+    "docker/sdrhub/dump978.env" = mkContainerSecret "dump978";
 
-    "docker/sdrhub/adsbhub.env" = {
-      format = "yaml";
-    };
+    "docker/sdrhub/adsbhub.env" = mkContainerSecret "adsbhub";
 
-    "docker/sdrhub/fr24.env" = {
-      format = "yaml";
-    };
+    "docker/sdrhub/fr24.env" = mkContainerSecret "fr24";
 
-    "docker/sdrhub/piaware.env" = {
-      format = "yaml";
-    };
+    "docker/sdrhub/piaware.env" = mkContainerSecret "piaware";
 
-    "docker/sdrhub/planefinder.env" = {
-      format = "yaml";
-    };
+    "docker/sdrhub/planefinder.env" = mkContainerSecret "planefinder";
 
-    "docker/sdrhub/planewatch.env" = {
-      format = "yaml";
-    };
+    "docker/sdrhub/planewatch.env" = mkContainerSecret "planewatch";
 
-    "docker/sdrhub/radarvirtuel.env" = {
-      format = "yaml";
-    };
+    "docker/sdrhub/radarvirtuel.env" = mkContainerSecret "radarvirtuel";
 
-    "docker/sdrhub/rbfeeder.env" = {
-      format = "yaml";
-    };
+    "docker/sdrhub/rbfeeder.env" = mkContainerSecret "rbfeeder";
 
-    "docker/sdrhub/opensky.env" = {
-      format = "yaml";
-    };
+    "docker/sdrhub/opensky.env" = mkContainerSecret "opensky";
 
-    "docker/sdrhub/sdrmap.env" = {
-      format = "yaml";
-    };
+    "docker/sdrhub/sdrmap.env" = mkContainerSecret "sdrmap";
 
-    "docker/sdrhub/acarshub.env" = {
-      format = "yaml";
-    };
+    # Shared by both acarshub and acarshubv4; each must pick up the change.
+    "docker/sdrhub/acarshub.env" = mkContainerSecrets [
+      "acarshub"
+      "acarshubv4"
+    ];
 
-    "docker/sdrhub/acars_router.env" = {
-      format = "yaml";
-    };
+    "docker/sdrhub/acars_router.env" = mkContainerSecret "acars_router";
 
-    "docker/sdrhub/acars2pos.env" = {
-      format = "yaml";
-    };
+    "docker/sdrhub/acars2pos.env" = mkContainerSecret "acars2pos";
   };
 }

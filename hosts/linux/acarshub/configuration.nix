@@ -3,6 +3,12 @@
   stateVersion,
   ...
 }:
+let
+  inherit (import ../../../modules/services/mk-container-secret.nix)
+    mkContainerSecrets
+    ;
+
+in
 {
   imports = [
     ./hardware-configuration.nix
@@ -19,9 +25,12 @@
   system.stateVersion = stateVersion;
 
   sops.secrets = {
-    "docker/acarshub.env" = {
-      format = "yaml";
-    };
+    "docker/acarshub.env" = mkContainerSecrets [
+      "acarsdec-1"
+      "acarsdec-2"
+      "acarsdec-3"
+      "dozzle-agent"
+    ];
   };
 
   services = {

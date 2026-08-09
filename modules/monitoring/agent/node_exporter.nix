@@ -5,6 +5,13 @@
   inputs,
   ...
 }:
+let
+  # See modules/monitoring/agent/cadvisor.nix for the reasoning. node_exporter
+  # served 3021 lines of host metrics -- filesystem sizes, every interface and
+  # MAC, systemd unit state -- unauthenticated to the internet on fredvps.
+  bindAddress =
+    if config.deployment.internetFacing then config.deployment.tailscaleAddress else "0.0.0.0";
+in
 {
   systemd = {
     services = {
@@ -471,8 +478,10 @@
     #########################################################
     prometheus.exporters.node = {
       enable = true;
-      openFirewall = true;
-      listenAddress = "0.0.0.0";
+      # openFirewall only for LAN nodes; an internet-facing node is scraped
+      # over Tailscale, which does not traverse nixos-fw's port rules.
+      openFirewall = !config.deployment.internetFacing;
+      listenAddress = bindAddress;
       port = 9100;
 
       enabledCollectors = [
@@ -497,7 +506,7 @@
     };
   };
 
-  networking.firewall.allowedTCPPorts = [
+  networking.firewall.allowedTCPPorts = lib.optionals (!config.deployment.internetFacing) [
     9100 # node_exporter
   ];
 

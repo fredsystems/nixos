@@ -3,6 +3,12 @@
   stateVersion,
   ...
 }:
+let
+  inherit (import ../../../modules/services/mk-container-secret.nix)
+    mkContainerSecret
+    ;
+
+in
 {
   imports = [
     ./hardware-configuration.nix
@@ -19,15 +25,9 @@
   system.stateVersion = stateVersion;
 
   sops.secrets = {
-    "docker/hfdlhub1/dumphfdl1.env" = {
-      format = "yaml";
-    };
-    "docker/hfdlhub1/dumphfdl2.env" = {
-      format = "yaml";
-    };
-    "docker/hfdlhub1/dumphfdl3.env" = {
-      format = "yaml";
-    };
+    "docker/hfdlhub1/dumphfdl1.env" = mkContainerSecret "dumphfdl-1";
+    "docker/hfdlhub1/dumphfdl2.env" = mkContainerSecret "dumphfdl-2";
+    "docker/hfdlhub1/dumphfdl3.env" = mkContainerSecret "dumphfdl-3";
   };
 
   services = {
