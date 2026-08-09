@@ -109,20 +109,32 @@ let
         # file or directory", because ReadWritePaths cannot resolve a path
         # that no longer exists.
         #
-        # ReadWritePaths then punches a hole for the app's own directory,
-        # which is the only place either app writes:
+        # ReadWritePaths re-opens the app's own directory, plus anything
+        # listed in extraWritablePaths.
         #
-        #   * test-site   -- a 98 MB SQLite database at
-        #                    app/database/discord_db.sqlite. Its two
-        #                    plt.savefig() calls target BytesIO, not disk.
-        #   * discord-bot -- 2085 PNGs written with RELATIVE filenames
-        #                    (`plt.savefig(f"{name}.png")`), which resolve
-        #                    against WorkingDirectory = app.path.
+        # Do NOT assume an app only writes inside its own checkout. Both of
+        # these write outside it, and the code does not make that obvious:
         #
-        # Confirmed no writes land outside those directories.
+        #   * discord-bot -- 2085 PNGs land in app.path (relative
+        #                    `plt.savefig(f"{name}.png")` against
+        #                    WorkingDirectory), but its live 729 MB SQLite
+        #                    database is /mnt/discord/discord_db.sqlite,
+        #                    with 22 write sites.
+        #   * test-site   -- reads the SAME /mnt/discord database. main_db.py
+        #                    looks for app/database/discord_db.sqlite first
+        #                    and only falls back to /mnt, and the local
+        #                    directory contains discord_db_TEST.sqlite --
+        #                    a different filename -- so the fallback is what
+        #                    actually runs. Its two plt.savefig() calls
+        #                    target BytesIO, not disk.
+        #
+        # The failure mode if this is wrong is quiet: reads keep working and
+        # only writes fail, with SQLite reporting "attempt to write a
+        # readonly database" at query time. Verify against the running
+        # process (`ls -l /proc/<pid>/fd`), not against the source.
         ProtectSystem = "strict";
         ProtectHome = "read-only";
-        ReadWritePaths = [ app.path ];
+        ReadWritePaths = [ app.path ] ++ app.extraWritablePaths;
 
         # matplotlib needs a writable cache and defaults to $HOME/.cache,
         # which ProtectHome has just made read-only. It does not fail -- it
@@ -247,6 +259,31 @@ in
               but that don't exist anywhere on NixOS's FHS-less
               filesystem otherwise. Add more per-app as needed, e.g.
               `pkgs.gfortran.cc.lib` for scipy's libgfortran/libquadmath.
+            '';
+          };
+
+          extraWritablePaths = lib.mkOption {
+            type = lib.types.listOf lib.types.str;
+            default = [ ];
+            example = [ "/mnt/discord" ];
+            description = ''
+              Additional host paths the service may write to, on top of its
+              own `path`.
+
+              The sandbox below makes the whole filesystem read-only and
+              then re-opens exactly `path`. Anything an app writes OUTSIDE
+              its own directory has to be listed here or it will fail --
+              and SQLite in particular fails at write time with
+              "attempt to write a readonly database" rather than at
+              startup, so the breakage surfaces later and looks like an
+              application bug.
+
+              Establish the real value by inspecting the running service
+              (`ls -l /proc/<pid>/fd`) rather than reading the code: the
+              discord-bot resolves its database to /mnt/discord, not to
+              anything under its own checkout, and the test-site falls
+              through to the same path because the local filename it looks
+              for does not exist.
             '';
           };
 

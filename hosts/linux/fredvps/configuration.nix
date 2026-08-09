@@ -330,6 +330,13 @@ in
       test-site = {
         path = "/home/nik/test_site";
         user = "nik";
+        # Reads the shared database at /mnt/discord. main_db.py prefers
+        # app/database/discord_db.sqlite but that exact filename does not
+        # exist (the local file is discord_db_TEST.sqlite), so the /mnt
+        # fallback is the path actually used. Listed even though this app
+        # only reads: SQLite needs to create -wal/-shm alongside the
+        # database file, which is a write to the directory.
+        extraWritablePaths = [ "/mnt/discord" ];
         # scipy==1.10.1 (pinned in requirements.txt) has no cp312+ wheel.
         python = pkgs.python311;
         # --no-access-log: uvicorn's per-request log was 248780 of this unit's
@@ -351,6 +358,9 @@ in
       discord-bot = {
         path = "/home/nik/discord-bot";
         user = "nik";
+        # The live 729 MB database, with 22 write sites in main-discord.py.
+        # Confirmed open by the running process, not inferred from source.
+        extraWritablePaths = [ "/mnt/discord" ];
         # matplotlib==3.7.5 (pinned in requirements.txt) has no cp313 wheel.
         python = pkgs.python312;
         execStart = "$VENV/bin/python main-discord.py";
