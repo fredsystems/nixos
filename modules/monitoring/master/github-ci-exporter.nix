@@ -78,6 +78,22 @@
     # those filters and still is not worth watching.
     denylist = [ ];
 
+    # Individual pull requests that are stuck and are not ours to unstick.
+    #
+    # docker-vesselalert#32 is open against a repository we do not own. It
+    # conflicts with the base branch, the maintainer has shown no interest in
+    # it, and it is not ours to close or convert to a draft -- the two actions
+    # that would otherwise clear the alert. Left alone it fires
+    # GitHubPullRequestChecksFailing indefinitely, which is the shape of alert
+    # that teaches the operator to ignore the whole class.
+    #
+    # This suppresses only the per-PR series, so the repository's CI and every
+    # other pull request on it stay monitored. Using `denylist` instead would
+    # blind the exporter to all of it.
+    ignorePulls = [
+      "sdr-enthusiasts/docker-vesselalert#32"
+    ];
+
     tokenFile = config.sops.secrets.github_pat_public_ro.path;
   };
 }
