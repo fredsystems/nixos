@@ -12,7 +12,6 @@
       "https://catppuccin.cachix.org"
       "https://niri.cachix.org"
       "https://niri-epireyn.cachix.org"
-      "http://192.168.31.14:8080/fred"
     ];
     extra-trusted-public-keys = [
       "colmena.cachix.org-1:7BzpDnjjH8ki2CT3f6GdOk7QAzPOl+1t3LvTLXqYcSg="
