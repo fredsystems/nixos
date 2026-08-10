@@ -1,0 +1,214 @@
+# Frigate NVR alerts (nvrhub).
+#
+# WHY THESE EXIST IN THIS SHAPE
+#
+# The generic fleet rules already cover the case where frigate.service dies:
+# SystemdUnitFailed matches it (frigate.service is not in that rule's
+# `name!~"docker-.*|github-runner-runner-.*"` exclusion, verified), and NodeDown
+# covers the host vanishing. Nothing here duplicates that.
+#
+# What the generic rules CANNOT see is the failure mode this deployment actually
+# produced three times while being brought up: the unit stays `active`, systemd
+# is happy, recording continues, and yet the NVR is not doing its job.
+#
+#   1. Detection completely dead. detect.enabled defaults to false in Frigate
+#      0.17, so cameras decoded every frame and discarded it. /api/stats showed
+#      camera_fps 5.1, detection_fps 0.0 -- and the service reported healthy.
+#   2. Detector crash-looping. YOLOX post-processing is broken in 0.17.2's
+#      OpenVINO plugin (see .github/tracked-upstream-fixes.json); the detector
+#      process died repeatedly while ffmpeg kept writing recordings.
+#   3. A single camera silently not recording. The doorbell's pcm_mulaw audio
+#      cannot go in an MP4 container, so every one of its segments was discarded
+#      while the other seven cameras were fine.
+#
+# All three are invisible to a unit-state check and all three are covered below.
+#
+# METRIC SOURCE
+#
+# Frigate serves these natively at /api/metrics. Names and labels were read off
+# the running instance on 2026-08-10, not taken from documentation:
+#
+#   frigate_camera_fps{camera_name="..."}                     5.0 (3.1 doorbell)
+#   frigate_detection_fps{camera_name="..."}                  0.2 - 5.0
+#   frigate_skipped_fps{camera_name="..."}                    0.0 on all
+#   frigate_detection_total_fps                               20.8
+#   frigate_detector_inference_speed_seconds{name="cpu1"}     0.0145
+#   frigate_detection_start{name="cpu1"}                      unix ts
+#   frigate_service_uptime_seconds                            gauge
+#   frigate_storage_free_bytes{storage="..."}                 per path
+#   frigate_camera_events_total{camera="...",label="car"}      counter
+#
+# NOTE the label inconsistency, which is upstream's and is easy to get wrong:
+# the per-camera gauges use `camera_name`, but frigate_camera_events_total uses
+# `camera`. Both spellings appear below deliberately.
+#
+# frigate_detection_enabled is declared in the endpoint's HELP output but emits
+# NO SERIES (verified). It is therefore not used here -- alerting on a metric
+# that never appears would be a rule that can never fire, which is precisely
+# the class of silent-nothing this file exists to prevent.
+groups:
+  - name: frigate-alerts
+    rules:
+      # The scrape target itself. PrometheusTargetDown covers this generically,
+      # but this gives a Frigate-specific message and, more importantly, is the
+      # rule that stays meaningful when every other rule here goes silent
+      # because the metrics stopped arriving.
+      - alert: FrigateDown
+        expr: up{job="frigate"} == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Frigate is not scrapeable on {{ $labels.hostname }}"
+          description: "The Frigate metrics endpoint has been unreachable for 5 minutes. Either the service is down, nginx is down, or the LAN-restricted /api/metrics location is misconfigured. All other Frigate alerts are inoperative while this fires."
+
+      # A camera has stopped delivering frames.
+      #
+      # This is the "camera down" signal: an unplugged PoE cable, a rebooting
+      # camera, a wrong RTSP path, or expired credentials all land here, because
+      # in every case ffmpeg stops producing frames for that one camera while
+      # the other seven continue.
+      #
+      # Threshold is 0 rather than "below expected", because the expected rate
+      # legitimately differs per camera (5 fps on the seven DS-2CD2342WD-I
+      # units, ~3 on the DB1 doorbell) and Frigate restarts a stalled ffmpeg
+      # itself. Only a sustained total absence of frames is a real fault.
+      #
+      # 10m rather than a couple of minutes: Frigate's own ffmpeg watchdog
+      # restarts a wedged input within about a minute, and a camera power-cycle
+      # is not something to be paged about.
+      - alert: FrigateCameraNoFrames
+        expr: frigate_camera_fps == 0
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Camera {{ $labels.camera_name }} is delivering no frames on {{ $labels.hostname }}"
+          description: "frigate_camera_fps has been 0 for 10 minutes. The camera is unreachable, powered off, or its RTSP stream has changed. Nothing is being recorded from it."
+
+      # Detection is dead fleet-wide.
+      #
+      # frigate_detection_total_fps is the sum across all cameras, so this fires
+      # when NO camera is running inference. That is the exact signature of both
+      # failure 1 (detect.enabled false) and failure 2 (detector process
+      # crash-looping) above.
+      #
+      # Deliberately the TOTAL and not per-camera: per-camera detection_fps is
+      # motion-driven and legitimately sits at 0.0 on a still camera for long
+      # periods (living_room was observed at 0.0 with everything working). A
+      # per-camera zero rule would be permanent false-positive noise; the sum
+      # across eight cameras being zero for 15 minutes is not.
+      - alert: FrigateDetectionStopped
+        expr: frigate_detection_total_fps == 0
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Object detection has stopped entirely on {{ $labels.hostname }}"
+          description: "No camera has run object detection for 15 minutes while Frigate is still up. Recording continues but nothing is being detected, so the detections and alerts retention tiers are inoperative and no event will be generated for a person or car. Check the detector process in `journalctl -u frigate`."
+
+      # The detector process is restarting.
+      #
+      # frigate_detection_start is the detector's start timestamp, so a change
+      # means the process was replaced. Frigate's watchdog restarts a detector
+      # it believes is stuck; a crash-looping detector therefore shows up as a
+      # repeatedly moving start time rather than as a failed unit.
+      #
+      # This is what failure 2 looked like from the outside, and it fired
+      # nothing at the time.
+      - alert: FrigateDetectorRestarting
+        expr: changes(frigate_detection_start[30m]) > 2
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Frigate detector {{ $labels.name }} is restarting repeatedly on {{ $labels.hostname }}"
+          description: "The detector process has restarted more than twice in 30 minutes, which means it is crashing rather than running. Detection is unreliable or absent. Check `journalctl -u frigate` for a traceback from the detector plugin."
+
+      # Frames are being dropped before detection.
+      #
+      # skipped_fps is Frigate's own "I could not keep up" counter and is 0.0 on
+      # every camera at the current load (8 cameras, ~14ms inference, 28% of a
+      # 16-thread box). A sustained nonzero value means detection is now
+      # CPU-starved and objects are being missed between frames.
+      #
+      # This is the rule that would catch a model upgrade being too expensive
+      # for this hardware -- a change made deliberately, whose cost would
+      # otherwise show up only as detections quietly getting worse.
+      - alert: FrigateDroppingFrames
+        expr: frigate_skipped_fps > 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Frigate is skipping frames on {{ $labels.camera_name }} ({{ $labels.hostname }})"
+          description: "{{ $value }} frames/sec are being skipped before detection because the detector cannot keep up. Objects are being missed. Baseline on this host is 0 for every camera; if this appeared after a model change, the new model is too expensive for the CPU detector."
+
+      # Inference latency. A leading indicator for the rule above: latency
+      # climbs before frames actually start being dropped.
+      #
+      # Baseline is 0.0145s (14.5ms) with the tflite cpu detector on a Ryzen 7
+      # 3800X at num_threads=8. 150ms is an order of magnitude worse and means
+      # either severe CPU contention or a model far heavier than the hardware
+      # supports.
+      - alert: FrigateInferenceSlow
+        expr: frigate_detector_inference_speed_seconds > 0.15
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Frigate inference at {{ $value }}s on {{ $labels.hostname }} ({{ $labels.name }})"
+          description: "Object detection is taking more than 150ms per frame, against a 14.5ms baseline for this detector and CPU. Detection will start skipping frames if this continues. Check for CPU contention or an over-heavy detection model."
+
+      # Recording storage exhaustion.
+      #
+      # NodeDiskLow already watches the filesystem, but Frigate is supposed to
+      # expire its own oldest segments to stay within the configured retention
+      # (continuous 3 days / detections 14 / alerts 30) and never fill the disk
+      # at all. So this firing means Frigate's expiry is not working, which is a
+      # different fault from "a disk filled up" and needs a different response.
+      #
+      # 10% of a 3.6 TB volume is ~360 GB, which at the measured 683 GB/day
+      # fleet-wide write rate is well under a day of headroom -- hence critical.
+      - alert: FrigateStorageLow
+        expr: |
+          (
+            frigate_storage_free_bytes{storage=~"/var/lib/frigate.*"}
+              /
+            frigate_storage_total_bytes{storage=~"/var/lib/frigate.*"}
+          ) < 0.10
+        for: 30m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Frigate storage {{ $labels.storage }} below 10% free on {{ $labels.hostname }}"
+          description: "Less than 10% of the recording volume remains. Frigate is configured to expire old recordings automatically, so this means expiry is failing rather than simply that the disk is full. At the measured write rate this is under a day of headroom."
+
+      # The whole fleet has gone quiet.
+      #
+      # A deliberate deadman rather than a per-camera one. Eight cameras
+      # covering a front door, driveway, garage and four interior rooms produce
+      # SOME person or car event over 24 hours in normal use, so total silence
+      # for a day means detection is broken in a way that leaves detection_fps
+      # nonzero -- a wrong model, a mismatched labelmap, or a threshold set too
+      # high.
+      #
+      # This is the rule that would have caught the labelmap hazard found while
+      # setting this up: Frigate's 80-class and nixpkgs' bundled 91-class COCO
+      # maps agree only up to index 10, so a mismatched map yields a detector
+      # that runs perfectly and never reports a person.
+      #
+      # 24h is deliberately long, and severity is warning not critical: a genuine
+      # quiet day (away from home, nothing moving) must not page. Absent-for-24h
+      # rather than a rate, because the counter resets when Frigate restarts.
+      - alert: FrigateNoEventsAtAll
+        expr: |
+          sum(increase(frigate_camera_events_total[24h])) == 0
+          or
+          absent(frigate_camera_events_total)
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Frigate has recorded no detection events in 24 hours"
+          description: "Not one person or car event across all eight cameras in a day, while detection appears to be running. Either the site really was empty, or detection is subtly broken -- a wrong labelmap (Frigate's 80-class and nixpkgs' 91-class COCO maps diverge from index 11), an over-high threshold, or a model that loads but classifies nothing. Verify by walking past a camera."

@@ -408,7 +408,42 @@ in
     "cameras/password" = { };
   };
 
+  # Expose Frigate's Prometheus metrics to the monitoring master.
+  #
+  # Frigate serves a native /api/metrics endpoint (frigate_camera_fps,
+  # frigate_detection_fps, frigate_detector_inference_speed_seconds,
+  # frigate_storage_*, ...), which is what the alert rules in
+  # ../../../modules/monitoring/master/alert-rules/frigate-alerts.yaml consume.
+  #
+  # Two things stop sdrhub from simply scraping it, both verified:
+  #
+  #   * Frigate binds loopback only -- `ss -tlnp` shows 127.0.0.1:5000, so the
+  #     port is unreachable across the LAN by design.
+  #   * The upstream module wraps `/api/` in an auth_request subrequest, so
+  #     `http://nvrhub.local/api/metrics` answers 401.
+  #
+  # This adds a dedicated location that proxies to the API upstream WITHOUT the
+  # auth_request, restricted to the LAN. Deliberately narrower than the
+  # alternatives: turning off Frigate's auth entirely would expose every camera
+  # and recording to the whole LAN, and putting Prometheus credentials in the
+  # scrape config would mean managing a Frigate user just for monitoring.
+  #
+  # `location = /api/metrics` is an EXACT match, which in nginx takes priority
+  # over the module's `location /api/` prefix match, so only this one path
+  # bypasses auth -- the rest of the API stays protected.
+  services.nginx.virtualHosts."nvrhub.local".locations."= /api/metrics" = {
+    proxyPass = "http://frigate-api/metrics";
+    recommendedProxySettings = true;
+    extraConfig = ''
+      allow 192.168.31.0/24;
+      allow 127.0.0.1/32;
+      deny all;
+
+      access_log off;
+    '';
+  };
+
   networking.firewall.allowedTCPPorts = [
-    80 # nginx -> Frigate UI
+    80 # nginx -> Frigate UI + /api/metrics for Prometheus
   ];
 }

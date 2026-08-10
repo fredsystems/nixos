@@ -1,0 +1,264 @@
+# Unit tests for frigate-alerts.yaml.
+#
+# Every rule gets a fires-on-fault case AND a silent-at-observed-baseline case.
+# The baselines are the values measured on nvrhub on 2026-08-10 with all eight
+# cameras healthy, because several of these rules exist specifically to
+# distinguish "quiet but working" from "broken", and a rule that also fires on a
+# healthy fleet would be worse than no rule.
+rule_files:
+  - ../frigate-alerts.yaml
+
+evaluation_interval: 1m
+
+tests:
+  - interval: 1m
+    name: FrigateDown fires when the metrics endpoint is unreachable
+    input_series:
+      - series: 'up{job="frigate", hostname="nvrhub"}'
+        values: "0+0x30"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: FrigateDown
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: frigate
+              hostname: nvrhub
+            exp_annotations:
+              summary: "Frigate is not scrapeable on nvrhub"
+              description: "The Frigate metrics endpoint has been unreachable for 5 minutes. Either the service is down, nginx is down, or the LAN-restricted /api/metrics location is misconfigured. All other Frigate alerts are inoperative while this fires."
+
+  - interval: 1m
+    name: FrigateDown silent while the target is up
+    input_series:
+      - series: 'up{job="frigate", hostname="nvrhub"}'
+        values: "1+0x30"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: FrigateDown
+        exp_alerts: []
+
+  - interval: 1m
+    name: FrigateCameraNoFrames fires for a single dead camera
+    input_series:
+      - series: 'frigate_camera_fps{camera_name="front_door", hostname="nvrhub"}'
+        values: "0+0x30"
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: FrigateCameraNoFrames
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              camera_name: front_door
+              hostname: nvrhub
+            exp_annotations:
+              summary: "Camera front_door is delivering no frames on nvrhub"
+              description: "frigate_camera_fps has been 0 for 10 minutes. The camera is unreachable, powered off, or its RTSP stream has changed. Nothing is being recorded from it."
+
+  # The doorbell runs at ~3 fps and the rest at ~5. Neither is a fault, and a
+  # "below expected fps" rule would have to encode per-camera expectations.
+  - interval: 1m
+    name: FrigateCameraNoFrames silent at observed per-camera rates
+    input_series:
+      - series: 'frigate_camera_fps{camera_name="front_door", hostname="nvrhub"}'
+        values: "5.0+0x30"
+      - series: 'frigate_camera_fps{camera_name="doorbell", hostname="nvrhub"}'
+        values: "3.1+0x30"
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: FrigateCameraNoFrames
+        exp_alerts: []
+
+  - interval: 1m
+    name: FrigateDetectionStopped fires when total detection fps is zero
+    input_series:
+      - series: 'frigate_detection_total_fps{hostname="nvrhub"}'
+        values: "0+0x40"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: FrigateDetectionStopped
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              hostname: nvrhub
+            exp_annotations:
+              summary: "Object detection has stopped entirely on nvrhub"
+              description: "No camera has run object detection for 15 minutes while Frigate is still up. Recording continues but nothing is being detected, so the detections and alerts retention tiers are inoperative and no event will be generated for a person or car. Check the detector process in `journalctl -u frigate`."
+
+  # The load-bearing negative test for this rule's design. A still camera
+  # legitimately reports detection_fps 0.0 (living_room was observed at 0.0 with
+  # everything working), so the rule uses the fleet TOTAL. Here one camera is
+  # idle while others work: that must NOT alert.
+  - interval: 1m
+    name: FrigateDetectionStopped silent when only some cameras are idle
+    input_series:
+      - series: 'frigate_detection_total_fps{hostname="nvrhub"}'
+        values: "20.8+0x40"
+      - series: 'frigate_detection_fps{camera_name="living_room", hostname="nvrhub"}'
+        values: "0+0x40"
+      - series: 'frigate_detection_fps{camera_name="upstairs_hall", hostname="nvrhub"}'
+        values: "5.0+0x40"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: FrigateDetectionStopped
+        exp_alerts: []
+
+  # A crash-looping detector shows up as a repeatedly moving start timestamp.
+  - interval: 1m
+    name: FrigateDetectorRestarting fires on a crash-looping detector
+    input_series:
+      - series: 'frigate_detection_start{name="cpu1", hostname="nvrhub"}'
+        values: "1000 1000 1000 2000 2000 2000 3000 3000 3000 4000 4000 4000 5000x30"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: FrigateDetectorRestarting
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              name: cpu1
+              hostname: nvrhub
+            exp_annotations:
+              summary: "Frigate detector cpu1 is restarting repeatedly on nvrhub"
+              description: "The detector process has restarted more than twice in 30 minutes, which means it is crashing rather than running. Detection is unreliable or absent. Check `journalctl -u frigate` for a traceback from the detector plugin."
+
+  # A stable detector start time means the process has not been replaced. One
+  # legitimate restart (a deploy) must also stay silent, which the >2 threshold
+  # provides.
+  - interval: 1m
+    name: FrigateDetectorRestarting silent on a stable detector
+    input_series:
+      - series: 'frigate_detection_start{name="cpu1", hostname="nvrhub"}'
+        values: "1786398352+0x40"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: FrigateDetectorRestarting
+        exp_alerts: []
+
+  - interval: 1m
+    name: FrigateDroppingFrames fires when the detector cannot keep up
+    input_series:
+      - series: 'frigate_skipped_fps{camera_name="kitchen", hostname="nvrhub"}'
+        values: "2.5+0x30"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: FrigateDroppingFrames
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              camera_name: kitchen
+              hostname: nvrhub
+            exp_annotations:
+              summary: "Frigate is skipping frames on kitchen (nvrhub)"
+              description: "2.5 frames/sec are being skipped before detection because the detector cannot keep up. Objects are being missed. Baseline on this host is 0 for every camera; if this appeared after a model change, the new model is too expensive for the CPU detector."
+
+  - interval: 1m
+    name: FrigateDroppingFrames silent at the observed zero baseline
+    input_series:
+      - series: 'frigate_skipped_fps{camera_name="kitchen", hostname="nvrhub"}'
+        values: "0+0x30"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: FrigateDroppingFrames
+        exp_alerts: []
+
+  - interval: 1m
+    name: FrigateInferenceSlow fires on high inference latency
+    input_series:
+      - series: 'frigate_detector_inference_speed_seconds{name="cpu1", hostname="nvrhub"}'
+        values: "0.42+0x30"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: FrigateInferenceSlow
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              name: cpu1
+              hostname: nvrhub
+            exp_annotations:
+              summary: "Frigate inference at 0.42s on nvrhub (cpu1)"
+              description: "Object detection is taking more than 150ms per frame, against a 14.5ms baseline for this detector and CPU. Detection will start skipping frames if this continues. Check for CPU contention or an over-heavy detection model."
+
+  # Measured baseline is 14.5ms.
+  - interval: 1m
+    name: FrigateInferenceSlow silent at the measured baseline
+    input_series:
+      - series: 'frigate_detector_inference_speed_seconds{name="cpu1", hostname="nvrhub"}'
+        values: "0.0145+0x30"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: FrigateInferenceSlow
+        exp_alerts: []
+
+  - interval: 1m
+    name: FrigateStorageLow fires below 10 percent free
+    input_series:
+      - series: 'frigate_storage_free_bytes{storage="/var/lib/frigate/recordings", hostname="nvrhub"}'
+        values: "200000000000+0x60"
+      - series: 'frigate_storage_total_bytes{storage="/var/lib/frigate/recordings", hostname="nvrhub"}'
+        values: "3813583800000+0x60"
+    alert_rule_test:
+      - eval_time: 40m
+        alertname: FrigateStorageLow
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              storage: /var/lib/frigate/recordings
+              hostname: nvrhub
+            exp_annotations:
+              summary: "Frigate storage /var/lib/frigate/recordings below 10% free on nvrhub"
+              description: "Less than 10% of the recording volume remains. Frigate is configured to expire old recordings automatically, so this means expiry is failing rather than simply that the disk is full. At the measured write rate this is under a day of headroom."
+
+  # Observed values: 3.73 TB free of 3.81 TB total (~98% free).
+  - interval: 1m
+    name: FrigateStorageLow silent at observed free space
+    input_series:
+      - series: 'frigate_storage_free_bytes{storage="/var/lib/frigate/recordings", hostname="nvrhub"}'
+        values: "3732534600000+0x60"
+      - series: 'frigate_storage_total_bytes{storage="/var/lib/frigate/recordings", hostname="nvrhub"}'
+        values: "3813583800000+0x60"
+    alert_rule_test:
+      - eval_time: 40m
+        alertname: FrigateStorageLow
+        exp_alerts: []
+
+  # /var/cache/frigate lives on the root disk and is a transient staging area
+  # that is expected to sit near the root filesystem's own usage. The rule
+  # selects only /var/lib/frigate* so the cache must not trip it.
+  - interval: 1m
+    name: FrigateStorageLow ignores the transient cache on the root disk
+    input_series:
+      - series: 'frigate_storage_free_bytes{storage="/var/cache/frigate", hostname="nvrhub"}'
+        values: "1000000000+0x60"
+      - series: 'frigate_storage_total_bytes{storage="/var/cache/frigate", hostname="nvrhub"}'
+        values: "467346700000+0x60"
+    alert_rule_test:
+      - eval_time: 40m
+        alertname: FrigateStorageLow
+        exp_alerts: []
+
+  # The events deadman. A flat counter over 24h means nothing was detected.
+  - interval: 5m
+    name: FrigateNoEventsAtAll fires when no events occur for a day
+    input_series:
+      - series: 'frigate_camera_events_total{camera="front_door", label="person"}'
+        values: "7+0x300"
+    alert_rule_test:
+      - eval_time: 25h
+        alertname: FrigateNoEventsAtAll
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: "Frigate has recorded no detection events in 24 hours"
+              description: "Not one person or car event across all eight cameras in a day, while detection appears to be running. Either the site really was empty, or detection is subtly broken -- a wrong labelmap (Frigate's 80-class and nixpkgs' 91-class COCO maps diverge from index 11), an over-high threshold, or a model that loads but classifies nothing. Verify by walking past a camera."
+
+  # A climbing counter means detection is demonstrably working.
+  - interval: 5m
+    name: FrigateNoEventsAtAll silent while events are being recorded
+    input_series:
+      - series: 'frigate_camera_events_total{camera="front_door", label="person"}'
+        values: "0+1x300"
+    alert_rule_test:
+      - eval_time: 25h
+        alertname: FrigateNoEventsAtAll
+        exp_alerts: []
