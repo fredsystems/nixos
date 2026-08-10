@@ -15,6 +15,7 @@
     system:
     let
       pkgs = import inputs.nixpkgs { inherit system; };
+      inherit (pkgs) lib;
 
       excludes = [
         "secrets.yaml"
@@ -160,6 +161,97 @@
       # Standalone check so `nix flake check` and CI catch category drift
       # even when the pre-commit hook is bypassed or the change arrives by
       # a route that never ran hooks (bot PRs, web edits).
+
+      # Enforces that the decoder heartbeat list in loki-ruler.nix matches the
+      # containers actually declared on each host.
+      #
+      # This drifted in production: acarsdec-3 was replaced by xng on
+      # acarshub, the host config was updated, and the heartbeat list was not.
+      # DecoderHeartbeatMissing then fired continuously for a container that
+      # no longer existed, while the container that replaced it went entirely
+      # unmonitored. The file carried a comment saying the list "must track
+      # the services.adsb.containers definitions"; a comment is not an
+      # enforcement mechanism.
+      #
+      # Only decoder containers are required to be covered. Sidecars like
+      # dozzle-agent have no heartbeat and are not expected in the list, so
+      # the check is one-directional plus a stale-entry test: every unit named
+      # in decoderUnits must exist on its host, and any container matching a
+      # known decoder-image prefix must be covered.
+      decoder-units-sync =
+        let
+          decoderPrefixes = [
+            "acarsdec"
+            "dumpvdl2"
+            "dumphfdl"
+            "hfdlobserver"
+            "dump978"
+            "xng"
+          ];
+
+          hostsWithDecoders = lib.filterAttrs (
+            _: cfg: (cfg.config.services.adsb.containers or [ ]) != [ ]
+          ) self.nixosConfigurations;
+
+          # unit name as it appears in the ruler, per host
+          actualUnits = lib.mapAttrs (
+            _: cfg: map (c: "docker-${c.name}.service") cfg.config.services.adsb.containers
+          ) hostsWithDecoders;
+
+          # containers whose name starts with a known decoder prefix
+          expectedUnits = lib.mapAttrs (
+            _: cfg:
+            map (c: "docker-${c.name}.service") (
+              lib.filter (
+                c: lib.any (prefix: lib.hasPrefix prefix c.name) decoderPrefixes
+              ) cfg.config.services.adsb.containers
+            )
+          ) hostsWithDecoders;
+
+          covered = self.nixosConfigurations.sdrhub.config.monitoring.decoderUnits;
+          coveredByHost = lib.mapAttrs (_: units: map (d: d.unit) units) (lib.groupBy (d: d.host) covered);
+
+          # 1. every covered unit must exist on its host
+          stale = lib.flatten (
+            map (
+              d:
+              let
+                onHost = actualUnits.${d.host} or [ ];
+              in
+              lib.optional (
+                !lib.elem d.unit onHost
+              ) "  stale: ${d.host} has no ${d.unit} (heartbeat rule fires forever)"
+            ) covered
+          );
+
+          # 2. every decoder container must be covered
+          uncovered = lib.flatten (
+            lib.mapAttrsToList (
+              host: units:
+              map (u: "  uncovered: ${host} runs ${u} with no heartbeat rule") (
+                lib.subtractLists (coveredByHost.${host} or [ ]) units
+              )
+            ) expectedUnits
+          );
+
+          problems = stale ++ uncovered;
+        in
+        pkgs.runCommand "decoder-units-sync-check" { } (
+          if problems == [ ] then
+            ''
+              echo "decoder heartbeat coverage OK (${toString (builtins.length covered)} units)"
+              touch "$out"
+            ''
+          else
+            ''
+              echo "decoder heartbeat list is out of sync with the host configs:" >&2
+              ${lib.concatMapStringsSep "\n" (p: "echo ${lib.escapeShellArg p} >&2") problems}
+              echo "" >&2
+              echo "Update decoderUnits in modules/monitoring/master/loki-ruler.nix." >&2
+              exit 1
+            ''
+        );
+
       input-category-sync =
         pkgs.runCommand "input-category-sync-check"
           {

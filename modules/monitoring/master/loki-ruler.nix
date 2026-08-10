@@ -31,6 +31,7 @@
 # instances collapse into a single group with an empty hostname. Alloy sets
 # `host` and `hostname` identically, so aggregations here carry both.
 {
+  lib,
   pkgs,
   ...
 }:
@@ -67,9 +68,21 @@ let
       pattern = "\\[STATS\\] Total in the last";
     }
     {
+      # xng replaced acarsdec-3 on this receiver. It emits no periodic stats
+      # line at all -- 6h of logs contained zero STATS-style output -- so the
+      # only available liveness signal is "logging anything", as with
+      # hfdlobserver.
+      #
+      # That makes this rule traffic-dependent, unlike every other entry here.
+      # It is acceptable because xng covers 16 ACARS channels including busy
+      # ones: over a 48h sample the quietest hour still produced 117 lines,
+      # roughly two per minute. The 45m window is well beyond any plausible
+      # lull while still catching a wedged container within an hour.
       host = "acarshub";
-      unit = "docker-acarsdec-3.service";
-      pattern = "\\[STATS\\] Total in the last";
+      unit = "docker-xng.service";
+      pattern = null;
+      window = "45m";
+      trafficDependent = true;
     }
     {
       host = "vdlmhub";
@@ -154,7 +167,14 @@ let
       };
       annotations = {
         summary = "Decoder ${d.unit} on ${d.host} has stopped logging";
-        description = "No heartbeat line for ${window}. The container is running but wedged, or its journal has stopped reaching Loki. This is independent of how much traffic the receiver should be decoding, so it is not a quiet-band false positive.";
+        description =
+          "No heartbeat line for ${window}. The container is running but wedged, or its journal has stopped reaching Loki. "
+          + (
+            if d.trafficDependent or false then
+              "This decoder emits no periodic heartbeat, so the signal is any log line at all: an exceptionally quiet band could in principle produce this alert without the container being broken."
+            else
+              "This is independent of how much traffic the receiver should be decoding, so it is not a quiet-band false positive."
+          );
       };
     }
   ) decoderUnits;
@@ -388,6 +408,12 @@ let
         # this series exists -- see agent-docs/MONITORING.md, Phase 6.
         name = "decoder-throughput-recording";
         interval = "1m";
+        # NOTE: xng on acarshub is deliberately absent from these rules. It
+        # emits no periodic stats line, so there is no count to unwrap; the
+        # only way to derive throughput would be to count individual decoded
+        # message lines, which is a different and much more expensive query
+        # shape than `last_over_time` on a pre-aggregated total. Its liveness
+        # is covered by the decoder-liveness group instead.
         rules = [
           {
             record = "decoder:messages:last5m";
@@ -413,41 +439,57 @@ let
   '';
 in
 {
-  # The ruler needs a writable scratch directory for rule evaluation state.
-  systemd.tmpfiles.rules = [
-    "d /var/lib/loki/rules-temp 0750 loki loki -"
-  ];
+  # Exposed so `checks.decoder-units-sync` can compare this list against the
+  # actual `services.adsb.containers` on each host. The list drifted once
+  # already: acarsdec-3 was replaced by xng on acarshub and the stale entry
+  # kept firing DecoderHeartbeatMissing for a container that no longer
+  # existed. A comment saying "this list must track the host configs" is not
+  # an enforcement mechanism.
+  options.monitoring.decoderUnits = lib.mkOption {
+    type = lib.types.listOf lib.types.attrs;
+    internal = true;
+    readOnly = true;
+    default = decoderUnits;
+    description = "Decoder units covered by heartbeat rules, read by the decoder-units-sync flake check.";
+  };
 
-  services.loki.configuration.ruler = {
-    storage = {
-      type = "local";
-      local.directory = "${rulesDir}";
-    };
+  config = {
+    # The ruler needs a writable scratch directory for rule evaluation state.
+    systemd.tmpfiles.rules = [
+      "d /var/lib/loki/rules-temp 0750 loki loki -"
+    ];
 
-    rule_path = "/var/lib/loki/rules-temp";
+    services.loki.configuration.ruler = {
+      storage = {
+        type = "local";
+        local.directory = "${rulesDir}";
+      };
 
-    alertmanager_url = "http://127.0.0.1:9093";
-    enable_alertmanager_v2 = true;
+      rule_path = "/var/lib/loki/rules-temp";
 
-    # Single-binary deployment; no ring coordination needed.
-    ring.kvstore.store = "inmemory";
+      alertmanager_url = "http://127.0.0.1:9093";
+      enable_alertmanager_v2 = true;
 
-    # Recording rule output is pushed into Prometheus, which already runs with
-    # --web.enable-remote-write-receiver (see prometheus.nix extraFlags).
-    remote_write = {
-      enabled = true;
-      clients.prometheus = {
-        url = "http://127.0.0.1:9090/api/v1/write";
-        remote_timeout = "30s";
-        queue_config = {
-          capacity = 2500;
-          max_shards = 10;
-          min_shards = 1;
+      # Single-binary deployment; no ring coordination needed.
+      ring.kvstore.store = "inmemory";
+
+      # Recording rule output is pushed into Prometheus, which already runs with
+      # --web.enable-remote-write-receiver (see prometheus.nix extraFlags).
+      remote_write = {
+        enabled = true;
+        clients.prometheus = {
+          url = "http://127.0.0.1:9090/api/v1/write";
+          remote_timeout = "30s";
+          queue_config = {
+            capacity = 2500;
+            max_shards = 10;
+            min_shards = 1;
+          };
         };
       };
     };
-  };
 
-  # Keep the generated rule file inspectable on the host for debugging.
-  environment.etc."loki/rules/decoder-logs.yaml".source = ruleFile;
+    # Keep the generated rule file inspectable on the host for debugging.
+    environment.etc."loki/rules/decoder-logs.yaml".source = ruleFile;
+  };
 }

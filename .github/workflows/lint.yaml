@@ -71,6 +71,16 @@ jobs:
         # build with the specific test case that covers it.
         run: nix build --no-link --print-build-logs .#checks.x86_64-linux.pre-commit-check
 
+      - name: Check decoder heartbeat coverage
+        # Not a pre-commit hook: this one needs a full nixosConfigurations
+        # evaluation to read each host's services.adsb.containers, which is
+        # far too slow to run on every commit. It compares that against the
+        # decoderUnits list in loki-ruler.nix, catching both a heartbeat rule
+        # for a container that no longer exists (fires forever) and a decoder
+        # container with no rule at all (silently unmonitored). Both halves
+        # occurred when acarsdec-3 was replaced by xng on acarshub.
+        run: nix build --no-link --print-build-logs .#checks.x86_64-linux.decoder-units-sync
+
   # =====================================================================
   # Required Check Summary
   # =====================================================================
