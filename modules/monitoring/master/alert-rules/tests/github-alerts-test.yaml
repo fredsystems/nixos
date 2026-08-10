@@ -1,0 +1,425 @@
+# promtool unit tests for the GitHub CI alerting rules.
+#
+# Run with:
+#   nix build .#checks.x86_64-linux.prometheus-alert-rules
+#
+# Same rationale as the other test files here: a rule can be syntactically
+# valid, report health=ok, and still be incapable of ever firing, because an
+# empty query result is not an error. Every alert has a firing case and a
+# non-firing case, and the non-firing cases are chosen to be the specific
+# false-positive traps each rule's guards exist to prevent -- most of which
+# were observed in real data before the exporter's filters were added.
+#
+# Keep every `interval:` at 5m or below: samples spaced beyond Prometheus'
+# 5m lookback delta go stale between evaluations, so a rule with a `for:`
+# clause never accumulates a continuous pending period and silently fails to
+# fire regardless of whether its expression is correct.
+rule_files:
+  - ../github-alerts.yaml
+
+evaluation_interval: 1m
+
+tests:
+  # ---------------------------------------------------------------------------
+  # GitHubCIFailingDefaultBranch
+  # ---------------------------------------------------------------------------
+
+  - interval: 5m
+    name: GitHubCIFailingDefaultBranch fires on a failed default-branch run
+    input_series:
+      - series: 'github_workflow_run_status{org="fredsystems", repo="frext", workflow="CI", event="push", conclusion="failure", job="github-ci", hostname="sdrhub", role="master"}'
+        values: "1+0x20"
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: GitHubCIFailingDefaultBranch
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              org: fredsystems
+              repo: frext
+              workflow: CI
+            exp_annotations:
+              summary: "CI failing on fredsystems/frext"
+              description: "Workflow CI last failed on the default branch of fredsystems/frext."
+
+  - interval: 5m
+    name: GitHubCIFailingDefaultBranch fires on timed_out
+    input_series:
+      - series: 'github_workflow_run_status{org="fredsystems", repo="zabbid", workflow="CI", event="push", conclusion="timed_out", job="github-ci"}'
+        values: "1+0x20"
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: GitHubCIFailingDefaultBranch
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              org: fredsystems
+              repo: zabbid
+              workflow: CI
+            exp_annotations:
+              summary: "CI failing on fredsystems/zabbid"
+              description: "Workflow CI last failed on the default branch of fredsystems/zabbid."
+
+  # A green build must not alert. Trivial, but it is the guard that catches a
+  # regex accidentally matching every conclusion.
+  - interval: 5m
+    name: GitHubCIFailingDefaultBranch stays silent on success
+    input_series:
+      - series: 'github_workflow_run_status{org="sdr-enthusiasts", repo="docker-tar1090", workflow="Deploy", event="push", conclusion="success", job="github-ci"}'
+        values: "1+0x20"
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: GitHubCIFailingDefaultBranch
+        exp_alerts: []
+
+  # Cancelled and skipped are routine: a superseded push cancels the in-flight
+  # run, and path filters skip workflows constantly. Paging on either would
+  # train the operator to ignore this alert.
+  - interval: 5m
+    name: GitHubCIFailingDefaultBranch ignores cancelled and skipped
+    input_series:
+      - series: 'github_workflow_run_status{org="fredsystems", repo="nixos", workflow="CI", event="push", conclusion="cancelled", job="github-ci"}'
+        values: "1+0x20"
+      - series: 'github_workflow_run_status{org="fredsystems", repo="nixos", workflow="Lint", event="push", conclusion="skipped", job="github-ci"}'
+        values: "1+0x20"
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: GitHubCIFailingDefaultBranch
+        exp_alerts: []
+
+  # An in-flight run must not clear a failure, nor raise one of its own.
+  - interval: 5m
+    name: GitHubCIFailingDefaultBranch ignores a running build
+    input_series:
+      - series: 'github_workflow_run_status{org="fredsystems", repo="nixos", workflow="CI", event="push", conclusion="running", job="github-ci"}'
+        values: "1+0x20"
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: GitHubCIFailingDefaultBranch
+        exp_alerts: []
+
+  # A run older than the exporter's 90-day horizon is reported as `stale`
+  # rather than by its original conclusion, because an eight-month-old result
+  # says nothing about current code and produces an alert nobody can clear
+  # without an artificial push.
+  - interval: 5m
+    name: GitHubCIFailingDefaultBranch ignores aged-out runs
+    input_series:
+      - series: 'github_workflow_run_status{org="fredsystems", repo="pre-commit-checks", workflow="Lint", event="push", conclusion="stale", job="github-ci"}'
+        values: "1+0x20"
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: GitHubCIFailingDefaultBranch
+        exp_alerts: []
+
+  # The 15m `for:` exists so a failure that is fixed on the next push does not
+  # page.
+  - interval: 5m
+    name: GitHubCIFailingDefaultBranch does not fire before the for clause
+    input_series:
+      - series: 'github_workflow_run_status{org="fredsystems", repo="frext", workflow="CI", event="push", conclusion="failure", job="github-ci"}'
+        values: "1+0x20"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: GitHubCIFailingDefaultBranch
+        exp_alerts: []
+
+  # ---------------------------------------------------------------------------
+  # GitHubWorkflowAutoDisabled
+  # ---------------------------------------------------------------------------
+
+  - interval: 5m
+    name: GitHubWorkflowAutoDisabled fires on an inactivity auto-disable
+    input_series:
+      - series: 'github_workflow_enabled{org="fredsystems", repo="fred-cal", workflow="update-flakes", state="disabled_inactivity", job="github-ci"}'
+        values: "0+0x40"
+    alert_rule_test:
+      - eval_time: 2h
+        alertname: GitHubWorkflowAutoDisabled
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              org: fredsystems
+              repo: fred-cal
+              workflow: update-flakes
+              state: disabled_inactivity
+              job: github-ci
+            exp_annotations:
+              summary: "GitHub auto-disabled update-flakes in fredsystems/fred-cal"
+              description: "GitHub disabled this workflow after 60 days of repository inactivity. It is no longer running. Re-enable it in the Actions tab, or push to the repository."
+
+  # A manual disable is a deliberate choice and must never page. This is the
+  # whole reason the exporter distinguishes the two disabled states rather
+  # than exposing a single boolean.
+  - interval: 5m
+    name: GitHubWorkflowAutoDisabled ignores a manual disable
+    input_series:
+      - series: 'github_workflow_enabled{org="sdr-enthusiasts", repo="docker-shipfeeder", workflow="Check container software versions", state="disabled_manually", job="github-ci"}'
+        values: "0+0x40"
+    alert_rule_test:
+      - eval_time: 2h
+        alertname: GitHubWorkflowAutoDisabled
+        exp_alerts: []
+
+  - interval: 5m
+    name: GitHubWorkflowAutoDisabled ignores an active workflow
+    input_series:
+      - series: 'github_workflow_enabled{org="fredsystems", repo="nixos", workflow="CI", state="active", job="github-ci"}'
+        values: "1+0x40"
+    alert_rule_test:
+      - eval_time: 2h
+        alertname: GitHubWorkflowAutoDisabled
+        exp_alerts: []
+
+  # ---------------------------------------------------------------------------
+  # GitHubScheduledWorkflowStale
+  # ---------------------------------------------------------------------------
+
+  # Daily cron: 3x the interval is 72h. Rather than advancing eval_time for
+  # four days (which at a 5m sample spacing would need ~1150 samples), the
+  # last-run timestamp is set four days in the past, so a short evaluation
+  # window still exercises the threshold.
+  - interval: 5m
+    name: GitHubScheduledWorkflowStale fires past three intervals
+    input_series:
+      - series: 'github_workflow_run_timestamp_seconds{org="sdr-enthusiasts", repo="docker-xng", workflow="update-flakes", job="github-ci"}'
+        values: "-345600+0x30"
+      - series: 'github_workflow_expected_interval_seconds{org="sdr-enthusiasts", repo="docker-xng", workflow="update-flakes", job="github-ci"}'
+        values: "86400+0x30"
+      - series: 'github_workflow_enabled{org="sdr-enthusiasts", repo="docker-xng", workflow="update-flakes", state="active", job="github-ci"}'
+        values: "1+0x30"
+    alert_rule_test:
+      - eval_time: 1h
+        alertname: GitHubScheduledWorkflowStale
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              org: sdr-enthusiasts
+              repo: docker-xng
+              workflow: update-flakes
+              job: github-ci
+            exp_annotations:
+              summary: "Scheduled workflow update-flakes has not run in sdr-enthusiasts/docker-xng"
+              description: "Last run was 4d 1h 0m 0s ago, more than three times its configured schedule interval."
+
+  # The same four-day-old run against a weekly cron must NOT fire: 3x a week
+  # is 21 days. Guards against a fixed threshold silently replacing the
+  # cron-derived one.
+  - interval: 5m
+    name: GitHubScheduledWorkflowStale respects a weekly interval
+    input_series:
+      - series: 'github_workflow_run_timestamp_seconds{org="fredsystems", repo="freminal", workflow="update-flakes", job="github-ci"}'
+        values: "-345600+0x30"
+      - series: 'github_workflow_expected_interval_seconds{org="fredsystems", repo="freminal", workflow="update-flakes", job="github-ci"}'
+        values: "604800+0x30"
+      - series: 'github_workflow_enabled{org="fredsystems", repo="freminal", workflow="update-flakes", state="active", job="github-ci"}'
+        values: "1+0x30"
+    alert_rule_test:
+      - eval_time: 1h
+        alertname: GitHubScheduledWorkflowStale
+        exp_alerts: []
+
+  # A disabled workflow is not "late", it is off. GitHubWorkflowAutoDisabled
+  # reports that with an accurate description; this rule must stay quiet so
+  # one condition does not produce two pages.
+  - interval: 5m
+    name: GitHubScheduledWorkflowStale is suppressed for a disabled workflow
+    input_series:
+      - series: 'github_workflow_run_timestamp_seconds{org="fredsystems", repo="fred-cal", workflow="update-flakes", job="github-ci"}'
+        values: "-345600+0x30"
+      - series: 'github_workflow_expected_interval_seconds{org="fredsystems", repo="fred-cal", workflow="update-flakes", job="github-ci"}'
+        values: "86400+0x30"
+      - series: 'github_workflow_enabled{org="fredsystems", repo="fred-cal", workflow="update-flakes", state="disabled_inactivity", job="github-ci"}'
+        values: "0+0x30"
+    alert_rule_test:
+      - eval_time: 1h
+        alertname: GitHubScheduledWorkflowStale
+        exp_alerts: []
+
+  # ---------------------------------------------------------------------------
+  # GitHubHumanPullRequestStale
+  # ---------------------------------------------------------------------------
+
+  # Created 31 days in the past. Encoding the age in the series value rather
+  # than advancing eval_time keeps the sample count small; a 31-day
+  # evaluation at 5m spacing would need ~8900 samples.
+  - interval: 5m
+    name: GitHubHumanPullRequestStale fires on an old human PR
+    input_series:
+      - series: 'github_pull_created_timestamp_seconds{org="fredsystems", repo="nixos", number="1615", author="fredclausen", author_kind="human", draft="false", job="github-ci"}'
+        values: "-2678400+0x30"
+    alert_rule_test:
+      - eval_time: 2h
+        alertname: GitHubHumanPullRequestStale
+        exp_alerts:
+          - exp_labels:
+              severity: info
+              org: fredsystems
+              repo: nixos
+              number: "1615"
+              author: fredclausen
+              author_kind: human
+              draft: "false"
+              job: github-ci
+            exp_annotations:
+              summary: "PR #1615 open 31d 2h 0m 0s in fredsystems/nixos"
+              description: "Pull request #1615 by fredclausen has been open for over 30 days."
+
+  # Bot PRs are excluded by design. renovate holds PRs open indefinitely;
+  # including them would make this rule fire on dozens of PRs permanently.
+  - interval: 5m
+    name: GitHubHumanPullRequestStale ignores bot PRs
+    input_series:
+      - series: 'github_pull_created_timestamp_seconds{org="sdr-enthusiasts", repo="docker-acarshub", number="900", author="renovate", author_kind="bot", draft="false", job="github-ci"}'
+        values: "-2678400+0x30"
+    alert_rule_test:
+      - eval_time: 2h
+        alertname: GitHubHumanPullRequestStale
+        exp_alerts: []
+
+  # An open draft is work in progress, not a stalled review.
+  - interval: 5m
+    name: GitHubHumanPullRequestStale ignores drafts
+    input_series:
+      - series: 'github_pull_created_timestamp_seconds{org="fredsystems", repo="nixos", number="42", author="fredclausen", author_kind="human", draft="true", job="github-ci"}'
+        values: "-2678400+0x30"
+    alert_rule_test:
+      - eval_time: 2h
+        alertname: GitHubHumanPullRequestStale
+        exp_alerts: []
+
+  - interval: 5m
+    name: GitHubHumanPullRequestStale ignores a recent PR
+    input_series:
+      - series: 'github_pull_created_timestamp_seconds{org="fredsystems", repo="nixos", number="99", author="fredclausen", author_kind="human", draft="false", job="github-ci"}'
+        values: "-864000+0x30"
+    alert_rule_test:
+      - eval_time: 2h
+        alertname: GitHubHumanPullRequestStale
+        exp_alerts: []
+
+  # ---------------------------------------------------------------------------
+  # Exporter health
+  # ---------------------------------------------------------------------------
+
+  - interval: 5m
+    name: GitHubExporterDown fires when the scrape fails
+    input_series:
+      - series: 'up{job="github-ci", instance="127.0.0.1:9418", hostname="sdrhub", role="master"}'
+        values: "0+0x20"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: GitHubExporterDown
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: github-ci
+              instance: 127.0.0.1:9418
+              hostname: sdrhub
+              role: master
+            exp_annotations:
+              summary: "github-ci-exporter is not responding"
+              description: "Prometheus cannot scrape the GitHub CI exporter on sdrhub. All CI visibility is blind."
+
+  # The exporter serves metrics even while collection fails, so `up` stays 1
+  # and only scrape_success reveals the problem.
+  - interval: 5m
+    name: GitHubExporterCollectionFailing fires while the process stays up
+    input_series:
+      - series: 'up{job="github-ci", instance="127.0.0.1:9418"}'
+        values: "1+0x20"
+      - series: 'github_exporter_scrape_success{job="github-ci", instance="127.0.0.1:9418"}'
+        values: "0+0x20"
+    alert_rule_test:
+      - eval_time: 45m
+        alertname: GitHubExporterDown
+        exp_alerts: []
+      - eval_time: 45m
+        alertname: GitHubExporterCollectionFailing
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: github-ci
+              instance: 127.0.0.1:9418
+            exp_annotations:
+              summary: "github-ci-exporter cannot collect from GitHub"
+              description: "Collection cycles have been failing for 30 minutes. Displayed CI state is stale. Check the token and GitHub's status."
+
+  - interval: 5m
+    name: GitHubExporterCollectionFailing stays silent when healthy
+    input_series:
+      - series: 'github_exporter_scrape_success{job="github-ci", instance="127.0.0.1:9418"}'
+        values: "1+0x20"
+    alert_rule_test:
+      - eval_time: 45m
+        alertname: GitHubExporterCollectionFailing
+        exp_alerts: []
+
+  - interval: 5m
+    name: GitHubExporterBudgetExhausted fires when a cycle is skipped
+    input_series:
+      - series: 'github_exporter_budget_exhausted{job="github-ci", instance="127.0.0.1:9418"}'
+        values: "1+0x20"
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: GitHubExporterBudgetExhausted
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: github-ci
+              instance: 127.0.0.1:9418
+            exp_annotations:
+              summary: "github-ci-exporter skipped a cycle to protect the API budget"
+              description: "The remaining GitHub API budget could not cover a full sweep, so collection was skipped. CI state is not being refreshed."
+
+  - interval: 5m
+    name: GitHubExporterRateLimitLow fires per exhausted pool
+    input_series:
+      - series: 'github_exporter_rate_limit_remaining{resource="core", job="github-ci", instance="127.0.0.1:9418"}'
+        values: "300+0x20"
+      - series: 'github_exporter_rate_limit_remaining{resource="graphql", job="github-ci", instance="127.0.0.1:9418"}'
+        values: "4900+0x20"
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: GitHubExporterRateLimitLow
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              resource: core
+              job: github-ci
+              instance: 127.0.0.1:9418
+            exp_annotations:
+              summary: "GitHub API budget low for core"
+              description: "Only 300 requests remain in the core pool. The exporter will start skipping cycles as it approaches its reserve."
+
+  # core and graphql are independent 5000/hour pools. A healthy graphql budget
+  # must not mask an exhausted core one, which is why the exporter tracks them
+  # separately rather than reporting a single figure.
+  - interval: 5m
+    name: GitHubExporterRateLimitLow stays silent when both pools are healthy
+    input_series:
+      - series: 'github_exporter_rate_limit_remaining{resource="core", job="github-ci"}'
+        values: "4700+0x20"
+      - series: 'github_exporter_rate_limit_remaining{resource="graphql", job="github-ci"}'
+        values: "4900+0x20"
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: GitHubExporterRateLimitLow
+        exp_alerts: []
+
+  - interval: 5m
+    name: GitHubExporterStale fires when no cycle has succeeded for an hour
+    input_series:
+      - series: 'github_exporter_last_success_timestamp_seconds{job="github-ci", instance="127.0.0.1:9418"}'
+        values: "-7200+0x30"
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: GitHubExporterStale
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: github-ci
+              instance: 127.0.0.1:9418
+            exp_annotations:
+              summary: "github-ci-exporter data is stale"
+              description: "No successful collection cycle for 2h 30m 0s, despite the exporter being reachable."

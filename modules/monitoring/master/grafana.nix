@@ -59,6 +59,13 @@
       group = "grafana";
       mode = "0444";
     };
+
+    "grafana/provisioning/dashboards/github/github-ci.json" = {
+      source = ./dashboards/github-ci.json;
+      user = "grafana";
+      group = "grafana";
+      mode = "0444";
+    };
   };
 
   services = {
@@ -176,6 +183,19 @@
 
                 options = {
                   path = "/etc/grafana/provisioning/dashboards/security";
+                };
+              }
+
+              {
+                name = "github";
+                orgId = 1;
+                folder = "GitHub";
+                type = "file";
+                disableDeletion = true;
+                updateIntervalSeconds = 60;
+
+                options = {
+                  path = "/etc/grafana/provisioning/dashboards/github";
                 };
               }
             ];

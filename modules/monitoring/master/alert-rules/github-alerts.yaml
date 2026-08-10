@@ -1,0 +1,165 @@
+groups:
+  # Alerts on the state of CI across the sdr-enthusiasts and fredsystems
+  # organisations, sourced from github-ci-exporter on sdrhub.
+  #
+  # SCOPE
+  #
+  # These rules describe the health of the *default branch*. The exporter
+  # already excludes pull-request runs, runs of deleted workflows, and runs
+  # older than 90 days, so anything reaching these expressions is meant to
+  # describe current code. See the exporter's README for why each of those
+  # filters exists -- naively taking the newest run per workflow produced 38
+  # "failures" of which fewer than half were real.
+  #
+  # BOT vs HUMAN
+  #
+  # The exporter labels issues and pull requests with author_kind, derived
+  # from GraphQL's __typename rather than a login denylist. Rules that would
+  # otherwise be dominated by renovate and dependabot select
+  # author_kind="human". Bot activity stays on the dashboard for visibility.
+  - name: github-ci
+    rules:
+      # The core signal. A workflow whose most recent branch-state run
+      # failed.
+      #
+      # conclusion="failure" covers only genuine breakage: the exporter maps
+      # cancelled and skipped to their own conclusions, because both are
+      # routine (superseded pushes, path filters) and paging on them trains
+      # the operator to ignore the alert. timed_out and action_required are
+      # separate conclusions and are matched explicitly below.
+      #
+      # The 15m `for:` absorbs the retrigger window -- a push that fails and
+      # is immediately fixed should not page.
+      - alert: GitHubCIFailingDefaultBranch
+        expr: |
+          max by (org, repo, workflow) (
+            github_workflow_run_status{conclusion=~"failure|timed_out|action_required"}
+          ) == 1
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "CI failing on {{ $labels.org }}/{{ $labels.repo }}"
+          description: "Workflow {{ $labels.workflow }} last failed on the default branch of {{ $labels.org }}/{{ $labels.repo }}."
+
+      # GitHub disables scheduled workflows in a repository with no activity
+      # for 60 days, silently. The workflow simply stops running; nothing is
+      # reported anywhere. This was live in the fleet on fredsystems/fred-cal,
+      # where a weekly update-flakes had been dead long enough to be invisible.
+      #
+      # state="disabled_inactivity" only. A manual disable is deliberate and
+      # must not page.
+      - alert: GitHubWorkflowAutoDisabled
+        expr: github_workflow_enabled{state="disabled_inactivity"} == 0
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "GitHub auto-disabled {{ $labels.workflow }} in {{ $labels.org }}/{{ $labels.repo }}"
+          description: "GitHub disabled this workflow after 60 days of repository inactivity. It is no longer running. Re-enable it in the Actions tab, or push to the repository."
+
+      # A scheduled workflow that has missed its cadence. expected_interval is
+      # derived from the workflow's own cron expression, so the threshold
+      # adapts to weekly vs daily schedules rather than being a fixed guess.
+      #
+      # 3x rather than 2x: GitHub's scheduled runs are best-effort and are
+      # routinely delayed under load, so 2x produces false positives on hourly
+      # crons. The `unless` guard suppresses this for workflows already known
+      # to be disabled, which GitHubWorkflowAutoDisabled reports with a more
+      # accurate description.
+      - alert: GitHubScheduledWorkflowStale
+        expr: |
+          (
+            time() - github_workflow_run_timestamp_seconds
+              > 3 * github_workflow_expected_interval_seconds
+          )
+          unless on (org, repo, workflow) (
+            github_workflow_enabled == 0
+          )
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Scheduled workflow {{ $labels.workflow }} has not run in {{ $labels.org }}/{{ $labels.repo }}"
+          description: "Last run was {{ $value | humanizeDuration }} ago, more than three times its configured schedule interval."
+
+      # A human pull request left open for a month. Bot PRs are excluded
+      # entirely -- renovate and dependabot routinely hold PRs open by design,
+      # and including them would make this fire constantly.
+      #
+      # Drafts are excluded: an open draft is work in progress, not a stalled
+      # review.
+      - alert: GitHubHumanPullRequestStale
+        expr: |
+          (time() - github_pull_created_timestamp_seconds{author_kind="human", draft="false"})
+            > 30 * 24 * 3600
+        for: 1h
+        labels:
+          severity: info
+        annotations:
+          summary: "PR #{{ $labels.number }} open {{ $value | humanizeDuration }} in {{ $labels.org }}/{{ $labels.repo }}"
+          description: "Pull request #{{ $labels.number }} by {{ $labels.author }} has been open for over 30 days."
+
+  # Health of the exporter itself. Without these, an exporter that has died or
+  # exhausted its API budget is indistinguishable from a fleet whose CI is
+  # entirely green -- the same silent-failure trap meta-alerts.yaml exists to
+  # close for the monitoring stack.
+  - name: github-ci-exporter
+    rules:
+      - alert: GitHubExporterDown
+        expr: up{job="github-ci"} == 0
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "github-ci-exporter is not responding"
+          description: "Prometheus cannot scrape the GitHub CI exporter on sdrhub. All CI visibility is blind."
+
+      # The exporter serves metrics even when collection fails, so `up` alone
+      # is not sufficient: a broken token or a GitHub outage leaves the
+      # process healthy and the data frozen.
+      - alert: GitHubExporterCollectionFailing
+        expr: github_exporter_scrape_success == 0
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "github-ci-exporter cannot collect from GitHub"
+          description: "Collection cycles have been failing for 30 minutes. Displayed CI state is stale. Check the token and GitHub's status."
+
+      # Backstop for a failure mode neither of the above catches: the process
+      # is up and the last cycle reported success, but the timer has stopped
+      # or every cycle is being skipped. Three intervals of slack on a 5m
+      # cycle.
+      - alert: GitHubExporterStale
+        expr: time() - github_exporter_last_success_timestamp_seconds > 3600
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "github-ci-exporter data is stale"
+          description: "No successful collection cycle for {{ $value | humanizeDuration }}, despite the exporter being reachable."
+
+      # The exporter withholds a reserve and skips a cycle it cannot afford,
+      # so budget pressure degrades into staleness rather than errors. That
+      # makes it quiet, which is exactly why it needs its own alert.
+      - alert: GitHubExporterBudgetExhausted
+        expr: github_exporter_budget_exhausted == 1
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "github-ci-exporter skipped a cycle to protect the API budget"
+          description: "The remaining GitHub API budget could not cover a full sweep, so collection was skipped. CI state is not being refreshed."
+
+      # Early warning, before the pre-flight check starts skipping cycles.
+      # 500 of 5000 is comfortably above the 250 reserve, so this fires while
+      # there is still room to act.
+      - alert: GitHubExporterRateLimitLow
+        expr: github_exporter_rate_limit_remaining < 500
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "GitHub API budget low for {{ $labels.resource }}"
+          description: "Only {{ $value }} requests remain in the {{ $labels.resource }} pool. The exporter will start skipping cycles as it approaches its reserve."

@@ -199,6 +199,7 @@ in
         ./alert-rules/meta-alerts.yaml
         ./alert-rules/capacity-alerts.yaml
         ./alert-rules/fail2ban-alerts.yaml
+        ./alert-rules/github-alerts.yaml
       ];
 
       scrapeConfigs = [
@@ -397,6 +398,25 @@ in
           static_configs = [
             {
               targets = [ "127.0.0.1:3333" ];
+              labels = {
+                hostname = "sdrhub";
+                role = "master";
+              };
+            }
+          ];
+        }
+
+        {
+          # GitHub CI visibility. Loopback-only: the exporter holds a token.
+          #
+          # A collection cycle sweeps ~60 repositories and can take a couple of
+          # minutes, but it runs on its own timer and only publishes results
+          # when complete, so the scrape itself is cheap. The default 10s
+          # timeout is fine.
+          job_name = "github-ci";
+          static_configs = [
+            {
+              targets = [ "127.0.0.1:9418" ];
               labels = {
                 hostname = "sdrhub";
                 role = "master";
