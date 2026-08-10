@@ -417,6 +417,680 @@
       ]
     },
     {
+      "id": 27,
+      "type": "row",
+      "title": "Pull Requests Needing Action",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 15
+      }
+    },
+    {
+      "id": 28,
+      "type": "stat",
+      "title": "PRs Failing Checks",
+      "description": "Open non-draft PRs whose head-commit checks failed. These are broken and need fixing.",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 16
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "mappings": [],
+          "unit": "none",
+          "color": {
+            "mode": "thresholds"
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "count(github_pull_needs_attention{checks=\"failure\"} == 1) or vector(0)",
+          "legendFormat": "",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 29,
+      "type": "stat",
+      "title": "Green, Awaiting Merge",
+      "description": "Checks pass and the branch is mergeable, but auto-merge is not armed. These are waiting on a human to press the button.",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 16
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              },
+              {
+                "color": "blue",
+                "value": 1
+              }
+            ]
+          },
+          "mappings": [],
+          "unit": "none",
+          "color": {
+            "mode": "thresholds"
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "count(github_pull_ready_to_merge == 1) or vector(0)",
+          "legendFormat": "",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 30,
+      "type": "stat",
+      "title": "Conflicting",
+      "description": "Open non-draft PRs that conflict with the base branch and need a rebase.",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 16
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              }
+            ]
+          },
+          "mappings": [],
+          "unit": "none",
+          "color": {
+            "mode": "thresholds"
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "count(github_pull_needs_attention{mergeable=\"conflicting\"} == 1) or vector(0)",
+          "legendFormat": "",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 31,
+      "type": "stat",
+      "title": "Total Needing Action",
+      "description": "Open non-draft PRs that are failing, conflicting, or ready to merge without auto-merge.",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 16
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              }
+            ]
+          },
+          "mappings": [],
+          "unit": "none",
+          "color": {
+            "mode": "thresholds"
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "count(github_pull_needs_attention == 1) or vector(0)",
+          "legendFormat": "",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 32,
+      "type": "table",
+      "title": "Broken Pull Requests",
+      "description": "Open non-draft PRs whose checks failed, or which conflict with the base branch. Bot-authored PRs are included: a renovate PR failing CI is exactly as actionable as a human one, and often more so because it blocks a dependency bump.",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 20
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": ["sum"],
+          "countRows": false,
+          "fields": ""
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Checks"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "failure": {
+                        "color": "red",
+                        "index": 0,
+                        "text": "failure"
+                      },
+                      "success": {
+                        "color": "green",
+                        "index": 1,
+                        "text": "passing"
+                      },
+                      "pending": {
+                        "color": "yellow",
+                        "index": 2,
+                        "text": "running"
+                      },
+                      "none": {
+                        "color": "text",
+                        "index": 3,
+                        "text": "no CI"
+                      },
+                      "unknown": {
+                        "color": "text",
+                        "index": 4,
+                        "text": "unknown"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Merge"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "conflicting": {
+                        "color": "orange",
+                        "index": 0,
+                        "text": "conflict"
+                      },
+                      "mergeable": {
+                        "color": "green",
+                        "index": 1,
+                        "text": "clean"
+                      },
+                      "unknown": {
+                        "color": "text",
+                        "index": 2,
+                        "text": "unknown"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "github_pull_needs_attention{checks=\"failure\"} == 1",
+          "legendFormat": "",
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "github_pull_needs_attention{mergeable=\"conflicting\"} == 1",
+          "legendFormat": "",
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "Value": true,
+              "__name__": true,
+              "job": true,
+              "instance": true,
+              "hostname": true,
+              "role": true,
+              "draft": true
+            },
+            "renameByName": {
+              "org": "Org",
+              "repo": "Repository",
+              "number": "PR",
+              "author": "Author",
+              "author_kind": "Kind",
+              "checks": "Checks",
+              "mergeable": "Merge",
+              "auto_merge": "Automerge"
+            },
+            "indexByName": {
+              "org": 0,
+              "repo": 1,
+              "number": 2,
+              "checks": 3,
+              "mergeable": 4,
+              "auto_merge": 5,
+              "author": 6,
+              "author_kind": 7
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "field": "Checks"
+              },
+              {
+                "field": "Org"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": 33,
+      "type": "table",
+      "title": "Green and Waiting on a Merge",
+      "description": "Checks pass, no conflicts, and auto-merge is NOT armed, so nothing will land these without a click. This is the state renovate PRs sit in on repositories where platformAutomerge is disabled.",
+      "gridPos": {
+        "h": 7,
+        "w": 24,
+        "x": 0,
+        "y": 28
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": ["sum"],
+          "countRows": false,
+          "fields": ""
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Checks"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "failure": {
+                        "color": "red",
+                        "index": 0,
+                        "text": "failure"
+                      },
+                      "success": {
+                        "color": "green",
+                        "index": 1,
+                        "text": "passing"
+                      },
+                      "pending": {
+                        "color": "yellow",
+                        "index": 2,
+                        "text": "running"
+                      },
+                      "none": {
+                        "color": "text",
+                        "index": 3,
+                        "text": "no CI"
+                      },
+                      "unknown": {
+                        "color": "text",
+                        "index": 4,
+                        "text": "unknown"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Merge"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "conflicting": {
+                        "color": "orange",
+                        "index": 0,
+                        "text": "conflict"
+                      },
+                      "mergeable": {
+                        "color": "green",
+                        "index": 1,
+                        "text": "clean"
+                      },
+                      "unknown": {
+                        "color": "text",
+                        "index": 2,
+                        "text": "unknown"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "github_pull_ready_to_merge == 1",
+          "legendFormat": "",
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "Value": true,
+              "__name__": true,
+              "job": true,
+              "instance": true,
+              "hostname": true,
+              "role": true,
+              "draft": true
+            },
+            "renameByName": {
+              "org": "Org",
+              "repo": "Repository",
+              "number": "PR",
+              "author": "Author",
+              "author_kind": "Kind",
+              "checks": "Checks",
+              "mergeable": "Merge",
+              "auto_merge": "Automerge"
+            },
+            "indexByName": {
+              "org": 0,
+              "repo": 1,
+              "number": 2,
+              "checks": 3,
+              "mergeable": 4,
+              "auto_merge": 5,
+              "author": 6,
+              "author_kind": 7
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "field": "Org"
+              },
+              {
+                "field": "Repository"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
       "id": 7,
       "type": "row",
       "title": "Workflow Inventory",
@@ -425,7 +1099,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 15
+        "y": 35
       }
     },
     {
@@ -437,7 +1111,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 16
+        "y": 36
       },
       "datasource": {
         "type": "prometheus",
@@ -530,7 +1204,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 16
+        "y": 36
       },
       "datasource": {
         "type": "prometheus",
@@ -599,7 +1273,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 24
+        "y": 44
       }
     },
     {
@@ -611,7 +1285,7 @@
         "h": 4,
         "w": 6,
         "x": 0,
-        "y": 25
+        "y": 45
       },
       "datasource": {
         "type": "prometheus",
@@ -669,7 +1343,7 @@
         "h": 4,
         "w": 6,
         "x": 6,
-        "y": 25
+        "y": 45
       },
       "datasource": {
         "type": "prometheus",
@@ -727,7 +1401,7 @@
         "h": 4,
         "w": 6,
         "x": 12,
-        "y": 25
+        "y": 45
       },
       "datasource": {
         "type": "prometheus",
@@ -785,7 +1459,7 @@
         "h": 4,
         "w": 6,
         "x": 18,
-        "y": 25
+        "y": 45
       },
       "datasource": {
         "type": "prometheus",
@@ -843,7 +1517,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 29
+        "y": 49
       },
       "datasource": {
         "type": "prometheus",
@@ -936,7 +1610,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 29
+        "y": 49
       },
       "datasource": {
         "type": "prometheus",
@@ -1045,7 +1719,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 37
+        "y": 57
       }
     },
     {
@@ -1057,7 +1731,7 @@
         "h": 4,
         "w": 6,
         "x": 0,
-        "y": 38
+        "y": 58
       },
       "datasource": {
         "type": "prometheus",
@@ -1119,7 +1793,7 @@
         "h": 4,
         "w": 6,
         "x": 6,
-        "y": 38
+        "y": 58
       },
       "datasource": {
         "type": "prometheus",
@@ -1185,7 +1859,7 @@
         "h": 4,
         "w": 6,
         "x": 12,
-        "y": 38
+        "y": 58
       },
       "datasource": {
         "type": "prometheus",
@@ -1251,7 +1925,7 @@
         "h": 4,
         "w": 6,
         "x": 18,
-        "y": 38
+        "y": 58
       },
       "datasource": {
         "type": "prometheus",
@@ -1317,7 +1991,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 42
+        "y": 62
       },
       "datasource": {
         "type": "prometheus",
@@ -1386,7 +2060,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 42
+        "y": 62
       },
       "datasource": {
         "type": "prometheus",
@@ -1463,7 +2137,7 @@
         "h": 4,
         "w": 8,
         "x": 0,
-        "y": 50
+        "y": 70
       },
       "datasource": {
         "type": "prometheus",
@@ -1521,7 +2195,7 @@
         "h": 4,
         "w": 8,
         "x": 8,
-        "y": 50
+        "y": 70
       },
       "datasource": {
         "type": "prometheus",
@@ -1583,7 +2257,7 @@
         "h": 4,
         "w": 8,
         "x": 16,
-        "y": 50
+        "y": 70
       },
       "datasource": {
         "type": "prometheus",
