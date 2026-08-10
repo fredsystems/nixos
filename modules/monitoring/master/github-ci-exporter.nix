@@ -36,6 +36,13 @@
 # owner/mode, because the unit runs `DynamicUser = true` and so has no stable
 # uid to chown to. Same reasoning as the Alertmanager credentials in
 # prometheus.nix.
+#
+# The `LoadCredential` wiring itself lives in the exporter's own NixOS module
+# (imported below), not here: this file only supplies `tokenFile`, which that
+# module turns into `LoadCredential=token:<path>` and a `GHCI_TOKEN_FILE`
+# pointing at `/run/credentials/github-ci-exporter.service/token`. Nothing
+# needs to be added here, and the root-owned sops path is read by systemd
+# before the service drops privileges.
 {
   config,
   inputs,
