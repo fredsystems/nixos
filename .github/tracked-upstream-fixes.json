@@ -203,6 +203,22 @@
       ],
       "workaround": "overlays/attic-server.nix -- postPatch substituteInPlace raising `DatabaseBackend::Sqlite => 500` to 10000 (see FIXME(attic-gc-sqlite-chunk-limit)); wired in overlays/default.nix. Paired with a 15-minute garbage-collection interval in modules/services/attic/attic_server.nix.",
       "revert_action": "NOT YET REPORTED UPSTREAM -- file an issue/PR against zhaofengli/attic first (either raise the SQLite limit or make run_reap_orphan_chunks loop until drained), then set `upstream_pr` and add the issue URL to `tracking`. Once a fix ships and lands in our pinned nixpkgs, set `min_version` to the carrying attic-server version; when the checker confirms it, delete overlays/attic-server.nix, its entry in overlays/default.nix and the FIXME, rebuild fredhub, and set this entry `done: true`. min_version is null so this entry stays BLOCKED and can never falsely resolve."
+    },
+    {
+      "id": "frigate-openvino-yolox-detection-shape",
+      "done": false,
+      "summary": "Frigate 0.17.2's OpenVINO detector cannot use YOLOX models. In frigate/detectors/plugins/openvino.py the yolox branch builds a 7-column array via np.concatenate((image_pred[:, :5], class_conf, class_pred)), then assigns the 6-element result of process_yolo() ([class_id, conf, y_min, x_min, y_max, x_max]) into rows of it and returns that array to a caller expecting (20, 6). Detection crashes in a loop: 'could not broadcast input array from shape (6,) into shape (7,)' and 'from shape (0,7) into shape (20,6)', after which the watchdog logs 'Detection appears to have stopped' while recording continues and detection_fps stays 0. The equivalent memryx post_process_yolox is correct (it allocates final_detections = np.zeros((20, 6), np.float32)), confirming a copy-paste defect in the OpenVINO path. Only model_type=yolox is affected; ssd, yolonas, yologeneric, rfdetr and dfine all yield (20, 6).",
+      "repo": "blakeblackshear/frigate",
+      "check": "pkgs-min-version",
+      "package": "frigate",
+      "eval_host": "nvrhub",
+      "min_version": null,
+      "upstream_pr": null,
+      "tracking": [
+        "https://github.com/blakeblackshear/frigate/blob/v0.17.2/frigate/detectors/plugins/openvino.py"
+      ],
+      "workaround": "hosts/linux/nvrhub/frigate.nix -- detection runs on the tflite `cpu` detector (`detectors.cpu1`, using nixpkgs' bundled ssdlite_mobiledet at 320x320) instead of the intended openvino detector with a hash-pinned yolox_tiny ONNX at 416x416. See FIXME(frigate-openvino-yolox-detection-shape). The yolox_tiny + coco-80 fetchurl derivation was deleted as hosts/linux/nvrhub/frigate-model.nix and must be restored from git history on revert.",
+      "revert_action": "NOT YET REPORTED UPSTREAM -- file an issue/PR against blakeblackshear/frigate first (openvino.py's yolox branch must write into a freshly allocated np.zeros((20, 6)) as the memryx plugin does), then set `upstream_pr` and add the issue URL to `tracking`. Once a fix ships and lands in our pinned nixpkgs, set `min_version` to the carrying frigate version; when the checker confirms it, restore hosts/linux/nvrhub/frigate-model.nix from git history, replace `detectors.cpu1` with `detectors.ov = { type = \"openvino\"; device = \"CPU\"; }` plus the model block (yolox, 416x416, nchw, float_denorm, hash-pinned ONNX and coco-80 labelmap), delete the FIXME, redeploy nvrhub, and verify /api/stats reports detection_fps > 0 on all eight cameras with no 'could not broadcast' errors in the journal. The ExecStartPre shm-clearing script in the same file handles the 320 -> 416 geometry change automatically. min_version is null so this entry stays BLOCKED and can never falsely resolve."
     }
   ]
 }
