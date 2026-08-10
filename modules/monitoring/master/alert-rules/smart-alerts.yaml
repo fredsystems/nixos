@@ -15,6 +15,32 @@
 #   vdlmhub   nvme0        1    100            50          0
 #   fredhub   nvme0        2    100            10          0
 #
+# NOT EVERY DRIVE IN THIS FLEET IS NVMe ANY MORE.
+#
+# nvrhub carries a second disk: /dev/sda, a 4 TB WD Purple (WD40PURZ) holding
+# the Frigate surveillance recordings. It is a 5400 rpm SATA drive with
+# 69,224 power-on hours (7.9 years) taking continuous writes from 8 cameras,
+# which makes it the single most likely drive in the fleet to fail.
+#
+# It is scraped (verified: nvrhub.local:9633 reports device="nvme0" AND
+# device="sda", both present in Prometheus), but most of the rules below are
+# NVMe-only and silently do not apply to it. Verified by listing exactly what
+# sda exposes:
+#
+#   present: smart_status, smartctl_exit_status, temperature, attribute,
+#            power_on_seconds, power_cycle_count, error_log_count,
+#            rotation_rate, capacity_*, block_size, interface_speed
+#   ABSENT:  critical_warning, media_errors, available_spare,
+#            available_spare_threshold, percentage_used
+#
+# So of the seven rules that existed before, only SmartDeviceFailing and
+# SmartctlCannotReadDevice covered this drive. Spinning disks report
+# pre-failure state through SMART ATTRIBUTES instead, which the exporter
+# exposes as smartctl_device_attribute{attribute_name=...,
+# attribute_value_type="raw"}. The ata-attributes group at the end of this
+# file covers those, so the spinning disk is not left with two rules while
+# the NVMes have seven.
+#
 # Two facts drive the thresholds below, both verified directly:
 #
 #   1. sdrhub is at 54% of its rated write endurance with 37.8 TB written.
@@ -131,3 +157,106 @@ groups:
         annotations:
           summary: "smartctl cannot read {{ $labels.device }} on {{ $labels.hostname }}"
           description: "The exporter's smartctl invocation is failing to open the device, so no SMART data is being collected for it. Every SMART alert for this drive is inoperative until this is resolved."
+
+  # ATA / SATA pre-failure attributes.
+  #
+  # These exist because the rules above are NVMe-shaped and therefore did not
+  # cover nvrhub's /dev/sda at all (see the header for the verified list of
+  # what that drive does and does not expose). Spinning disks signal impending
+  # failure through the classic SMART attribute set instead.
+  #
+  # All thresholds are ">0 is abnormal" rather than tuned numbers, because the
+  # baseline was read off the drive directly on 2026-08-10 and every one of
+  # these counters is exactly 0:
+  #
+  #   Reallocated_Sector_Ct   0      Current_Pending_Sector  0
+  #   Offline_Uncorrectable   0      UDMA_CRC_Error_Count    0
+  #   Reallocated_Event_Count 0      Spin_Retry_Count        0
+  #
+  # A zero baseline is what makes "any nonzero" a legitimate rule rather than
+  # a guess. These are also selected on attribute_value_type="raw": the
+  # exporter emits raw/value/worst/thresh series per attribute, and only `raw`
+  # is the actual count. Alerting on `value` would be inverted -- it is a
+  # normalised 0-253 health score where HIGHER is better.
+  - name: smart-ata-attributes
+    rules:
+      # Sectors the drive has already remapped. The canonical "this disk is
+      # dying" signal: healthy drives sit at 0 for their whole service life,
+      # and once remapping starts it typically accelerates.
+      - alert: SmartAtaReallocatedSectors
+        expr: |
+          smartctl_device_attribute{attribute_name="Reallocated_Sector_Ct",attribute_value_type="raw"} > 0
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Reallocated sectors on {{ $labels.hostname }} ({{ $labels.device }})"
+          description: "The drive has remapped {{ $value }} sector(s) after write/read failures. Baseline across this fleet is 0. On a single-disk surveillance volume with no redundancy, plan replacement now rather than waiting for the count to grow."
+
+      # Sectors the drive cannot read and has not yet been able to remap --
+      # it is waiting for a write to decide their fate. Unlike reallocated
+      # sectors this represents data that may ALREADY be unreadable, so it is
+      # the more urgent of the two.
+      - alert: SmartAtaPendingSectors
+        expr: |
+          smartctl_device_attribute{attribute_name="Current_Pending_Sector",attribute_value_type="raw"} > 0
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Pending unreadable sectors on {{ $labels.hostname }} ({{ $labels.device }})"
+          description: "{{ $value }} sector(s) are unreadable and awaiting remap. Recordings written to those sectors may already be lost. Replace the drive."
+
+      # Sectors that failed a read and could not be recovered even offline.
+      - alert: SmartAtaOfflineUncorrectable
+        expr: |
+          smartctl_device_attribute{attribute_name="Offline_Uncorrectable",attribute_value_type="raw"} > 0
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Uncorrectable sectors on {{ $labels.hostname }} ({{ $labels.device }})"
+          description: "{{ $value }} sector(s) failed offline surface scan and could not be corrected. This is confirmed unrecoverable data loss on the affected sectors."
+
+      # Cable/connector integrity, not platter health. Worth separating: a
+      # rising CRC count is usually a reseat-the-SATA-cable problem, and
+      # treating it as a dying disk sends you replacing the wrong component.
+      - alert: SmartAtaCrcErrors
+        expr: |
+          increase(smartctl_device_attribute{attribute_name="UDMA_CRC_Error_Count",attribute_value_type="raw"}[6h]) > 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "SATA CRC errors increasing on {{ $labels.hostname }} ({{ $labels.device }})"
+          description: "The link between controller and drive is corrupting frames. This is usually a cable or connector fault rather than the drive itself -- check the SATA cable and power connector before replacing the disk."
+
+      # Motor struggling to spin up. On a 5400 rpm drive that has been powered
+      # on for 7.9 years, mechanical wear is a real failure mode and this is
+      # the earliest mechanical warning available.
+      - alert: SmartAtaSpinRetries
+        expr: |
+          smartctl_device_attribute{attribute_name="Spin_Retry_Count",attribute_value_type="raw"} > 0
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Spin-up retries on {{ $labels.hostname }} ({{ $labels.device }})"
+          description: "The drive motor required {{ $value }} retry/retries to reach operating speed. This is a mechanical failure signal; the drive may not spin up at all after the next power cycle."
+
+      # Temperature. Surveillance drives are rated to 70C but sustained heat
+      # roughly halves service life per 10C above ~40C, and this drive is
+      # already old. 50 is a genuine "airflow is inadequate" signal rather
+      # than an imminent-failure one, hence warning severity.
+      #
+      # Uses the top-level temperature metric, which BOTH NVMe and SATA
+      # drives expose, so this one rule covers the whole fleet. Baseline
+      # 2026-08-10: nvrhub nvme0 36C, nvrhub sda 31C.
+      - alert: SmartDriveHot
+        expr: smartctl_device_temperature{temperature_type="current"} >= 50
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Drive at {{ $value }}C on {{ $labels.hostname }} ({{ $labels.device }})"
+          description: "Sustained temperature at or above 50C for 30 minutes. Every 10C above roughly 40C approximately halves expected service life. Check case airflow and drive spacing."
