@@ -235,3 +235,228 @@ tests:
       - eval_time: 20m
         alertname: SmartctlCannotReadDevice
         exp_alerts: []
+
+  # ── ATA / SATA attribute rules (nvrhub's WD Purple surveillance drive) ─────
+  #
+  # These cover the spinning disk that the NVMe-shaped rules above do not
+  # apply to. Each rule gets a fires-on-fault case AND a silent-at-baseline
+  # case, because the whole point of these thresholds is that the observed
+  # baseline is 0 -- a rule that also fired at 0 would be useless.
+  #
+  # The attribute_value_type="raw" label is load-bearing in every series
+  # below: the exporter also emits value/worst/thresh for each attribute, and
+  # `value` is an inverted 0-253 health score. A rule matching the wrong
+  # value_type would alert permanently or never.
+
+  - interval: 1m
+    name: SmartAtaReallocatedSectors fires when sectors have been remapped
+    input_series:
+      - series: 'smartctl_device_attribute{hostname="nvrhub", device="sda", attribute_name="Reallocated_Sector_Ct", attribute_value_type="raw"}'
+        values: "8+0x30"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: SmartAtaReallocatedSectors
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              hostname: nvrhub
+              device: sda
+              attribute_name: Reallocated_Sector_Ct
+              attribute_value_type: raw
+            exp_annotations:
+              summary: "Reallocated sectors on nvrhub (sda)"
+              description: "The drive has remapped 8 sector(s) after write/read failures. Baseline across this fleet is 0. On a single-disk surveillance volume with no redundancy, plan replacement now rather than waiting for the count to grow."
+
+  - interval: 1m
+    name: SmartAtaReallocatedSectors silent at the observed baseline of zero
+    input_series:
+      - series: 'smartctl_device_attribute{hostname="nvrhub", device="sda", attribute_name="Reallocated_Sector_Ct", attribute_value_type="raw"}'
+        values: "0+0x30"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: SmartAtaReallocatedSectors
+        exp_alerts: []
+
+  # Guards against matching the wrong attribute_value_type. The normalised
+  # `value` series for a healthy drive is 200, which would trip a naive
+  # `> 0` rule that forgot the value_type selector.
+  - interval: 1m
+    name: SmartAtaReallocatedSectors ignores the normalised value series
+    input_series:
+      - series: 'smartctl_device_attribute{hostname="nvrhub", device="sda", attribute_name="Reallocated_Sector_Ct", attribute_value_type="value"}'
+        values: "200+0x30"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: SmartAtaReallocatedSectors
+        exp_alerts: []
+
+  - interval: 1m
+    name: SmartAtaPendingSectors fires on unreadable sectors awaiting remap
+    input_series:
+      - series: 'smartctl_device_attribute{hostname="nvrhub", device="sda", attribute_name="Current_Pending_Sector", attribute_value_type="raw"}'
+        values: "3+0x30"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: SmartAtaPendingSectors
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              hostname: nvrhub
+              device: sda
+              attribute_name: Current_Pending_Sector
+              attribute_value_type: raw
+            exp_annotations:
+              summary: "Pending unreadable sectors on nvrhub (sda)"
+              description: "3 sector(s) are unreadable and awaiting remap. Recordings written to those sectors may already be lost. Replace the drive."
+
+  - interval: 1m
+    name: SmartAtaPendingSectors silent at baseline
+    input_series:
+      - series: 'smartctl_device_attribute{hostname="nvrhub", device="sda", attribute_name="Current_Pending_Sector", attribute_value_type="raw"}'
+        values: "0+0x30"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: SmartAtaPendingSectors
+        exp_alerts: []
+
+  - interval: 1m
+    name: SmartAtaOfflineUncorrectable fires on unrecoverable sectors
+    input_series:
+      - series: 'smartctl_device_attribute{hostname="nvrhub", device="sda", attribute_name="Offline_Uncorrectable", attribute_value_type="raw"}'
+        values: "2+0x30"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: SmartAtaOfflineUncorrectable
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              hostname: nvrhub
+              device: sda
+              attribute_name: Offline_Uncorrectable
+              attribute_value_type: raw
+            exp_annotations:
+              summary: "Uncorrectable sectors on nvrhub (sda)"
+              description: "2 sector(s) failed offline surface scan and could not be corrected. This is confirmed unrecoverable data loss on the affected sectors."
+
+  - interval: 1m
+    name: SmartAtaOfflineUncorrectable silent at baseline
+    input_series:
+      - series: 'smartctl_device_attribute{hostname="nvrhub", device="sda", attribute_name="Offline_Uncorrectable", attribute_value_type="raw"}'
+        values: "0+0x30"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: SmartAtaOfflineUncorrectable
+        exp_alerts: []
+
+  # CRC uses increase() over 6h, so the counter must actually climb during the
+  # window. A drive with a stable historical count does not re-alert forever.
+  - interval: 1m
+    name: SmartAtaCrcErrors fires when the CRC counter climbs
+    input_series:
+      - series: 'smartctl_device_attribute{hostname="nvrhub", device="sda", attribute_name="UDMA_CRC_Error_Count", attribute_value_type="raw"}'
+        values: "0+1x400"
+    alert_rule_test:
+      - eval_time: 6h
+        alertname: SmartAtaCrcErrors
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              hostname: nvrhub
+              device: sda
+              attribute_name: UDMA_CRC_Error_Count
+              attribute_value_type: raw
+            exp_annotations:
+              summary: "SATA CRC errors increasing on nvrhub (sda)"
+              description: "The link between controller and drive is corrupting frames. This is usually a cable or connector fault rather than the drive itself -- check the SATA cable and power connector before replacing the disk."
+
+  # A nonzero but STATIC historical CRC count must stay silent -- otherwise a
+  # drive that once had a bad cable alerts forever.
+  - interval: 1m
+    name: SmartAtaCrcErrors silent on a static historical count
+    input_series:
+      - series: 'smartctl_device_attribute{hostname="nvrhub", device="sda", attribute_name="UDMA_CRC_Error_Count", attribute_value_type="raw"}'
+        values: "17+0x400"
+    alert_rule_test:
+      - eval_time: 6h
+        alertname: SmartAtaCrcErrors
+        exp_alerts: []
+
+  - interval: 1m
+    name: SmartAtaSpinRetries fires on motor spin-up retries
+    input_series:
+      - series: 'smartctl_device_attribute{hostname="nvrhub", device="sda", attribute_name="Spin_Retry_Count", attribute_value_type="raw"}'
+        values: "1+0x30"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: SmartAtaSpinRetries
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              hostname: nvrhub
+              device: sda
+              attribute_name: Spin_Retry_Count
+              attribute_value_type: raw
+            exp_annotations:
+              summary: "Spin-up retries on nvrhub (sda)"
+              description: "The drive motor required 1 retry/retries to reach operating speed. This is a mechanical failure signal; the drive may not spin up at all after the next power cycle."
+
+  - interval: 1m
+    name: SmartAtaSpinRetries silent at baseline
+    input_series:
+      - series: 'smartctl_device_attribute{hostname="nvrhub", device="sda", attribute_name="Spin_Retry_Count", attribute_value_type="raw"}'
+        values: "0+0x30"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: SmartAtaSpinRetries
+        exp_alerts: []
+
+  # Temperature covers BOTH drive types, so it is tested on the SATA drive and
+  # on an NVMe to prove the single rule serves the whole fleet.
+  - interval: 1m
+    name: SmartDriveHot fires on a sustained hot SATA drive
+    input_series:
+      - series: 'smartctl_device_temperature{hostname="nvrhub", device="sda", temperature_type="current"}'
+        values: "54+0x60"
+    alert_rule_test:
+      - eval_time: 40m
+        alertname: SmartDriveHot
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              hostname: nvrhub
+              device: sda
+              temperature_type: current
+            exp_annotations:
+              summary: "Drive at 54C on nvrhub (sda)"
+              description: "Sustained temperature at or above 50C for 30 minutes. Every 10C above roughly 40C approximately halves expected service life. Check case airflow and drive spacing."
+
+  - interval: 1m
+    name: SmartDriveHot also covers NVMe drives
+    input_series:
+      - series: 'smartctl_device_temperature{hostname="sdrhub", device="nvme0", temperature_type="current"}'
+        values: "71+0x60"
+    alert_rule_test:
+      - eval_time: 40m
+        alertname: SmartDriveHot
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              hostname: sdrhub
+              device: nvme0
+              temperature_type: current
+            exp_annotations:
+              summary: "Drive at 71C on sdrhub (nvme0)"
+              description: "Sustained temperature at or above 50C for 30 minutes. Every 10C above roughly 40C approximately halves expected service life. Check case airflow and drive spacing."
+
+  # Observed baselines (nvrhub sda 31C, nvme0 36C) must not alert.
+  - interval: 1m
+    name: SmartDriveHot silent at observed fleet temperatures
+    input_series:
+      - series: 'smartctl_device_temperature{hostname="nvrhub", device="sda", temperature_type="current"}'
+        values: "31+0x60"
+      - series: 'smartctl_device_temperature{hostname="nvrhub", device="nvme0", temperature_type="current"}'
+        values: "36+0x60"
+    alert_rule_test:
+      - eval_time: 40m
+        alertname: SmartDriveHot
+        exp_alerts: []

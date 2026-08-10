@@ -65,4 +65,13 @@
   hfdlhub2 = {
     tags = [ "hfdl" ];
   };
+
+  nvrhub = {
+    stateVersion = "26.05";
+    # Freshly provisioned; mDNS/AdGuard resolution for nvrhub.local is only
+    # published once this host has deployed once, so colmena targets the
+    # literal LAN address until then.
+    targetHost = "192.168.31.179";
+    tags = [ "nvr" ];
+  };
 }

@@ -200,6 +200,7 @@ in
         ./alert-rules/capacity-alerts.yaml
         ./alert-rules/fail2ban-alerts.yaml
         ./alert-rules/github-alerts.yaml
+        ./alert-rules/frigate-alerts.yaml
       ];
 
       scrapeConfigs = [
@@ -275,6 +276,36 @@ in
               labels = {
                 hostname = "sdrhub";
                 role = "master";
+              };
+            }
+          ];
+        }
+
+        # Frigate NVR on nvrhub.
+        #
+        # Port 9634 is frigate-metrics-relay, not Frigate and not nginx's public
+        # vhost. Frigate's /api/metrics requires authentication inside Frigate
+        # itself and only waives it for requests arriving on nginx's
+        # 127.0.0.1:5000 listener, so scraping :80 directly returns 401. The
+        # relay is a plain TCP forwarder to that loopback listener, which
+        # preserves the port the auth decision is made on. The full reasoning,
+        # including two approaches that did not work, is in
+        # hosts/linux/nvrhub/frigate.nix.
+        #
+        # 30s rather than the 15s default: Frigate recomputes these values from
+        # its own stats loop roughly every 5s, and the alert rules all evaluate
+        # over minutes, so a faster scrape would add series churn for no signal.
+        {
+          job_name = "frigate";
+          scrape_interval = "30s";
+          metrics_path = "/api/metrics";
+          static_configs = [
+            {
+              targets = [ "nvrhub.local:9634" ];
+              labels = {
+                hostname = "nvrhub";
+                role = "agent";
+                exporter = "frigate";
               };
             }
           ];

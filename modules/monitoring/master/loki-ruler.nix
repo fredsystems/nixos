@@ -190,6 +190,13 @@ let
     "vdlmhub"
     "hfdlhub1"
     "hfdlhub2"
+
+    # DEPLOY ORDER MATTERS: HostLogsMissing fires 40 minutes after this list
+    # names a host that is not shipping. nvrhub must be deployed (and its
+    # Alloy running) BEFORE sdrhub picks up this rule set, or the master
+    # alerts on a host that has never existed. Deploy nvrhub first, sdrhub
+    # second.
+    "nvrhub"
   ];
 
   # Per-host log-shipping deadman. Prometheus cannot express this: the
