@@ -237,6 +237,108 @@ tests:
         exp_alerts: []
 
   # ---------------------------------------------------------------------------
+  # GitHubPullRequestChecksFailing
+  # ---------------------------------------------------------------------------
+
+  - interval: 5m
+    name: GitHubPullRequestChecksFailing fires on a broken PR
+    input_series:
+      - series: 'github_pull_needs_attention{org="fredsystems", repo="github-ci-exporter", number="8", author="renovate", author_kind="bot", draft="false", checks="failure", mergeable="mergeable", auto_merge="false", job="github-ci"}'
+        values: "1+0x30"
+    alert_rule_test:
+      - eval_time: 2h
+        alertname: GitHubPullRequestChecksFailing
+        exp_alerts:
+          - exp_labels:
+              severity: info
+              org: fredsystems
+              repo: github-ci-exporter
+              number: "8"
+              author: renovate
+              author_kind: bot
+              draft: "false"
+              checks: failure
+              mergeable: mergeable
+              auto_merge: "false"
+              job: github-ci
+            exp_annotations:
+              summary: "PR #8 failing checks in fredsystems/github-ci-exporter"
+              description: "Checks on pull request #8 by renovate are failing, so it cannot merge."
+
+  # A conflicting-but-green PR also sets needs_attention. It must not be
+  # reported as a checks failure, because the fix is a rebase, not a code fix.
+  - interval: 5m
+    name: GitHubPullRequestChecksFailing ignores a conflict with passing checks
+    input_series:
+      - series: 'github_pull_needs_attention{org="fredsystems", repo="nixos", number="1615", author="fredclausen", author_kind="human", draft="false", checks="success", mergeable="conflicting", auto_merge="false", job="github-ci"}'
+        values: "1+0x30"
+    alert_rule_test:
+      - eval_time: 2h
+        alertname: GitHubPullRequestChecksFailing
+        exp_alerts: []
+
+  - interval: 5m
+    name: GitHubPullRequestChecksFailing does not fire before the for clause
+    input_series:
+      - series: 'github_pull_needs_attention{org="fredsystems", repo="freminal", number="481", author="fredclausen", author_kind="human", draft="false", checks="failure", mergeable="mergeable", auto_merge="true", job="github-ci"}'
+        values: "1+0x30"
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: GitHubPullRequestChecksFailing
+        exp_alerts: []
+
+  # ---------------------------------------------------------------------------
+  # GitHubPullRequestAwaitingMerge
+  # ---------------------------------------------------------------------------
+
+  - interval: 5m
+    name: GitHubPullRequestAwaitingMerge fires on a green PR with no automerge
+    input_series:
+      - series: 'github_pull_ready_to_merge{org="sdr-enthusiasts", repo="plane-alert-db", number="854", author="TheFilipcom4607", author_kind="human", draft="false", checks="success", mergeable="mergeable", auto_merge="false", job="github-ci"}'
+        values: "1+0x100"
+    alert_rule_test:
+      - eval_time: 7h
+        alertname: GitHubPullRequestAwaitingMerge
+        exp_alerts:
+          - exp_labels:
+              severity: info
+              org: sdr-enthusiasts
+              repo: plane-alert-db
+              number: "854"
+              author: TheFilipcom4607
+              author_kind: human
+              draft: "false"
+              checks: success
+              mergeable: mergeable
+              auto_merge: "false"
+              job: github-ci
+            exp_annotations:
+              summary: "PR #854 is green and waiting to merge in sdr-enthusiasts/plane-alert-db"
+              description: "Checks pass and there are no conflicts, but auto-merge is not enabled, so #854 needs a manual merge."
+
+  # The exporter sets ready_to_merge to 0 when auto-merge is armed, because the
+  # PR will land unattended. Nothing to alert on.
+  - interval: 5m
+    name: GitHubPullRequestAwaitingMerge ignores a PR with automerge armed
+    input_series:
+      - series: 'github_pull_ready_to_merge{org="fredsystems", repo="freminal", number="483", author="fredclausen", author_kind="human", draft="false", checks="success", mergeable="mergeable", auto_merge="true", job="github-ci"}'
+        values: "0+0x100"
+    alert_rule_test:
+      - eval_time: 7h
+        alertname: GitHubPullRequestAwaitingMerge
+        exp_alerts: []
+
+  - interval: 5m
+    name: GitHubPullRequestAwaitingMerge does not fire on a freshly green PR
+    input_series:
+      - series: 'github_pull_ready_to_merge{org="sdr-enthusiasts", repo="plane-alert-db", number="854", author="someone", author_kind="human", draft="false", checks="success", mergeable="mergeable", auto_merge="false", job="github-ci"}'
+        values: "1+0x100"
+    alert_rule_test:
+      - eval_time: 2h
+        alertname: GitHubPullRequestAwaitingMerge
+        exp_alerts: []
+
+  # ---------------------------------------------------------------------------
   # GitHubHumanPullRequestStale
   # ---------------------------------------------------------------------------
 
@@ -246,7 +348,7 @@ tests:
   - interval: 5m
     name: GitHubHumanPullRequestStale fires on an old human PR
     input_series:
-      - series: 'github_pull_created_timestamp_seconds{org="fredsystems", repo="nixos", number="1615", author="fredclausen", author_kind="human", draft="false", job="github-ci"}'
+      - series: 'github_pull_created_timestamp_seconds{org="fredsystems", repo="nixos", number="1615", author="fredclausen", author_kind="human", draft="false", checks="success", mergeable="mergeable", auto_merge="false", job="github-ci"}'
         values: "-2678400+0x30"
     alert_rule_test:
       - eval_time: 2h
@@ -260,6 +362,9 @@ tests:
               author: fredclausen
               author_kind: human
               draft: "false"
+              checks: success
+              mergeable: mergeable
+              auto_merge: "false"
               job: github-ci
             exp_annotations:
               summary: "PR #1615 open 31d 2h 0m 0s in fredsystems/nixos"
@@ -270,7 +375,7 @@ tests:
   - interval: 5m
     name: GitHubHumanPullRequestStale ignores bot PRs
     input_series:
-      - series: 'github_pull_created_timestamp_seconds{org="sdr-enthusiasts", repo="docker-acarshub", number="900", author="renovate", author_kind="bot", draft="false", job="github-ci"}'
+      - series: 'github_pull_created_timestamp_seconds{org="sdr-enthusiasts", repo="docker-acarshub", number="900", author="renovate", author_kind="bot", draft="false", checks="success", mergeable="mergeable", auto_merge="false", job="github-ci"}'
         values: "-2678400+0x30"
     alert_rule_test:
       - eval_time: 2h
@@ -281,7 +386,7 @@ tests:
   - interval: 5m
     name: GitHubHumanPullRequestStale ignores drafts
     input_series:
-      - series: 'github_pull_created_timestamp_seconds{org="fredsystems", repo="nixos", number="42", author="fredclausen", author_kind="human", draft="true", job="github-ci"}'
+      - series: 'github_pull_created_timestamp_seconds{org="fredsystems", repo="nixos", number="42", author="fredclausen", author_kind="human", draft="true", checks="success", mergeable="mergeable", auto_merge="false", job="github-ci"}'
         values: "-2678400+0x30"
     alert_rule_test:
       - eval_time: 2h
@@ -291,7 +396,7 @@ tests:
   - interval: 5m
     name: GitHubHumanPullRequestStale ignores a recent PR
     input_series:
-      - series: 'github_pull_created_timestamp_seconds{org="fredsystems", repo="nixos", number="99", author="fredclausen", author_kind="human", draft="false", job="github-ci"}'
+      - series: 'github_pull_created_timestamp_seconds{org="fredsystems", repo="nixos", number="99", author="fredclausen", author_kind="human", draft="false", checks="success", mergeable="mergeable", auto_merge="false", job="github-ci"}'
         values: "-864000+0x30"
     alert_rule_test:
       - eval_time: 2h

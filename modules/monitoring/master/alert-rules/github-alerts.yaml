@@ -83,6 +83,43 @@ groups:
           summary: "Scheduled workflow {{ $labels.workflow }} has not run in {{ $labels.org }}/{{ $labels.repo }}"
           description: "Last run was {{ $value | humanizeDuration }} ago, more than three times its configured schedule interval."
 
+      # An open PR whose checks are failing. Distinct from
+      # GitHubCIFailingDefaultBranch: that rule describes what has already
+      # landed, this one describes work that cannot land.
+      #
+      # Bots are deliberately included. A renovate PR failing CI is at least as
+      # actionable as a human one, because it blocks a dependency bump and will
+      # sit there indefinitely -- that is exactly the state that went unnoticed
+      # on github-ci-exporter and freminal.
+      #
+      # Drafts are excluded by the exporter, so no filter is needed here.
+      #
+      # 1h rather than the 15m used for branch CI: a PR is usually pushed to
+      # several times in quick succession, and each push restarts its checks.
+      - alert: GitHubPullRequestChecksFailing
+        expr: github_pull_needs_attention{checks="failure"} == 1
+        for: 1h
+        labels:
+          severity: info
+        annotations:
+          summary: "PR #{{ $labels.number }} failing checks in {{ $labels.org }}/{{ $labels.repo }}"
+          description: "Checks on pull request #{{ $labels.number }} by {{ $labels.author }} are failing, so it cannot merge."
+
+      # Green, mergeable, and no auto-merge armed: nothing will land this
+      # without a human pressing the button. Renovate PRs sit in this state on
+      # repositories where platformAutomerge is off.
+      #
+      # 6h so a PR that is merged promptly never alerts; this is a "you have
+      # forgotten about this" signal, not a notification that CI passed.
+      - alert: GitHubPullRequestAwaitingMerge
+        expr: github_pull_ready_to_merge == 1
+        for: 6h
+        labels:
+          severity: info
+        annotations:
+          summary: "PR #{{ $labels.number }} is green and waiting to merge in {{ $labels.org }}/{{ $labels.repo }}"
+          description: "Checks pass and there are no conflicts, but auto-merge is not enabled, so #{{ $labels.number }} needs a manual merge."
+
       # A human pull request left open for a month. Bot PRs are excluded
       # entirely -- renovate and dependabot routinely hold PRs open by design,
       # and including them would make this fire constantly.
