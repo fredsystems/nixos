@@ -415,7 +415,7 @@ in
   # frigate_storage_*, ...), which the alert rules in
   # ../../../modules/monitoring/master/alert-rules/frigate-alerts.yaml consume.
   #
-  # WHY THIS IS A TAILSCALE-FREE, OVERRIDE-FREE ONE-LINER
+  # WHY THIS NEEDS A DEDICATED VHOST
   #
   # /api/metrics requires authentication INSIDE Frigate, not merely in nginx.
   # In frigate/api/app.py the route is declared
@@ -423,11 +423,11 @@ in
   #     @router.get("/metrics", dependencies=[Depends(allow_any_authenticated())])
   #
   # and allow_any_authenticated() raises 401 unless a `remote-user` request
-  # header is present, with no config option to exempt it. Two earlier attempts
-  # here failed because of that, and both are worth recording:
+  # header is present, with no config option to exempt it. Three earlier attempts
+  # failed, and each failure is worth recording so it is not repeated:
   #
-  #   1. A location that BYPASSED nginx's auth_request. Cannot work: skipping
-  #      the subrequest guarantees `remote-user` is absent, so Frigate 401s.
+  #   1. A location that BYPASSED nginx's auth_request. Cannot work: skipping the
+  #      subrequest guarantees `remote-user` is absent, so Frigate 401s.
   #      Confirmed by curling Frigate's own port directly -- also 401. nginx is
   #      not the gatekeeper; Frigate is.
   #   2. Keeping auth_request but overriding X-Server-Port to 5000 in the /auth
@@ -438,70 +438,72 @@ in
   #            success_response.headers["remote-user"] = "anonymous"
   #
   #      The mechanism is real (verified: X-Server-Port 5000 -> 202 with
-  #      remote-user: anonymous; 80 -> 401) but the override could not be made
-  #      to stick. The upstream module already sets `proxy_set_header
-  #      X-Server-Port $server_port` in that same location, and for duplicate
-  #      proxy_set_header directives in one block nginx honours the FIRST, so an
-  #      appended lib.mkAfter line is silently ignored.
+  #      remote-user: anonymous; 80 -> 401) but the override could not be made to
+  #      stick, because the upstream module already sets `proxy_set_header
+  #      X-Server-Port $server_port` in that same location and nginx honours the
+  #      FIRST of duplicate proxy_set_header directives.
+  #   3. A bare socat TCP relay from the LAN to 127.0.0.1:5000. It worked for
+  #      metrics, and that was the problem: Frigate's escape hatch is scoped to
+  #      the PORT, not to a path, so republishing that port republished the whole
+  #      authenticated API. Verified from sdrhub while it was deployed --
+  #      /api/config, /api/events, /api/version and /api/<camera>/latest.jpg all
+  #      returned 200 to an unauthenticated LAN client. Camera credentials were
+  #      redacted by Frigate (rtsp://*:*@...), so nothing secret leaked, but live
+  #      snapshots and the event/recording API were readable by any LAN host.
+  #      Caught in review on PR #2191.
   #
-  # None of that is necessary. The upstream module ALREADY gives this vhost a
-  # `listen 127.0.0.1:5000` (added for nixpkgs#370349, "Frigate wants to connect
-  # on 127.0.0.1:5000 for unauthenticated requests"), and on that listener
-  # $server_port genuinely IS 5000 -- so the module's own unmodified /auth
-  # location takes the anonymous branch with no override at all.
+  # The upstream module gives this vhost a `listen 127.0.0.1:5000` (added for
+  # nixpkgs#370349, "Frigate wants to connect on 127.0.0.1:5000 for
+  # unauthenticated requests"), and on that listener $server_port genuinely IS
+  # 5000, so the module's own unmodified /auth location takes the anonymous
+  # branch. Verified: `curl 127.0.0.1:5000/api/metrics` -> 200 with 231 frigate_*
+  # series, while the same path on :80 -> 401.
   #
-  # Verified on the running host: `curl 127.0.0.1:5000/api/metrics` returns 200
-  # and 231 frigate_* series, while the same path on :80 returns 401.
-  #
-  # So the metrics endpoint needs no nginx changes whatsoever. What it needs is
-  # for the scrape to originate ON nvrhub, which is what the node-local
-  # textfile-free approach below does: Prometheus on sdrhub scrapes
-  # nvrhub.local:9634, and a tiny local proxy relays to the loopback listener.
-  # That keeps Frigate's auth fully intact for every other path and adds no
-  # credential to manage.
-  systemd.services.frigate-metrics-relay = {
-    description = "Expose Frigate's loopback-only Prometheus metrics to the LAN";
-    after = [
-      "nginx.service"
-      "frigate.service"
+  # So the fix is a separate nginx server on :9634 that proxies EXACTLY ONE PATH
+  # to that listener. The upstream connection still arrives on :5000, so the
+  # anonymous branch still applies, but nothing other than /api/metrics is
+  # routable -- there is no location for anything else, so every other path gets
+  # 404 from this vhost rather than being forwarded. That is what makes the
+  # port-scoped bypass safe to expose.
+  services.nginx.virtualHosts."frigate-metrics" = {
+    listen = [
+      {
+        addr = "0.0.0.0";
+        port = 9634;
+      }
+      # Prometheus targets the hostname nvrhub.local, and mDNS / the AdGuard
+      # rewrite may answer with an AAAA record, so the scrape can arrive over
+      # IPv6. An IPv4-only listener would fail those scrapes intermittently
+      # rather than obviously. Raised in review on PR #2191.
+      {
+        addr = "[::]";
+        port = 9634;
+      }
     ];
-    wants = [ "nginx.service" ];
-    wantedBy = [ "multi-user.target" ];
 
-    # socat rather than another nginx vhost. A second nginx server block on
-    # :9634 would have its own $server_port (9634), which puts it straight back
-    # into the 401 case this whole comment exists to explain. A plain TCP relay
-    # to 127.0.0.1:5000 preserves the port the AUTH decision is made on, because
-    # the connection genuinely arrives at nginx on :5000.
-    serviceConfig = {
-      Type = "simple";
-      Restart = "always";
-      RestartSec = "5s";
-      DynamicUser = true;
+    # Only this one path exists on this server. No `/`, no prefix match, no
+    # fallthrough: an exact-match location and nothing else, so the whole rest
+    # of Frigate's API is unroutable here by construction rather than by an
+    # allow/deny list that could be edited wrong later.
+    locations."= /api/metrics" = {
+      # Proxying to the module's 127.0.0.1:5000 listener rather than to Frigate
+      # (127.0.0.1:5001) is load-bearing: it is that hop which makes
+      # $server_port 5000 inside the /auth subrequest, which is what yields
+      # remote-user: anonymous. Pointing this at :5001 directly would 401.
+      proxyPass = "http://127.0.0.1:5000/api/metrics";
+      recommendedProxySettings = true;
+      extraConfig = ''
+        allow 192.168.31.0/24;
+        allow 127.0.0.1/32;
+        deny all;
 
-      ExecStart = "${lib.getExe pkgs.socat} -d TCP-LISTEN:9634,fork,reuseaddr,bind=0.0.0.0 TCP:127.0.0.1:5000";
-
-      # Hardening: this only ever moves bytes between two sockets.
-      NoNewPrivileges = true;
-      PrivateDevices = true;
-      PrivateTmp = true;
-      ProtectHome = true;
-      ProtectSystem = "strict";
-      ProtectKernelTunables = true;
-      ProtectKernelModules = true;
-      ProtectControlGroups = true;
-      RestrictAddressFamilies = [
-        "AF_INET"
-        "AF_INET6"
-      ];
-      RestrictNamespaces = true;
-      SystemCallArchitectures = "native";
-      SystemCallFilter = [ "@system-service" ];
+        access_log off;
+      '';
     };
   };
 
   networking.firewall.allowedTCPPorts = [
     80 # nginx -> Frigate UI
-    9634 # frigate-metrics-relay -> Prometheus on sdrhub
+    9634 # nginx frigate-metrics vhost (/api/metrics only) -> Prometheus
   ];
 }

@@ -252,7 +252,7 @@ tests:
   - interval: 5m
     name: FrigateNoEventsAtAll fires when no events occur for a day
     input_series:
-      - series: 'frigate_camera_events_total{camera="front_door", label="person"}'
+      - series: 'frigate_camera_events_total{camera="front_door", label="person", hostname="nvrhub"}'
         values: "7+0x400"
       - series: 'frigate_service_uptime_seconds{hostname="nvrhub"}'
         values: "90000+300x400"
@@ -262,15 +262,16 @@ tests:
         exp_alerts:
           - exp_labels:
               severity: warning
+              hostname: nvrhub
             exp_annotations:
-              summary: "Frigate has recorded no detection events in 24 hours"
+              summary: "Frigate on nvrhub has recorded no detection events in 24 hours"
               description: "Not one person or car event across all eight cameras in a day, while detection appears to be running. Either the site really was empty, or detection is subtly broken -- a wrong labelmap (Frigate's 80-class and nixpkgs' 91-class COCO maps diverge from index 11), an over-high threshold, or a model that loads but classifies nothing. Verify by walking past a camera."
 
   # A climbing counter means detection is demonstrably working.
   - interval: 5m
     name: FrigateNoEventsAtAll silent while events are being recorded
     input_series:
-      - series: 'frigate_camera_events_total{camera="front_door", label="person"}'
+      - series: 'frigate_camera_events_total{camera="front_door", label="person", hostname="nvrhub"}'
         values: "0+1x400"
       - series: 'frigate_service_uptime_seconds{hostname="nvrhub"}'
         values: "90000+300x400"
@@ -290,7 +291,7 @@ tests:
   - interval: 5m
     name: FrigateNoEventsAtAll silent shortly after a restart
     input_series:
-      - series: 'frigate_camera_events_total{camera="front_door", label="person"}'
+      - series: 'frigate_camera_events_total{camera="front_door", label="person", hostname="nvrhub"}'
         values: "6+0x40"
       - series: 'frigate_service_uptime_seconds{hostname="nvrhub"}'
         values: "1200+300x40"

@@ -234,14 +234,25 @@ groups:
       # It also removes the need for an absent() arm: while Frigate is down or
       # freshly started this stays silent by construction, and FrigateDown covers
       # the metrics-missing case with a far better message.
+      #
+      # Aggregated `by (hostname)` rather than with a bare sum(). Alertmanager
+      # here is configured group_by = [alertname, hostname], and the NodeDown
+      # inhibit rule uses `equal = ["hostname"]` -- and as the comment on that
+      # rule in ../prometheus.nix already warns, an alert carrying NO hostname
+      # label can never be inhibited by it. A bare sum() collapses to an
+      # unlabelled series, so this alert would have paged separately during an
+      # nvrhub outage instead of being suppressed by NodeDown, and would not have
+      # grouped with the host's other alerts. Both metrics carry hostname from
+      # the scrape config (verified), so the label survives the aggregation.
+      # Raised in review on PR #2191.
       - alert: FrigateNoEventsAtAll
         expr: |
-          sum(increase(frigate_camera_events_total[24h])) == 0
-          and on ()
-          min(frigate_service_uptime_seconds) > 86400
+          sum by (hostname) (increase(frigate_camera_events_total[24h])) == 0
+          and on (hostname)
+          min by (hostname) (frigate_service_uptime_seconds) > 86400
         for: 1h
         labels:
           severity: warning
         annotations:
-          summary: "Frigate has recorded no detection events in 24 hours"
+          summary: "Frigate on {{ $labels.hostname }} has recorded no detection events in 24 hours"
           description: "Not one person or car event across all eight cameras in a day, while detection appears to be running. Either the site really was empty, or detection is subtly broken -- a wrong labelmap (Frigate's 80-class and nixpkgs' 91-class COCO maps diverge from index 11), an over-high threshold, or a model that loads but classifies nothing. Verify by walking past a camera."
