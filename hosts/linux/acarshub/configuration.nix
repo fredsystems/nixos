@@ -119,11 +119,11 @@ in
       }
 
       ###############################################################
-      # ACARSDEC-3
+      # XNG
       ###############################################################
       {
-        name = "acarsdec-3";
-        image = "ghcr.io/sdr-enthusiasts/docker-acarsdec:latest-build-502@sha256:6fa61ab3ff70340e660e6f3ae2a322e446fa78e509b139a18311473494639f20";
+        name = "xng";
+        image = "ghcr.io/sdr-enthusiasts/docker-xng:latest-build-2@sha256:5378dde090a05a14db4225899c78ba4626daa46cbe0ad6d74d8f9e410a5e423b";
 
         tty = true;
         restart = "always";
@@ -137,12 +137,15 @@ in
         ];
 
         environment = {
-          SERIAL = "00012095";
-          FREQUENCIES = "136.975;136.8;136.65";
-          FEED_ID = "CS-KABQ-ACARS";
-          OUTPUT_SERVER = "192.168.31.20";
-          OUTPUT_SERVER_MODE = "tcp";
-          OUTPUT_SERVER_PORT = "5550";
+          XNG_SERIAL = "00012095";
+          XNG_CHANNELS = "131.85;131.825;131.725;131.65;131.55;131.525;131.475;131.45;131.425;131.25;131.125;130.85;130.825;130.55;130.45;130.425";
+          XNG_STATION_ID = "CS-KABQ-ACARS";
+          XNG_VERBOSE = "1";
+          XNG_ZMQ = "tcp://0.0.0.0:5555";
+          XNG_MODE = "acars";
+          XNG_DRIVER = "rtlsdr";
+          XNG_CENTER = "131.1375M";
+          XNG_SAMPLE_RATE = "2400000";
         };
 
         tmpfs = [
