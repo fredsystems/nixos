@@ -10,7 +10,7 @@ map; the skills give you the moves.
 
 ## Repository overview
 
-This is a NixOS flake managing **9 Linux hosts** (7 servers + 2 desktops)
+This is a NixOS flake managing **10 Linux hosts** (8 servers + 2 desktops)
 and at least one macOS (nix-darwin) host. The infrastructure is heavily
 aviation / SDR-focused -- most servers run containerised ADS-B, VDL-M,
 and HFDL decoders.
@@ -43,6 +43,7 @@ and HFDL decoders.
 │       ├── hfdlhub1/
 │       ├── hfdlhub2/
 │       ├── maranello/     # Desktop
+│       ├── nvrhub/
 │       ├── sdrhub/
 │       └── vdlmhub/
 ├── modules/               # Shared NixOS modules (hardware, services, data)
@@ -102,6 +103,7 @@ and HFDL decoders.
 | sdrhub    | Server  | SDR receiver hub                          |
 | hfdlhub1  | Server  | HFDL decoder                              |
 | hfdlhub2  | Server  | HFDL decoder                              |
+| nvrhub    | Server  | NVR host, stateVersion 26.05              |
 
 Desktops are hardcoded in `ci-linux.yaml` as
 `desktop_names=("Daytona" "maranello")`. Everything else from
