@@ -1,5 +1,5 @@
 {
-  "generated_at": 1786336233,
+  "generated_at": 1786337850,
   "hosts": {
     "Daytona": {
       "history": [
@@ -117,6 +117,11 @@
     },
     "acarshub": {
       "history": [
+        {
+          "at": 1786337850,
+          "rev": "2667a8fc581a369ce752247256e2ba37c7e57c62",
+          "toplevel": "/nix/store/2qnnzp8qcq42cvhc1ky9l0h0xv1k5xnz-nixos-system-acarshub-26.05.20260808.8b8c811"
+        },
         {
           "at": 1786336233,
           "rev": "53d99ebb68cbc95eb2f18da9f6bfa8485c1666d7",
@@ -778,6 +783,6 @@
       ]
     }
   },
-  "rev": "53d99ebb68cbc95eb2f18da9f6bfa8485c1666d7",
+  "rev": "2667a8fc581a369ce752247256e2ba37c7e57c62",
   "schema": 1
 }
