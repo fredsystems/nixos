@@ -206,6 +206,16 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    # CI: server
+    # Only sdrhub runs this (monitoring master), and sdrhub is a server, so a
+    # bump rebuilds the server set rather than the desktops.
+    github-ci-exporter = {
+      url = "github:FredSystems/github-ci-exporter";
+      #path on disk
+      #url = "git+file:/home/fred/GitHub/github-ci-exporter";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     # wallpapers
 
     # CI: desktop

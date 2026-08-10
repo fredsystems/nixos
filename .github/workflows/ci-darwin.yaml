@@ -158,6 +158,7 @@ jobs:
               [freminal]="darwin"
               [frext]="darwin"
               [nix-yazi-plugins]="darwin"
+              [github-ci-exporter]="skip"
               [nixpkgs-stable]="skip"
               [nixpkgs-kernel]="skip"
               [home-manager-stable]="skip"

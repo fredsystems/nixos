@@ -57,6 +57,7 @@ Linux categories, as of the `nixpkgs-kernel` sync fix:
 | `solaar`                  | `desktop`         | Desktop peripheral daemon                              |
 | `freminal`                | `desktop`         | Terminal emulator, desktops only                       |
 | `frext`                   | `desktop`         | Desktop tooling                                        |
+| `github-ci-exporter`      | `server`          | Prometheus exporter; runs on sdrhub only               |
 | `walls-catppuccin`        | `desktop`         | Wallpapers                                             |
 | `walls-zhichaoh`          | `desktop`         | Wallpapers                                             |
 | `walls-cozypixels`        | `desktop`         | Wallpapers                                             |

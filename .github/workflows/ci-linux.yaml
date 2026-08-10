@@ -164,6 +164,7 @@ jobs:
               [home-manager-stable]="server"
               [catppuccin-stable]="server"
               [sops-nix-stable]="server"
+              [github-ci-exporter]="server"
               [nix-yazi-plugins]="desktop"
               [nix-yazi-plugins-stable]="server"
               [nixos-needsreboot]="global"

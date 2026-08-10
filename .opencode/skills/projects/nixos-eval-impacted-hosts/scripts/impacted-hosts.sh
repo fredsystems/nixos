@@ -223,6 +223,7 @@ declare -A INPUT_CATEGORY=(
   [home-manager-stable]="server"
   [catppuccin-stable]="server"
   [sops-nix-stable]="server"
+  [github-ci-exporter]="server"
   [sops-nix]="desktop"
   [nix-yazi-plugins]="desktop"
   [nix-yazi-plugins-stable]="server"
