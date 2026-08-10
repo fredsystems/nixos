@@ -28,7 +28,7 @@ in
     "docker/acarshub.env" = mkContainerSecrets [
       "acarsdec-1"
       "acarsdec-2"
-      "acarsdec-3"
+      "xng"
       "dozzle-agent"
     ];
   };
