@@ -33,7 +33,8 @@
 #   frigate_skipped_fps{camera_name="..."}                    0.0 on all
 #   frigate_detection_total_fps                               20.8
 #   frigate_detector_inference_speed_seconds{name="cpu1"}     0.0145
-#   frigate_detection_start{name="cpu1"}                      unix ts
+#   frigate_service_uptime_seconds                            3092
+#   frigate_detection_start{name="cpu1"}   in-flight marker, NOT a start time
 #   frigate_service_uptime_seconds                            gauge
 #   frigate_storage_free_bytes{storage="..."}                 per path
 #   frigate_camera_events_total{camera="...",label="car"}      counter
@@ -107,23 +108,42 @@ groups:
           summary: "Object detection has stopped entirely on {{ $labels.hostname }}"
           description: "No camera has run object detection for 15 minutes while Frigate is still up. Recording continues but nothing is being detected, so the detections and alerts retention tiers are inoperative and no event will be generated for a person or car. Check the detector process in `journalctl -u frigate`."
 
-      # The detector process is restarting.
+      # Frigate is restarting repeatedly.
       #
-      # frigate_detection_start is the detector's start timestamp, so a change
-      # means the process was replaced. Frigate's watchdog restarts a detector
-      # it believes is stuck; a crash-looping detector therefore shows up as a
-      # repeatedly moving start time rather than as a failed unit.
+      # Detects failure 2: a crash-looping detector takes the whole process down
+      # via the watchdog ("Detection appears to have stopped. Exiting
+      # Frigate...") while systemd's Restart= brings it straight back, so the
+      # unit never settles into `failed` and SystemdUnitFailed stays quiet.
       #
-      # This is what failure 2 looked like from the outside, and it fired
-      # nothing at the time.
-      - alert: FrigateDetectorRestarting
-        expr: changes(frigate_detection_start[30m]) > 2
+      # frigate_service_uptime_seconds counts up from process start and resets to
+      # 0 on restart, so resets() over a window is exactly the restart count.
+      #
+      # DO NOT use changes(frigate_detection_start[...]) for this. That metric is
+      # NOT a process start timestamp despite the name -- in
+      # frigate/object_detection/base.py it is set to now() before EVERY
+      # individual inference and back to 0.0 immediately after:
+      #
+      #     self.start_time.value = datetime.datetime.now().timestamp()
+      #     detections = object_detector.detect_raw(input_frame)
+      #     ...
+      #     self.start_time.value = 0.0
+      #
+      # It is an in-flight marker that Frigate's own watchdog reads to spot a
+      # wedged inference (start > 0 and older than 10s). At ~10 inferences a
+      # second it toggles constantly, so a changes() rule on it reports dozens of
+      # "restarts" on a perfectly healthy system. An earlier version of this rule
+      # did exactly that and fired within minutes of being deployed.
+      #
+      # 3 restarts in an hour rather than a tighter window: a deploy legitimately
+      # restarts the service, and a rebuild-and-switch pair should not page.
+      - alert: FrigateRestarting
+        expr: resets(frigate_service_uptime_seconds[1h]) > 3
         for: 5m
         labels:
           severity: critical
         annotations:
-          summary: "Frigate detector {{ $labels.name }} is restarting repeatedly on {{ $labels.hostname }}"
-          description: "The detector process has restarted more than twice in 30 minutes, which means it is crashing rather than running. Detection is unreliable or absent. Check `journalctl -u frigate` for a traceback from the detector plugin."
+          summary: "Frigate is restarting repeatedly on {{ $labels.hostname }}"
+          description: "The Frigate process has restarted more than three times in the last hour, so it is crash-looping rather than running. The usual cause is the detector dying and taking the process down with it. Check `journalctl -u frigate` for a traceback."
 
       # Frames are being dropped before detection.
       #
@@ -199,13 +219,26 @@ groups:
       # that runs perfectly and never reports a person.
       #
       # 24h is deliberately long, and severity is warning not critical: a genuine
-      # quiet day (away from home, nothing moving) must not page. Absent-for-24h
-      # rather than a rate, because the counter resets when Frigate restarts.
+      # quiet day (away from home, nothing moving) must not page.
+      #
+      # The uptime guard is load-bearing, not decoration. An earlier version was
+      # just `sum(increase(frigate_camera_events_total[24h])) == 0` and it went
+      # pending within minutes of first deploy despite six events having been
+      # recorded (doorbell 4 cars, garage_door 1 car, upstairs_hall 1 person),
+      # because increase() over a 24h window on a series with 20 minutes of
+      # history cannot extrapolate and returns 0. That made the rule fire for the
+      # first 24h after every restart -- exactly when someone is most likely to be
+      # watching and least likely to trust it afterwards.
+      #
+      # Requiring 24h of uptime means the window always has real data behind it.
+      # It also removes the need for an absent() arm: while Frigate is down or
+      # freshly started this stays silent by construction, and FrigateDown covers
+      # the metrics-missing case with a far better message.
       - alert: FrigateNoEventsAtAll
         expr: |
           sum(increase(frigate_camera_events_total[24h])) == 0
-          or
-          absent(frigate_camera_events_total)
+          and on ()
+          min(frigate_service_uptime_seconds) > 86400
         for: 1h
         labels:
           severity: warning
