@@ -283,12 +283,14 @@ in
 
         # Frigate NVR on nvrhub.
         #
-        # Scraped over nginx on :80 rather than Frigate's own :5000, because
-        # Frigate binds loopback only (verified: ss shows 127.0.0.1:5000). The
-        # metrics_path is the one location on that vhost that deliberately
-        # bypasses the module's auth_request subrequest and is restricted to the
-        # LAN -- see the nginx block in hosts/linux/nvrhub/frigate.nix. Every
-        # other /api/ path still answers 401.
+        # Port 9634 is frigate-metrics-relay, not Frigate and not nginx's public
+        # vhost. Frigate's /api/metrics requires authentication inside Frigate
+        # itself and only waives it for requests arriving on nginx's
+        # 127.0.0.1:5000 listener, so scraping :80 directly returns 401. The
+        # relay is a plain TCP forwarder to that loopback listener, which
+        # preserves the port the auth decision is made on. The full reasoning,
+        # including two approaches that did not work, is in
+        # hosts/linux/nvrhub/frigate.nix.
         #
         # 30s rather than the 15s default: Frigate recomputes these values from
         # its own stats loop roughly every 5s, and the alert rules all evaluate
@@ -299,7 +301,7 @@ in
           metrics_path = "/api/metrics";
           static_configs = [
             {
-              targets = [ "nvrhub.local:80" ];
+              targets = [ "nvrhub.local:9634" ];
               labels = {
                 hostname = "nvrhub";
                 role = "agent";
