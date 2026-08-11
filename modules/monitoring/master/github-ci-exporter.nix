@@ -1,7 +1,7 @@
 # modules/monitoring/master/github-ci-exporter.nix
 #
 # GitHub CI visibility: open issues, open pull requests, and Actions state
-# for every repository in the sdr-enthusiasts and fredsystems organisations.
+# for every repository owned by sdr-enthusiasts, fredsystems, or fredclausen.
 #
 # WHY
 #
@@ -23,14 +23,19 @@
 #
 # `github_pat_public_ro` is a classic PAT scoped to `public_repo` only. That
 # is the narrowest classic scope covering issues, pull requests, and Actions
-# across both organisations with one credential. It is separate from
+# across all three owners with one credential. It is separate from
 # `github_pat` (used for nix.conf access-tokens on every host) so that
 # rotating one does not disturb the other.
 #
 # `public_repo` does grant write on public repositories -- classic scopes have
-# no read-only variant. Only a per-organisation fine-grained token would be
-# truly read-only, and that would require one token per org. The exporter
-# itself issues no writes.
+# no read-only variant. Only a per-owner fine-grained token would be truly
+# read-only, and that would require one token per owner. The exporter itself
+# issues no writes.
+#
+# The scope also decides what is monitored: private repositories are invisible
+# to it, so the personal account contributes only its public repositories.
+# Widening to `repo` would grant write on every private repository in all
+# three owners, which is not worth CI visibility on scratch work.
 #
 # The secret is delivered via systemd `LoadCredential` rather than a sops
 # owner/mode, because the unit runs `DynamicUser = true` and so has no stable
@@ -60,9 +65,21 @@
     enable = true;
     package = inputs.github-ci-exporter.packages.${pkgs.stdenv.hostPlatform.system}.github-ci-exporter;
 
+    # Owners, not strictly organisations: `fredclausen` is a personal account.
+    # The exporter resolves both through GraphQL's `RepositoryOwner`
+    # interface, so a user and an org are interchangeable here. The option
+    # keeps the name `orgs` because it is also the `org` metric label, which
+    # every dashboard panel and alert rule selects on.
+    #
+    # Only the *public* repositories of the personal account are visible,
+    # because `github_pat_public_ro` is scoped to `public_repo` (see below).
+    # That is deliberate: monitoring the private ones would mean a token with
+    # write access to them, which is a bad trade for CI visibility on
+    # scratch repositories.
     orgs = [
       "sdr-enthusiasts"
       "fredsystems"
+      "fredclausen"
     ];
 
     listen = "127.0.0.1:9418";

@@ -820,17 +820,8 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "github_pull_needs_attention{checks=\"failure\"} == 1",
-          "legendFormat": "",
-          "instant": true,
-          "format": "table"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "expr": "github_pull_needs_attention{mergeable=\"conflicting\"} == 1",
+          "refId": "A",
+          "expr": "github_pull_needs_attention{checks=\"failure\"} == 1 or github_pull_needs_attention{mergeable=\"conflicting\"} == 1",
           "legendFormat": "",
           "instant": true,
           "format": "table"
@@ -1106,7 +1097,7 @@
       "id": 8,
       "type": "table",
       "title": "Auto-Disabled and Stale Workflows",
-      "description": "Workflows GitHub switched off after 60 days of repository inactivity, plus workflows whose newest branch-state run is older than 90 days. Neither is failing; both mean CI is no longer telling you anything.",
+      "description": "Two different things, so read the Reason column. auto-disabled means GitHub switched the workflow off after 60 days of repository inactivity: it has silently stopped running and is a fault. 'no recent run' means the newest run against the default branch is over 90 days old, which is only a fault for a workflow that has a cadence -- on push or on schedule. A workflow driven by workflow_dispatch or repository_dispatch appears here simply because nothing has asked it to run lately, and a workflow that only runs on pull_request has no default-branch state at all; its failures belong in the pull request panels above. Neither reason means the workflow is failing.",
       "gridPos": {
         "h": 8,
         "w": 12,
@@ -1147,7 +1138,43 @@
             ]
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Reason"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "auto-disabled": {
+                        "color": "orange",
+                        "index": 0,
+                        "text": "auto-disabled"
+                      },
+                      "stale": {
+                        "color": "text",
+                        "index": 1,
+                        "text": "no recent run"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
       },
       "targets": [
         {
@@ -1155,17 +1182,8 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "github_workflow_enabled{state=\"disabled_inactivity\"} == 0",
-          "legendFormat": "",
-          "instant": true,
-          "format": "table"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "expr": "github_workflow_run_stale == 1",
+          "refId": "A",
+          "expr": "label_replace(github_workflow_enabled{state=\"disabled_inactivity\"} == 0, \"reason\", \"auto-disabled\", \"\", \"\") or label_replace(github_workflow_run_stale == 1, \"reason\", \"stale\", \"\", \"\")",
           "legendFormat": "",
           "instant": true,
           "format": "table"
@@ -1183,13 +1201,19 @@
               "instance": true,
               "hostname": true,
               "role": true,
-              "state": false
+              "state": true
             },
             "renameByName": {
               "org": "Org",
               "repo": "Repository",
               "workflow": "Workflow",
-              "state": "State"
+              "reason": "Reason"
+            },
+            "indexByName": {
+              "org": 0,
+              "repo": 1,
+              "workflow": 2,
+              "reason": 3
             }
           }
         }
