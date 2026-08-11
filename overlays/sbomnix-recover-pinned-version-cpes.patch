@@ -34,7 +34,7 @@ On one server closure this takes components carrying a CPE from 59 to 97 and
 restores the kernel to cpe:2.3:o:linux:linux_kernel:6.18.41.
 
 diff --git a/src/sbomnix/builder.py b/src/sbomnix/builder.py
-index c0a57f9..ae65613 100644
+index c0a57f9..9c2ac02 100644
 --- a/src/sbomnix/builder.py
 +++ b/src/sbomnix/builder.py
 @@ -7,6 +7,7 @@
@@ -45,7 +45,7 @@ index c0a57f9..ae65613 100644
  import time
  import uuid
  from dataclasses import dataclass
-@@ -62,6 +63,58 @@ class StructuredClosure:
+@@ -62,6 +63,60 @@ class StructuredClosure:
      runtime_output_paths_by_load_path: dict[str, set[str]] | None = None
 
 
@@ -71,9 +71,11 @@ index c0a57f9..ae65613 100644
 +    # Strip a nixpkgs-only revision suffix (glibc "2.42-67" is upstream
 +    # 2.42 plus nixpkgs' patch-set counter).  Upstream has no such release,
 +    # so leaving it in produces a CPE that can only ever match by accident.
-+    # Only trailing "-<digits>" is removed, so genuine upstream versions
-+    # like "1.2-rc1" or "2026-05-01" survive intact.
-+    version = re.sub(r"-\d+$", "", version)
++    #
++    # The prefix must be a dotted numeric version for the suffix to be
++    # dropped, so date-like versions ("2026-05-01") and versions with a
++    # non-numeric suffix ("1.2-rc1") are left alone.
++    version = re.sub(r"^(\d+(?:\.\d+)+)-\d+$", r"\1", version)
 +    parts = cpe.split(":")
 +    expected_cpe_parts = 13
 +    version_index = 5
@@ -104,7 +106,7 @@ index c0a57f9..ae65613 100644
  def _runtime_output_paths_by_load_path(output_paths_by_drv):
      output_paths_by_load_path = {}
      for drv_path, output_paths in output_paths_by_drv.items():
-@@ -440,6 +493,15 @@ class SbomBuilder:
+@@ -440,6 +495,15 @@ class SbomBuilder:
          override_mask = meta_cpe != ""
          if not bool(np.any(override_mask)):
              return

@@ -40,7 +40,7 @@ index 875574a..c0a57f9 100644
              "Loaded raw runtime closure with %d dependency edge(s) and %d deriver(s) in %.3fs",
              len(runtime_closure.df_deps),
 diff --git a/src/sbomnix/runtime.py b/src/sbomnix/runtime.py
-index 17fa1de..1d5c246 100644
+index 17fa1de..08e0067 100644
 --- a/src/sbomnix/runtime.py
 +++ b/src/sbomnix/runtime.py
 @@ -6,6 +6,7 @@
@@ -131,7 +131,7 @@ index 17fa1de..1d5c246 100644
      """Load runtime closure information using ``nix path-info`` JSON."""
      cmd = nix_cmd(
          "path-info",
-@@ -53,7 +118,33 @@ def load_runtime_closure(path):
+@@ -53,7 +118,36 @@ def load_runtime_closure(path):
              stderr=error.stderr,
              stdout=error.stdout,
          ) from None
@@ -149,7 +149,10 @@ index 17fa1de..1d5c246 100644
 +            drv_root = path
 +        if drv_root is None:
 +            info = path_info.get(path)
-+            drv_root = info.get("deriver") if info else None
++            # Via the helper, not info["deriver"] directly: it filters the
++            # `unknown-deriver` sentinel, which would otherwise be handed to
++            # `nix-store -qR` as if it were a store path.
++            drv_root = nix_path_info_deriver(info, path) if info else None
 +        if drv_root:
 +            recovered = _recover_missing_derivers(
 +                path_info, drv_graph_output_map(drv_root)

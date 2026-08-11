@@ -134,8 +134,30 @@ final: prev: {
   #
   # All three workarounds above are only meaningful on Linux (cve-scan
   # runs on the self-hosted Linux runners); guarded to no-op on darwin.
+  #
+  # The two source patches are additionally version-gated to exactly
+  # 1.8.0, the version they were written against.  Two reasons:
+  #
+  #   * `nixpkgs-stable` currently ships 1.7.6, whose tree predates
+  #     builder.py/runtime.py/package_meta.py entirely.  Applying the
+  #     patches there fails the build ("4 out of 4 hunks ignored").
+  #     Nothing consumes the stable sbomnix today, so this is latent
+  #     rather than broken -- but it would break the moment something
+  #     did.
+  #   * A patch that silently stops applying is worse than one that
+  #     fails: the scan would keep running and quietly go back to
+  #     reporting 3% of each closure as clean.
+  #
+  # An exact-version gate means a bump to 1.8.1 drops the patches, the
+  # scannable-component assertion in cve-scan.yaml trips, and the scan
+  # fails loudly instead of under-reporting.  The `sbomnix-patch-version`
+  # flake check (flake/dev/checks.nix) fires at eval time so the bump is
+  # caught before it ever reaches a scan.  On a bump: re-verify both
+  # patches against the new tree, then widen this bound.
+  sbomnixPatchedVersion = "1.8.0";
+
   sbomnix =
-    if prev.stdenv.isDarwin then
+    if prev.stdenv.isDarwin || prev.sbomnix.version != final.sbomnixPatchedVersion then
       prev.sbomnix
     else
       prev.sbomnix.overrideAttrs (old: {
