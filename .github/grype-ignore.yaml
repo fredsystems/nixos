@@ -112,3 +112,256 @@ ignore:
   - vulnerability: CVE-2010-4756
     package:
       name: glibc
+
+  # ---------------------------------------------------------------------
+  # Kernel CVEs matched via UNBOUNDED NVD CPE ranges.
+  #
+  # NVD records many kernel bugs against cpe:2.3:o:linux:linux_kernel with
+  # no versionEndExcluding/versionEndIncluding at all.  Such an entry
+  # matches EVERY kernel version forever, including versions released
+  # years after the bug was fixed.
+  #
+  # Each CVE below was checked against the NVD API: all of them have only
+  # unbounded linux_kernel ranges, and all but one are from 2016-2023 --
+  # fixed long before any kernel this fleet runs.  The clearest evidence is
+  # that they matched a 7.1.7 desktop while never matching a 6.18.41
+  # server, which is backwards for real version-bounded findings.
+  #
+  # Two apparent exceptions were checked individually and are also fixed:
+  #   CVE-2020-27815 -- highest real range ends 5.10.4; matched only via a
+  #                     stray open-ended shard.
+  #   CVE-2026-52972 -- ranges end at 7.0.10 and 6.18.33; we run 7.1.7 and
+  #                     6.18.41, i.e. already patched in both.
+  #
+  # This is NOT a blanket kernel exclusion.  Version-bounded kernel CVEs
+  # are deliberately still reported -- the same scan surfaces 93 genuine
+  # 2025/2026 kernel findings that fall inside real NVD ranges.  Only these
+  # specific unbounded-match CVEs are suppressed.
+  #
+  # Re-verify with:
+  #   curl -s "https://services.nvd.nist.gov/rest/json/cves/2.0?cveId=<ID>" \
+  #     | jq '[.vulnerabilities[0].cve.configurations[]?.nodes[]?.cpeMatch[]?
+  #            | select(.criteria|test("linux_kernel"))]'
+  # ---------------------------------------------------------------------
+  - vulnerability: CVE-2016-0774
+    package:
+      name: linux
+  - vulnerability: CVE-2016-3695
+    package:
+      name: linux
+  - vulnerability: CVE-2016-3699
+    package:
+      name: linux
+  - vulnerability: CVE-2017-1000255
+    package:
+      name: linux
+  - vulnerability: CVE-2017-1000377
+    package:
+      name: linux
+  - vulnerability: CVE-2017-6264
+    package:
+      name: linux
+  - vulnerability: CVE-2018-10840
+    package:
+      name: linux
+  - vulnerability: CVE-2018-10876
+    package:
+      name: linux
+  - vulnerability: CVE-2018-10882
+    package:
+      name: linux
+  - vulnerability: CVE-2018-10902
+    package:
+      name: linux
+  - vulnerability: CVE-2018-14625
+    package:
+      name: linux
+  - vulnerability: CVE-2018-6559
+    package:
+      name: linux
+  - vulnerability: CVE-2019-14899
+    package:
+      name: linux
+  - vulnerability: CVE-2019-3016
+    package:
+      name: linux
+  - vulnerability: CVE-2019-3819
+    package:
+      name: linux
+  - vulnerability: CVE-2019-3887
+    package:
+      name: linux
+  - vulnerability: CVE-2020-10742
+    package:
+      name: linux
+  - vulnerability: CVE-2020-16119
+    package:
+      name: linux
+  - vulnerability: CVE-2020-1749
+    package:
+      name: linux
+  - vulnerability: CVE-2020-27815
+    package:
+      name: linux
+  - vulnerability: CVE-2020-8834
+    package:
+      name: linux
+  - vulnerability: CVE-2021-20194
+    package:
+      name: linux
+  - vulnerability: CVE-2021-20265
+    package:
+      name: linux
+  - vulnerability: CVE-2021-3564
+    package:
+      name: linux
+  - vulnerability: CVE-2021-3714
+    package:
+      name: linux
+  - vulnerability: CVE-2021-3759
+    package:
+      name: linux
+  - vulnerability: CVE-2021-3864
+    package:
+      name: linux
+  - vulnerability: CVE-2021-4218
+    package:
+      name: linux
+  - vulnerability: CVE-2022-0286
+    package:
+      name: linux
+  - vulnerability: CVE-2022-0400
+    package:
+      name: linux
+  - vulnerability: CVE-2022-1247
+    package:
+      name: linux
+  - vulnerability: CVE-2022-2308
+    package:
+      name: linux
+  - vulnerability: CVE-2022-2327
+    package:
+      name: linux
+  - vulnerability: CVE-2022-2663
+    package:
+      name: linux
+  - vulnerability: CVE-2022-3435
+    package:
+      name: linux
+  - vulnerability: CVE-2022-3523
+    package:
+      name: linux
+  - vulnerability: CVE-2022-3534
+    package:
+      name: linux
+  - vulnerability: CVE-2022-3566
+    package:
+      name: linux
+  - vulnerability: CVE-2022-3567
+    package:
+      name: linux
+  - vulnerability: CVE-2022-3619
+    package:
+      name: linux
+  - vulnerability: CVE-2022-3621
+    package:
+      name: linux
+  - vulnerability: CVE-2022-3624
+    package:
+      name: linux
+  - vulnerability: CVE-2022-3629
+    package:
+      name: linux
+  - vulnerability: CVE-2022-3630
+    package:
+      name: linux
+  - vulnerability: CVE-2022-3633
+    package:
+      name: linux
+  - vulnerability: CVE-2022-3636
+    package:
+      name: linux
+  - vulnerability: CVE-2022-36402
+    package:
+      name: linux
+  - vulnerability: CVE-2022-3646
+    package:
+      name: linux
+  - vulnerability: CVE-2022-38096
+    package:
+      name: linux
+  - vulnerability: CVE-2022-42895
+    package:
+      name: linux
+  - vulnerability: CVE-2022-4382
+    package:
+      name: linux
+  - vulnerability: CVE-2022-4543
+    package:
+      name: linux
+  - vulnerability: CVE-2023-1073
+    package:
+      name: linux
+  - vulnerability: CVE-2023-1074
+    package:
+      name: linux
+  - vulnerability: CVE-2023-1075
+    package:
+      name: linux
+  - vulnerability: CVE-2023-1076
+    package:
+      name: linux
+  - vulnerability: CVE-2023-2898
+    package:
+      name: linux
+  - vulnerability: CVE-2023-3397
+    package:
+      name: linux
+  - vulnerability: CVE-2023-3640
+    package:
+      name: linux
+  - vulnerability: CVE-2023-3772
+    package:
+      name: linux
+  - vulnerability: CVE-2023-3773
+    package:
+      name: linux
+  - vulnerability: CVE-2023-39176
+    package:
+      name: linux
+  - vulnerability: CVE-2023-39179
+    package:
+      name: linux
+  - vulnerability: CVE-2023-39180
+    package:
+      name: linux
+  - vulnerability: CVE-2023-4010
+    package:
+      name: linux
+  - vulnerability: CVE-2023-4155
+    package:
+      name: linux
+  - vulnerability: CVE-2023-52904
+    package:
+      name: linux
+  - vulnerability: CVE-2023-6176
+    package:
+      name: linux
+  - vulnerability: CVE-2023-6238
+    package:
+      name: linux
+  - vulnerability: CVE-2023-6240
+    package:
+      name: linux
+  - vulnerability: CVE-2023-6535
+    package:
+      name: linux
+  - vulnerability: CVE-2023-6610
+    package:
+      name: linux
+  - vulnerability: CVE-2023-6679
+    package:
+      name: linux
+  - vulnerability: CVE-2026-52972
+    package:
+      name: linux
