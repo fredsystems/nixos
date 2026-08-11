@@ -227,6 +227,30 @@ in
           hl.animation({ leaf = "fade",        enabled = true, speed = 7,  bezier = "default" })
           hl.animation({ leaf = "workspaces",  enabled = true, speed = 6,  bezier = "default" })
 
+          -----------------------
+          ---- WINDOW RULES  ----
+          -----------------------
+
+          -- Garmin Express is a WPF/XWayland app that Hyprland consistently
+          -- places far off-screen (observed at x=-6711 on a layout whose
+          -- leftmost monitor starts at x=-2560), so the window is mapped and
+          -- "visible" but on no physical display. Express stores no window
+          -- position of its own, so this is placement, not restore. Tiling it
+          -- is the robust fix: a tiled window cannot be positioned outside a
+          -- monitor. `explorer.exe` is Wine's desktop/tray shell, which shows
+          -- up as a stray 160x20 sliver from the same prefix.
+          hl.window_rule({
+            name = "garmin-express-tile",
+            match = { class = "express.exe" },
+            float = false,
+          })
+
+          hl.window_rule({
+            name = "wine-explorer-hide",
+            match = { class = "explorer.exe" },
+            float = true,
+          })
+
           --------------------
           ---- AUTOSTART  ----
           --------------------

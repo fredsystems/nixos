@@ -52,12 +52,37 @@ let
         winetricks -q --force corefonts dotnet48
         wineserver -w
 
-        echo "==> Phase 3/3: Running Garmin Express installer..." >&2
-        wine ${installer}
+        # Garmin Express is a WPF app hosting CefSharp. Under Wine its WPF
+        # (Avalon / "MIL") hardware render path produces an all-black window
+        # -- the app is running and laying out text, it just composites
+        # nothing visible. Forcing WPF to its software renderer is the fix.
+        #
+        # Note this is NOT the same thing as the CEF `--disable-gpu` flags
+        # below: those only affect the embedded Chromium panes, and were
+        # verified (present in /proc/<pid>/cmdline) to leave the window black
+        # on their own. `DwmAttachMilContent` in the Wine log is the tell
+        # that the black surface belongs to WPF, not CEF.
+        echo "==> Phase 3/4: Forcing WPF software rendering..." >&2
+        wine reg add 'HKCU\Software\Microsoft\Avalon.Graphics' \
+          /v DisableHWAcceleration /t REG_DWORD /d 1 /f
         wineserver -w
+
+        echo "==> Phase 4/4: Running Garmin Express installer..." >&2
+        wine ${installer}
+
+        # The installer launches Express itself as a detached process that is
+        # NOT our child, and that process keeps wineserver alive. A blocking
+        # `wineserver -w` here would therefore hang forever and never reach
+        # the marker write below, causing the whole 20-minute .NET install to
+        # be repeated on the next launch. Kill the prefix instead: it ends
+        # the installer's Express as well, so the only instance that ever
+        # runs is the one we launch ourselves (with the flags applied).
+        wineserver -k || true
 
         if [ -f "$EXE" ]; then
           touch "$MARKER"
+        else
+          echo "==> Installer finished but express.exe is missing." >&2
         fi
       fi
 
@@ -73,9 +98,11 @@ let
         exit 1
       fi
 
-      # Garmin Express embeds CefSharp (Chromium). Under XWayland with GPU
-      # acceleration it renders as a black window. Disable GPU accel for the
-      # embedded browser process.
+      # Garmin Express embeds CefSharp (Chromium). These flags only affect the
+      # embedded browser panes -- the black-window fix is the WPF
+      # DisableHWAcceleration registry key set during first-run setup above.
+      # Kept because software rendering for the CEF panes is consistent with
+      # forcing it for WPF, and costs nothing on a page-based UI.
       exec wine "$EXE" --disable-gpu --disable-gpu-compositing "$@"
     '';
   };
@@ -103,17 +130,21 @@ in
       SUBSYSTEM=="usb", ATTRS{idVendor}=="091e", MODE="0666", GROUP="users"
     '';
 
-    # MTP/auto-mount support for Garmin devices that present as storage.
-    services.gvfs.enable = true;
-
+    # Deliberately NO host-side MTP stack here (no simple-mtpfs, no libmtp,
+    # and gvfs is not force-enabled). MTP allows exactly one initiator at a
+    # time: whichever process opens the session owns the device until it
+    # closes it. A host MTP client browsing the Garmin therefore locks Wine
+    # out of it entirely. Since the whole point of this module is to let
+    # Garmin Express talk to the device, host MTP tooling is an active
+    # liability rather than a convenience. Desktops that want to browse a
+    # Garmin as a filesystem get that from the desktop environment's own
+    # gvfs, which is enabled elsewhere.
     users.users = lib.genAttrs allUsers (_: {
-      packages = with pkgs; [
+      packages = [
         garmin-express
         desktopItem
-        wineWow64Packages.stable
-        winetricks
-        simple-mtpfs
-        libmtp
+        pkgs.wineWow64Packages.stable
+        pkgs.winetricks
       ];
     });
   };
