@@ -29,6 +29,14 @@ groups:
           summary: "High memory usage on {{ $labels.hostname }}"
           description: "Node memory usage > 80% for 5 minutes."
 
+      # Deliberately not scoped to a mountpoint: every real filesystem counts,
+      # including secondary data volumes like nvrhub's /var/lib/frigate.
+      #
+      # The fstype exclusions cover pseudo-filesystems that either fill as a
+      # matter of course (tmpfs, ramfs) or are read-only by construction
+      # (squashfs). Network mounts are absent because they are dropped at the
+      # collector -- see modules/monitoring/agent/node_exporter.nix for why a
+      # NAS share is not a statement about the host that mounted it.
       - alert: NodeDiskLow
         expr: |
           (node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs|devtmpfs|ramfs|autofs"}
@@ -193,15 +201,30 @@ groups:
           summary: "Targets for {{ $labels.job }} are DOWN"
           description: "Prometheus cannot scrape {{ $labels.instance }} for >2 minutes."
 
+      # Inode exhaustion on ANY real filesystem, not just the root one.
+      #
+      # This was pinned to mountpoint="/" and therefore blind to exactly the
+      # case it exists for: nvrhub's 3.6T /var/lib/frigate holds millions of
+      # small recording segments, a workload that runs out of inodes long
+      # before it runs out of bytes. A full volume there would have been caught
+      # by NodeDiskLow; an inode-exhausted one would not have been caught at
+      # all.
+      #
+      # vfat is excluded on top of the usual pseudo-filesystems because it has
+      # no inode table and reports node_filesystem_files = 0, which makes the
+      # ratio 0/0 -> NaN. Network filesystems report 0 for the same reason but
+      # are already dropped at the collector; see
+      # modules/monitoring/agent/node_exporter.nix.
       - alert: NodeInodesLow
-        expr: node_filesystem_files_free{mountpoint="/"}
-          / node_filesystem_files{mountpoint="/"} < 0.10
+        expr: |
+          (node_filesystem_files_free{fstype!~"tmpfs|overlay|squashfs|devtmpfs|ramfs|autofs|vfat"}
+           / node_filesystem_files{fstype!~"tmpfs|overlay|squashfs|devtmpfs|ramfs|autofs|vfat"}) < 0.10
         for: 15m
         labels:
           severity: warning
         annotations:
-          summary: "Low inodes on {{ $labels.hostname }}"
-          description: "Less than 10% of inodes remain on root filesystem."
+          summary: "Low inodes on {{ $labels.hostname }} ({{ $labels.mountpoint }})"
+          description: "Filesystem {{ $labels.mountpoint }} on {{ $labels.hostname }} has less than 10% of its inodes remaining. It will fail writes while still reporting free space."
 
       - alert: ClockSkewDetected
         expr: abs(node_timex_offset_seconds) > 0.1
