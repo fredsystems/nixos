@@ -890,6 +890,7 @@
             },
             "excludeByName": {
               "Time": true,
+              "__name__": true,
               "instance": true,
               "job": true,
               "role": true,
@@ -926,7 +927,7 @@
         {
           "refId": "disk",
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "max by (hostname) ((1 - (node_filesystem_avail_bytes{fstype!~\"tmpfs|overlay|squashfs|devtmpfs|ramfs|autofs\"} / node_filesystem_size_bytes{fstype!~\"tmpfs|overlay|squashfs|devtmpfs|ramfs|autofs\"})) * 100)",
+          "expr": "max by (hostname) ((1 - (node_filesystem_avail_bytes{fstype!~\"tmpfs|overlay|squashfs|devtmpfs|ramfs|autofs\",mountpoint!=\"/nix/store\"} / node_filesystem_size_bytes{fstype!~\"tmpfs|overlay|squashfs|devtmpfs|ramfs|autofs\",mountpoint!=\"/nix/store\"})) * 100)",
           "instant": true,
           "format": "table",
           "legendFormat": "__auto"
@@ -934,7 +935,7 @@
         {
           "refId": "load",
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "node_load1",
+          "expr": "max by (hostname) (node_load1)",
           "instant": true,
           "format": "table",
           "legendFormat": "__auto"
@@ -953,7 +954,7 @@
       "id": 47,
       "type": "table",
       "title": "Filesystem Usage — Every Watched Mount",
-      "description": "One row per filesystem per host: the exact set the disk alerts evaluate. The summary table above collapses each host to its fullest filesystem, so a secondary data volume (nvrhub /var/lib/frigate) is only visible here. Network mounts are absent by design -- they are excluded at the collector, because a NAS share says nothing about the host that mounted it.",
+      "description": "One row per filesystem per host: the exact set the disk alerts evaluate. The summary table above collapses each host to its fullest filesystem, so a secondary data volume (nvrhub /var/lib/frigate) is only visible here. /nix/store is omitted because it is a bind mount of / on the same device and reports byte-identical figures. Network mounts are omitted because they are excluded at the collector -- a NAS share says nothing about the host that mounted it.",
       "gridPos": { "h": 10, "w": 24, "x": 0, "y": 27 },
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "options": {
@@ -1060,6 +1061,7 @@
           "options": {
             "excludeByName": {
               "Time": true,
+              "__name__": true,
               "instance": true,
               "job": true,
               "role": true,
@@ -1093,7 +1095,7 @@
         {
           "refId": "used",
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "100 * (1 - (node_filesystem_avail_bytes{fstype!~\"tmpfs|overlay|squashfs|devtmpfs|ramfs|autofs\"} / node_filesystem_size_bytes{fstype!~\"tmpfs|overlay|squashfs|devtmpfs|ramfs|autofs\"}))",
+          "expr": "100 * (1 - (max by (hostname, mountpoint, device, fstype) (node_filesystem_avail_bytes{fstype!~\"tmpfs|overlay|squashfs|devtmpfs|ramfs|autofs\",mountpoint!=\"/nix/store\"}) / max by (hostname, mountpoint, device, fstype) (node_filesystem_size_bytes{fstype!~\"tmpfs|overlay|squashfs|devtmpfs|ramfs|autofs\",mountpoint!=\"/nix/store\"})))",
           "instant": true,
           "format": "table",
           "legendFormat": "__auto"
@@ -1101,7 +1103,7 @@
         {
           "refId": "size",
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "node_filesystem_size_bytes{fstype!~\"tmpfs|overlay|squashfs|devtmpfs|ramfs|autofs\"}",
+          "expr": "max by (hostname, mountpoint, device, fstype) (node_filesystem_size_bytes{fstype!~\"tmpfs|overlay|squashfs|devtmpfs|ramfs|autofs\",mountpoint!=\"/nix/store\"})",
           "instant": true,
           "format": "table",
           "legendFormat": "__auto"
@@ -1109,7 +1111,7 @@
         {
           "refId": "avail",
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "node_filesystem_avail_bytes{fstype!~\"tmpfs|overlay|squashfs|devtmpfs|ramfs|autofs\"}",
+          "expr": "max by (hostname, mountpoint, device, fstype) (node_filesystem_avail_bytes{fstype!~\"tmpfs|overlay|squashfs|devtmpfs|ramfs|autofs\",mountpoint!=\"/nix/store\"})",
           "instant": true,
           "format": "table",
           "legendFormat": "__auto"
@@ -1117,7 +1119,7 @@
         {
           "refId": "inodes",
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "100 * (1 - (node_filesystem_files_free{fstype!~\"tmpfs|overlay|squashfs|devtmpfs|ramfs|autofs|vfat\"} / node_filesystem_files{fstype!~\"tmpfs|overlay|squashfs|devtmpfs|ramfs|autofs|vfat\"}))",
+          "expr": "100 * (1 - (max by (hostname, mountpoint, device, fstype) (node_filesystem_files_free{fstype!~\"tmpfs|overlay|squashfs|devtmpfs|ramfs|autofs|vfat\",mountpoint!=\"/nix/store\"}) / max by (hostname, mountpoint, device, fstype) (node_filesystem_files{fstype!~\"tmpfs|overlay|squashfs|devtmpfs|ramfs|autofs|vfat\",mountpoint!=\"/nix/store\"})))",
           "instant": true,
           "format": "table",
           "legendFormat": "__auto"
@@ -1190,6 +1192,7 @@
           "options": {
             "excludeByName": {
               "Time": true,
+              "__name__": true,
               "instance": true,
               "job": true,
               "state": true,
@@ -1340,6 +1343,7 @@
         {
           "id": "organize",
           "options": {
+            "excludeByName": { "__name__": true },
             "indexByName": {
               "host": 0,
               "device": 1,
@@ -1613,7 +1617,7 @@
         {
           "refId": "A",
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "100 * (1 - (node_filesystem_avail_bytes{fstype!~\"tmpfs|overlay|squashfs|devtmpfs|ramfs|autofs\"} / node_filesystem_size_bytes{fstype!~\"tmpfs|overlay|squashfs|devtmpfs|ramfs|autofs\"}))",
+          "expr": "100 * (1 - (node_filesystem_avail_bytes{fstype!~\"tmpfs|overlay|squashfs|devtmpfs|ramfs|autofs\",mountpoint!=\"/nix/store\"} / node_filesystem_size_bytes{fstype!~\"tmpfs|overlay|squashfs|devtmpfs|ramfs|autofs\",mountpoint!=\"/nix/store\"}))",
           "legendFormat": "{{hostname}} {{mountpoint}}"
         }
       ]
