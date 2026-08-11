@@ -85,17 +85,40 @@ final: prev: {
   # the modern format (Nix >= 2.34 in our pin emits schema version 4).
   #
   # Revert: once nixpkgs' sbomnix wrapper stops pinning nix_2_31 (drops
-  # it or bumps it to a version emitting the new format), delete this
-  # overlay and its FIXME.  See
+  # it or bumps it to a version emitting the new format), delete the
+  # makeWrapperArgs override and this FIXME.  See
   # .github/workflows/track-upstream-fixes.yaml.
   #
-  # Only meaningful on Linux (cve-scan runs on the self-hosted Linux
-  # runners); guarded so it is a no-op on darwin.
+  # FIXME(sbomnix-substituted-deriver-drop): WORKAROUND, not a fix.
+  #
+  # sbomnix drops every runtime-closure path whose deriver `nix path-info`
+  # reports as unknown.  That is every substituter-fetched path, because the
+  # deriver pointer is only recorded for locally-built outputs.  On our
+  # runners the result was an SBOM covering 418 of 3242 paths (13%), missing
+  # openssl, bash and glibc while keeping unit-*.service and etc-* glue --
+  # i.e. it silently scanned almost nothing and reported success.  Coverage
+  # tracked cache warmth, so the CVE count swung per-runner and per-week, and
+  # occasionally hit zero matches, which then tripped cve-scan.yaml's
+  # "grype output has no .vulnerabilities key" guard and turned hosts red.
+  #
+  # The patch reconstructs output -> deriver by inverting `outputs.<name>.path`
+  # over the local .drv graph, which does not depend on the store's deriver
+  # pointers.  Restores 98.9% coverage (408 -> 2835 components) in ~2s.
+  #
+  # Revert: once sbomnix recovers derivers itself (no upstream issue filed
+  # yet), delete the `patches` attribute, the patch file, and this FIXME.
+  # See .github/workflows/track-upstream-fixes.yaml.
+  #
+  # Both workarounds above are only meaningful on Linux (cve-scan runs on
+  # the self-hosted Linux runners); guarded so this is a no-op on darwin.
   sbomnix =
     if prev.stdenv.isDarwin then
       prev.sbomnix
     else
-      prev.sbomnix.overrideAttrs (_: {
+      prev.sbomnix.overrideAttrs (old: {
+        patches = (old.patches or [ ]) ++ [
+          ./sbomnix-recover-substituted-derivers.patch
+        ];
         makeWrapperArgs = [
           "--prefix PATH : ${
             prev.lib.makeBinPath [
