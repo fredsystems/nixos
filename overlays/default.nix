@@ -109,8 +109,31 @@ final: prev: {
   # yet), delete the `patches` attribute, the patch file, and this FIXME.
   # See .github/workflows/track-upstream-fixes.yaml.
   #
-  # Both workarounds above are only meaningful on Linux (cve-scan runs on
-  # the self-hosted Linux runners); guarded so this is a no-op on darwin.
+  # FIXME(sbomnix-pinned-version-cpe-drop): WORKAROUND, not a fix.
+  #
+  # sbomnix attaches nixpkgs metadata only when a component's output or
+  # derivation path is byte-identical to the one the nixpkgs attribute
+  # evaluates to.  When a closure pins a different version than the attr
+  # currently builds, nothing matches and the component is emitted with
+  # no CPE -- which makes it invisible to grype and reads as "no known
+  # vulnerabilities" rather than "never checked".
+  #
+  # This was hiding most of the fleet.  Servers pinning linux 6.18.41
+  # while `pkgs.linux` was 6.18.43 emitted the kernel with `cpe: null`
+  # and scored ZERO kernel CVEs, while Daytona (whose kernel matched its
+  # attr) scored 74.  A newer kernel looking cleaner than an older one is
+  # the signature of this bug, not a security finding.
+  #
+  # The patch adds a lowest-priority pname fallback that carries over
+  # only the CPE, retargeted to the version actually in the closure.
+  # Takes a server closure from 59 to 97 scannable components.
+  #
+  # Revert: once sbomnix matches metadata for pinned versions itself (no
+  # upstream issue filed yet), delete the patch and this FIXME.  See
+  # .github/workflows/track-upstream-fixes.yaml.
+  #
+  # All three workarounds above are only meaningful on Linux (cve-scan
+  # runs on the self-hosted Linux runners); guarded to no-op on darwin.
   sbomnix =
     if prev.stdenv.isDarwin then
       prev.sbomnix
@@ -118,6 +141,7 @@ final: prev: {
       prev.sbomnix.overrideAttrs (old: {
         patches = (old.patches or [ ]) ++ [
           ./sbomnix-recover-substituted-derivers.patch
+          ./sbomnix-recover-pinned-version-cpes.patch
         ];
         makeWrapperArgs = [
           "--prefix PATH : ${
