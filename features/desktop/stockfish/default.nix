@@ -1,8 +1,8 @@
 import ../../../modules/lib/mk-simple-package-module.nix {
   optionPath = "desktop.stockfish";
-  description = "Stockfish chess engine and Arena GUI";
+  description = "Stockfish chess engine and ChessX GUI";
   packages = pkgs: [
     pkgs.stockfish
-    pkgs.arena
+    pkgs.chessx
   ];
 }
