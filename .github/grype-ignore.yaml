@@ -1,0 +1,140 @@
+---
+# grype configuration for the weekly CVE scan (.github/workflows/cve-scan.yaml).
+#
+# Every match in this scan comes from grype's `nvd-cpe` source: plain CPE
+# string comparison against NVD.  There is no NixOS security tracker, so
+# grype cannot know which fixes nixpkgs has backported, cannot see that a
+# component is present only as a debug-info string rather than executable
+# code, and cannot tell that an advisory applies to a platform or build
+# configuration we do not use.  The result is a stream of matches that are
+# true statements about a CPE and false statements about this fleet.
+#
+# This file suppresses ONLY findings that are inapplicable for a specific,
+# verifiable reason recorded inline.  It is not a place to hide CVEs that
+# are merely old, merely noisy, or merely inconvenient to fix.
+#
+# RULES FOR ADDING AN ENTRY
+#
+#   1. State WHY it cannot affect us, concretely.  "Old" and "probably
+#      fine" are not reasons.  Acceptable reasons look like: wrong CPU
+#      architecture, the vulnerable feature is not compiled in, the
+#      attack vector requires a service we do not run, upstream disputes
+#      the advisory, or the CPE itself is wrong.
+#   2. Scope it to a package with `package.name` whenever the reason is
+#      package-specific, so an unrelated component matching the same CVE
+#      later is still reported.
+#   3. Prefer fixing over ignoring.  If a version bump resolves it, do
+#      that instead.
+#   4. Re-check on major version bumps.  A reason tied to how a package
+#      is built today can stop holding tomorrow.
+#
+# We deliberately do NOT filter by CVSS score, EPSS probability, or age.
+# Those are ranking signals, not applicability signals: a low-EPSS bug in
+# a library we expose to the network still matters, and suppressing by
+# threshold hides findings without anyone having judged them.  Triage
+# belongs in the report, not in a silent filter.
+#
+# NOTHING here suppresses a `linux` finding, and that is deliberate.
+#
+# The kernel is the noisiest component in the report by a wide margin and
+# the least tractable through CPE matching, because NVD is not a reliable
+# source for it.  NVD flattens the kernel's per-branch stable backports
+# into a small number of wide version spans, and separately records many
+# driver and platform bugs against cpe:2.3:o:linux:linux_kernel with no
+# upper bound at all.  The two failure modes point in opposite directions:
+#
+#   * No upper bound -> matches every kernel forever.  CVE-2017-6264, an
+#     NVIDIA Tegra GPU driver bug, matches an x86_64 desktop at CVSS 7.8.
+#   * Flattened spans -> a fix backported to 6.18.34 still shows a range
+#     reaching 6.19.7, so a patched kernel looks affected.
+#
+# A previous revision of this file suppressed 74 kernel CVEs on the first
+# ground.  That was removed.  The classification behind it treated a CVE as
+# version-bounded if ANY of its NVD shards had an upper bound, but these
+# entries routinely carry a real range AND a catch-all shard, so the test
+# silently mixed the two categories.  Verdicts derived that way were wrong
+# in both directions, and suppressions resting on them hid findings for a
+# reason that did not hold.
+#
+# The authoritative source is the Linux kernel CNA (cveawg.mitre.org),
+# which records the exact `unaffected` version per stable branch -- e.g.
+# CVE-2026-23327 is fixed in 6.18.34, which NVD's 5.19.1-6.19.7 span does
+# not show.  Comparing that against the running kernel is the only method
+# that stays correct across kernel bumps, which a hand-maintained list of
+# CVE ids cannot.
+#
+# So kernel findings are reported in full and triaged by hand for now.
+# That is noisy and known; a wrong suppression is worse than a noisy
+# report.  Automating it against the CNA is tracked separately.
+#
+# Verify a change with:
+#   grype -c .github/grype-ignore.yaml sbom:sbom.cdx.json -o table --show-suppressed
+
+ignore:
+  # CVE-2023-4039 — GCC -fstack-protector weakness.
+  #
+  # DISPUTED upstream, and explicitly scoped to AArch64: "GCC-based
+  # toolchains that target AArch64".  Every host in this flake is
+  # x86_64-linux, so the affected code path does not exist here.
+  #
+  # gcc is also only in the runtime closure incidentally: `nix why-depends`
+  # resolves it through a debug-info path string embedded in the niri
+  # binary, not through an executable or a linked library.
+  #
+  # Re-evaluate if we ever add an aarch64-linux host.
+  - vulnerability: CVE-2023-4039
+    package:
+      name: gcc
+  - vulnerability: CVE-2023-4039
+    package:
+      name: gcc-wrapper
+
+  # CVE-2023-51767 — OpenSSH row hammer authentication bypass.
+  #
+  # DISPUTED, and conditional on physical DRAM characteristics: the
+  # advisory itself says "when common types of DRAM are used ... this is
+  # applicable to a certain threat model".  It requires the attacker to
+  # induce bit flips in specific memory, which is not a property OpenSSH
+  # can fix and not one a package update resolves.  No upstream fix
+  # exists to track.
+  - vulnerability: CVE-2023-51767
+    package:
+      name: openssh
+
+  # CVE-2007-2768 — OpenSSH OPIE user enumeration.
+  #
+  # Requires OpenSSH to be using OPIE (One-Time Passwords in Everything)
+  # via PAM.  We do not: no host in this flake configures OPIE or any OTP
+  # PAM module.  Verified by grepping modules/, profiles/, features/ and
+  # hosts/ for opie/OTP PAM configuration.
+  #
+  # Re-evaluate if OTP authentication is ever introduced.
+  - vulnerability: CVE-2007-2768
+    package:
+      name: openssh
+
+  # CVE-2016-2781 — coreutils chroot --userspec TIOCSTI escape.
+  #
+  # Requires an attacker who can already run `chroot --userspec` on the
+  # host to escape to the parent session's terminal.  That presupposes
+  # local execution with the privileges the exploit is meant to obtain,
+  # so it grants nothing an attacker in that position does not already
+  # have.  Debian and Red Hat both classify this as not-a-vulnerability
+  # for this reason, and no coreutils fix is planned.
+  - vulnerability: CVE-2016-2781
+    package:
+      name: coreutils
+
+  # CVE-2010-4756 — glibc glob() resource exhaustion.
+  #
+  # The advisory's vector is "remote authenticated users ... as
+  # demonstrated by glob expressions in ftpd", i.e. a network service
+  # that passes attacker-controlled patterns to glob().  We run no FTP
+  # server, and no service in this flake exposes glob() to remote input.
+  # Verified by grepping for vsftpd/proftpd/pure-ftpd/services.ftp.
+  #
+  # Re-evaluate if an FTP server or any service taking remote glob
+  # patterns is ever deployed.
+  - vulnerability: CVE-2010-4756
+    package:
+      name: glibc

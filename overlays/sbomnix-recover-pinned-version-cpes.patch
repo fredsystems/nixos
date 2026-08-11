@@ -1,0 +1,192 @@
+Recover CPEs for components whose pinned version differs from the nixpkgs attr.
+
+sbomnix attaches nixpkgs metadata to a component only when the component's
+output path or derivation path is byte-identical to the one the nixpkgs
+attribute evaluates to.  That is exact by construction, and it silently
+drops metadata whenever a closure pins a different version of a package than
+the attribute currently produces.
+
+The consequence is not a missing description -- it is a missing CPE, and a
+component without a CPE is invisible to every CPE-based scanner.  It reads
+as "no known vulnerabilities" when it means "never checked".
+
+Observed on a NixOS fleet: hosts pinning linux 6.18.41 while `pkgs.linux`
+evaluated to 6.18.43 emitted the kernel with `cpe: null` and scored ZERO
+kernel CVEs, while a host whose kernel happened to match its attribute
+scored 74.  A newer kernel appearing cleaner than an older one is the
+signature of this bug, not a security finding.
+
+Add a lowest-priority fallback that matches on pname and carries over only
+the CPE, and rewrite that CPE's version field to the version actually
+present in the closure so the recovered identifier describes what is
+installed rather than what the attribute builds today.  The rewrite also
+strips nixpkgs-only revision suffixes (glibc "2.42-67" -> upstream "2.42"),
+which have no upstream release to match against, and preserves an accurate
+CPE version/update split (bash 5.3p9 -> version 5.3, update 9) instead of
+flattening it.
+
+Deliberately narrow: any exact path match still wins, only rows that carry a
+CPE are considered, and only the CPE is taken -- description, homepage,
+licence and maintainers still describe the attribute's current revision and
+would be wrong for a pinned version.
+
+On one server closure this takes components carrying a CPE from 59 to 97 and
+restores the kernel to cpe:2.3:o:linux:linux_kernel:6.18.41.
+
+diff --git a/src/sbomnix/builder.py b/src/sbomnix/builder.py
+index c0a57f9..9c2ac02 100644
+--- a/src/sbomnix/builder.py
++++ b/src/sbomnix/builder.py
+@@ -7,6 +7,7 @@
+ """SBOM builder orchestration."""
+
+ import logging
++import re
+ import time
+ import uuid
+ from dataclasses import dataclass
+@@ -62,6 +63,60 @@ class StructuredClosure:
+     runtime_output_paths_by_load_path: dict[str, set[str]] | None = None
+
+
++def _retarget_cpe_version(cpe, version):
++    """Point a nixpkgs metadata CPE at the version present in the closure.
++
++    A nixpkgs attribute's metadata describes the version that attribute
++    currently evaluates to, which is not necessarily the version this
++    closure pins.  Emitting the attribute's CPE unchanged would attribute
++    findings to the wrong version, so rewrite the version component to the
++    one actually built.
++
++    The `update` component (CPE 2.3 field 6) is cleared alongside it: it
++    qualifies the version it was derived from (bash 5.3p9 -> version 5.3,
++    update 9), so carrying it over to a different version would produce a
++    combination that never existed.
++
++    Left alone when the version is unknown, already agrees, or the CPE is
++    not a well-formed 13-part CPE 2.3 string.
++    """
++    if not cpe or not version:
++        return cpe
++    # Strip a nixpkgs-only revision suffix (glibc "2.42-67" is upstream
++    # 2.42 plus nixpkgs' patch-set counter).  Upstream has no such release,
++    # so leaving it in produces a CPE that can only ever match by accident.
++    #
++    # The prefix must be a dotted numeric version for the suffix to be
++    # dropped, so date-like versions ("2026-05-01") and versions with a
++    # non-numeric suffix ("1.2-rc1") are left alone.
++    version = re.sub(r"^(\d+(?:\.\d+)+)-\d+$", r"\1", version)
++    parts = cpe.split(":")
++    expected_cpe_parts = 13
++    version_index = 5
++    update_index = 6
++    if len(parts) != expected_cpe_parts or parts[0] != "cpe" or parts[1] != "2.3":
++        return cpe
++    current = parts[version_index]
++    # A wildcard or empty version is deliberately unbounded; leave it.
++    if current in ("", "*", "-"):
++        return cpe
++    if current == version:
++        return cpe
++    # The CPE may legitimately split the version across the version and
++    # update fields (bash 5.3p9 -> version 5.3, update 9).  Reassemble
++    # before comparing, so an accurate split is preserved and only a
++    # genuinely different version is rewritten.  Both "p" and "-" appear
++    # as separators upstream.
++    update = parts[update_index]
++    if update not in ("", "*", "-"):
++        for separator in ("p", "-", ""):
++            if f"{current}{separator}{update}" == version:
++                return cpe
++    parts[version_index] = version
++    parts[update_index] = "*"
++    return ":".join(parts)
++
++
+ def _runtime_output_paths_by_load_path(output_paths_by_drv):
+     output_paths_by_load_path = {}
+     for drv_path, output_paths in output_paths_by_drv.items():
+@@ -440,6 +495,15 @@ class SbomBuilder:
+         override_mask = meta_cpe != ""
+         if not bool(np.any(override_mask)):
+             return
++        if cols.VERSION in self.df_sbomdb.columns:
++            versions = self.df_sbomdb[cols.VERSION].fillna("").astype(str).to_numpy()
++            meta_cpe = np.array(
++                [
++                    _retarget_cpe_version(cpe, version)
++                    for cpe, version in zip(meta_cpe, versions, strict=False)
++                ],
++                dtype=object,
++            )
+         current_cpe = self.df_sbomdb[cols.CPE].fillna("").astype(str).to_numpy()
+         self.df_sbomdb[cols.CPE] = np.where(override_mask, meta_cpe, current_cpe)
+
+diff --git a/src/sbomnix/package_meta.py b/src/sbomnix/package_meta.py
+index cc11a14..c8eb56d 100644
+--- a/src/sbomnix/package_meta.py
++++ b/src/sbomnix/package_meta.py
+@@ -820,9 +820,63 @@ def match_package_metadata_to_components(components, metadata, *, buildtime):
+     else:
+         matches.append(_output_path_matches(components, metadata, priority=0))
+         matches.append(_drv_path_matches(components, metadata, priority=1))
++    matches.append(_pname_cpe_matches(components, metadata, priority=9))
+     return _best_component_matches(matches)
+
+
++def _pname_cpe_matches(components, metadata, *, priority):
++    """Recover a CPE by pname when no store path matched.
++
++    Path-based matching is exact by construction: a component only picks up
++    nixpkgs metadata when its output or derivation path is identical to the
++    one the nixpkgs attribute evaluates to.  When a closure pins a different
++    version of a package than the attribute currently produces -- a host on
++    linux 6.18.41 while `pkgs.linux` is 6.18.43 -- the paths differ, no row
++    matches, and the component is emitted with no CPE at all.  It is then
++    invisible to any CPE-based scanner, which reads as "no known
++    vulnerabilities" rather than "not checked".
++
++    Fall back to matching on pname and carrying over only the CPE.  The
++    consumer rewrites the CPE's version field to the version actually in the
++    closure, so the recovered identifier describes what is installed and not
++    what the attribute happens to build today.
++
++    Deliberately narrow:
++      * lowest priority, so any exact path match always wins;
++      * only rows that actually carry a CPE are considered, since recovering
++        an empty one achieves nothing;
++      * only the CPE is taken.  Description, homepage, licence and
++        maintainers describe the attribute's current revision and may be
++        wrong for the pinned version, so they are left empty rather than
++        risk attributing the wrong provenance.
++    """
++    if cols.PNAME not in components.columns or cols.PNAME not in metadata.columns:
++        return pd.DataFrame()
++    if "meta_cpe" not in metadata.columns:
++        return pd.DataFrame()
++
++    meta = metadata[[cols.PNAME, "meta_cpe"]].copy()
++    meta = meta[meta[cols.PNAME].astype(bool) & meta["meta_cpe"].astype(bool)]
++    if meta.empty:
++        return pd.DataFrame()
++    # An attribute can appear under several paths (multi-output, or the same
++    # pname reachable via more than one attr); they agree on the CPE, so any
++    # one of them is fine.
++    meta = meta.drop_duplicates(subset=[cols.PNAME], keep="first")
++
++    component_keys = components[[cols.STORE_PATH, cols.PNAME]].copy()
++    component_keys = component_keys[component_keys[cols.PNAME].astype(bool)]
++    if component_keys.empty:
++        return pd.DataFrame()
++
++    matched = component_keys.merge(meta, how="inner", on=cols.PNAME)
++    if matched.empty:
++        return matched
++    matched.drop(columns=[cols.PNAME], inplace=True)
++    matched["_meta_match_priority"] = priority
++    return matched
++
++
+ def _output_path_matches(components, metadata, *, priority):
+     output_components = components[[cols.STORE_PATH, cols.OUTPUTS]].copy()
+     output_components = output_components.explode(cols.OUTPUTS)

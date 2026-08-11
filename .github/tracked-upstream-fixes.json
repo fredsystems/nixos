@@ -128,6 +128,38 @@
       "revert_action": "sbomnix#267 is already CLOSED (the parser was fixed in 1.8.0); the residual bug is purely nixpkgs' stale wrapper pin, for which no upstream issue exists yet. `pkgs-min-version` with `min_version: null` keeps this BLOCKED (never falsely resolved) \u2014 it is a reminder to re-check manually. When a future nixpkgs sbomnix update drops the nix_2_31 PATH pin (verify pkgs/by-name/sb/sbomnix/package.nix in our pinned nixpkgs no longer references nixVersions.nix_2_31), delete the `sbomnix` overlay from overlays/default.nix and its FIXME, revert flake/dev/packages.nix to `import nixpkgs { inherit system; }` with no overlays and drop the `inherit (pkgs) sbomnix;` line, revert cve-scan.yaml to `nix shell --inputs-from . nixpkgs#sbomnix --command sbomnix`, confirm a manual `workflow_dispatch` CVE scan is green, then set `done: true`. If it becomes urgent, file a nixpkgs issue to establish a real `issue-closed`/`nixpkgs-pin-contains-commit` signal and retarget this entry."
     },
     {
+      "id": "sbomnix-substituted-deriver-drop",
+      "done": false,
+      "summary": "sbomnix drops every runtime-closure path whose deriver `nix path-info` reports as unknown, which is every substituter-fetched path; the SBOM covered 418 of 3242 paths (13%) and silently omitted openssl, bash and glibc while keeping unit-*.service glue, so CVE scans reported near-empty results as clean successes.",
+      "repo": "tiiuae/sbomnix",
+      "check": "pkgs-min-version",
+      "package": "sbomnix",
+      "eval_host": "fredhub",
+      "min_version": null,
+      "upstream_pr": null,
+      "tracking": [
+        "https://github.com/tiiuae/sbomnix/blob/main/src/sbomnix/runtime.py"
+      ],
+      "workaround": "overlays/default.nix -- the `sbomnix` overlay applies overlays/sbomnix-recover-substituted-derivers.patch, which reconstructs output -> deriver by inverting `outputs.<name>.path` over the local .drv graph instead of trusting the store's deriver pointers (see FIXME(sbomnix-substituted-deriver-drop)). Restores 98.9% closure coverage (408 -> 2835 components on Daytona). cve-scan.yaml additionally asserts >= 60% coverage so a future regression fails loudly instead of silently reporting an empty scan.",
+      "revert_action": "No upstream issue is filed yet, so `min_version: null` keeps this BLOCKED (never falsely resolved) as a manual re-check reminder. File an upstream issue against tiiuae/sbomnix describing the substituted-deriver drop, then retarget this entry to `issue-closed` (or to `pkgs-min-version` once a carrying sbomnix release is known). To revert: confirm the pinned sbomnix recovers derivers itself by running sbomnix against a flakeref and checking the component count is within ~15% of `nix path-info --recursive <out> | wc -l`; then delete overlays/sbomnix-recover-substituted-derivers.patch, drop the `patches` attribute from the sbomnix overlay along with its FIXME, confirm a manual `workflow_dispatch` CVE scan is green and the coverage assertion still passes, then set `done: true`. Keep the coverage assertion in cve-scan.yaml regardless -- it guards the class of bug, not this instance."
+    },
+    {
+      "id": "sbomnix-pinned-version-cpe-drop",
+      "done": false,
+      "summary": "sbomnix matches nixpkgs metadata to components only by exact output/derivation path, so a closure pinning a different version than the nixpkgs attribute currently builds gets no metadata and therefore no CPE; such components are invisible to grype and report as clean. Servers pinning linux 6.18.41 while pkgs.linux was 6.18.43 scored ZERO kernel CVEs while a version-matching desktop scored 74, and only 59 of 1819 components fleet-wide carried a CPE.",
+      "repo": "tiiuae/sbomnix",
+      "check": "pkgs-min-version",
+      "package": "sbomnix",
+      "eval_host": "fredhub",
+      "min_version": null,
+      "upstream_pr": null,
+      "tracking": [
+        "https://github.com/tiiuae/sbomnix/blob/main/src/sbomnix/package_meta.py"
+      ],
+      "workaround": "overlays/default.nix -- the `sbomnix` overlay applies overlays/sbomnix-recover-pinned-version-cpes.patch, adding a lowest-priority pname fallback in match_package_metadata_to_components() that carries over only the CPE, plus _retarget_cpe_version() in builder.py which rewrites the CPE version to the version actually present in the closure, strips nixpkgs-only revision suffixes (glibc 2.42-67 -> 2.42) and preserves an accurate CPE version/update split (bash 5.3p9 = version 5.3, update 9). See FIXME(sbomnix-pinned-version-cpe-drop). cve-scan.yaml additionally asserts a floor on the number of components carrying a CPE so a future regression fails loudly.",
+      "revert_action": "No upstream issue is filed yet, so `min_version: null` keeps this BLOCKED (never falsely resolved) as a manual re-check reminder. File an upstream issue against tiiuae/sbomnix describing the path-only metadata match, then retarget this entry to `issue-closed` or to `pkgs-min-version` once a carrying release is known. To revert: run the pinned sbomnix against a host whose kernel version differs from `pkgs.linux` and confirm the emitted `linux` component carries a cpe matching the CLOSURE's version, not the attribute's; then delete overlays/sbomnix-recover-pinned-version-cpes.patch, drop it from the `patches` list along with its FIXME, confirm a manual workflow_dispatch CVE scan is green and the scannable-component assertion still passes, then set `done: true`. Keep that assertion regardless -- it guards the class of bug, not this instance."
+    },
+    {
       "id": "nixpkgs-536365-ld64-mac-notification-sys",
       "done": false,
       "summary": "nixpkgs' classic ld64 (cctools-binutils-darwin-1010.6) crashes in its stubs pass with `Trace/BPT trap: 5` when linking any Rust binary that pulls `mac-notification-sys` via `notify-rust`. This kills the aarch64-darwin build of freminal 0.11.1 (and previously killed cargo-watch, since removed).",

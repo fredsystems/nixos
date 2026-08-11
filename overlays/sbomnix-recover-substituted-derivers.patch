@@ -1,0 +1,171 @@
+Recover derivers for substituter-fetched paths from the local .drv graph.
+
+`nix path-info --deriver` answers from the local store database, which records
+`unknown-deriver` for every path that arrived from a substituter rather than
+being built locally.  sbomnix drops any closure path whose deriver is unknown,
+so on a machine that substitutes most of its closure the SBOM silently loses
+the majority of its components -- and specifically loses the real packages,
+because those are exactly the ones served by a binary cache.  What survives is
+locally-built NixOS glue (unit-*.service, etc-*, *-fish-completions), which has
+no CVE relevance.
+
+Measured on a NixOS system closure of 3242 paths, only 418 had a local deriver;
+openssl, bash and glibc were all dropped.  Coverage tracks cache warmth, so the
+SBOM -- and therefore the CVE count -- is nondeterministic across machines and
+across runs on the same machine.
+
+The output -> deriver mapping does not require the store database.  Every
+derivation declares its own outputs, so inverting `outputs.<name>.path` over
+the .drv closure reconstructs it locally.  That graph is fully present whenever
+the target is a .drv, or was instantiated by evaluating one, regardless of
+which outputs were substituted.
+
+Only paths that path-info left without a deriver are backfilled; locally-built
+paths keep the store's answer.  On the closure above this restores 3206/3242
+(98.9%) in ~2s, taking the emitted SBOM from 408 to 2835 components and from 47
+to 2128 versioned ones.  The residual 36 are `builtins.toFile` artefacts
+(sandbox.nix, inputrc, an .svg) that have no derivation at all.
+
+diff --git a/src/sbomnix/builder.py b/src/sbomnix/builder.py
+index 875574a..c0a57f9 100644
+--- a/src/sbomnix/builder.py
++++ b/src/sbomnix/builder.py
+@@ -231,7 +231,7 @@ class SbomBuilder:
+         """Load runtime dependencies from structured path-info JSON."""
+         started = time.perf_counter()
+         LOG.verbose("Loading runtime closure for '%s'", nix_path)
+-        runtime_closure = load_runtime_closure(nix_path)
++        runtime_closure = load_runtime_closure(nix_path, self.target_deriver)
+         LOG.verbose(
+             "Loaded raw runtime closure with %d dependency edge(s) and %d deriver(s) in %.3fs",
+             len(runtime_closure.df_deps),
+diff --git a/src/sbomnix/runtime.py b/src/sbomnix/runtime.py
+index 17fa1de..08e0067 100644
+--- a/src/sbomnix/runtime.py
++++ b/src/sbomnix/runtime.py
+@@ -6,6 +6,7 @@
+
+ """Runtime closure helpers based on structured Nix path-info JSON."""
+
++import json
+ import subprocess
+ from dataclasses import dataclass
+
+@@ -13,6 +14,7 @@ import pandas as pd
+
+ from common import columns as cols
+ from common.errors import NixCommandError
++from common.log import LOG
+ from common.nix_utils import (
+     NIX_PATH_INFO_JSON,
+     load_nix_json,
+@@ -35,7 +37,70 @@ class RuntimeClosure:
+     output_paths_by_drv: dict[str, set[str]]
+
+
+-def load_runtime_closure(path):
++def _store_abs(path):
++    """`nix derivation show` may emit store paths with or without the prefix."""
++    if path.startswith("/nix/store/"):
++        return path
++    return "/nix/store/" + path
++
++
++def drv_graph_output_map(drv_path, batch_size=2000):
++    """Build output_path -> deriver by inverting the local .drv graph.
++
++    Independent of the store's deriver pointers, which read `unknown-deriver`
++    for every substituter-fetched path.
++    """
++    try:
++        ret = exec_cmd(["nix-store", "-qR", drv_path])
++    except subprocess.CalledProcessError:
++        LOG.debug("Could not query the .drv closure of %s", drv_path)
++        return {}
++
++    drvs = [line for line in ret.stdout.splitlines() if line.endswith(".drv")]
++    if not drvs:
++        return {}
++
++    mapping = {}
++    for i in range(0, len(drvs), batch_size):
++        chunk = drvs[i : i + batch_size]
++        cmd = nix_cmd("derivation", "show", *chunk)
++        try:
++            payload = json.loads(exec_cmd(cmd).stdout)
++        except (subprocess.CalledProcessError, json.JSONDecodeError):
++            LOG.debug("Could not read derivations for a batch of %d", len(chunk))
++            continue
++        # Schema version 4 nests under `.derivations`; older is a flat mapping.
++        derivations = payload.get("derivations", payload)
++        if not isinstance(derivations, dict):
++            continue
++        for drv, info in derivations.items():
++            if not isinstance(info, dict):
++                continue
++            for outinfo in (info.get("outputs") or {}).values():
++                if not isinstance(outinfo, dict):
++                    continue
++                out = outinfo.get("path")
++                if out:
++                    mapping[_store_abs(out)] = _store_abs(drv)
++    return mapping
++
++
++def _recover_missing_derivers(path_info, deriver_by_output):
++    """Backfill derivers path-info left unknown. Returns the recovered count."""
++    recovered = 0
++    for target_path, info in path_info.items():
++        if info is None:
++            continue
++        if nix_path_info_deriver(info, target_path):
++            continue
++        drv = deriver_by_output.get(target_path)
++        if drv:
++            info["deriver"] = drv
++            recovered += 1
++    return recovered
++
++
++def load_runtime_closure(path, target_deriver=None):
+     """Load runtime closure information using ``nix path-info`` JSON."""
+     cmd = nix_cmd(
+         "path-info",
+@@ -53,7 +118,36 @@ def load_runtime_closure(path):
+             stderr=error.stderr,
+             stdout=error.stdout,
+         ) from None
+-    return runtime_closure_from_path_info(load_nix_json(ret.stdout, NIX_PATH_INFO_JSON))
++    path_info = normalize_nix_path_info(load_nix_json(ret.stdout, NIX_PATH_INFO_JSON))
++
++    missing = sum(
++        1
++        for p, i in path_info.items()
++        if i is not None and not nix_path_info_deriver(i, p)
++    )
++    if missing:
++        drv_root = target_deriver
++        if drv_root is None and path.endswith(".drv"):
++            drv_root = path
++        if drv_root is None:
++            info = path_info.get(path)
++            # Via the helper, not info["deriver"] directly: it filters the
++            # `unknown-deriver` sentinel, which would otherwise be handed to
++            # `nix-store -qR` as if it were a store path.
++            drv_root = nix_path_info_deriver(info, path) if info else None
++        if drv_root:
++            recovered = _recover_missing_derivers(
++                path_info, drv_graph_output_map(drv_root)
++            )
++            LOG.debug(
++                "Recovered %d of %d missing deriver(s) from the .drv graph",
++                recovered,
++                missing,
++            )
++        else:
++            LOG.debug("No .drv root available; cannot recover %d deriver(s)", missing)
++
++    return runtime_closure_from_path_info(path_info)
+
+
+ def runtime_closure_from_path_info(path_info):

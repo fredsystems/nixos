@@ -85,17 +85,86 @@ final: prev: {
   # the modern format (Nix >= 2.34 in our pin emits schema version 4).
   #
   # Revert: once nixpkgs' sbomnix wrapper stops pinning nix_2_31 (drops
-  # it or bumps it to a version emitting the new format), delete this
-  # overlay and its FIXME.  See
+  # it or bumps it to a version emitting the new format), delete the
+  # makeWrapperArgs override and this FIXME.  See
   # .github/workflows/track-upstream-fixes.yaml.
   #
-  # Only meaningful on Linux (cve-scan runs on the self-hosted Linux
-  # runners); guarded so it is a no-op on darwin.
+  # FIXME(sbomnix-substituted-deriver-drop): WORKAROUND, not a fix.
+  #
+  # sbomnix drops every runtime-closure path whose deriver `nix path-info`
+  # reports as unknown.  That is every substituter-fetched path, because the
+  # deriver pointer is only recorded for locally-built outputs.  On our
+  # runners the result was an SBOM covering 418 of 3242 paths (13%), missing
+  # openssl, bash and glibc while keeping unit-*.service and etc-* glue --
+  # i.e. it silently scanned almost nothing and reported success.  Coverage
+  # tracked cache warmth, so the CVE count swung per-runner and per-week, and
+  # occasionally hit zero matches, which then tripped cve-scan.yaml's
+  # "grype output has no .vulnerabilities key" guard and turned hosts red.
+  #
+  # The patch reconstructs output -> deriver by inverting `outputs.<name>.path`
+  # over the local .drv graph, which does not depend on the store's deriver
+  # pointers.  Restores 98.9% coverage (408 -> 2835 components) in ~2s.
+  #
+  # Revert: once sbomnix recovers derivers itself (no upstream issue filed
+  # yet), delete the `patches` attribute, the patch file, and this FIXME.
+  # See .github/workflows/track-upstream-fixes.yaml.
+  #
+  # FIXME(sbomnix-pinned-version-cpe-drop): WORKAROUND, not a fix.
+  #
+  # sbomnix attaches nixpkgs metadata only when a component's output or
+  # derivation path is byte-identical to the one the nixpkgs attribute
+  # evaluates to.  When a closure pins a different version than the attr
+  # currently builds, nothing matches and the component is emitted with
+  # no CPE -- which makes it invisible to grype and reads as "no known
+  # vulnerabilities" rather than "never checked".
+  #
+  # This was hiding most of the fleet.  Servers pinning linux 6.18.41
+  # while `pkgs.linux` was 6.18.43 emitted the kernel with `cpe: null`
+  # and scored ZERO kernel CVEs, while Daytona (whose kernel matched its
+  # attr) scored 74.  A newer kernel looking cleaner than an older one is
+  # the signature of this bug, not a security finding.
+  #
+  # The patch adds a lowest-priority pname fallback that carries over
+  # only the CPE, retargeted to the version actually in the closure.
+  # Takes a server closure from 59 to 97 scannable components.
+  #
+  # Revert: once sbomnix matches metadata for pinned versions itself (no
+  # upstream issue filed yet), delete the patch and this FIXME.  See
+  # .github/workflows/track-upstream-fixes.yaml.
+  #
+  # All three workarounds above are only meaningful on Linux (cve-scan
+  # runs on the self-hosted Linux runners); guarded to no-op on darwin.
+  #
+  # The two source patches are additionally version-gated to exactly
+  # 1.8.0, the version they were written against.  Two reasons:
+  #
+  #   * `nixpkgs-stable` currently ships 1.7.6, whose tree predates
+  #     builder.py/runtime.py/package_meta.py entirely.  Applying the
+  #     patches there fails the build ("4 out of 4 hunks ignored").
+  #     Nothing consumes the stable sbomnix today, so this is latent
+  #     rather than broken -- but it would break the moment something
+  #     did.
+  #   * A patch that silently stops applying is worse than one that
+  #     fails: the scan would keep running and quietly go back to
+  #     reporting 3% of each closure as clean.
+  #
+  # An exact-version gate means a bump to 1.8.1 drops the patches, the
+  # scannable-component assertion in cve-scan.yaml trips, and the scan
+  # fails loudly instead of under-reporting.  The `sbomnix-patch-version`
+  # flake check (flake/dev/checks.nix) fires at eval time so the bump is
+  # caught before it ever reaches a scan.  On a bump: re-verify both
+  # patches against the new tree, then widen this bound.
+  sbomnixPatchedVersion = "1.8.0";
+
   sbomnix =
-    if prev.stdenv.isDarwin then
+    if prev.stdenv.isDarwin || prev.sbomnix.version != final.sbomnixPatchedVersion then
       prev.sbomnix
     else
-      prev.sbomnix.overrideAttrs (_: {
+      prev.sbomnix.overrideAttrs (old: {
+        patches = (old.patches or [ ]) ++ [
+          ./sbomnix-recover-substituted-derivers.patch
+          ./sbomnix-recover-pinned-version-cpes.patch
+        ];
         makeWrapperArgs = [
           "--prefix PATH : ${
             prev.lib.makeBinPath [
