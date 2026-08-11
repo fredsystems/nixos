@@ -11,6 +11,63 @@ let
   # MAC, systemd unit state -- unauthenticated to the internet on fredvps.
   bindAddress =
     if config.deployment.internetFacing then config.deployment.tailscaleAddress else "0.0.0.0";
+
+  # Filesystem types the filesystem collector must not report.
+  #
+  # This is node_exporter 1.11's own default list with the network filesystems
+  # appended. It has to be restated in full rather than extended, because the
+  # flag replaces the default regex rather than adding to it.
+  #
+  # WHY EXCLUDE NETWORK MOUNTS
+  #
+  # The NAS shares (five on maranello, /mnt/media on fredhub) are not local
+  # capacity and are not this host's problem: every client mounting the same
+  # share reports the same usage, so one full NAS would alert once per client
+  # while telling nobody anything about the machine that fired. Nothing here
+  # monitors the NAS itself -- if that changes, it wants its own target rather
+  # than being inferred from whichever hosts happen to have it mounted.
+  #
+  # They also actively break inode monitoring: NFS reports
+  # node_filesystem_files = 0, so an inode-ratio rule evaluates 0/0 and yields
+  # NaN. Excluding them at the source is what lets NodeInodesLow cover every
+  # real filesystem instead of being pinned to "/".
+  #
+  # Excluded at the collector rather than in each query because the fstype
+  # exclusion list is already restated in several rule files; a series that
+  # does not exist cannot be forgotten by the next query someone writes.
+  filesystemTypesExcluded = lib.concatStringsSep "|" [
+    # node_exporter 1.11 defaults, verbatim.
+    "autofs"
+    "binfmt_misc"
+    "bpf"
+    "cgroup2?"
+    "configfs"
+    "debugfs"
+    "devpts"
+    "devtmpfs"
+    "fusectl"
+    "hugetlbfs"
+    "iso9660"
+    "mqueue"
+    "nsfs"
+    "overlay"
+    "proc"
+    "procfs"
+    "pstore"
+    "rpc_pipefs"
+    "securityfs"
+    "selinuxfs"
+    "squashfs"
+    "erofs"
+    "sysfs"
+    "tracefs"
+    # Network filesystems, added here.
+    "nfs"
+    "nfs4"
+    "cifs"
+    "smb3"
+    "fuse.sshfs"
+  ];
 in
 {
   systemd = {
@@ -497,6 +554,11 @@ in
 
       extraFlags = [
         "--collector.textfile.directory=/var/lib/node_exporter/textfiles"
+
+        # Drops NAS mounts from the filesystem collector. See
+        # `filesystemTypesExcluded` above for why this is done at the source
+        # rather than in each query.
+        "--collector.filesystem.fs-types-exclude=^(${filesystemTypesExcluded})$"
 
         # The systemd collector does not emit node_systemd_service_restart_total
         # unless this is set. Without it the DockerUnitFlapping alert selects

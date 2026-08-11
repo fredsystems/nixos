@@ -736,7 +736,7 @@
       "id": 21,
       "type": "table",
       "title": "Node Resource Summary",
-      "description": "CPU, memory, disk, and load average per node",
+      "description": "CPU, memory, disk, and load average per node. The disk figure is the FULLEST filesystem on each host, not the root one; see the per-filesystem table below for the breakdown",
       "gridPos": { "h": 8, "w": 24, "x": 0, "y": 19 },
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "options": {
@@ -821,7 +821,7 @@
             ]
           },
           {
-            "matcher": { "id": "byName", "options": "Root Disk %" },
+            "matcher": { "id": "byName", "options": "Disk % (worst FS)" },
             "properties": [
               {
                 "id": "custom.cellOptions",
@@ -884,12 +884,13 @@
               "hostname": "Host",
               "Value #cpu": "CPU %",
               "Value #mem": "Memory %",
-              "Value #disk": "Root Disk %",
+              "Value #disk": "Disk % (worst FS)",
               "Value #load": "Load (1m)",
               "Value #uptime": "Uptime"
             },
             "excludeByName": {
               "Time": true,
+              "__name__": true,
               "instance": true,
               "job": true,
               "role": true,
@@ -899,7 +900,7 @@
               "Host": 0,
               "CPU %": 1,
               "Memory %": 2,
-              "Root Disk %": 3,
+              "Disk % (worst FS)": 3,
               "Load (1m)": 4,
               "Uptime": 5
             }
@@ -926,7 +927,7 @@
         {
           "refId": "disk",
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "(1 - (node_filesystem_avail_bytes{mountpoint=\"/\",fstype!~\"tmpfs|overlay\"} / node_filesystem_size_bytes{mountpoint=\"/\",fstype!~\"tmpfs|overlay\"})) * 100",
+          "expr": "max by (hostname) ((1 - (node_filesystem_avail_bytes{fstype!~\"tmpfs|overlay|squashfs|devtmpfs|ramfs|autofs\",mountpoint!=\"/nix/store\"} / node_filesystem_size_bytes{fstype!~\"tmpfs|overlay|squashfs|devtmpfs|ramfs|autofs\",mountpoint!=\"/nix/store\"})) * 100)",
           "instant": true,
           "format": "table",
           "legendFormat": "__auto"
@@ -934,7 +935,7 @@
         {
           "refId": "load",
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "node_load1",
+          "expr": "max by (hostname) (node_load1)",
           "instant": true,
           "format": "table",
           "legendFormat": "__auto"
@@ -950,18 +951,194 @@
       ]
     },
     {
+      "id": 47,
+      "type": "table",
+      "title": "Filesystem Usage — Every Watched Mount",
+      "description": "One row per filesystem per host: the exact set the disk alerts evaluate. The summary table above collapses each host to its fullest filesystem, so a secondary data volume (nvrhub /var/lib/frigate) is only visible here. /nix/store is omitted because it is a bind mount of / on the same device and reports byte-identical figures. Network mounts are omitted because they are excluded at the collector -- a NAS share says nothing about the host that mounted it.",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 27 },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": { "show": false },
+        "sortBy": [{ "displayName": "Used %", "desc": true }]
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "align": "left", "cellOptions": { "type": "auto" } },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Host" },
+            "properties": [{ "id": "custom.width", "value": 130 }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Mount Point" },
+            "properties": [{ "id": "custom.width", "value": 200 }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Device" },
+            "properties": [{ "id": "custom.width", "value": 170 }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Type" },
+            "properties": [{ "id": "custom.width", "value": 80 }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Size" },
+            "properties": [
+              { "id": "unit", "value": "bytes" },
+              { "id": "custom.width", "value": 100 }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Available" },
+            "properties": [
+              { "id": "unit", "value": "bytes" },
+              { "id": "custom.width", "value": 110 }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Used %" },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": { "type": "color-background", "mode": "gradient" }
+              },
+              { "id": "unit", "value": "percent" },
+              { "id": "decimals", "value": 1 },
+              { "id": "min", "value": 0 },
+              { "id": "max", "value": 100 },
+              { "id": "custom.width", "value": 120 },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    { "color": "green", "value": null },
+                    { "color": "yellow", "value": 80 },
+                    { "color": "red", "value": 90 }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Inodes Used %" },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": { "type": "color-background", "mode": "gradient" }
+              },
+              { "id": "unit", "value": "percent" },
+              { "id": "decimals", "value": 1 },
+              { "id": "min", "value": 0 },
+              { "id": "max", "value": 100 },
+              { "id": "custom.width", "value": 130 },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    { "color": "green", "value": null },
+                    { "color": "yellow", "value": 80 },
+                    { "color": "red", "value": 90 }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "transformations": [
+        { "id": "merge", "options": {} },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "instance": true,
+              "job": true,
+              "role": true,
+              "exporter": true,
+              "device_error": true
+            },
+            "renameByName": {
+              "hostname": "Host",
+              "mountpoint": "Mount Point",
+              "device": "Device",
+              "fstype": "Type",
+              "Value #size": "Size",
+              "Value #avail": "Available",
+              "Value #used": "Used %",
+              "Value #inodes": "Inodes Used %"
+            },
+            "indexByName": {
+              "Host": 0,
+              "Mount Point": 1,
+              "Device": 2,
+              "Type": 3,
+              "Size": 4,
+              "Available": 5,
+              "Used %": 6,
+              "Inodes Used %": 7
+            }
+          }
+        }
+      ],
+      "targets": [
+        {
+          "refId": "used",
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+          "expr": "100 * (1 - (max by (hostname, mountpoint, device, fstype) (node_filesystem_avail_bytes{fstype!~\"tmpfs|overlay|squashfs|devtmpfs|ramfs|autofs\",mountpoint!=\"/nix/store\"}) / max by (hostname, mountpoint, device, fstype) (node_filesystem_size_bytes{fstype!~\"tmpfs|overlay|squashfs|devtmpfs|ramfs|autofs\",mountpoint!=\"/nix/store\"})))",
+          "instant": true,
+          "format": "table",
+          "legendFormat": "__auto"
+        },
+        {
+          "refId": "size",
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+          "expr": "max by (hostname, mountpoint, device, fstype) (node_filesystem_size_bytes{fstype!~\"tmpfs|overlay|squashfs|devtmpfs|ramfs|autofs\",mountpoint!=\"/nix/store\"})",
+          "instant": true,
+          "format": "table",
+          "legendFormat": "__auto"
+        },
+        {
+          "refId": "avail",
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+          "expr": "max by (hostname, mountpoint, device, fstype) (node_filesystem_avail_bytes{fstype!~\"tmpfs|overlay|squashfs|devtmpfs|ramfs|autofs\",mountpoint!=\"/nix/store\"})",
+          "instant": true,
+          "format": "table",
+          "legendFormat": "__auto"
+        },
+        {
+          "refId": "inodes",
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+          "expr": "100 * (1 - (max by (hostname, mountpoint, device, fstype) (node_filesystem_files_free{fstype!~\"tmpfs|overlay|squashfs|devtmpfs|ramfs|autofs|vfat\",mountpoint!=\"/nix/store\"}) / max by (hostname, mountpoint, device, fstype) (node_filesystem_files{fstype!~\"tmpfs|overlay|squashfs|devtmpfs|ramfs|autofs|vfat\",mountpoint!=\"/nix/store\"})))",
+          "instant": true,
+          "format": "table",
+          "legendFormat": "__auto"
+        }
+      ]
+    },
+    {
       "id": 30,
       "type": "row",
       "title": "Failed Systemd Units",
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 27 }
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 37 }
     },
     {
       "id": 31,
       "type": "table",
       "title": "Currently Failed Units",
       "description": "All systemd units currently in a failed state across the fleet",
-      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 28 },
+      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 38 },
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "options": {
         "showHeader": true,
@@ -1015,6 +1192,7 @@
           "options": {
             "excludeByName": {
               "Time": true,
+              "__name__": true,
               "instance": true,
               "job": true,
               "state": true,
@@ -1045,14 +1223,14 @@
       "type": "row",
       "title": "Pending Firmware Updates",
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 34 }
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 44 }
     },
     {
       "id": 36,
       "type": "table",
       "title": "Firmware Updates by Device",
       "description": "Devices across the fleet with firmware updates available (fwupd). Run `fwupdmgr update` on the affected host to apply.",
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 35 },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 45 },
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "options": {
         "showHeader": true,
@@ -1165,6 +1343,7 @@
         {
           "id": "organize",
           "options": {
+            "excludeByName": { "__name__": true },
             "indexByName": {
               "host": 0,
               "device": 1,
@@ -1191,13 +1370,13 @@
       "type": "row",
       "title": "Resource Trends",
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 43 }
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 53 }
     },
     {
       "id": 41,
       "type": "timeseries",
       "title": "CPU Usage % — All Nodes",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 44 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 54 },
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "options": {
         "tooltip": { "mode": "multi", "sort": "desc" },
@@ -1243,7 +1422,7 @@
       "id": 42,
       "type": "timeseries",
       "title": "Memory Usage % — All Nodes",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 44 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 54 },
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "options": {
         "tooltip": { "mode": "multi", "sort": "desc" },
@@ -1289,7 +1468,7 @@
       "id": 43,
       "type": "timeseries",
       "title": "Network Receive — All Nodes",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 52 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 62 },
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "options": {
         "tooltip": { "mode": "multi", "sort": "desc" },
@@ -1326,7 +1505,7 @@
       "id": 44,
       "type": "timeseries",
       "title": "Network Transmit — All Nodes",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 52 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 62 },
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "options": {
         "tooltip": { "mode": "multi", "sort": "desc" },
@@ -1363,7 +1542,7 @@
       "id": 45,
       "type": "timeseries",
       "title": "System Load (1m) — All Nodes",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 60 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 70 },
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "options": {
         "tooltip": { "mode": "multi", "sort": "desc" },
@@ -1399,8 +1578,9 @@
     {
       "id": 46,
       "type": "timeseries",
-      "title": "Root Disk Usage % — All Nodes",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 60 },
+      "title": "Disk Usage % — All Filesystems",
+      "description": "Every watched filesystem on every host, not just the root one. A secondary volume trending towards full -- nvrhub /var/lib/frigate, for instance -- is only visible here.",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 70 },
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "options": {
         "tooltip": { "mode": "multi", "sort": "desc" },
@@ -1437,8 +1617,8 @@
         {
           "refId": "A",
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "(1 - (node_filesystem_avail_bytes{mountpoint=\"/\",fstype!~\"tmpfs|overlay\"} / node_filesystem_size_bytes{mountpoint=\"/\",fstype!~\"tmpfs|overlay\"})) * 100",
-          "legendFormat": "{{hostname}}"
+          "expr": "100 * (1 - (node_filesystem_avail_bytes{fstype!~\"tmpfs|overlay|squashfs|devtmpfs|ramfs|autofs\",mountpoint!=\"/nix/store\"} / node_filesystem_size_bytes{fstype!~\"tmpfs|overlay|squashfs|devtmpfs|ramfs|autofs\",mountpoint!=\"/nix/store\"}))",
+          "legendFormat": "{{hostname}} {{mountpoint}}"
         }
       ]
     }
