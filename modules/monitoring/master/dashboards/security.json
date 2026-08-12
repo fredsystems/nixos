@@ -1195,6 +1195,432 @@
           "refId": "A"
         }
       ]
+    },
+    {
+      "id": 40,
+      "type": "row",
+      "title": "Decoy Port Knocks",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 56
+      },
+      "panels": []
+    },
+    {
+      "id": 41,
+      "type": "stat",
+      "title": "Decoy Knocks",
+      "description": "Every SYN to a port nothing on this host serves, over the dashboard range. Sourced from the kernel LOG lines the decoy firewall rules emit, NOT from fail2ban ban events. That is deliberate: a ban record contains only the address -- the action is allports, so the port appears nowhere in it -- so the kernel line is the only authoritative record of WHICH port was touched. It also covers knocks that never became bans.",
+      "gridPos": {
+        "h": 5,
+        "w": 8,
+        "x": 0,
+        "y": 57
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "${ds_loki}"
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${ds_loki}"
+          },
+          "refId": "A",
+          "queryType": "instant",
+          "expr": "sum(count_over_time({host=\"fredvps\", job=\"journal\"} |~ `(ssh|port)-decoy:` [$__range]))"
+        }
+      ]
+    },
+    {
+      "id": 42,
+      "type": "stat",
+      "title": "Distinct Scanners",
+      "description": "Unique source addresses that touched a decoy port over the range. Both decoy jails run maxretry = 1, so with rare exceptions each of these earned a ban. Your own home address appears here too (it is in fail2ban's ignoreIP, so it is never banned). That is not a fault: it is how the Synology backup job dialling port 22 was found.",
+      "gridPos": {
+        "h": 5,
+        "w": 8,
+        "x": 8,
+        "y": 57
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "${ds_loki}"
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${ds_loki}"
+          },
+          "refId": "A",
+          "queryType": "instant",
+          "expr": "count(sum by (src) (count_over_time({host=\"fredvps\", job=\"journal\"} |~ `(ssh|port)-decoy:` | regexp \"SRC=(?P<src>[^ ]+)\" [$__range])))"
+        }
+      ]
+    },
+    {
+      "id": 43,
+      "type": "stat",
+      "title": "Decoy Ports Touched",
+      "description": "How many of the 27 watched ports saw traffic over the range. Port 22 is watched by its own rule (ssh-decoy) and the other 26 by port-decoy; this counts across both.",
+      "gridPos": {
+        "h": 5,
+        "w": 8,
+        "x": 16,
+        "y": 57
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "${ds_loki}"
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${ds_loki}"
+          },
+          "refId": "A",
+          "queryType": "instant",
+          "expr": "count(sum by (dpt) (count_over_time({host=\"fredvps\", job=\"journal\"} |~ `(ssh|port)-decoy:` | regexp \"DPT=(?P<dpt>[0-9]+)\" [$__range])))"
+        }
+      ]
+    },
+    {
+      "id": 44,
+      "type": "timeseries",
+      "title": "Knocks by Port (per hour)",
+      "description": "Rolling one-hour count per destination port. This is the panel that answers 'which bait is actually catching anything' -- and expect port 22 to dominate by an order of magnitude, since sshd moved off it and every scanner on the internet still tries it first. Sourced from the kernel LOG lines the decoy firewall rules emit, NOT from fail2ban ban events. That is deliberate: a ban record contains only the address -- the action is allports, so the port appears nowhere in it -- so the kernel line is the only authoritative record of WHICH port was touched. It also covers knocks that never became bans.",
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 62
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "${ds_loki}"
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "calcs": ["lastNotNull", "max", "sum"]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 15,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          },
+          "unit": "none",
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${ds_loki}"
+          },
+          "refId": "A",
+          "queryType": "range",
+          "expr": "sum by (dpt) (count_over_time({host=\"fredvps\", job=\"journal\"} |~ `(ssh|port)-decoy:` | regexp \"DPT=(?P<dpt>[0-9]+)\" [1h]))",
+          "legendFormat": ":{{dpt}}"
+        }
+      ]
+    },
+    {
+      "id": 45,
+      "type": "table",
+      "title": "Top Source x Port",
+      "description": "Which address hit which port, over the range. Capped at 100 rows. Sourced from the kernel LOG lines the decoy firewall rules emit, NOT from fail2ban ban events. That is deliberate: a ban record contains only the address -- the action is allports, so the port appears nowhere in it -- so the kernel line is the only authoritative record of WHICH port was touched. It also covers knocks that never became bans. Your own home address appears here too (it is in fail2ban's ignoreIP, so it is never banned). That is not a fault: it is how the Synology backup job dialling port 22 was found.",
+      "gridPos": {
+        "h": 11,
+        "w": 12,
+        "x": 0,
+        "y": 71
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "${ds_loki}"
+      },
+      "options": {
+        "showHeader": true,
+        "footer": {
+          "show": false,
+          "reducer": ["sum"],
+          "fields": ""
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "filterable": true
+          }
+        },
+        "overrides": []
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "Value": "Knocks",
+              "src": "Source",
+              "dpt": "Port"
+            },
+            "indexByName": {
+              "src": 0,
+              "dpt": 1,
+              "Value": 2
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "field": "Knocks",
+                "desc": true
+              }
+            ]
+          }
+        }
+      ],
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${ds_loki}"
+          },
+          "refId": "A",
+          "queryType": "instant",
+          "expr": "topk(100, sum by (src, dpt) (count_over_time({host=\"fredvps\", job=\"journal\"} |~ `(ssh|port)-decoy:` | regexp \"SRC=(?P<src>[^ ]+).*?DPT=(?P<dpt>[0-9]+)\" [$__range])))"
+        }
+      ]
+    },
+    {
+      "id": 46,
+      "type": "table",
+      "title": "Knocks by Port",
+      "description": "The same data collapsed to one row per port -- the ranking of which bait is drawing traffic. Sourced from the kernel LOG lines the decoy firewall rules emit, NOT from fail2ban ban events. That is deliberate: a ban record contains only the address -- the action is allports, so the port appears nowhere in it -- so the kernel line is the only authoritative record of WHICH port was touched. It also covers knocks that never became bans.",
+      "gridPos": {
+        "h": 11,
+        "w": 12,
+        "x": 12,
+        "y": 71
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "${ds_loki}"
+      },
+      "options": {
+        "showHeader": true,
+        "footer": {
+          "show": false,
+          "reducer": ["sum"],
+          "fields": ""
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "filterable": true
+          }
+        },
+        "overrides": []
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "Value": "Knocks",
+              "dpt": "Port"
+            },
+            "indexByName": {
+              "dpt": 0,
+              "Value": 1
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "field": "Knocks",
+                "desc": true
+              }
+            ]
+          }
+        }
+      ],
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${ds_loki}"
+          },
+          "refId": "A",
+          "queryType": "instant",
+          "expr": "sum by (dpt) (count_over_time({host=\"fredvps\", job=\"journal\"} |~ `(ssh|port)-decoy:` | regexp \"DPT=(?P<dpt>[0-9]+)\" [$__range]))"
+        }
+      ]
+    },
+    {
+      "id": 47,
+      "type": "logs",
+      "title": "Decoy Knocks (live)",
+      "description": "Raw kernel LOG lines from the decoy rules, newest first. Left unparsed on purpose: the fields this panel would otherwise hide (TTL, WINDOW, SPT, retransmit spacing) are what identify a sender's TCP stack, which is how the daily 05:00 knock was traced to a Synology on DSM 7 rather than to any host in this fleet. Prefix ssh-decoy: is port 22, port-decoy: is the other 26.",
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 82
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "${ds_loki}"
+      },
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "sortOrder": "Descending",
+        "enableLogDetails": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${ds_loki}"
+          },
+          "refId": "A",
+          "queryType": "range",
+          "expr": "{host=\"fredvps\", job=\"journal\"} |~ `(ssh|port)-decoy:`"
+        }
+      ]
     }
   ]
 }
