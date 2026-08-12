@@ -56,6 +56,113 @@ let
   # warns if they diverge -- so a stale entry is reported at deploy time
   # rather than discovered when a container refuses to start.
   tailscaleIP = "100.82.147.29";
+
+  # ---------------------------------------------------------------------
+  # DECOY PORTS -- the tripwire set feeding the port-decoy jail.
+  # ---------------------------------------------------------------------
+  #
+  # Nothing on this host listens on any of these, and nothing legitimate has
+  # any reason to dial them. That is the entire selection criterion, and it is
+  # what makes a single SYN here a zero-false-positive signal: it is a scanner
+  # every single time. The firewall already drops these packets; logging them
+  # is what puts the knock on the same escalation ladder as everything else.
+  #
+  # ADDING A PORT: the bar is "no legitimate party will ever dial this". Note
+  # that the risk is NOT a port this host serves -- an allowed port is
+  # ACCEPTed earlier in nixos-fw and never reaches the LOG rule (there is an
+  # assertion below enforcing that). The risk is a port some remote party
+  # still dials out of habit after we stopped serving it. This host has real
+  # history there: :30005 and :7007 were publicly reachable for months and had
+  # actual clients, and the home Comcast address had to be added to ignoreIP
+  # after a live test banned it. So a formerly-public port is exactly the wrong
+  # thing to put in this list, and every entry below is a port this host has
+  # never served.
+  #
+  # DELIBERATELY ABSENT:
+  #
+  #   - 5555, 4567, 8080-adjacent app ports. 5555 is a classic scan target
+  #     (Android ADB) but acars_router publishes it; 4567 is cAdvisor. Ports
+  #     in use anywhere on this host stay out even when they are only bound to
+  #     the loopback or the tailnet, because the whole point is that this list
+  #     needs no cross-checking against anything.
+  #   - 3000. Free today, but it is the port a future container is most likely
+  #     to want, and a stale decoy entry is worse than a missing one.
+  #   - Every UDP port. SSDP (1900), SNMP (161), NTP (123), memcached UDP and
+  #     friends are heavily probed, but they are probed for AMPLIFICATION, and
+  #     amplification probes carry a SPOOFED source -- the address in the
+  #     packet is the intended victim, not the attacker. Banning it would ban
+  #     an innocent third party, and our bans are host-wide and escalate to a
+  #     week. TCP-SYN-only keeps the "the source address is really the sender"
+  #     assumption that the whole ban ladder rests on.
+  #   - A blanket "log every refused SYN" rule. That is the logical endpoint of
+  #     this reasoning and it was considered, but it converts the curated
+  #     zero-false-positive set into an open-ended one: any port this host ever
+  #     served, or ever will, becomes a self-ban waiting to happen. The list is
+  #     the feature.
+  decoyPorts = [
+    21 # FTP
+    22 # SSH -- sshd is on 2269, so 22 has never served anything here
+    23 # Telnet
+    25 # SMTP -- no MTA on this host; open-relay hunting
+    110 # POP3
+    135 # MS RPC endpoint mapper
+    139 # NetBIOS session service
+    143 # IMAP
+    445 # SMB
+    1433 # MSSQL
+    1521 # Oracle TNS
+    1723 # PPTP
+    2375 # Docker API, plaintext -- this host runs Docker, so this one is pointed
+    2376 # Docker API, TLS
+    3128 # Squid / open-proxy hunting
+    3306 # MySQL
+    3389 # RDP
+    5432 # PostgreSQL
+    5900 # VNC
+    6379 # Redis
+    7547 # TR-069 / CWMP router management
+    8080 # HTTP alt -- the first entry to delete if anything ever needs it
+    8443 # HTTPS alt
+    9200 # Elasticsearch
+    11211 # memcached, TCP half only
+    27017 # MongoDB
+    32764 # Sercomm router backdoor
+  ];
+
+  # xt_multiport takes at most 15 ports per rule, so the list is emitted in
+  # chunks. Generated rather than hand-written so the port table above stays
+  # the single place to edit.
+  chunkPorts = xs: if xs == [ ] then [ ] else [ (lib.take 15 xs) ] ++ chunkPorts (lib.drop 15 xs);
+
+  # Appended to nixos-fw ahead of the final log-refuse jump. These only LOG --
+  # the packet still falls through to the normal refuse path, so this changes
+  # what is recorded, not what is allowed.
+  #
+  # ON THE RATE LIMIT. An unthrottled LOG on a scanned port is a self-inflicted
+  # journal flood, and this rule now covers 27 ports rather than one. The burst
+  # is sized to the port count on purpose: a scanner sweeping the whole set in
+  # one pass produces ~27 lines back to back, and a burst smaller than that
+  # would spend the budget on the first few ports and drop the rest, which
+  # matters because the budget is shared across all sources.
+  #
+  # Sustained 30/m is a ceiling that reality stays far below, because the
+  # system is self-limiting: fail2ban's action installs its jump with
+  # `iptables -I INPUT`, i.e. at position 1, ahead of the jump to nixos-fw. So
+  # a banned address is DROPped before it can reach this rule and stops
+  # consuming log budget entirely. Steady-state volume therefore tracks the
+  # arrival rate of NEW scanning addresses, not how loudly any of them scan.
+  #
+  # Per-source `-m hashlimit --hashlimit-mode srcip` was considered and
+  # rejected: it would give every source its own budget, which is precisely
+  # what turns a distributed sweep from thousands of addresses into the journal
+  # flood the limit exists to prevent.
+  decoyLogRules = lib.concatMapStringsSep "\n" (ports: ''
+    ip46tables -w -A nixos-fw -p tcp -m multiport --dports ${
+      lib.concatMapStringsSep "," toString ports
+    } --syn \
+      -m limit --limit 30/m --limit-burst 30 \
+      -j LOG --log-level info --log-prefix "port-decoy: "
+  '') (chunkPorts decoyPorts);
 in
 {
   imports = [
@@ -120,28 +227,28 @@ in
         2269
       ];
 
-      # Catches anything knocking on port 22, feeding the ssh-decoy jail.
-      #
-      # sshd listens on 2269, so nothing legitimate ever addresses 22 on this
-      # host. That makes a SYN to 22 a zero-false-positive signal: it is a
-      # scanner every single time. The firewall drops those packets anyway,
-      # but silently, so the address was free to keep probing everything else.
-      # Logging them gives fail2ban something to match, which puts a port-22
-      # knock on the same escalation ladder as everything else.
-      #
-      # Appended to nixos-fw ahead of the final log-refuse jump. It only LOGs
-      # -- the packet still falls through to the normal refuse path, so this
-      # changes what is recorded, not what is allowed. Rate-limited because
-      # this host is internet-facing and an unthrottled LOG on a scanned port
-      # is a self-inflicted journal flood; the jail needs 2 hits in a day, so
-      # the limit is far above what detection requires.
-      extraCommands = ''
-        ip46tables -w -A nixos-fw -p tcp --dport 22 --syn \
-          -m limit --limit 12/m --limit-burst 6 \
-          -j LOG --log-level info --log-prefix "ssh-decoy: "
-      '';
+      # Catches anything knocking on a closed port that nothing legitimate
+      # dials, feeding the port-decoy jail. Port table and full rationale are
+      # in the let block at the top of this file.
+      extraCommands = decoyLogRules;
     };
   };
+
+  # A decoy port that is also an open port is a silently dead decoy, not a
+  # self-ban: nixos-fw ACCEPTs allowed ports well before the appended LOG rules,
+  # so the knock is never recorded and the jail simply never fires for it. That
+  # failure is invisible in production -- the config still reads as though the
+  # port were being watched -- so it fails at eval time instead.
+  assertions = [
+    {
+      assertion = lib.intersectLists decoyPorts config.networking.firewall.allowedTCPPorts == [ ];
+      message =
+        "fredvps: decoy ports also declared open, so their LOG rule is unreachable: "
+        + lib.concatMapStringsSep ", " toString (
+          lib.intersectLists decoyPorts config.networking.firewall.allowedTCPPorts
+        );
+    }
+  ];
 
   # Per-IP ban metrics, for the "Active Bans" panel on the security dashboard.
   #
@@ -414,15 +521,49 @@ in
       blocktype = DROP
     '';
 
-    # Filter for the port-22 decoy rule (networking.firewall.extraCommands).
+    # Filter for the decoy LOG rules (networking.firewall.extraCommands).
     #
-    # Anchored on both the log prefix and DPT=22 so it cannot match any other
-    # kernel LOG line -- notably `logRefusedConnections`, if that is ever
-    # turned on, which uses the same field layout with a different prefix.
-    "fail2ban/filter.d/ssh-decoy.conf".text = ''
+    # Anchored on the log prefix, which is ours alone and is what keeps this
+    # from matching any other kernel LOG line -- notably
+    # `logRefusedConnections`, if that is ever turned on, which uses the same
+    # field layout with a different prefix.
+    #
+    # The port is deliberately NOT enumerated here. This filter previously
+    # pinned `DPT=22` as a second anchor, which was free when the rule watched
+    # exactly one port; carrying that forward would mean restating all 27 ports
+    # as a regex alternation that has to be kept in step with the Nix list, and
+    # a drift between the two fails open (the port gets logged and never
+    # banned). `DPT=` is still required so the line has to be the transport-
+    # layer shape the rule produces, but which port it was is the iptables
+    # rule's business, not the filter's.
+    #
+    # journalmatch IS A SECURITY CONTROL HERE, NOT AN OPTIMISATION.
+    #
+    # This jail runs on the systemd backend, and with no match restriction that
+    # backend reads the ENTIRE journal, not just kernel messages. Any process
+    # that can get attacker-controlled text into the journal can therefore
+    # forge a decoy hit, and <HOST> binds to whatever follows SRC= in the
+    # forged text -- which is an arbitrary-IP ban primitive, not merely a false
+    # positive. sshd is a live path to it: usernames are attacker-supplied and
+    # are logged verbatim, so
+    #
+    #   ssh -p 2269 'port-decoy: SRC=8.8.8.8 DPT=443 x'@fredvps
+    #
+    # yields `Invalid user port-decoy: SRC=8.8.8.8 DPT=443 x from ...`, and two
+    # of those get 8.8.8.8 banned host-wide on an escalating ladder that tops
+    # out at a week. Verified with fail2ban-regex, which extracted 8.8.8.8 from
+    # exactly that line. Restricting the jail to _TRANSPORT=kernel closes it:
+    # that field is set by journald from the message's origin and no userspace
+    # writer can claim it.
+    #
+    # This is also why the failregex below does not need to enumerate ports to
+    # be safe. Provenance is what makes the line trustworthy, and provenance is
+    # enforced here rather than guessed at from the message text.
+    "fail2ban/filter.d/port-decoy.conf".text = ''
       [Definition]
-      failregex = ^.*\bssh-decoy:\s.*\bSRC=<HOST>\b.*\bDPT=22\b
+      failregex = ^.*\bport-decoy:\s.*\bSRC=<HOST>\b.*\bDPT=\d+\b
       ignoreregex =
+      journalmatch = _TRANSPORT=kernel
     '';
   };
 
@@ -599,15 +740,33 @@ in
           enabled = true;
           port = "2269";
           filter = "sshd";
-          maxretry = 3;
+          maxretry = 2;
+          mode = "aggressive";
         };
 
-        # Anything that SYNs port 22.
+        # Anything that SYNs one of the decoy ports.
         #
-        # sshd is on 2269, so there is no legitimate traffic to 22 on this
-        # host and no false-positive surface at all -- one knock is already
-        # proof of a scan. maxretry = 2 rather than 1 only because a single
-        # retransmitted SYN can log twice.
+        # Nothing on this host serves any of them, so there is no
+        # false-positive surface at all -- one knock is already proof of a
+        # scan. maxretry = 2 rather than 1 only because a single retransmitted
+        # SYN can log twice.
+        #
+        # ONE JAIL FOR ALL DECOY PORTS, not one per port or per group. Ban
+        # counts are tracked per jail, so splitting them would mean an address
+        # that knocks once on 22 and once on 3306 sits on step 1 of two
+        # separate ladders and trips neither -- both under maxretry, banned by
+        # nothing, despite two unambiguous proofs of scanning. That is the
+        # exact fragmentation the recidive jail below exists to paper over, and
+        # there is no reason to manufacture more of it when every port here
+        # carries the identical signal and the identical settings.
+        #
+        # This jail was `ssh-decoy` when the rule watched only port 22.
+        # Renaming resets its ban history, since fail2ban keys escalation on
+        # the jail name -- a one-off cost, and the ladder rebuilds on its own
+        # within a day at the rate this host gets scanned. Nothing else keys
+        # on the old name: the ban-metrics generator above enumerates jails
+        # from `fail2ban-client status`, and the security dashboard reads the
+        # jail as a label rather than filtering on a literal.
         #
         # findtime is deliberately long. Slow scanners spread a sweep over
         # hours specifically to stay under short windows, and since the signal
@@ -615,9 +774,9 @@ in
         #
         # backend/logpath are inherited from DEFAULT (systemd), which is
         # correct: these lines come from the kernel via the journal.
-        ssh-decoy.settings = {
+        port-decoy.settings = {
           enabled = true;
-          filter = "ssh-decoy";
+          filter = "port-decoy";
           maxretry = 2;
           findtime = "1d";
         };
@@ -625,7 +784,7 @@ in
         # Escalation across jails, which is the part per-jail bans cannot do.
         #
         # Ban counts are tracked per jail, so an address that trips
-        # nginx-probe once, nginx-bad-request once and ssh-decoy once is on
+        # nginx-probe once, nginx-bad-request once and port-decoy once is on
         # step 1 of three separate ladders and never escalates, despite being
         # obviously hostile. This jail reads fail2ban's own Ban lines and
         # treats "banned anywhere, 3 times in a week" as its own offence.

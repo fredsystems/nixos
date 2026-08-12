@@ -4,7 +4,7 @@ groups:
   # WHAT THIS GROUP DOES NOT ALERT ON
   #
   # Bans. Not ban counts, not ban rate, not individual jails firing, not
-  # recidive, not ssh-decoy catching a scanner. All of that is the system
+  # recidive, not port-decoy catching a scanner. All of that is the system
   # working as designed, and on this host it happens constantly -- 161 bans in
   # a 48-hour window before the escalation fix. Paging on success trains the
   # channel to be ignored, which costs more than it buys. The "Bans Over Time"
