@@ -1481,12 +1481,14 @@
             "renameByName": {
               "Value": "Knocks",
               "src": "Source",
-              "dpt": "Port"
+              "dpt": "Port",
+              "Value #A": "Knocks"
             },
             "indexByName": {
               "src": 0,
               "dpt": 1,
-              "Value": 2
+              "Value": 2,
+              "Value #A": 2
             }
           }
         },
@@ -1556,11 +1558,13 @@
             },
             "renameByName": {
               "Value": "Knocks",
-              "dpt": "Port"
+              "dpt": "Port",
+              "Value #A": "Knocks"
             },
             "indexByName": {
               "dpt": 0,
-              "Value": 1
+              "Value": 1,
+              "Value #A": 1
             }
           }
         },
