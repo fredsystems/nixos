@@ -822,6 +822,13 @@ in
       # therefore a live outage risk rather than a latent one, which is why the
       # address is monitored for drift rather than merely written down.
       #
+      # The address itself comes from shared.homePublicIPv4
+      # (modules/data/home-network.nix) rather than being a literal here,
+      # because sdrhub's drift check has to compare against the same value. Two
+      # independent copies would fail in the worst possible way: the monitor
+      # reporting "no drift" against its own stale copy while this list no
+      # longer matches the address that is actually arriving.
+      #
       # Anything added here in future needs the same test applied: not "is this
       # address mine today" but "what dials this host from it unattended, and
       # what happens the morning after the address changes".
@@ -829,7 +836,7 @@ in
         "127.0.0.1/8"
         "::1"
         "100.64.0.0/10"
-        "73.26.160.99"
+        config.shared.homePublicIPv4
         "209.40.70.5"
       ];
 
