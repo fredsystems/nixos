@@ -1,4 +1,4 @@
-{ lib, user, ... }:
+{ lib, ... }:
 {
   # Define standard sync-compose hosts that can be imported by any system
   options.shared.syncHosts = lib.mkOption {
@@ -44,14 +44,17 @@
         port = "22";
         legacyScp = false;
       }
-      {
-        name = "vps";
-        ip = "fredclausen.com";
-        directory = "vps";
-        remotePath = "/home/${user}";
-        port = "22";
-        legacyScp = false;
-      }
+      # NO "vps" ENTRY. It was removed rather than repaired.
+      #
+      # It pointed at fredclausen.com with the default port 22, but fredvps's
+      # sshd is on 2269, so `sync-compose <dir> vps` could never connect -- it
+      # just SYNed a closed port and tripped the ssh-decoy tripwire. Deploys to
+      # that host go through colmena (flake/hosts/servers.nix, which correctly
+      # sets targetPort = 2269), so this predated colmena and had no remaining
+      # caller.
+      #
+      # Fixing the port was the wrong repair: it would have preserved a second,
+      # undocumented deploy path to the one internet-facing host in the fleet.
       {
         name = "brandon";
         ip = "73.242.200.187";

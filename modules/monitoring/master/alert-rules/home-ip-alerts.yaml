@@ -1,0 +1,120 @@
+groups:
+  # Alerts about the home public IPv4 address drifting away from the value the
+  # fleet is configured for.
+  #
+  # WHY THIS IS A SECURITY ALERT AND NOT HOUSEKEEPING
+  #
+  # fredvps's fail2ban ignoreIP list contains this address, and its decoy jails
+  # run maxretry = 1. One SYN to any of 27 watched ports from an address that is
+  # not on that list is an immediate host-wide DROP ban, escalating to a week on
+  # repeat. So a stale entry has two distinct consequences, and both matter:
+  #
+  #   * The address we now use is unprotected, so ordinary interactive traffic
+  #     from home can lock itself out of every vhost and out of sshd on 2269
+  #     simultaneously.
+  #   * The address we vacated stays whitelisted, so whoever Comcast hands it to
+  #     next is exempt from every jail on the only internet-facing host in the
+  #     fleet -- sshd, nginx-probe, nginx-bad-request, recidive.
+  #
+  # Neither is observable from fredvps itself, which is the whole reason this
+  # group exists.
+  #
+  # The check runs on sdrhub (hosts/linux/sdrhub/home-ip-drift.nix) and is
+  # sourced from fredvps's own nginx access log, so "observed" means the address
+  # fredvps actually attributes to this network -- the same string ignoreIP has
+  # to match, rather than an approximation of it from a third party.
+  #
+  # Rules deliberately do NOT pin hostname="sdrhub", following the convention in
+  # fail2ban-alerts.yaml: if the generator is ever added to a second host,
+  # unpinned rules cover it automatically. The absent() rule is the one
+  # exception, since it cannot work without naming the host it expects.
+  - name: home-public-ip
+    rules:
+      # The configured address no longer matches reality.
+      #
+      # critical, because this is the state in which a security control is
+      # pointed at the wrong address. It is also trivially fixable -- update
+      # shared.homePublicIPv4 and deploy -- so there is no reason to let it sit.
+      #
+      # 30m rather than something tighter: the check runs every 10 minutes, and
+      # a single anomalous sample should not page. Three consecutive
+      # disagreements is a rotation, not a blip.
+      - alert: HomePublicIPDrifted
+        expr: home_public_ip_matches_expected == 0
+        for: 30m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Home public IP has drifted from the configured value"
+          description: >-
+            fredvps observes this network as {{ $labels.observed }}, but the
+            fleet is configured for {{ $labels.expected }}. fredvps's fail2ban
+            ignoreIP list no longer covers this network and the decoy jails ban
+            on the first knock. Update shared.homePublicIPv4 in
+            modules/data/home-network.nix and deploy fredvps and sdrhub.
+
+      # The check itself cannot determine the address.
+      #
+      # Separate from HomePublicIPDrifted on purpose, and the generator
+      # deliberately emits no matches_expected sample in this state, so a broken
+      # check can never masquerade as drift. Without this rule the failure would
+      # be invisible: a missing series looks like a quiet, healthy system.
+      #
+      # warning, not critical: nothing is mis-enforced while this fires, we have
+      # simply stopped watching. It depends on a four-link chain -- blackbox
+      # probing fredvps, nginx logging it, Alloy shipping it, Loki retaining it
+      # -- so it can also be a symptom of a problem those pipelines will alert
+      # on more precisely.
+      #
+      # 1h because the chain includes log shipping, which tolerates short gaps
+      # by design and recovers on its own.
+      - alert: HomePublicIPCheckFailing
+        expr: home_public_ip_check_up == 0
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Home public IP drift check cannot determine the address"
+          description: >-
+            The Loki query for fredvps's most recent Blackbox-Exporter request
+            returned nothing usable, so drift is no longer being detected. Check
+            that blackbox is probing fredvps, that Alloy on fredvps is shipping
+            nginx-access, and that Loki is ingesting it.
+
+      # The generator has stopped running.
+      #
+      # Distinct from CheckFailing: that one means the unit ran and could not get
+      # an answer, this one means it is not running at all, in which case every
+      # other series here is frozen at its last value and will keep looking
+      # healthy indefinitely. Compares against time(), so it needs no companion
+      # series.
+      - alert: HomePublicIPCheckStale
+        expr: time() - home_public_ip_check_timestamp_seconds > 3600
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Home public IP drift check has stopped updating"
+          description: >-
+            home-ip-drift-metric.service last wrote its textfile over an hour
+            ago, so the drift comparison is showing stale data. Check the
+            home-ip-drift-metric timer and service on {{ $labels.hostname }}.
+
+      # The series never appeared at all.
+      #
+      # The one rule here that must name the host, because absent() cannot
+      # express "on whichever host is supposed to have this". Catches the case
+      # the three rules above structurally cannot: a generator that was never
+      # deployed, or whose textfile was removed, produces no series for any of
+      # them to evaluate.
+      - alert: HomePublicIPCheckMissing
+        expr: absent(home_public_ip_check_up{hostname="sdrhub"})
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Home public IP drift check is not reporting at all"
+          description: >-
+            No home_public_ip_check_up series exists for sdrhub, so the drift
+            check is either not deployed or not being scraped. fredvps's
+            ignoreIP list is unmonitored while this fires.
