@@ -99,6 +99,13 @@ in
           # 30-minute window is far wider than the blackbox probe interval, so a
           # single missed scrape cannot empty the result, but it is still short
           # enough that a rotation is reflected within minutes.
+          #
+          # `since` is a documented query_range parameter (it derives start from
+          # end, and an explicit start would supersede it), not a Grafana-ism.
+          # Called out because it reads like one: if Loki ignored it the window
+          # would collapse and this check would report up=0 forever while Loki
+          # was perfectly healthy. Verified against the live instance, which
+          # returned the expected address for this exact request.
           if body=$(curl -sf --max-time 15 -G \
               http://127.0.0.1:5678/loki/api/v1/query_range \
               --data-urlencode 'query={host="fredvps", unit="nginx-access"} |= `Blackbox-Exporter/`' \

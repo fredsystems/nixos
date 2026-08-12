@@ -134,7 +134,7 @@ let
     1433 # MSSQL
     1521 # Oracle TNS
     1723 # PPTP
-    2375 # Docker API, plaintext -- this host runs Docker, so this one is pointed
+    2375 # Docker API, plaintext -- not hypothetical here, this host runs Docker
     2376 # Docker API, TLS
     3128 # Squid / open-proxy hunting
     3306 # MySQL
@@ -287,7 +287,22 @@ in
       # has to be added back here or the guard would have a hole exactly where
       # the most-probed port is.
       watched = decoyPorts ++ [ 22 ];
-      clash = lib.intersectLists watched config.networking.firewall.allowedTCPPorts;
+
+      fw = config.networking.firewall;
+
+      # Every way nixos-fw can ACCEPT a port before the appended LOG rules is
+      # reached, not just the obvious one. An earlier version of this assertion
+      # checked allowedTCPPorts alone, which left three holes of exactly the
+      # same kind: a decoy port inside allowedTCPPortRanges, or allowed on a
+      # single interface, is ACCEPTed just as effectively and produces the same
+      # silently dead decoy. 8080 and 8443 are plausible members of a future
+      # range, so this was reachable rather than theoretical.
+      ifaces = lib.attrValues fw.interfaces;
+      ranges = fw.allowedTCPPortRanges ++ lib.concatMap (i: i.allowedTCPPortRanges) ifaces;
+      openPorts = fw.allowedTCPPorts ++ lib.concatMap (i: i.allowedTCPPorts) ifaces;
+      inAnyRange = p: lib.any (r: p >= r.from && p <= r.to) ranges;
+
+      clash = lib.filter (p: lib.elem p openPorts || inAnyRange p) watched;
     in
     [
       {

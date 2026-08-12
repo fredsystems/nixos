@@ -233,7 +233,7 @@
       "id": 5,
       "type": "stat",
       "title": "Jails Active",
-      "description": "fail2ban jails currently loaded. Should be 4.",
+      "description": "fail2ban jails currently loaded. Should be 7: sshd, ssh-decoy, port-decoy, recidive, nginx-probe, nginx-limit-req, nginx-bad-request. Red below that, because a jail failing to load is silent everywhere else -- enforcement just stops for whatever it covered. Update this and the threshold together when the jail set changes.",
       "gridPos": {
         "h": 5,
         "w": 4,
@@ -267,7 +267,7 @@
               },
               {
                 "color": "green",
-                "value": 4
+                "value": 7
               }
             ]
           },

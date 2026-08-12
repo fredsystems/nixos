@@ -34,7 +34,16 @@
     # strMatching rather than plain str, so a typo is an eval error rather than
     # a silently non-matching ignoreIP entry -- which would look exactly like
     # "correctly configured" right up until a ban.
-    type = lib.types.strMatching "^[0-9]{1,3}(\\.[0-9]{1,3}){3}$";
+    #
+    # Octets are range-checked rather than just "one to three digits". The
+    # looser pattern accepted 999.26.160.99, which defeats the entire point:
+    # a fat-fingered octet is the most likely typo here and it would have
+    # sailed through to ignoreIP as an address that can never match.
+    type =
+      let
+        octet = "(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])";
+      in
+      lib.types.strMatching "^${octet}(\\.${octet}){3}$";
     default = "73.26.160.99";
     description = ''
       Current public IPv4 address of the home network, as observed by an
