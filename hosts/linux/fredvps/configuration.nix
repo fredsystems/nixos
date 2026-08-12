@@ -149,16 +149,6 @@ let
     11211 # memcached, TCP half only
     27017 # MongoDB
     32764 # Sercomm router backdoor
-
-    # below are ports that we had actors on messing about before, sucking data
-    30005
-
-    # 30002 (raw out), 30003 (SBS/BaseStation out) and 30047 have no
-    # observed clients at all. Same reasoning: keep the mapping, drop
-    # the public exposure.
-    30002
-    30003
-    30047
   ];
 
   # xt_multiport takes at most 15 ports per rule, so the list is emitted in
