@@ -1,0 +1,197 @@
+# promtool unit tests for the home public IP drift rules.
+#
+# Gotcha, documented in smart-alerts-test.yaml and fail2ban-alerts-test.yaml and
+# re-stated here because it bites every new file in this directory: rules
+# evaluate at the top-level evaluation_interval, but samples are spaced at each
+# test's own `interval`. If `interval` exceeds Prometheus' 5m lookback delta the
+# series is stale at most evaluation steps and a `for:` clause never accumulates
+# a continuous pending period. Keep every interval <= 5m and make input_series
+# long enough to cover the rule's `for:` plus eval_time.
+#
+# Two rules here need care beyond that:
+#
+#   - HomePublicIPCheckStale compares against time(), so timestamp values must be
+#     absolute epoch seconds consistent with the test clock, which starts at 0. A
+#     series holding 0 is therefore "written at epoch 0" and is already an hour
+#     stale by eval_time 90m, which is what the firing case relies on. The
+#     not-firing case has to advance in step with the clock instead.
+#   - HomePublicIPCheckMissing uses absent() and pins hostname="sdrhub", so its
+#     firing case must supply some unrelated series for the rule to evaluate
+#     against while the named one is genuinely absent.
+#
+# The drift rule is tested in both directions on purpose. The important negative
+# case is that a FAILED CHECK does not fire it: the generator emits no
+# matches_expected sample when it cannot determine the address, so the series is
+# absent rather than 0, and this is the test that pins that behaviour.
+rule_files:
+  - ../home-ip-alerts.yaml
+
+evaluation_interval: 1m
+
+tests:
+  #########################################################################
+  # HomePublicIPDrifted
+  #########################################################################
+  - interval: 1m
+    name: HomePublicIPDrifted fires when the observed address disagrees
+    input_series:
+      - series: 'home_public_ip_matches_expected{hostname="sdrhub", instance="sdrhub.tailc21fc7.ts.net:9100", job="node", role="master", observed="73.26.161.5", expected="73.26.160.99"}'
+        values: "0+0x60"
+    alert_rule_test:
+      - eval_time: 45m
+        alertname: HomePublicIPDrifted
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              hostname: sdrhub
+              instance: sdrhub.tailc21fc7.ts.net:9100
+              job: node
+              role: master
+              observed: 73.26.161.5
+              expected: 73.26.160.99
+            exp_annotations:
+              summary: "Home public IP has drifted from the configured value"
+              description: >-
+                fredvps observes this network as 73.26.161.5, but the fleet is
+                configured for 73.26.160.99. fredvps's fail2ban ignoreIP list no
+                longer covers this network and the decoy jails ban on the first
+                knock. Update shared.homePublicIPv4 in
+                modules/data/home-network.nix and deploy fredvps and sdrhub.
+
+  - interval: 1m
+    name: HomePublicIPDrifted stays quiet while the address matches
+    input_series:
+      - series: 'home_public_ip_matches_expected{hostname="sdrhub", instance="sdrhub.tailc21fc7.ts.net:9100", job="node", role="master", observed="73.26.160.99", expected="73.26.160.99"}'
+        values: "1+0x60"
+    alert_rule_test:
+      - eval_time: 45m
+        alertname: HomePublicIPDrifted
+        exp_alerts: []
+
+  - interval: 1m
+    name: HomePublicIPDrifted does not fire when the check merely failed
+    input_series:
+      # up = 0 and NO matches_expected series, which is exactly what the
+      # generator emits on a failed lookup. Drift must stay silent here and
+      # HomePublicIPCheckFailing must carry it instead.
+      - series: 'home_public_ip_check_up{hostname="sdrhub", instance="sdrhub.tailc21fc7.ts.net:9100", job="node", role="master"}'
+        values: "0+0x120"
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: HomePublicIPDrifted
+        exp_alerts: []
+
+  #########################################################################
+  # HomePublicIPCheckFailing
+  #########################################################################
+  - interval: 1m
+    name: HomePublicIPCheckFailing fires when the address cannot be determined
+    input_series:
+      - series: 'home_public_ip_check_up{hostname="sdrhub", instance="sdrhub.tailc21fc7.ts.net:9100", job="node", role="master"}'
+        values: "0+0x120"
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: HomePublicIPCheckFailing
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              hostname: sdrhub
+              instance: sdrhub.tailc21fc7.ts.net:9100
+              job: node
+              role: master
+            exp_annotations:
+              summary: "Home public IP drift check cannot determine the address"
+              description: >-
+                The Loki query for fredvps's most recent Blackbox-Exporter
+                request returned nothing usable, so drift is no longer being
+                detected. Check that blackbox is probing fredvps, that Alloy on
+                fredvps is shipping nginx-access, and that Loki is ingesting it.
+
+  - interval: 1m
+    name: HomePublicIPCheckFailing stays quiet on a healthy lookup
+    input_series:
+      - series: 'home_public_ip_check_up{hostname="sdrhub", instance="sdrhub.tailc21fc7.ts.net:9100", job="node", role="master"}'
+        values: "1+0x120"
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: HomePublicIPCheckFailing
+        exp_alerts: []
+
+  #########################################################################
+  # HomePublicIPCheckStale
+  #########################################################################
+  - interval: 1m
+    name: HomePublicIPCheckStale fires when the textfile stops advancing
+    input_series:
+      # Frozen at epoch 0, so its age equals the test clock.
+      #
+      # eval_time is 100m, not 90m, and that is load-bearing. The expression is
+      # strictly `> 3600`, so at t=60m the age is exactly 3600 and the condition
+      # is still false; it first becomes true at 60m1s, which with a 1m
+      # evaluation interval means the pending period starts at 61m and the alert
+      # fires at 91m. Evaluating at 90m catches it one minute short, pending
+      # rather than firing.
+      - series: 'home_public_ip_check_timestamp_seconds{hostname="sdrhub", instance="sdrhub.tailc21fc7.ts.net:9100", job="node", role="master"}'
+        values: "0+0x150"
+    alert_rule_test:
+      - eval_time: 100m
+        alertname: HomePublicIPCheckStale
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              hostname: sdrhub
+              instance: sdrhub.tailc21fc7.ts.net:9100
+              job: node
+              role: master
+            exp_annotations:
+              summary: "Home public IP drift check has stopped updating"
+              description: >-
+                home-ip-drift-metric.service last wrote its textfile over an
+                hour ago, so the drift comparison is showing stale data. Check
+                the home-ip-drift-metric timer and service on sdrhub.
+
+  - interval: 1m
+    name: HomePublicIPCheckStale stays quiet while the generator keeps writing
+    input_series:
+      # Advances 60s per 1m sample, i.e. in step with the test clock, so the age
+      # stays at 0 and never crosses the threshold.
+      - series: 'home_public_ip_check_timestamp_seconds{hostname="sdrhub", instance="sdrhub.tailc21fc7.ts.net:9100", job="node", role="master"}'
+        values: "0+60x120"
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: HomePublicIPCheckStale
+        exp_alerts: []
+
+  #########################################################################
+  # HomePublicIPCheckMissing
+  #########################################################################
+  - interval: 1m
+    name: HomePublicIPCheckMissing fires when sdrhub reports no series at all
+    input_series:
+      # Unrelated series so there is something to evaluate against while
+      # home_public_ip_check_up{hostname="sdrhub"} is genuinely absent.
+      - series: 'up{hostname="sdrhub", instance="sdrhub.tailc21fc7.ts.net:9100", job="node", role="master"}'
+        values: "1+0x120"
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: HomePublicIPCheckMissing
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              hostname: sdrhub
+            exp_annotations:
+              summary: "Home public IP drift check is not reporting at all"
+              description: >-
+                No home_public_ip_check_up series exists for sdrhub, so the
+                drift check is either not deployed or not being scraped.
+                fredvps's ignoreIP list is unmonitored while this fires.
+
+  - interval: 1m
+    name: HomePublicIPCheckMissing stays quiet once the series exists
+    input_series:
+      - series: 'home_public_ip_check_up{hostname="sdrhub", instance="sdrhub.tailc21fc7.ts.net:9100", job="node", role="master"}'
+        values: "1+0x120"
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: HomePublicIPCheckMissing
+        exp_alerts: []

@@ -61,6 +61,7 @@ in
     ../../../modules/monitoring/agent
     ../../../modules/services/tailscale
     ../../../modules/hardware/usbfs.nix
+    ./home-ip-drift.nix
   ];
 
   deployment.role = "monitoring-master";
