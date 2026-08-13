@@ -254,14 +254,14 @@
     },
     {
       "id": "rust-overlay-262-stdenv-aliases",
-      "done": false,
+      "done": true,
       "summary": "rust-overlay lib/mk-aggregated.nix uses the deprecated stdenv.isLinux / stdenv.isDarwin aliases (lines 76, 85, 97). Unstable nixpkgs now wraps those aliases in lib.warn (pkgs/stdenv/generic/default.nix, \"Added 2026-05-09\"), and our CI fails on any `evaluation warning:`. freminal and frext each instantiate their own pkgs, so each contributes one isLinux + one isDarwin warning to desktop and Darwin builds. Neither repo can fix this itself -- the call sites are in rust-overlay, which both consume for their Rust toolchain.",
       "repo": "oxalica/rust-overlay",
       "check": "issue-closed",
       "issue": 262,
       "tracking": ["https://github.com/oxalica/rust-overlay/pull/262"],
       "workaround": "flake.nix -- both the `freminal` and `frext` inputs override `inputs.rust-overlay.url` to the PR head commit on the author's fork, github:K900/rust-overlay/2c2d808349ea4e8ba3823b3ad23151b5b0328f75 (see FIXME(rust-overlay-262)). Pinned to the commit rather than the `hostplatform` branch so a force-push cannot change what we build. The PR is a 3-line pure rename with no semantic change.",
-      "revert_action": "Once PR #262 merges, delete both `inputs.rust-overlay.url` override lines (and their FIXME comments) from flake.nix so freminal and frext use their own rust-overlay pins again. Those pins must first advance to a rust-overlay revision containing the merge -- `nix flake update freminal frext` after each repo has bumped. Verify by evaluating a desktop toplevel and confirming zero `evaluation warning:` lines attributable to freminal/frext, then set `done: true`. NOTE: this override makes nixos build freminal/frext against a toolchain their own CI did not test; that divergence is the reason to revert promptly rather than let the pin linger."
+      "revert_action": "DONE. PR #262 merged 2026-08-13T16:24:02Z as merge commit 892c035d7c2ff75acd5da10424a47ab454e1f3dc. freminal, frext and github-ci-exporter have each bumped their own rust-overlay pin, and all seven rust-overlay nodes in our flake.lock now resolve to 892c035d, so the fix is present without any override. All three `inputs.rust-overlay.url` overrides and their FIXME comments were removed from flake.nix. Verified: Daytona toplevel and sdrhub home-manager activationPackage both evaluate with exit 0 and zero warnings."
     },
     {
       "id": "nixpkgs-ladybird-cve-2026-58592",
