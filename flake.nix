@@ -190,8 +190,6 @@
       #path on disk
       #url = "git+file:/home/fred/GitHub/freminal";
       inputs.nixpkgs.follows = "nixpkgs";
-      # FIXME(rust-overlay-262): see .github/tracked-upstream-fixes.json.
-      inputs.rust-overlay.url = "github:K900/rust-overlay/2c2d808349ea4e8ba3823b3ad23151b5b0328f75";
     };
 
     # CI: desktop
@@ -200,8 +198,6 @@
       #path on disk
       #url = "git+file:/home/fred/GitHub/frext";
       inputs.nixpkgs.follows = "nixpkgs";
-      # FIXME(rust-overlay-262): see .github/tracked-upstream-fixes.json.
-      inputs.rust-overlay.url = "github:K900/rust-overlay/2c2d808349ea4e8ba3823b3ad23151b5b0328f75";
     };
 
     # CI: server
@@ -212,11 +208,6 @@
       #path on disk
       #url = "git+file:/home/fred/GitHub/github-ci-exporter";
       inputs.nixpkgs.follows = "nixpkgs";
-      # FIXME(rust-overlay-262): see .github/tracked-upstream-fixes.json.
-      # This input follows our *unstable* nixpkgs even though only sdrhub (a
-      # stable server) consumes it, so it carries the alias deprecation onto a
-      # host that is otherwise immune to it.
-      inputs.rust-overlay.url = "github:K900/rust-overlay/2c2d808349ea4e8ba3823b3ad23151b5b0328f75";
     };
 
     # wallpapers
