@@ -43,7 +43,12 @@
 
   system.activationScripts.sddm-hyprland-config = ''
     mkdir -p /var/lib/sddm/.config/hypr
-    cat <<EOF > /var/lib/sddm/.config/hypr/hyprland.conf
+    # hyprland.conf (hyprlang) is deprecated upstream; the Lua config is the
+    # supported format. No monitor rules are needed on this host -- the file
+    # only has to exist so Hyprland does not fall back to its shipped default.
+    rm -f /var/lib/sddm/.config/hypr/hyprland.conf
+    cat <<EOF > /var/lib/sddm/.config/hypr/hyprland.lua
+    -- Auto-generated for the SDDM Wayland session.
     EOF
     chown -R sddm:sddm /var/lib/sddm/.config
   '';
