@@ -71,7 +71,7 @@ jobs:
       #   skip         — no darwin rebuild needed
       #
       # Any input used by darwin builds maps to "darwin" (rebuild all).
-      # Inputs only used by Linux (stable channel, niri, solaar, etc.)
+      # Inputs only used by Linux (stable channel, niri, nix-flatpak, etc.)
       # map to "skip".
       - name: Detect changed paths
         id: changes
@@ -167,7 +167,6 @@ jobs:
               [nix-yazi-plugins-stable]="skip"
               [nix-flatpak]="skip"
               [niri]="skip"
-              [solaar]="skip"
               [walls-catppuccin]="skip"
               [walls-zhichaoh]="skip"
               [walls-cozypixels]="skip"

@@ -175,12 +175,6 @@
       url = "github:FredSystems/pre-commit-checks";
     };
 
-    # CI: desktop
-    solaar = {
-      url = "github:Svenum/Solaar-Flake";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
     # CI: skip (deployment tool, no effect on builds)
     # NOTE: deliberately NOT following our nixpkgs so the colmena CLI binary
     # can be substituted from colmena.cachix.org (built against colmena's own
@@ -272,7 +266,6 @@
       walls-catppuccin,
       walls-zhichaoh,
       walls-cozypixels,
-      solaar,
       colmena,
       freminal,
       frext,
@@ -387,7 +380,6 @@
           darwin
           nixvim
           niri
-          solaar
           colmena
           walls-catppuccin
           walls-zhichaoh
