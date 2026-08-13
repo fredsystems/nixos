@@ -27,18 +27,18 @@
 }:
 opencode.overrideAttrs (
   _finalAttrs: prevAttrs: rec {
-    version = "1.18.16";
+    version = "1.18.18";
 
     src = fetchFromGitHub {
       owner = "anomalyco";
       repo = "opencode";
       tag = "v${version}";
-      hash = "sha256-AP2W443Zk/X8j6BWfMgAEbR4BQiJgnPpr1OG6JWIprE=";
+      hash = "sha256-rDVcv8j9KghTDwooPYriTloOMgTyVutud7xKLG2mTmk=";
     };
 
     node_modules = prevAttrs.node_modules.overrideAttrs (_: {
       inherit version src;
-      outputHash = "sha256-GBLs3nXtfSeXb4jXxSNM8ElMa/e/EB4sZn3c2inHnco=";
+      outputHash = "sha256-oU7qWOsY2TtVE+Gp2DhSXffm9OghTHcNhzDwwAovwZI=";
     });
   }
 )
