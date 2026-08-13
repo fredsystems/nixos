@@ -183,9 +183,26 @@ if nix build "$NODE_MODULES_ATTR" --no-link >"$BUILD_LOG" 2>&1; then
     exit 1
 fi
 
-# Nix reports the real hash as `got:    sha256-...` on mismatch. Anything else
-# means the build failed for an unrelated reason and must not be papered over.
-REAL_HASH="$(grep -oP 'got:\s+\K\S+' "$BUILD_LOG" | head -1 || true)"
+# Nix reports a mismatch as an adjacent pair:
+#
+#     specified: <declared hash>
+#        got:    <actual hash>
+#
+# Take the `got:` belonging to the pair whose `specified:` is our placeholder,
+# NOT simply the first `got:` in the log. A dependency that fails its own hash
+# check earlier in the build emits the same shape, and picking that one would
+# write another derivation's hash into outputHash -- a silently poisoned pin
+# that still looks well-formed. Only our target can have WRONG_HASH declared,
+# so pairing on it identifies the right block unambiguously.
+#
+# Anything else means the build failed for an unrelated reason and must not be
+# papered over, so an absent pair keeps the error path below.
+REAL_HASH="$(
+    awk -v wrong_hash="$WRONG_HASH" '
+        $1 == "specified:" && $2 == wrong_hash { want_got = 1; next }
+        want_got && $1 == "got:" { print $2; exit }
+    ' "$BUILD_LOG"
+)"
 if [[ -z "$REAL_HASH" ]]; then
     echo "error: node_modules failed to build for a reason other than a hash" >&2
     echo "       mismatch. Full log follows." >&2
