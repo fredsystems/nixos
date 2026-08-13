@@ -76,7 +76,13 @@ in
       ghostty.enable = true;
       githubdesktop.enable = true;
       kitty.enable = true;
-      ladybird.enable = true;
+      # FIXME(nixpkgs-ladybird-cve-2026-58592): see
+      # .github/tracked-upstream-fixes.json. nixpkgs marks
+      # ladybird-0-unstable-2026-06-05 insecure, which is a hard eval failure
+      # on both desktops. Disabled rather than added to
+      # permittedInsecurePackages: this is a browser, so the CVE is directly
+      # reachable by untrusted input.
+      ladybird.enable = false;
       ledger.enable = cfg.enable_extra;
       libreoffice.enable = true;
       missioncenter.enable = true;

@@ -262,6 +262,20 @@
       "tracking": ["https://github.com/oxalica/rust-overlay/pull/262"],
       "workaround": "flake.nix -- both the `freminal` and `frext` inputs override `inputs.rust-overlay.url` to the PR head commit on the author's fork, github:K900/rust-overlay/2c2d808349ea4e8ba3823b3ad23151b5b0328f75 (see FIXME(rust-overlay-262)). Pinned to the commit rather than the `hostplatform` branch so a force-push cannot change what we build. The PR is a 3-line pure rename with no semantic change.",
       "revert_action": "Once PR #262 merges, delete both `inputs.rust-overlay.url` override lines (and their FIXME comments) from flake.nix so freminal and frext use their own rust-overlay pins again. Those pins must first advance to a rust-overlay revision containing the merge -- `nix flake update freminal frext` after each repo has bumped. Verify by evaluating a desktop toplevel and confirming zero `evaluation warning:` lines attributable to freminal/frext, then set `done: true`. NOTE: this override makes nixos build freminal/frext against a toolchain their own CI did not test; that divergence is the reason to revert promptly rather than let the pin linger."
+    },
+    {
+      "id": "nixpkgs-ladybird-cve-2026-58592",
+      "done": false,
+      "summary": "nixpkgs marks ladybird-0-unstable-2026-06-05 as insecure (CVE-2026-58592), which is a hard evaluation failure on both desktops because profiles/desktop enables ladybird by default. Ladybird is an experimental browser and the package in our pin has no patched successor yet.",
+      "repo": "NixOS/nixpkgs",
+      "check": "pkgs-min-version",
+      "package": "ladybird",
+      "eval_host": "Daytona",
+      "min_version": null,
+      "upstream_pr": null,
+      "tracking": ["https://nvd.nist.gov/vuln/detail/CVE-2026-58592"],
+      "workaround": "features/desktop/default.nix -- `ladybird.enable = false;` (see FIXME(nixpkgs-ladybird-cve-2026-58592)). Deliberately NOT added to `permittedInsecurePackages` in features/common/system/default.nix: unlike the openssl-1.1.1w entry already in that list, ladybird is a browser, so the vulnerability is reachable from untrusted network input.",
+      "revert_action": "Once nixpkgs ships a ladybird build that is no longer flagged insecure, set `min_version` to that version so the checker can resolve. Then set `ladybird.enable = true;` in features/desktop/default.nix, delete the FIXME, confirm a desktop toplevel evaluates without NIXPKGS_ALLOW_INSECURE, and set `done: true`. min_version is null so this entry stays BLOCKED and cannot falsely resolve."
     }
   ]
 }
