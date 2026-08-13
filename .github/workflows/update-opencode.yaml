@@ -5,9 +5,29 @@ name: update-opencode
 # nixpkgs' (frequently stale) version — see that file for why. Renovate
 # can't maintain it: bumping requires recomputing the `node_modules`
 # fixed-output-derivation hash, which means actually running a Nix build,
-# not just a version-string/hash lookup. This workflow does that dance
-# daily (opencode ships multiple releases a week) and only opens a PR if
-# the resulting package actually builds.
+# not just a version-string/hash lookup.
+#
+# This workflow watches BOTH inputs that hash depends on:
+#
+#     outputHash = f( opencode src , nixpkgs' node_modules recipe )
+#
+# It used to watch only the first — it compared the pinned version against
+# the newest upstream release and `exit 0`d when they matched, so between
+# opencode releases the pinned hash was never revalidated. A nixpkgs-side
+# recipe change (d07339e1, "drop bundled Windows executables from
+# node_modules") therefore went unnoticed until a nixpkgs bump PR failed both
+# desktop builds and had to be diagnosed by hand; see commit a278fe87.
+#
+# So the daily run now ALWAYS recomputes. A new opencode release is just an
+# extra thing to do first, not a precondition for checking anything.
+#
+# The recompute is trustworthy wherever it runs: sync-opencode-hash.sh forces
+# a placeholder hash, and Nix validates fixed-output content against its
+# declared hash on substitution as well as on build, so no cache can satisfy
+# it. That matters because a fixed-output derivation resolves by hash alone —
+# on the self-hosted runners a *stale* pinned hash will happily substitute the
+# old content and prove nothing, which is precisely the trap this workflow
+# exists to escape.
 
 on:
   schedule:
@@ -53,78 +73,93 @@ jobs:
           echo "current: $current_version"
           echo "latest:  $latest_version"
 
+          # Deliberately NO early exit when these match. The hash still has to
+          # be revalidated against the current nixpkgs recipe.
           if [ "$current_version" = "$latest_version" ]; then
-            echo "already up to date"
-            echo "update=false" >> "$GITHUB_OUTPUT"
-            exit 0
+            echo "no new release; revalidating the pinned hash only"
+            echo "new_release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "new_release=true" >> "$GITHUB_OUTPUT"
           fi
-
-          echo "update=true" >> "$GITHUB_OUTPUT"
           echo "version=$latest_version" >> "$GITHUB_OUTPUT"
 
-      - name: Bump version and source hash
-        if: steps.check.outputs.update == 'true'
+      - name: Sync version and node_modules hash
+        id: sync
         env:
+          NEW_RELEASE: ${{ steps.check.outputs.new_release }}
           NEW_VERSION: ${{ steps.check.outputs.version }}
         run: |
-          set -euo pipefail
+          set -uo pipefail
 
-          sed -i "s/^\(\s*version = \)\".*\";/\1\"${NEW_VERSION}\";/" overlays/opencode.nix
-
-          src_hash=$(nix run nixpkgs#nix-prefetch-github -- anomalyco opencode --rev "v${NEW_VERSION}" \
-            | jq -r .hash)
-
-          # Unambiguous: the `src` fetch uses the `hash` key, while
-          # node_modules (updated in the next step) uses `outputHash`.
-          # `|` delimiter: SRI base64 hashes can contain `/`, which would
-          # break a `/`-delimited sed substitution.
-          sed -i "s|hash = \"sha256-.*\";|hash = \"${src_hash}\";|" overlays/opencode.nix
-
-      - name: Recompute node_modules fixed-output hash
-        if: steps.check.outputs.update == 'true'
-        run: |
-          set -euo pipefail
-
-          # Force a hash mismatch to learn the real one, mirroring the
-          # manual bump procedure documented in overlays/opencode.nix.
-          sed -i 's/outputHash = "sha256-.*";/outputHash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";/' \
-            overlays/opencode.nix
-
-          build_log=$(nix build '.#nixosConfigurations.Daytona.pkgs.opencode.node_modules' --no-link 2>&1) && {
-            echo "expected a hash mismatch but the build succeeded outright" >&2
-            exit 1
-          }
-
-          real_hash=$(echo "$build_log" | grep -oP 'got:\s+\K\S+' || true)
-          if [ -z "$real_hash" ]; then
-            echo "$build_log" >&2
-            echo "could not extract the real node_modules hash from the build log above" >&2
-            exit 1
+          if [ "$NEW_RELEASE" = "true" ]; then
+            ./scripts/sync-opencode-hash.sh --version "$NEW_VERSION"
+          else
+            ./scripts/sync-opencode-hash.sh
           fi
+          rc=$?
 
-          sed -i "s|outputHash = \"sha256-.*\";|outputHash = \"${real_hash}\";|" overlays/opencode.nix
+          # 0 = already correct, 2 = overlay was updated, anything else = error.
+          case "$rc" in
+            0) echo "changed=false" >> "$GITHUB_OUTPUT" ;;
+            2) echo "changed=true"  >> "$GITHUB_OUTPUT" ;;
+            *) echo "sync failed with exit $rc" >&2; exit "$rc" ;;
+          esac
 
       - name: Verify the full package builds
-        if: steps.check.outputs.update == 'true'
+        if: steps.sync.outputs.changed == 'true'
         run: nix build '.#nixosConfigurations.Daytona.pkgs.opencode' --no-link
 
       - name: Commit, push, and open a PR
-        if: steps.check.outputs.update == 'true'
+        if: steps.sync.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ secrets.PAT }}
+          NEW_RELEASE: ${{ steps.check.outputs.new_release }}
           NEW_VERSION: ${{ steps.check.outputs.version }}
         run: |
           set -euo pipefail
 
-          branch="update-opencode-${NEW_VERSION}"
+          # Two distinct reasons to land a change, and they want different
+          # titles: a version bump is routine, whereas a hash correction with
+          # no version change means the nixpkgs recipe moved under us and is
+          # worth being able to spot in the log at a glance.
+          if [ "$NEW_RELEASE" = "true" ]; then
+            branch="update-opencode-${NEW_VERSION}"
+            title="chore(opencode): update overlay to v${NEW_VERSION}"
+            body=$(cat <<BODY
+          Automated bump of the opencode overlay (see overlays/opencode.nix) to
+          the latest upstream release.
+
+          The node_modules fixed-output hash was recomputed by forcing a
+          placeholder, so the builder really ran rather than resolving from a
+          cache, and \`nix build
+          .#nixosConfigurations.Daytona.pkgs.opencode\` succeeds.
+          BODY
+            )
+          else
+            branch="fix-opencode-hash-$(date -u +%Y%m%d)"
+            title="fix(opencode): recompute stale node_modules hash"
+            body=$(cat <<BODY
+          The pinned \`node_modules\` fixed-output hash no longer matches what
+          the current nixpkgs recipe produces, with no opencode version change
+          involved. nixpkgs altered its opencode packaging under us -- the
+          failure mode that previously surfaced only as a broken nixpkgs bump
+          PR, diagnosed by hand in commit a278fe87.
+
+          Recomputed by forcing a placeholder hash so an Attic cache hit
+          cannot mask it, and verified with \`nix build
+          .#nixosConfigurations.Daytona.pkgs.opencode\`.
+          BODY
+            )
+          fi
+
           git checkout -b "$branch"
           git add overlays/opencode.nix
-          git commit -m "chore(opencode): update overlay to v${NEW_VERSION}"
+          git commit -m "$title"
           git push origin "$branch" --force
 
           gh pr create \
-            --title "chore(opencode): update overlay to v${NEW_VERSION}" \
-            --body "Automated bump of the opencode overlay (see overlays/opencode.nix) to the latest upstream release. Verified locally: \`nix build .#nixosConfigurations.Daytona.pkgs.opencode\` succeeds." \
+            --title "$title" \
+            --body "$body" \
             --base main \
             --head "$branch" \
           || echo "PR already open for this branch"

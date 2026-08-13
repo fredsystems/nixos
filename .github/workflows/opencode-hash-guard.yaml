@@ -1,0 +1,158 @@
+---
+name: opencode-hash-guard
+
+# Catches the failure mode that produced commit a278fe87.
+#
+# overlays/opencode.nix pins the `node_modules` fixed-output hash, which is a
+# function of BOTH the opencode source AND nixpkgs' opencode packaging recipe.
+# update-opencode.yaml owns the first and revalidates the second daily, but a
+# nixpkgs bump can invalidate the hash the moment it lands. Without this guard
+# the bump PR simply fails both desktop builds with a hash mismatch and a human
+# has to work out why.
+#
+# So: when a PR moves the `nixpkgs` input, recompute the hash and push the
+# correction onto the PR branch, so the bump arrives already correct.
+#
+# WHY THE GATE IS A flake.lock READ AND NOT A BUILD
+#
+# The recompute is a cold `bun install` of a ~2.3 GiB tree, far too expensive
+# to run on every PR. The `nixpkgs` root input rev is read straight out of
+# flake.lock as JSON on both sides, which costs nothing, and a rev that has not
+# moved cannot have changed the recipe.
+#
+# WHY PUSHING TO THE PR BRANCH IS SAFE HERE
+#
+# If Renovate or flake-update-action later rebases and drops the fixup commit,
+# this workflow simply fires again on the new head and re-pushes. The
+# correction is idempotent and self-healing rather than a one-shot that can be
+# silently lost.
+
+on:
+  pull_request:
+    paths:
+      - "flake.lock"
+      - "overlays/opencode.nix"
+
+# Only what checkout needs. The push authenticates with a PAT supplied inline
+# at push time, so the job token never needs write access, and nothing here
+# touches the pull-requests API.
+permissions:
+  contents: read
+
+jobs:
+  guard:
+    name: Verify opencode node_modules hash
+    # Fork PRs cannot see secrets.PAT and must not be pushed to.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Default GITHUB_TOKEN, and deliberately NOT persisted. This job runs
+          # code from the PR branch -- sync-opencode-hash.sh itself, plus
+          # whatever Nix that branch evaluates -- so any credential left in
+          # .git/config here is readable by that code. The PAT is introduced
+          # only in the final push step, after all branch code has run.
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.ref }}
+          # Need the base commit too, to diff flake.lock across the PR.
+          fetch-depth: 0
+
+      - name: Did the nixpkgs input move?
+        id: gate
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+
+          root_nixpkgs_rev() {
+            jq -r '.nodes.root.inputs.nixpkgs as $n | .nodes[$n].locked.rev'
+          }
+
+          # `.nodes.nixpkgs` is NOT the root input -- the root's `nixpkgs` is an
+          # alias that usually resolves to a suffixed node (nixpkgs_12 at time
+          # of writing), while a node literally named `nixpkgs` belongs to some
+          # transitive dependency. Resolving through .nodes.root.inputs is the
+          # only correct way to read it.
+          base_rev=$(git show "${BASE_SHA}:flake.lock" | root_nixpkgs_rev)
+          head_rev=$(root_nixpkgs_rev < flake.lock)
+
+          echo "base nixpkgs: $base_rev"
+          echo "head nixpkgs: $head_rev"
+
+          if [ "$base_rev" = "$head_rev" ]; then
+            echo "nixpkgs unchanged; the recipe cannot have moved"
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
+        if: steps.gate.outputs.run == 'true'
+        with:
+          extra-conf: accept-flake-config = true
+
+      - name: Configure Git identity
+        if: steps.gate.outputs.run == 'true'
+        run: |
+          git config --global user.email "noreply@github.com"
+          git config --global user.name "github[bot]"
+
+      - name: Recompute the node_modules hash
+        id: sync
+        if: steps.gate.outputs.run == 'true'
+        run: |
+          set -uo pipefail
+
+          ./scripts/sync-opencode-hash.sh
+          rc=$?
+
+          case "$rc" in
+            0) echo "changed=false" >> "$GITHUB_OUTPUT" ;;
+            2) echo "changed=true"  >> "$GITHUB_OUTPUT" ;;
+            *) echo "sync failed with exit $rc" >&2; exit "$rc" ;;
+          esac
+
+      - name: Push the correction onto the PR branch
+        if: steps.sync.outputs.changed == 'true'
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          PAT: ${{ secrets.PAT }}
+        run: |
+          set -euo pipefail
+
+          git add overlays/opencode.nix
+          git commit -m "fix(opencode): recompute node_modules hash for the nixpkgs bump"
+
+          # PAT rather than GITHUB_TOKEN so the push re-triggers CI on the PR;
+          # a GITHUB_TOKEN push deliberately does not. Supplied inline instead
+          # of via checkout's `token:` so it is never sitting in .git/config
+          # while this branch's own code executes. Actions masks it in logs.
+          git push \
+            "https://x-access-token:${PAT}@github.com/${GITHUB_REPOSITORY}.git" \
+            "HEAD:${HEAD_REF}"
+
+          cat >> "$GITHUB_STEP_SUMMARY" <<'SUMMARY'
+          ### opencode node_modules hash corrected
+
+          This nixpkgs bump changed opencode's packaging recipe, which
+          invalidated the fixed-output hash pinned in
+          `overlays/opencode.nix`. The corrected hash has been pushed to
+          this branch.
+
+          Recomputed by forcing a placeholder hash, so the builder really
+          ran: a fixed-output derivation resolves by hash alone, and a
+          stale pin would otherwise substitute the old content from the
+          cache and prove nothing.
+          SUMMARY
+
+      - name: Report a clean result
+        if: steps.sync.outputs.changed == 'false'
+        run: |
+          cat >> "$GITHUB_STEP_SUMMARY" <<'SUMMARY'
+          ### opencode node_modules hash is correct
+
+          The nixpkgs input moved, but the pinned fixed-output hash still
+          matches what the new recipe produces. Verified by a forced
+          rebuild, not by a cache hit.
+          SUMMARY
