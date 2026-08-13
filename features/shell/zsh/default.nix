@@ -14,7 +14,7 @@ in
       uname:
       let
         homeDir =
-          if pkgs.stdenv.isDarwin then
+          if pkgs.stdenv.hostPlatform.isDarwin then
             "/Users/${uname}/.oh-my-zsh/custom"
           else
             "/home/${uname}/.oh-my-zsh/custom";
@@ -31,7 +31,11 @@ in
           autosuggestion.enable = true;
 
           # ${config.xdg.configHome}/zsh"
-          dotDir = if pkgs.stdenv.isDarwin then config.home.homeDirectory else "${config.xdg.configHome}/zsh";
+          dotDir =
+            if pkgs.stdenv.hostPlatform.isDarwin then
+              config.home.homeDirectory
+            else
+              "${config.xdg.configHome}/zsh";
 
           # Example override
           shellAliases = {

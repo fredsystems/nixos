@@ -43,7 +43,7 @@ final: prev: {
   # sandbox requires it.
   github-runner = prev.github-runner.overrideAttrs (
     _:
-    prev.lib.optionalAttrs (!prev.stdenv.isDarwin) {
+    prev.lib.optionalAttrs (!prev.stdenv.hostPlatform.isDarwin) {
       __noChroot = false;
     }
   );
@@ -57,7 +57,7 @@ final: prev: {
   # (see also #208951).  Disable the check phase on darwin only; Linux still
   # runs the full test suite.
   direnv =
-    if prev.stdenv.isDarwin then
+    if prev.stdenv.hostPlatform.isDarwin then
       prev.direnv.overrideAttrs (_: {
         doCheck = false;
       })
@@ -157,7 +157,7 @@ final: prev: {
   sbomnixPatchedVersion = "1.8.0";
 
   sbomnix =
-    if prev.stdenv.isDarwin || prev.sbomnix.version != final.sbomnixPatchedVersion then
+    if prev.stdenv.hostPlatform.isDarwin || prev.sbomnix.version != final.sbomnixPatchedVersion then
       prev.sbomnix
     else
       prev.sbomnix.overrideAttrs (old: {

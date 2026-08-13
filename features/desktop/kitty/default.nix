@@ -14,7 +14,7 @@ let
   # Pull from the shared terminal module
   t = config.terminal;
 
-  inherit (pkgs.stdenv) isDarwin;
+  inherit (pkgs.stdenv.hostPlatform) isDarwin;
 in
 {
   options.desktop.kitty = {

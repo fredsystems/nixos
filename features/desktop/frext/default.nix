@@ -9,7 +9,7 @@
 let
   allUsers = [ user ] ++ extraUsers;
   cfg = config.desktop.frext;
-  inherit (pkgs.stdenv) isLinux;
+  inherit (pkgs.stdenv.hostPlatform) isLinux;
 in
 {
   options.desktop.frext = {
