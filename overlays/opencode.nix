@@ -13,11 +13,21 @@
 #   2. Get the new source hash:
 #        nix run nixpkgs#nix-prefetch-github -- anomalyco opencode --rev v<version>
 #   3. Set `src.hash` to that value.
-#   4. Set `node_modules.outputHash` to a wrong placeholder
+#   4. Set `passthru.node_modules.outputHash` to a wrong placeholder
 #      (e.g. lib.fakeHash) and run:
 #        nix build .#nixosConfigurations.<host>.pkgs.opencode.node_modules
 #      to get the real hash from the mismatch error, then fill it in.
 #   5. `nix build .#nixosConfigurations.<host>.pkgs.opencode` to confirm.
+#
+# Note on where `node_modules` lives: upstream moved it from a top-level
+# derivation attribute into `passthru`, and made it a function of the outer
+# `finalAttrs` (`inherit (finalAttrs) version src`). Two consequences:
+#   * It must be overridden through `passthru`, not at the top level. The old
+#     top-level `node_modules` override evaluated to "attribute 'node_modules'
+#     missing" once nixpkgs restructured the package.
+#   * `version` and `src` no longer need re-inheriting into it -- setting them
+#     on the outer derivation propagates automatically. Only `outputHash` has
+#     to be restated, because the vendored dependency tree differs per release.
 #
 # Usage in overlays/default.nix:
 #   opencode = final.callPackage ./opencode.nix { opencode = prev.opencode; };
@@ -26,19 +36,20 @@
   fetchFromGitHub,
 }:
 opencode.overrideAttrs (
-  _finalAttrs: prevAttrs: rec {
+  finalAttrs: prevAttrs: {
     version = "1.18.18";
 
     src = fetchFromGitHub {
       owner = "anomalyco";
       repo = "opencode";
-      tag = "v${version}";
+      tag = "v${finalAttrs.version}";
       hash = "sha256-rDVcv8j9KghTDwooPYriTloOMgTyVutud7xKLG2mTmk=";
     };
 
-    node_modules = prevAttrs.node_modules.overrideAttrs (_: {
-      inherit version src;
-      outputHash = "sha256-oU7qWOsY2TtVE+Gp2DhSXffm9OghTHcNhzDwwAovwZI=";
-    });
+    passthru = prevAttrs.passthru // {
+      node_modules = prevAttrs.passthru.node_modules.overrideAttrs (_: {
+        outputHash = "sha256-oU7qWOsY2TtVE+Gp2DhSXffm9OghTHcNhzDwwAovwZI=";
+      });
+    };
   }
 )
