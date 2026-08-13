@@ -83,6 +83,9 @@ in
 
   system.activationScripts.sddm-hyprland-config = ''
     mkdir -p /var/lib/sddm/.config/hypr
+    # hyprland.conf (hyprlang) is deprecated upstream; drop any stale copy left
+    # behind by a pre-Lua generation so Hyprland does not read it.
+    rm -f /var/lib/sddm/.config/hypr/hyprland.conf
     cat <<EOF > /var/lib/sddm/.config/hypr/hyprland.lua
     -- Auto-generated for the SDDM Wayland session.
     ${lib.concatStringsSep "\n    " hyprMonitors}
