@@ -125,7 +125,7 @@
         "https://github.com/NixOS/nixpkgs/blob/master/pkgs/by-name/sb/sbomnix/package.nix"
       ],
       "workaround": "overlays/default.nix -- `sbomnix` overlay overriding makeWrapperArgs to prepend nixVersions.nix_2_34 (emits schema version 4) instead of the upstream-pinned nix_2_31 (see FIXME(nixpkgs-sbomnix-nix231-pin)); flake/dev/packages.nix exposes it as `.#sbomnix`; cve-scan.yaml invokes `.#sbomnix` instead of `nixpkgs#sbomnix`.",
-      "revert_action": "sbomnix#267 is already CLOSED (the parser was fixed in 1.8.0); the residual bug is purely nixpkgs' stale wrapper pin, for which no upstream issue exists yet. `pkgs-min-version` with `min_version: null` keeps this BLOCKED (never falsely resolved) \u2014 it is a reminder to re-check manually. When a future nixpkgs sbomnix update drops the nix_2_31 PATH pin (verify pkgs/by-name/sb/sbomnix/package.nix in our pinned nixpkgs no longer references nixVersions.nix_2_31), delete the `sbomnix` overlay from overlays/default.nix and its FIXME, revert flake/dev/packages.nix to `import nixpkgs { inherit system; }` with no overlays and drop the `inherit (pkgs) sbomnix;` line, revert cve-scan.yaml to `nix shell --inputs-from . nixpkgs#sbomnix --command sbomnix`, confirm a manual `workflow_dispatch` CVE scan is green, then set `done: true`. If it becomes urgent, file a nixpkgs issue to establish a real `issue-closed`/`nixpkgs-pin-contains-commit` signal and retarget this entry."
+      "revert_action": "sbomnix#267 is already CLOSED (the parser was fixed in 1.8.0); the residual bug is purely nixpkgs' stale wrapper pin, for which no upstream issue exists yet. `pkgs-min-version` with `min_version: null` keeps this BLOCKED (never falsely resolved) — it is a reminder to re-check manually. When a future nixpkgs sbomnix update drops the nix_2_31 PATH pin (verify pkgs/by-name/sb/sbomnix/package.nix in our pinned nixpkgs no longer references nixVersions.nix_2_31), delete the `sbomnix` overlay from overlays/default.nix and its FIXME, revert flake/dev/packages.nix to `import nixpkgs { inherit system; }` with no overlays and drop the `inherit (pkgs) sbomnix;` line, revert cve-scan.yaml to `nix shell --inputs-from . nixpkgs#sbomnix --command sbomnix`, confirm a manual `workflow_dispatch` CVE scan is green, then set `done: true`. If it becomes urgent, file a nixpkgs issue to establish a real `issue-closed`/`nixpkgs-pin-contains-commit` signal and retarget this entry."
     },
     {
       "id": "sbomnix-substituted-deriver-drop",
@@ -251,6 +251,48 @@
       ],
       "workaround": "hosts/linux/nvrhub/frigate.nix -- detection runs on the tflite `cpu` detector (`detectors.cpu1`, using nixpkgs' bundled ssdlite_mobiledet at 320x320) instead of the intended openvino detector with a hash-pinned yolox_tiny ONNX at 416x416. See FIXME(frigate-openvino-yolox-detection-shape). The yolox_tiny + coco-80 fetchurl derivation was deleted as hosts/linux/nvrhub/frigate-model.nix and must be restored from git history on revert.",
       "revert_action": "NOT YET REPORTED UPSTREAM -- file an issue/PR against blakeblackshear/frigate first (openvino.py's yolox branch must write into a freshly allocated np.zeros((20, 6)) as the memryx plugin does), then set `upstream_pr` and add the issue URL to `tracking`. Once a fix ships and lands in our pinned nixpkgs, set `min_version` to the carrying frigate version; when the checker confirms it, restore hosts/linux/nvrhub/frigate-model.nix from git history, replace `detectors.cpu1` with `detectors.ov = { type = \"openvino\"; device = \"CPU\"; }` plus the model block (yolox, 416x416, nchw, float_denorm, hash-pinned ONNX and coco-80 labelmap), delete the FIXME, redeploy nvrhub, and verify /api/stats reports detection_fps > 0 on all eight cameras with no 'could not broadcast' errors in the journal. The ExecStartPre shm-clearing script in the same file handles the 320 -> 416 geometry change automatically. min_version is null so this entry stays BLOCKED and can never falsely resolve."
+    },
+    {
+      "id": "rust-overlay-262-stdenv-aliases",
+      "done": false,
+      "summary": "rust-overlay lib/mk-aggregated.nix uses the deprecated stdenv.isLinux / stdenv.isDarwin aliases (lines 76, 85, 97). Unstable nixpkgs now wraps those aliases in lib.warn (pkgs/stdenv/generic/default.nix, \"Added 2026-05-09\"), and our CI fails on any `evaluation warning:`. freminal and frext each instantiate their own pkgs, so each contributes one isLinux + one isDarwin warning to desktop and Darwin builds. Neither repo can fix this itself -- the call sites are in rust-overlay, which both consume for their Rust toolchain.",
+      "repo": "oxalica/rust-overlay",
+      "check": "issue-closed",
+      "issue": 262,
+      "tracking": ["https://github.com/oxalica/rust-overlay/pull/262"],
+      "workaround": "flake.nix -- both the `freminal` and `frext` inputs override `inputs.rust-overlay.url` to the PR head commit on the author's fork, github:K900/rust-overlay/2c2d808349ea4e8ba3823b3ad23151b5b0328f75 (see FIXME(rust-overlay-262)). Pinned to the commit rather than the `hostplatform` branch so a force-push cannot change what we build. The PR is a 3-line pure rename with no semantic change.",
+      "revert_action": "Once PR #262 merges, delete both `inputs.rust-overlay.url` override lines (and their FIXME comments) from flake.nix so freminal and frext use their own rust-overlay pins again. Those pins must first advance to a rust-overlay revision containing the merge -- `nix flake update freminal frext` after each repo has bumped. Verify by evaluating a desktop toplevel and confirming zero `evaluation warning:` lines attributable to freminal/frext, then set `done: true`. NOTE: this override makes nixos build freminal/frext against a toolchain their own CI did not test; that divergence is the reason to revert promptly rather than let the pin linger."
+    },
+    {
+      "id": "nixpkgs-ladybird-cve-2026-58592",
+      "done": false,
+      "summary": "nixpkgs marks ladybird-0-unstable-2026-06-05 as insecure (CVE-2026-58592), which is a hard evaluation failure on both desktops because profiles/desktop enables ladybird by default. Ladybird is an experimental browser and the package in our pin has no patched successor yet.",
+      "repo": "NixOS/nixpkgs",
+      "check": "pkgs-min-version",
+      "package": "ladybird",
+      "eval_host": "Daytona",
+      "min_version": null,
+      "upstream_pr": null,
+      "tracking": ["https://nvd.nist.gov/vuln/detail/CVE-2026-58592"],
+      "workaround": "features/desktop/default.nix -- `ladybird.enable = false;` (see FIXME(nixpkgs-ladybird-cve-2026-58592)). Deliberately NOT added to `permittedInsecurePackages` in features/common/system/default.nix: unlike the openssl-1.1.1w entry already in that list, ladybird is a browser, so the vulnerability is reachable from untrusted network input.",
+      "revert_action": "Once nixpkgs ships a ladybird build that is no longer flagged insecure, set `min_version` to that version so the checker can resolve. Then set `ladybird.enable = true;` in features/desktop/default.nix, delete the FIXME, confirm a desktop toplevel evaluates without NIXPKGS_ALLOW_INSECURE, and set `done: true`. min_version is null so this entry stays BLOCKED and cannot falsely resolve."
+    },
+    {
+      "id": "nixpkgs-549694-dwarfs-gcc",
+      "done": false,
+      "summary": "dwarfs 0.14.0 fails to compile in the current nixpkgs. Its bundled folly-lite copy calls std::memset without including <cstring>, which the current GCC rejects (\"error: memset is not a member of std; did you mean wmemset?\" in folly/portability/Unistd.cpp, SysUio.cpp, io/IOBufQueue.cpp and json/dynamic.cpp). dwarfs is a build dependency of gearlever, so both desktops failed to build. Upstream fix is the 0.15.6 bump in NixOS/nixpkgs#549694.",
+      "repo": "NixOS/nixpkgs",
+      "check": "pkgs-min-version",
+      "package": "dwarfs",
+      "eval_host": "Daytona",
+      "min_version": "0.15.6",
+      "upstream_pr": "https://github.com/NixOS/nixpkgs/pull/549694",
+      "tracking": [
+        "https://github.com/NixOS/nixpkgs/pull/549694",
+        "https://github.com/NixOS/nixpkgs/issues/549542"
+      ],
+      "workaround": "features/desktop/appimage/default.nix -- `gearlever` commented out of the per-user package list (see FIXME(nixpkgs-549694-dwarfs-gcc)). Deliberately scoped to gearlever alone: appimage-run and the boot.binfmt.registrations.appimage block in the same file are what actually provide AppImage support, and neither depends on dwarfs, so running AppImages still works. Only the GUI manager is gone.",
+      "revert_action": "Once nixpkgs#549694 (dwarfs 0.14.0 -> 0.15.6) merges and lands in our pinned nixpkgs, the checker resolves on dwarfs >= 0.15.6. Uncomment `gearlever` in features/desktop/appimage/default.nix, delete the FIXME, confirm a desktop toplevel BUILDS (not merely evaluates -- this was a compile failure, so eval alone will not catch a regression), and set `done: true`."
     }
   ]
 }

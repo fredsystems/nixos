@@ -175,12 +175,6 @@
       url = "github:FredSystems/pre-commit-checks";
     };
 
-    # CI: desktop
-    solaar = {
-      url = "github:Svenum/Solaar-Flake";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
     # CI: skip (deployment tool, no effect on builds)
     # NOTE: deliberately NOT following our nixpkgs so the colmena CLI binary
     # can be substituted from colmena.cachix.org (built against colmena's own
@@ -196,6 +190,8 @@
       #path on disk
       #url = "git+file:/home/fred/GitHub/freminal";
       inputs.nixpkgs.follows = "nixpkgs";
+      # FIXME(rust-overlay-262): see .github/tracked-upstream-fixes.json.
+      inputs.rust-overlay.url = "github:K900/rust-overlay/2c2d808349ea4e8ba3823b3ad23151b5b0328f75";
     };
 
     # CI: desktop
@@ -204,6 +200,8 @@
       #path on disk
       #url = "git+file:/home/fred/GitHub/frext";
       inputs.nixpkgs.follows = "nixpkgs";
+      # FIXME(rust-overlay-262): see .github/tracked-upstream-fixes.json.
+      inputs.rust-overlay.url = "github:K900/rust-overlay/2c2d808349ea4e8ba3823b3ad23151b5b0328f75";
     };
 
     # CI: server
@@ -214,6 +212,11 @@
       #path on disk
       #url = "git+file:/home/fred/GitHub/github-ci-exporter";
       inputs.nixpkgs.follows = "nixpkgs";
+      # FIXME(rust-overlay-262): see .github/tracked-upstream-fixes.json.
+      # This input follows our *unstable* nixpkgs even though only sdrhub (a
+      # stable server) consumes it, so it carries the alias deprecation onto a
+      # host that is otherwise immune to it.
+      inputs.rust-overlay.url = "github:K900/rust-overlay/2c2d808349ea4e8ba3823b3ad23151b5b0328f75";
     };
 
     # wallpapers
@@ -272,7 +275,6 @@
       walls-catppuccin,
       walls-zhichaoh,
       walls-cozypixels,
-      solaar,
       colmena,
       freminal,
       frext,
@@ -387,7 +389,6 @@
           darwin
           nixvim
           niri
-          solaar
           colmena
           walls-catppuccin
           walls-zhichaoh

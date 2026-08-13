@@ -76,18 +76,30 @@
     (lib.mkIf config.profile.desktop.bluetooth.enable {
       hardware.bluetooth.enable = true;
 
+      # Solaar is configured through the native nixpkgs module
+      # (nixos/modules/programs/solaar.nix), contributed upstream by the same
+      # maintainer as the former Svenum/Solaar-Flake input. That input was
+      # dropped because its module declared `programs.solaar.enable` as a
+      # renamed alias of `services.solaar.enable`, which collides with the
+      # nixpkgs declaration of the same option and makes evaluation throw.
+      #
+      # `userService.enable` is required: nixpkgs gates the systemd user
+      # service behind it, whereas the old module created that unit
+      # unconditionally. Leaving it off would silently stop Solaar from
+      # starting with the graphical session.
+      #
+      # `window`, `batteryIcons` and `extraArgs` are omitted because the
+      # nixpkgs defaults ("hide", "regular", none) already match what this
+      # profile set explicitly before the move.
+      programs.solaar = {
+        enable = true;
+        userService.enable = true;
+      };
+
       services = {
         blueman.enable = true;
 
         power-profiles-daemon.enable = true;
-
-        solaar = {
-          enable = true;
-          package = pkgs.solaar;
-          window = "hide";
-          batteryIcons = "regular";
-          extraArgs = "";
-        };
 
         udev.packages = [ pkgs.solaar ];
       };

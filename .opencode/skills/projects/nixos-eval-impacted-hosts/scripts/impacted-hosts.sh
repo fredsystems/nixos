@@ -212,7 +212,6 @@ declare -A INPUT_CATEGORY=(
   [niri]="desktop"
   [freminal]="desktop"
   [frext]="desktop"
-  [solaar]="desktop"
   [nix-flatpak]="desktop"
   [walls-catppuccin]="desktop"
   [walls-zhichaoh]="desktop"

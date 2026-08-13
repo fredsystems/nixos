@@ -4,7 +4,7 @@
 #
 # Arguments closed over from flake.nix:
 #   self          — the flake itself (for self.lib.mkSystem)
-#   inputs        — all flake inputs (for solaar)
+#   inputs        — all flake inputs
 #   nixpkgs-stable, home-manager-stable, catppuccin-stable, sops-nix-stable,
 #   nix-yazi-plugins-stable
 #                 — stable-channel inputs used as defaults for server nodes
@@ -18,7 +18,6 @@
   nix-yazi-plugins-stable,
   serverNodes,
   niri,
-  solaar,
   freminal,
   frext,
   nix-flatpak,
@@ -38,7 +37,6 @@
     ];
     extraModules = [
       niri.nixosModules.niri
-      solaar.nixosModules.default
       nix-flatpak.nixosModules.nix-flatpak
     ];
   };
@@ -58,7 +56,6 @@
     ];
     extraModules = [
       niri.nixosModules.niri
-      solaar.nixosModules.default
       nix-flatpak.nixosModules.nix-flatpak
     ];
   };
