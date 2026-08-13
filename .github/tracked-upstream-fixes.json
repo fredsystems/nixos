@@ -276,6 +276,23 @@
       "tracking": ["https://nvd.nist.gov/vuln/detail/CVE-2026-58592"],
       "workaround": "features/desktop/default.nix -- `ladybird.enable = false;` (see FIXME(nixpkgs-ladybird-cve-2026-58592)). Deliberately NOT added to `permittedInsecurePackages` in features/common/system/default.nix: unlike the openssl-1.1.1w entry already in that list, ladybird is a browser, so the vulnerability is reachable from untrusted network input.",
       "revert_action": "Once nixpkgs ships a ladybird build that is no longer flagged insecure, set `min_version` to that version so the checker can resolve. Then set `ladybird.enable = true;` in features/desktop/default.nix, delete the FIXME, confirm a desktop toplevel evaluates without NIXPKGS_ALLOW_INSECURE, and set `done: true`. min_version is null so this entry stays BLOCKED and cannot falsely resolve."
+    },
+    {
+      "id": "nixpkgs-549694-dwarfs-gcc",
+      "done": false,
+      "summary": "dwarfs 0.14.0 fails to compile in the current nixpkgs. Its bundled folly-lite copy calls std::memset without including <cstring>, which the current GCC rejects (\"error: memset is not a member of std; did you mean wmemset?\" in folly/portability/Unistd.cpp, SysUio.cpp, io/IOBufQueue.cpp and json/dynamic.cpp). dwarfs is a build dependency of gearlever, so both desktops failed to build. Upstream fix is the 0.15.6 bump in NixOS/nixpkgs#549694.",
+      "repo": "NixOS/nixpkgs",
+      "check": "pkgs-min-version",
+      "package": "dwarfs",
+      "eval_host": "Daytona",
+      "min_version": "0.15.6",
+      "upstream_pr": "https://github.com/NixOS/nixpkgs/pull/549694",
+      "tracking": [
+        "https://github.com/NixOS/nixpkgs/pull/549694",
+        "https://github.com/NixOS/nixpkgs/issues/549542"
+      ],
+      "workaround": "features/desktop/appimage/default.nix -- `gearlever` commented out of the per-user package list (see FIXME(nixpkgs-549694-dwarfs-gcc)). Deliberately scoped to gearlever alone: appimage-run and the boot.binfmt.registrations.appimage block in the same file are what actually provide AppImage support, and neither depends on dwarfs, so running AppImages still works. Only the GUI manager is gone.",
+      "revert_action": "Once nixpkgs#549694 (dwarfs 0.14.0 -> 0.15.6) merges and lands in our pinned nixpkgs, the checker resolves on dwarfs >= 0.15.6. Uncomment `gearlever` in features/desktop/appimage/default.nix, delete the FIXME, confirm a desktop toplevel BUILDS (not merely evaluates -- this was a compile failure, so eval alone will not catch a regression), and set `done: true`."
     }
   ]
 }
