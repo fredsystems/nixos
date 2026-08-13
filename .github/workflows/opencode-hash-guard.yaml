@@ -33,9 +33,11 @@ on:
       - "flake.lock"
       - "overlays/opencode.nix"
 
+# Only what checkout needs. The push authenticates with a PAT supplied inline
+# at push time, so the job token never needs write access, and nothing here
+# touches the pull-requests API.
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 
 jobs:
   guard:
@@ -46,8 +48,12 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          token: ${{ secrets.PAT }}
-          persist-credentials: true
+          # Default GITHUB_TOKEN, and deliberately NOT persisted. This job runs
+          # code from the PR branch -- sync-opencode-hash.sh itself, plus
+          # whatever Nix that branch evaluates -- so any credential left in
+          # .git/config here is readable by that code. The PAT is introduced
+          # only in the final push step, after all branch code has run.
+          persist-credentials: false
           ref: ${{ github.event.pull_request.head.ref }}
           # Need the base commit too, to diff flake.lock across the PR.
           fetch-depth: 0
@@ -111,12 +117,20 @@ jobs:
         if: steps.sync.outputs.changed == 'true'
         env:
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          PAT: ${{ secrets.PAT }}
         run: |
           set -euo pipefail
 
           git add overlays/opencode.nix
           git commit -m "fix(opencode): recompute node_modules hash for the nixpkgs bump"
-          git push origin "HEAD:${HEAD_REF}"
+
+          # PAT rather than GITHUB_TOKEN so the push re-triggers CI on the PR;
+          # a GITHUB_TOKEN push deliberately does not. Supplied inline instead
+          # of via checkout's `token:` so it is never sitting in .git/config
+          # while this branch's own code executes. Actions masks it in logs.
+          git push \
+            "https://x-access-token:${PAT}@github.com/${GITHUB_REPOSITORY}.git" \
+            "HEAD:${HEAD_REF}"
 
           cat >> "$GITHUB_STEP_SUMMARY" <<'SUMMARY'
           ### opencode node_modules hash corrected
