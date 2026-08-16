@@ -3,12 +3,19 @@ groups:
   #
   # WHAT THIS GROUP DOES NOT ALERT ON
   #
-  # Bans. Not ban counts, not ban rate, not individual jails firing, not
-  # recidive, not port-decoy catching a scanner. All of that is the system
+  # Bans. Not ban counts, not standing totals, not individual jails firing,
+  # not recidive, not port-decoy catching a scanner. All of that is the system
   # working as designed, and on this host it happens constantly -- 161 bans in
   # a 48-hour window before the escalation fix. Paging on success trains the
   # channel to be ignored, which costs more than it buys. The "Bans Over Time"
   # and "Ban Rate" panels on the security dashboard already carry the trend.
+  #
+  # A standing total is explicitly not a signal. 10k addresses banned is not an
+  # incident; it is a week of the internet being the internet. What IS a signal
+  # is a step CHANGE in the arrival rate, which is a statement about the threat
+  # environment rather than about the control. That is the fail2ban-activity
+  # group at the bottom of this file, and it is the only place bans themselves
+  # are alerted on.
   #
   # Every rule here fires only when the security control itself is broken:
   # fail2ban unreachable, the generator stalled, or the data it produces
@@ -169,39 +176,97 @@ groups:
             `fail2ban-client get <jail> banip --with-time` against the parser
             in hosts/linux/fredvps/configuration.nix.
 
-      # A jail exceeded the 1500-address per-jail cap.
+      # NOTE: there is deliberately no alert on f2b_banned_ip_outside_window.
       #
-      # Two possible meanings, both worth knowing about: either the host is
-      # under a distributed sweep large enough to matter, or the cap needs
-      # raising. Per-IP rows beyond the cap are dropped from the table.
+      # There used to be one, on the metric's predecessor
+      # f2b_banned_ip_truncated, and it fired on 2026-08-15 when recidive held
+      # 405 bans against a 200 cap. It was retired rather than given a bigger
+      # number, deliberately. The
+      # metric measured a standing total against a fixed number, and a standing
+      # total has no stable value to alert against: recidive holds a flat
+      # one-week ban, so its level is 7 x whatever the arrival rate happens to
+      # be, and every step change in scan volume overtakes whatever number was
+      # chosen. The alert's only reachable steady state was permanently firing.
       #
-      # Safe to alert on only because f2b_banned_ip_max_bantime_seconds is
-      # computed BEFORE truncation. Until that fix, hitting the cap also
-      # silently under-reported the longest active ban, so this alert would
-      # have fired alongside a panel that was quietly wrong.
+      # The metric survives as a dashboard footnote -- "showing 100 of 405" --
+      # and the signal it was reaching for is now Fail2banBanRateSpike below.
+
+  # The only place in this file where bans themselves are alerted on.
+  #
+  # The distinction from the header comment is between level and derivative.
+  # A high standing ban count is the control working. A sudden change in how
+  # fast bans arrive is a statement about the outside world: a new scanner
+  # campaign, a newly-exposed service, or a filter that started matching
+  # something it should not.
+  - name: fail2ban-activity
+    rules:
+      # Ban arrival rate stepped up sharply against its own recent baseline.
       #
-      # The cap was 200, sized against a then-peak of 84. On 2026-08-15 the
-      # recidive jail hit 405 and this fired for real: the decoy port list had
-      # grown three days earlier and recidive's daily intake went ~25 -> ~141.
-      # Because recidive bans are a flat week, steady state is 7 x intake, so
-      # the honest projection was ~1000 and the alert would have been stuck on
-      # rather than signalling an anomaly. Raised to 1500 for headroom over
-      # that projection.
+      # WHY NOT rate(f2b_jail_banned_total)
       #
-      # If this fires again, check the intake trend before reaching for the
-      # cap again -- a further step change in daily bans is the thing worth
-      # knowing about, and raising the cap is only the right response once the
-      # new steady state is understood.
-      - alert: Fail2banBanListTruncated
-        expr: f2b_banned_ip_truncated > 0
-        for: 15m
+      # Because that counter counts restored bans. banmanager.py addBanTicket()
+      # increments __banTotal, and actions.py calls it for restored tickets as
+      # well as new ones -- the same call site that logs "Restore Ban". So a
+      # fail2ban restart resets the counter to zero and then replays the entire
+      # stored ban list into it: 97 bans inside two seconds at the 2026-08-12
+      # restart, which rate() would faithfully report as ~2900 bans/minute.
+      # Every deploy would page. f2b_jail_bans_started_1h is counted from ban
+      # START times, which are restored from sqlite unchanged, so a restart
+      # does not perturb it at all.
+      #
+      # WHY A RATIO AND NOT A FIXED THRESHOLD
+      #
+      # The jails are 30x apart in baseline rate. Measured over 7d:
+      #
+      #   jail                median/hr   peak/hr   mean/hr
+      #   port-decoy               61        90       29.9
+      #   ssh-decoy                 8        19        7.3
+      #   nginx-probe               5        40        5.8
+      #   recidive                  2        13        2.4
+      #   nginx-bad-request         1         3        0.13
+      #
+      # Any single number is either deaf to recidive or screaming at
+      # port-decoy. The ratio makes each jail its own reference.
+      #
+      # The absolute floor is what keeps the quiet jails quiet: without it,
+      # nginx-bad-request going from 0 to 2 bans is an infinite ratio.
+      #
+      # 4x against the 7d mean, checked against the table above: port-decoy
+      # would need 120/hr (peak seen: 90), ssh-decoy 29 (peak 19), recidive 25
+      # via the floor (peak 13). Only nginx-probe's outlier hour of 40 would
+      # have tripped it, which is a 7x jump over its median and arguably
+      # deserved the look.
+      #
+      # THIS ALERT SELF-RESOLVES, BY DESIGN
+      #
+      # A sustained step change is absorbed into the 7d baseline and the alert
+      # clears roughly 10 hours later, even though the new rate persists. That
+      # is intended: it is a change detector, not a level monitor, and the
+      # thing it exists to catch is the transition. The old truncation alert
+      # failed precisely by never clearing.
+      #
+      # It is also quiet on rollout: with only minutes of history the baseline
+      # equals the current value, the ratio is 1, and nothing fires.
+      #
+      # `for: 1h` filters single burst hours. The metric is a 1h trailing
+      # window, so one busy hour holds the condition for about an hour and
+      # sits right at the edge; anything genuinely sustained clears it easily.
+      - alert: Fail2banBanRateSpike
+        expr: |
+          f2b_jail_bans_started_1h > 25
+          and
+          f2b_jail_bans_started_1h > 4 * avg_over_time(f2b_jail_bans_started_1h[7d])
+        for: 1h
         labels:
           severity: warning
         annotations:
-          summary: "fail2ban jail {{ $labels.jail }} exceeded its ban-list cap on {{ $labels.hostname }}"
+          summary: "fail2ban ban rate in jail {{ $labels.jail }} stepped up on {{ $labels.hostname }}"
           description: >-
-            {{ $value }} banned address(es) in jail {{ $labels.jail }} are
-            omitted from the exported metrics because the 1500-per-jail cap
-            was hit. Aggregates stay correct, but the Active Bans table is
-            incomplete. Either an unusually large sweep is in progress or
-            MAX_PER_JAIL needs raising.
+            Jail {{ $labels.jail }} banned {{ $value }} address(es) in the last
+            hour, more than 4x its own 7-day average. Something changed
+            outside: a new scan campaign, a newly-exposed port, or a filter
+            that started matching traffic it should not. Check
+            `journalctl -u fail2ban --since '2 hours ago' | grep ' Ban '` for
+            what is being caught, and confirm it is hostile before treating
+            this as routine. Standing ban totals are not the concern here and
+            are not alerted on.

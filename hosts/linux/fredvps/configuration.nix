@@ -367,37 +367,58 @@ in
 
           mkdir -p "$TEXTFILE_DIR"
 
-          # Cap per jail. Only CURRENTLY banned addresses are emitted, so the
-          # short-bantime jails expire down on their own and sit well under
-          # this. recidive does not: its bantime is a flat week, so its steady
-          # state is 7 x the daily intake with no decay in between.
+          # Scratch for one jail's parsed bans, reused across jails. Kept out
+          # of TEXTFILE_DIR so a crash mid-run cannot leave a file that
+          # node_exporter would try to parse as metrics -- it reads every
+          # *.prom in that directory and rejects the whole scrape on one bad
+          # sample. Cleared with `: >` at the top of each jail rather than
+          # recreated, so the trap only has one path to clean up.
+          ROWS=$(mktemp -t fail2ban-ban-rows.XXXXXX) || exit 1
+          trap 'rm -f "$ROWS" "$TMP"' EXIT
+
+          # How many bans per jail get per-IP series, MOST RECENT FIRST.
           #
-          # This was 200, chosen against an observed peak of 84. The decoy port
-          # list grew on 2026-08-12 and recidive's daily intake went from ~25
-          # to ~141, which puts the steady state near 1000 -- so the old cap
-          # was not marginally small, it was ~5x short, and the alert on it
-          # would have been stuck on permanently rather than flagging an
-          # anomaly. 1500 restores headroom over the projected steady state.
+          # This is a display window, not a safety cap, and the distinction is
+          # the whole point. It was a cap (200, then briefly 1500) sized to sit
+          # above the expected concurrent ban count, with an alert when the
+          # count exceeded it. That framing was wrong twice over.
           #
-          # The cap still exists because unbounded per-IP labels are how a
-          # metrics backend gets hurt, but note what it does and does not
-          # bound: it bounds CONCURRENT series, not distinct series over
-          # retention. Roughly 1900 unique addresses are banned here per day,
-          # each producing two series that live for Prometheus' full 90d
-          # retention, and that number is unaffected by this value. If the
-          # exporter ever needs a real cardinality diet, it is the churn that
-          # has to be addressed, not this cap.
+          # It does not scale. recidive holds a flat one-week ban, so its
+          # steady state is 7 x daily intake with no decay in between -- 405
+          # when the 200 cap first blew, and ~1000 projected at the intake that
+          # followed the 2026-08-12 decoy port expansion. Any number chosen
+          # here is overtaken by the next step change in scan volume.
           #
-          # Anything past the cap is counted, not emitted.
-          MAX_PER_JAIL=1500
+          # And a total is not the signal anyone wants. 10k standing bans is
+          # not an incident; going from 20 bans/hour to 100 is. Rate is what
+          # gets alerted on now (f2b_jail_bans_started_1h below), which leaves
+          # this free to be sized for READABILITY rather than for headroom.
+          # Nobody reads row 900 of a ban list, so 100 recent bans is a table
+          # and 1500 is a denial of service against the person on call.
+          #
+          # Selection is by ban START time, descending. Note that this is NOT
+          # the order fail2ban hands us: `banip --with-time` sorts ascending by
+          # EXPIRY, and expiry order only equals start order within a jail
+          # whose bans are all the same length. recidive happens to satisfy
+          # that today; the escalating jails do not, so the sort below is
+          # load-bearing rather than defensive.
+          #
+          # Cardinality note, so the next person does not mistake this for one:
+          # this bounds CONCURRENT series only. Roughly 1900 unique addresses
+          # are banned here per day, each producing series that live for
+          # Prometheus' full 90d retention, and that churn is untouched by this
+          # value. A real cardinality diet has to address the churn.
+          RECENT_PER_JAIL=100
 
           {
             echo "# HELP f2b_banned_ip_bantime_seconds Length of the current ban for this address."
             echo "# TYPE f2b_banned_ip_bantime_seconds gauge"
             echo "# HELP f2b_banned_ip_expiry_timestamp_seconds Unix time at which this ban expires."
             echo "# TYPE f2b_banned_ip_expiry_timestamp_seconds gauge"
-            echo "# HELP f2b_banned_ip_truncated Banned addresses omitted because the per-jail cap was hit."
-            echo "# TYPE f2b_banned_ip_truncated gauge"
+            echo "# HELP f2b_banned_ip_outside_window Active bans older than the most-recent-N window, so absent from the per-IP series."
+            echo "# TYPE f2b_banned_ip_outside_window gauge"
+            echo "# HELP f2b_jail_bans_started_1h Bans in this jail that started within the last hour."
+            echo "# TYPE f2b_jail_bans_started_1h gauge"
             echo "# HELP f2b_ban_metrics_generated_timestamp_seconds Unix time this file was last written."
             echo "# TYPE f2b_ban_metrics_generated_timestamp_seconds gauge"
             echo "# HELP f2b_ban_metrics_fail2ban_up Whether the jail list could be read from fail2ban."
@@ -406,7 +427,7 @@ in
             echo "# TYPE f2b_ban_metrics_parse_failures gauge"
             echo "# HELP f2b_ban_metrics_jail_query_failures Jails whose ban list could not be read."
             echo "# TYPE f2b_ban_metrics_jail_query_failures gauge"
-            echo "# HELP f2b_banned_ip_max_bantime_seconds Longest ban in force in this jail, including addresses omitted by the cap."
+            echo "# HELP f2b_banned_ip_max_bantime_seconds Longest ban in force in this jail, including addresses outside the window."
             echo "# TYPE f2b_banned_ip_max_bantime_seconds gauge"
 
             # Health, kept separate from freshness on purpose.
@@ -429,9 +450,13 @@ in
             parse_failures=0
             jail_query_failures=0
 
+            now=$(date +%s)
+            hour_ago=$((now - 3600))
+
             for jail in $jails; do
-              n=0
-              omitted=0
+              total=0
+              shown=0
+              started_1h=0
               max_bantime=0
 
               # Captured into a variable rather than piped directly into the
@@ -444,10 +469,16 @@ in
               # rather than clearing fail2ban_up.
               if ! banlist=$(fail2ban-client get "$jail" banip --with-time 2>/dev/null); then
                 jail_query_failures=$((jail_query_failures + 1))
-                printf 'f2b_banned_ip_truncated{jail="%s"} 0\n' "$jail"
+                printf 'f2b_banned_ip_outside_window{jail="%s"} 0\n' "$jail"
                 printf 'f2b_banned_ip_max_bantime_seconds{jail="%s"} 0\n' "$jail"
+                printf 'f2b_jail_bans_started_1h{jail="%s"} 0\n' "$jail"
                 continue
               fi
+
+              # Parsed rows, one per line, as "<start_epoch> <ip> <bantime>
+              # <expiry_epoch>". Collected first and emitted after, because
+              # picking the most recent N requires seeing all of them.
+              : > "$ROWS"
 
               # Output line: <ip> \t <start> + <bantime> = <expiry>
               while IFS= read -r line; do
@@ -470,41 +501,68 @@ in
                   continue
                 fi
 
-                # Tracked before the cap, so the aggregate stays correct even
-                # when per-IP series are dropped.
-                #
-                # `banip --with-time` returns bans sorted ascending by EXPIRY
-                # (banmanager.py getBanList -> lst.sort on end-of-ban), and
-                # expiry order is not bantime order -- a fresh 1h ban expires
-                # before an older 2h one. So the cap removes an arbitrary
-                # slice with respect to duration, and max() over the emitted
-                # series alone can under-report the longest ban in force.
-                # Which is exactly the number the "Longest Active Ban" panel
-                # exists to show, and exactly when it matters: a sweep large
-                # enough to hit the cap.
+                # Derived rather than parsed from the line's own start field,
+                # which is the same number but would cost a second `date`
+                # fork per ban. At ~400 bans every two minutes on a 3-core
+                # box, that is worth avoiding.
+                start=$((epoch - bantime))
+
+                # Tracked across every ban, not just the emitted ones, so the
+                # aggregate stays correct when the window drops rows. This is
+                # what the "Longest Active Ban" panel reads, and the moment it
+                # matters most is exactly the moment rows are being dropped.
                 if [ "$bantime" -gt "$max_bantime" ]; then
                   max_bantime=$bantime
                 fi
 
-                n=$((n + 1))
-                if [ "$n" -gt "$MAX_PER_JAIL" ]; then
-                  omitted=$((omitted + 1))
-                  continue
+                # The rate signal. Counted here rather than derived in
+                # Prometheus from f2b_jail_banned_total, because that counter
+                # is incremented by restored bans too: banmanager.py
+                # addBanTicket() bumps __banTotal, and actions.py calls it for
+                # restored tickets as well as new ones (it is the same call
+                # that logs "Restore Ban"). A fail2ban restart therefore reads
+                # as the entire ban list arriving at once -- 97 restores inside
+                # two seconds at the last restart -- which any rate() would
+                # report as a spike that never happened.
+                #
+                # Ban start times come from the sqlite database and survive
+                # restarts unchanged, so counting them is immune to that.
+                #
+                # Sound only while every jail's bantime is >= 1h: a ban that
+                # started within the last hour must still be active to appear
+                # in this list at all. The shortest bantime here is 1h exactly.
+                # Shorten any jail below that and this undercounts.
+                if [ "$start" -gt "$hour_ago" ]; then
+                  started_1h=$((started_1h + 1))
                 fi
 
-                # ban_id exists so the dashboard can join the two series on a
-                # key that is actually unique. An address in two jails at once
-                # is routine here -- the three nginx jails read the same log --
-                # and joining on ip alone pairs the wrong ban length with the
-                # wrong jail, producing a plausible-looking wrong row.
-                printf 'f2b_banned_ip_bantime_seconds{jail="%s",ip="%s",ban_id="%s:%s"} %s\n' \
-                  "$jail" "$ip" "$jail" "$ip" "$bantime"
-                printf 'f2b_banned_ip_expiry_timestamp_seconds{jail="%s",ip="%s",ban_id="%s:%s"} %s\n' \
-                  "$jail" "$ip" "$jail" "$ip" "$epoch"
+                total=$((total + 1))
+                printf '%s %s %s %s\n' "$start" "$ip" "$bantime" "$epoch" >> "$ROWS"
               done <<< "$banlist"
 
-              printf 'f2b_banned_ip_truncated{jail="%s"} %s\n' "$jail" "$omitted"
+              # Most recent N by ban start, newest first. The sort is required:
+              # the input is ordered by expiry, which only matches start order
+              # in a jail where every ban is the same length.
+              if [ "$total" -gt 0 ]; then
+                while read -r r_start r_ip r_bantime r_epoch; do
+                  [ -z "$r_start" ] && continue
+
+                  # ban_id exists so the dashboard can join the series on a key
+                  # that is actually unique. An address in two jails at once is
+                  # routine here -- the three nginx jails read the same log --
+                  # and joining on ip alone pairs the wrong ban length with the
+                  # wrong jail, producing a plausible-looking wrong row.
+                  printf 'f2b_banned_ip_bantime_seconds{jail="%s",ip="%s",ban_id="%s:%s"} %s\n' \
+                    "$jail" "$r_ip" "$jail" "$r_ip" "$r_bantime"
+                  printf 'f2b_banned_ip_expiry_timestamp_seconds{jail="%s",ip="%s",ban_id="%s:%s"} %s\n' \
+                    "$jail" "$r_ip" "$jail" "$r_ip" "$r_epoch"
+                  shown=$((shown + 1))
+                done <<< "$(sort -rn -k1,1 "$ROWS" | head -n "$RECENT_PER_JAIL")"
+              fi
+
+              printf 'f2b_banned_ip_outside_window{jail="%s"} %s\n' "$jail" "$((total - shown))"
               printf 'f2b_banned_ip_max_bantime_seconds{jail="%s"} %s\n' "$jail" "$max_bantime"
+              printf 'f2b_jail_bans_started_1h{jail="%s"} %s\n' "$jail" "$started_1h"
             done
 
             printf 'f2b_ban_metrics_parse_failures %s\n' "$parse_failures"
