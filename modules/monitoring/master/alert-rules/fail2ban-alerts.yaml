@@ -353,8 +353,13 @@ groups:
       # Critical rather than warning because of how it fails. Past maxelem,
       # `ipset add` returns an error, fail2ban logs it and carries on, and the
       # address stays listed as banned in every status query and on every
-      # dashboard panel -- while packets from it are delivered normally. The
-      # observable symptom is nothing at all. That is worse than an outage.
+      # dashboard panel -- while packets from it are delivered normally.
+      #
+      # Note the failure is NOT silent in the journal; it is silent everywhere
+      # anyone actually looks. Every monitoring surface reads green while the
+      # block does not exist, and the only evidence is a log line nobody has a
+      # reason to go looking for. That is worse than an outage, and it is why
+      # the annotation below sends responders to the journal explicitly.
       #
       # 30000 is ~2x headroom. Given recidive's week-long bans that is weeks of
       # lead time, which it needs: maxelem is fixed when the set is created and
@@ -372,10 +377,12 @@ groups:
           summary: "fail2ban jail {{ $labels.jail }} is approaching its ipset limit on {{ $labels.hostname }}"
           description: >-
             Jail {{ $labels.jail }} holds {{ $value }} bans against a per-set
-            maxelem of 65536. Past that ceiling `ipset add` fails silently:
-            fail2ban keeps reporting the address as banned while its packets
-            are delivered normally, so the dashboard stays green while the
-            block does not exist. Raising maxelem requires recreating the set
-            (`ipset -exist create` will not alter it), so treat this as
-            scheduled work, not a page to sit on. Raise hashsize from its 1024
-            default at the same time.
+            maxelem of 65536. Past that ceiling `ipset add` fails and fail2ban
+            logs the error, but it carries on and keeps reporting the address
+            as banned -- so every status query and dashboard panel stays green
+            while the packets are delivered normally. The journal is the only
+            place the failure is visible: check
+            `journalctl -u fail2ban | grep -i ipset`. Raising maxelem requires
+            recreating the set (`ipset -exist create` will not alter it), so
+            treat this as scheduled work, not a page to sit on. Raise hashsize
+            from its 1024 default at the same time.

@@ -108,7 +108,7 @@
     {
       "id": 3,
       "type": "stat",
-      "title": "Banned (all time)",
+      "title": "Banned (since restart)",
       "description": "Total bans since the fail2ban daemon last started, not since the beginning of time. f2b_jail_banned_total resets on restart and is then re-incremented by every ban restored from sqlite, so it jumps back to roughly the standing ban count within seconds of a deploy. Treat it as a since-restart figure.",
       "gridPos": {
         "h": 5,

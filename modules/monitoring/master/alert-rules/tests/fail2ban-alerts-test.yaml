@@ -266,17 +266,30 @@ tests:
   # f2b_banned_ip_outside_window has no alert, deliberately.
   #
   # Regression guard for the retired Fail2banBanListTruncated: a large number
-  # of bans outside the display window must produce no alert at all. If
-  # somebody reintroduces a rule on standing totals, this fails.
+  # of bans sitting outside the display window must not fire anything.
+  #
+  # Scope, stated honestly because the obvious reading is wrong: promtool has
+  # no "assert nothing at all fired" mode. `alert_rule_test` evaluates exactly
+  # the rule named in `alertname`, so this can only cover rules that exist
+  # today, enumerated below. A brand-new rule under a new name would pass
+  # unnoticed until someone adds it here. That is a real gap and not one this
+  # file can close; it is written down so the next person does not mistake
+  # this for a guarantee it cannot make.
   #########################################################################
   - interval: 1m
-    name: outside_window does not drive any ban-rate alert
+    name: outside_window drives none of the existing fail2ban alerts
     input_series:
       - series: 'f2b_banned_ip_outside_window{hostname="fredvps", jail="recidive"}'
         values: "305+0x120"
     alert_rule_test:
       - eval_time: 90m
         alertname: Fail2banBanRateSpike
+        exp_alerts: []
+      - eval_time: 90m
+        alertname: Fail2banStandingBansHigh
+        exp_alerts: []
+      - eval_time: 90m
+        alertname: Fail2banJailApproachingSetLimit
         exp_alerts: []
 
   #########################################################################
@@ -355,7 +368,7 @@ tests:
               role: agent
             exp_annotations:
               summary: "fail2ban jail recidive is approaching its ipset limit on fredvps"
-              description: "Jail recidive holds 35000 bans against a per-set maxelem of 65536. Past that ceiling `ipset add` fails silently: fail2ban keeps reporting the address as banned while its packets are delivered normally, so the dashboard stays green while the block does not exist. Raising maxelem requires recreating the set (`ipset -exist create` will not alter it), so treat this as scheduled work, not a page to sit on. Raise hashsize from its 1024 default at the same time."
+              description: "Jail recidive holds 35000 bans against a per-set maxelem of 65536. Past that ceiling `ipset add` fails and fail2ban logs the error, but it carries on and keeps reporting the address as banned -- so every status query and dashboard panel stays green while the packets are delivered normally. The journal is the only place the failure is visible: check `journalctl -u fail2ban | grep -i ipset`. Raising maxelem requires recreating the set (`ipset -exist create` will not alter it), so treat this as scheduled work, not a page to sit on. Raise hashsize from its 1024 default at the same time."
 
   - interval: 5m
     name: Fail2banJailApproachingSetLimit ignores a high total spread over jails
