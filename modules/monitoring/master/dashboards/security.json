@@ -109,7 +109,7 @@
       "id": 3,
       "type": "stat",
       "title": "Banned (all time)",
-      "description": "Total bans since the exporter started. Resets when fail2ban restarts.",
+      "description": "Total bans since the fail2ban daemon last started, not since the beginning of time. f2b_jail_banned_total resets on restart and is then re-incremented by every ban restored from sqlite, so it jumps back to roughly the standing ban count within seconds of a deploy. Treat it as a since-restart figure.",
       "gridPos": {
         "h": 5,
         "w": 5,
@@ -370,7 +370,7 @@
       "id": 32,
       "type": "stat",
       "title": "Longest Active Ban",
-      "description": "Highest ban length currently in force. Climbs as the escalation ladder engages. Computed across every active ban, including any the table below omits when a jail exceeds its 1500-address cap, so this stays correct during a large sweep.",
+      "description": "Highest ban length currently in force. Climbs as the escalation ladder engages. Computed across every active ban, including the ones the table below leaves out as older than its recency window, so this stays correct during a large sweep.",
       "gridPos": {
         "h": 5,
         "w": 5,
@@ -503,8 +503,8 @@
     {
       "id": 31,
       "type": "table",
-      "title": "Currently Banned Addresses",
-      "description": "Every address banned right now, across all jails, with how long the ban runs and how much is left. Ban Length grows with repeat offences: 1h, 2h, 4h, 8h, 16h, 32h, 64h, 128h, then 168h. Bans are host-wide and silent (DROP on all ports), so a listed address cannot reach any service. Sourced from a node_exporter textfile, since the fail2ban exporter publishes only per-jail totals.",
+      "title": "Recent Bans",
+      "description": "The 100 most recently started bans in each jail, with how long the ban runs and how much is left. NOT every active ban: recidive alone holds ~1000, and a thousand-row table is not something anyone reads. The exporter selects the window by ban start time, so what is here is always the newest; the column sort below is just how they are arranged once selected. Use the Jail Status table for totals. Ban Length grows with repeat offences: 1h, 2h, 4h, 8h, 16h, 32h, 64h, 128h, then 168h. Bans are host-wide and silent (DROP on all ports, via ipset), so a listed address cannot reach any service.",
       "gridPos": {
         "h": 11,
         "w": 14,
@@ -952,7 +952,7 @@
       "id": 10,
       "type": "timeseries",
       "title": "Ban Rate (per hour)",
-      "description": "New bans per jail. Sustained non-zero means an active campaign rather than background noise.",
+      "description": "New bans per jail in the trailing hour, counted from ban START times rather than from increase(f2b_jail_banned_total). That counter is incremented by restored bans too, so a fail2ban restart replayed the whole stored ban list into it -- 97 bans in two seconds at the last restart -- and this panel used to show a spike that never happened every time the host was deployed to. Ban start times come from sqlite and survive restarts unchanged. This is also the series Fail2banBanRateSpike alerts on.",
       "gridPos": {
         "h": 8,
         "w": 12,
@@ -1000,7 +1000,7 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "increase(f2b_jail_banned_total[1h])",
+          "expr": "f2b_jail_bans_started_1h",
           "legendFormat": "{{jail}}"
         }
       ]
@@ -1111,7 +1111,7 @@
       "id": 14,
       "type": "timeseries",
       "title": "Ban Events (per hour, by jail)",
-      "description": "Derived from the fail2ban log rather than the exporter, so it survives an exporter restart.",
+      "description": "Ban events per hour by jail, from the journal. Excludes \"Restore Ban\", which fail2ban logs for every ban it reloads from sqlite at startup -- without that filter a restart reads as a fleet-wide scanning surge.",
       "gridPos": {
         "h": 10,
         "w": 12,
@@ -1159,7 +1159,7 @@
             "type": "loki",
             "uid": "${ds_loki}"
           },
-          "expr": "sum by (jail) (count_over_time({host=\"fredvps\", unit=\"fail2ban.service\"} |~ \"NOTICE.*Ban \" | regexp \"\\\\[(?P<jail>[^\\\\]]+)\\\\] Ban\" [1h]))",
+          "expr": "sum by (jail) (count_over_time({host=\"fredvps\", unit=\"fail2ban.service\"} |~ \"NOTICE.*Ban \" != \"Restore Ban\" | regexp \"\\\\[(?P<jail>[^\\\\]]+)\\\\] Ban\" [1h]))",
           "legendFormat": "{{jail}}"
         }
       ]
