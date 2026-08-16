@@ -242,11 +242,16 @@ tests:
   # multiplicative 3x threshold an hourly cron got only 3h of slack and this
   # case fired continuously on sdr-enthusiasts/docker-shipfeeder. A flat 4h
   # gives 5h, which absorbs the worst delay observed across the fleet.
+  #
+  # Sits exactly ON the boundary: at eval_time 1h the age is 5h, which is
+  # interval + 4h. The comparison is strict, so 4h of slack stays quiet while
+  # anything tighter fires - a 3h regression fails this test rather than
+  # sliding under it.
   - interval: 5m
     name: GitHubScheduledWorkflowStale tolerates GitHub delay on an hourly cron
     input_series:
       - series: 'github_workflow_run_timestamp_seconds{org="sdr-enthusiasts", repo="docker-shipfeeder", workflow="Deploy on aiscatcher changes", job="github-ci"}'
-        values: "-10800+0x30"
+        values: "-14400+0x30"
       - series: 'github_workflow_expected_interval_seconds{org="sdr-enthusiasts", repo="docker-shipfeeder", workflow="Deploy on aiscatcher changes", job="github-ci"}'
         values: "3600+0x30"
       - series: 'github_workflow_enabled{org="sdr-enthusiasts", repo="docker-shipfeeder", workflow="Deploy on aiscatcher changes", state="active", job="github-ci"}'
@@ -284,12 +289,12 @@ tests:
   # The tightest margin in the whole rule. A monthly cron's real gaps run
   # 28-31 days, and the exporter reports the longest (31d), so a healthy
   # monthly workflow may legitimately be 31d plus GitHub's usual lateness.
-  # 31d2h must stay quiet.
+  # Also sits exactly on the boundary: at eval_time 1h the age is 31d4h.
   - interval: 5m
     name: GitHubScheduledWorkflowStale tolerates a late monthly cron
     input_series:
       - series: 'github_workflow_run_timestamp_seconds{org="fredsystems", repo="fred-cal", workflow="update-flakes", job="github-ci"}'
-        values: "-2685600+0x30"
+        values: "-2689200+0x30"
       - series: 'github_workflow_expected_interval_seconds{org="fredsystems", repo="fred-cal", workflow="update-flakes", job="github-ci"}'
         values: "2678400+0x30"
       - series: 'github_workflow_enabled{org="fredsystems", repo="fred-cal", workflow="update-flakes", state="active", job="github-ci"}'
