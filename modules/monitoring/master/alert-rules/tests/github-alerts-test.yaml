@@ -175,12 +175,12 @@ tests:
   # GitHubScheduledWorkflowStale
   # ---------------------------------------------------------------------------
 
-  # Daily cron: 3x the interval is 72h. Rather than advancing eval_time for
-  # four days (which at a 5m sample spacing would need ~1150 samples), the
-  # last-run timestamp is set four days in the past, so a short evaluation
-  # window still exercises the threshold.
+  # Daily cron: the threshold is interval + 4h = 28h. Rather than advancing
+  # eval_time for four days (which at a 5m sample spacing would need ~1150
+  # samples), the last-run timestamp is set four days in the past, so a short
+  # evaluation window still exercises the threshold.
   - interval: 5m
-    name: GitHubScheduledWorkflowStale fires past three intervals
+    name: GitHubScheduledWorkflowStale fires for a stale daily cron
     input_series:
       - series: 'github_workflow_run_timestamp_seconds{org="sdr-enthusiasts", repo="docker-xng", workflow="update-flakes", job="github-ci"}'
         values: "-345600+0x30"
@@ -200,10 +200,10 @@ tests:
               job: github-ci
             exp_annotations:
               summary: "Scheduled workflow update-flakes has not run in sdr-enthusiasts/docker-xng"
-              description: "Last run was 4d 1h 0m 0s ago, more than three times its configured schedule interval."
+              description: "Last run was 4d 1h 0m 0s ago, well past its configured schedule interval plus the delay GitHub normally adds to scheduled runs."
 
-  # The same four-day-old run against a weekly cron must NOT fire: 3x a week
-  # is 21 days. Guards against a fixed threshold silently replacing the
+  # The same four-day-old run against a weekly cron must NOT fire: a week plus
+  # 4h is 7d4h. Guards against a fixed threshold silently replacing the
   # cron-derived one.
   - interval: 5m
     name: GitHubScheduledWorkflowStale respects a weekly interval
@@ -235,6 +235,93 @@ tests:
       - eval_time: 1h
         alertname: GitHubScheduledWorkflowStale
         exp_alerts: []
+
+  # Regression test for the additive slack term. GitHub's scheduling delay is
+  # a roughly fixed number of hours regardless of cadence, so a short-interval
+  # cron running a few hours late is healthy, not stale. Under the old purely
+  # multiplicative 3x threshold an hourly cron got only 3h of slack and this
+  # case fired continuously on sdr-enthusiasts/docker-shipfeeder. A flat 4h
+  # gives 5h, which absorbs the worst delay observed across the fleet.
+  - interval: 5m
+    name: GitHubScheduledWorkflowStale tolerates GitHub delay on an hourly cron
+    input_series:
+      - series: 'github_workflow_run_timestamp_seconds{org="sdr-enthusiasts", repo="docker-shipfeeder", workflow="Deploy on aiscatcher changes", job="github-ci"}'
+        values: "-10800+0x30"
+      - series: 'github_workflow_expected_interval_seconds{org="sdr-enthusiasts", repo="docker-shipfeeder", workflow="Deploy on aiscatcher changes", job="github-ci"}'
+        values: "3600+0x30"
+      - series: 'github_workflow_enabled{org="sdr-enthusiasts", repo="docker-shipfeeder", workflow="Deploy on aiscatcher changes", state="active", job="github-ci"}'
+        values: "1+0x30"
+    alert_rule_test:
+      - eval_time: 1h
+        alertname: GitHubScheduledWorkflowStale
+        exp_alerts: []
+
+  # The other side of the same boundary: tolerating GitHub's delay must not
+  # cost coverage. An hourly cron that has genuinely stopped still pages.
+  - interval: 5m
+    name: GitHubScheduledWorkflowStale still fires for a dead hourly cron
+    input_series:
+      - series: 'github_workflow_run_timestamp_seconds{org="sdr-enthusiasts", repo="docker-shipfeeder", workflow="Deploy on aiscatcher changes", job="github-ci"}'
+        values: "-43200+0x30"
+      - series: 'github_workflow_expected_interval_seconds{org="sdr-enthusiasts", repo="docker-shipfeeder", workflow="Deploy on aiscatcher changes", job="github-ci"}'
+        values: "3600+0x30"
+      - series: 'github_workflow_enabled{org="sdr-enthusiasts", repo="docker-shipfeeder", workflow="Deploy on aiscatcher changes", state="active", job="github-ci"}'
+        values: "1+0x30"
+    alert_rule_test:
+      - eval_time: 1h
+        alertname: GitHubScheduledWorkflowStale
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              org: sdr-enthusiasts
+              repo: docker-shipfeeder
+              workflow: Deploy on aiscatcher changes
+              job: github-ci
+            exp_annotations:
+              summary: "Scheduled workflow Deploy on aiscatcher changes has not run in sdr-enthusiasts/docker-shipfeeder"
+              description: "Last run was 13h 0m 0s ago, well past its configured schedule interval plus the delay GitHub normally adds to scheduled runs."
+
+  # The tightest margin in the whole rule. A monthly cron's real gaps run
+  # 28-31 days, and the exporter reports the longest (31d), so a healthy
+  # monthly workflow may legitimately be 31d plus GitHub's usual lateness.
+  # 31d2h must stay quiet.
+  - interval: 5m
+    name: GitHubScheduledWorkflowStale tolerates a late monthly cron
+    input_series:
+      - series: 'github_workflow_run_timestamp_seconds{org="fredsystems", repo="fred-cal", workflow="update-flakes", job="github-ci"}'
+        values: "-2685600+0x30"
+      - series: 'github_workflow_expected_interval_seconds{org="fredsystems", repo="fred-cal", workflow="update-flakes", job="github-ci"}'
+        values: "2678400+0x30"
+      - series: 'github_workflow_enabled{org="fredsystems", repo="fred-cal", workflow="update-flakes", state="active", job="github-ci"}'
+        values: "1+0x30"
+    alert_rule_test:
+      - eval_time: 1h
+        alertname: GitHubScheduledWorkflowStale
+        exp_alerts: []
+
+  # A monthly workflow that has actually missed its slot does still page.
+  - interval: 5m
+    name: GitHubScheduledWorkflowStale fires for a missed monthly cron
+    input_series:
+      - series: 'github_workflow_run_timestamp_seconds{org="fredsystems", repo="fred-cal", workflow="update-flakes", job="github-ci"}'
+        values: "-2764800+0x30"
+      - series: 'github_workflow_expected_interval_seconds{org="fredsystems", repo="fred-cal", workflow="update-flakes", job="github-ci"}'
+        values: "2678400+0x30"
+      - series: 'github_workflow_enabled{org="fredsystems", repo="fred-cal", workflow="update-flakes", state="active", job="github-ci"}'
+        values: "1+0x30"
+    alert_rule_test:
+      - eval_time: 1h
+        alertname: GitHubScheduledWorkflowStale
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              org: fredsystems
+              repo: fred-cal
+              workflow: update-flakes
+              job: github-ci
+            exp_annotations:
+              summary: "Scheduled workflow update-flakes has not run in fredsystems/fred-cal"
+              description: "Last run was 32d 1h 0m 0s ago, well past its configured schedule interval plus the delay GitHub normally adds to scheduled runs."
 
   # ---------------------------------------------------------------------------
   # GitHubPullRequestChecksFailing

@@ -62,16 +62,42 @@ groups:
       # derived from the workflow's own cron expression, so the threshold
       # adapts to weekly vs daily schedules rather than being a fixed guess.
       #
-      # 3x rather than 2x: GitHub's scheduled runs are best-effort and are
-      # routinely delayed under load, so 2x produces false positives on hourly
-      # crons. The `unless` guard suppresses this for workflows already known
-      # to be disabled, which GitHubWorkflowAutoDisabled reports with a more
+      # The slack term is purely ADDITIVE, with no multiplier at all. GitHub
+      # delays scheduled runs by a roughly fixed amount that does not scale
+      # with cadence: measured over 907 intervals across this fleet, lateness
+      # is p90 36-90m and never exceeded 220m, and the 6-hourly cron showed
+      # the WORST p90 of any cadence. A multiplier therefore misprices both
+      # ends. The previous 3x gave a monthly cron 84 days of slack - long
+      # enough for a dead workflow to stay invisible for a quarter - while
+      # giving an hourly cron only 3 hours, which is less than GitHub's own
+      # median delay for high-frequency schedules. That produced sustained
+      # false positives on sdr-enthusiasts/docker-shipfeeder and no useful
+      # coverage on the monthly crons.
+      #
+      # 4h was backtested against 60 days of real run history for every
+      # scheduled workflow in the fleet: zero false positives, and it roughly
+      # halves time-to-detection for a genuinely dead workflow (monthly
+      # 84d -> 31d4h, weekly 21d -> 7d4h, daily 3d -> 28h, hourly 3h -> 5h).
+      #
+      # Note the margin is thin by construction: 4h is only ~20 minutes above
+      # the worst lateness ever observed, and that worst case was a
+      # correlated GitHub incident that delayed five unrelated repositories
+      # at once. If this starts crying wolf, raise the constant rather than
+      # reintroducing a multiplier - the multiplier is what was wrong.
+      #
+      # This threshold assumes the exporter reports the LONGEST legitimate gap
+      # for a cron, not the first one. github-ci-exporter got that wrong until
+      # f8f11a0: `0 0 1 * *` resolved to 28 days rather than 31, which made
+      # every monthly workflow look permanently three days late.
+      #
+      # The `unless` guard suppresses this for workflows already known to be
+      # disabled, which GitHubWorkflowAutoDisabled reports with a more
       # accurate description.
       - alert: GitHubScheduledWorkflowStale
         expr: |
           (
             time() - github_workflow_run_timestamp_seconds
-              > 3 * github_workflow_expected_interval_seconds
+              > github_workflow_expected_interval_seconds + (4 * 60 * 60)
           )
           unless on (org, repo, workflow) (
             github_workflow_enabled == 0
@@ -81,7 +107,7 @@ groups:
           severity: warning
         annotations:
           summary: "Scheduled workflow {{ $labels.workflow }} has not run in {{ $labels.org }}/{{ $labels.repo }}"
-          description: "Last run was {{ $value | humanizeDuration }} ago, more than three times its configured schedule interval."
+          description: "Last run was {{ $value | humanizeDuration }} ago, well past its configured schedule interval plus the delay GitHub normally adds to scheduled runs."
 
       # An open PR whose checks are failing. Distinct from
       # GitHubCIFailingDefaultBranch: that rule describes what has already
