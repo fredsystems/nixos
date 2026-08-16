@@ -3,12 +3,19 @@ groups:
   #
   # WHAT THIS GROUP DOES NOT ALERT ON
   #
-  # Bans. Not ban counts, not ban rate, not individual jails firing, not
-  # recidive, not port-decoy catching a scanner. All of that is the system
+  # Bans. Not ban counts, not standing totals, not individual jails firing,
+  # not recidive, not port-decoy catching a scanner. All of that is the system
   # working as designed, and on this host it happens constantly -- 161 bans in
   # a 48-hour window before the escalation fix. Paging on success trains the
   # channel to be ignored, which costs more than it buys. The "Bans Over Time"
   # and "Ban Rate" panels on the security dashboard already carry the trend.
+  #
+  # A standing total is explicitly not a signal. 10k addresses banned is not an
+  # incident; it is a week of the internet being the internet. What IS a signal
+  # is a step CHANGE in the arrival rate, which is a statement about the threat
+  # environment rather than about the control. That is the fail2ban-activity
+  # group at the bottom of this file, and it is the only place bans themselves
+  # are alerted on.
   #
   # Every rule here fires only when the security control itself is broken:
   # fail2ban unreachable, the generator stalled, or the data it produces
@@ -169,29 +176,213 @@ groups:
             `fail2ban-client get <jail> banip --with-time` against the parser
             in hosts/linux/fredvps/configuration.nix.
 
-      # A jail exceeded the 200-address per-jail cap.
+      # NOTE: there is deliberately no alert on f2b_banned_ip_outside_window.
       #
-      # Two possible meanings, both worth knowing about: either the host is
-      # under a distributed sweep large enough to matter, or the cap needs
-      # raising. Per-IP rows beyond the cap are dropped from the table.
+      # There used to be one, on the metric's predecessor
+      # f2b_banned_ip_truncated, and it fired on 2026-08-15 when recidive held
+      # 405 bans against a 200 cap. It was retired rather than given a bigger
+      # number, deliberately. The
+      # metric measured a standing total against a fixed number, and a standing
+      # total has no stable value to alert against: recidive holds a flat
+      # one-week ban, so its level is 7 x whatever the arrival rate happens to
+      # be, and every step change in scan volume overtakes whatever number was
+      # chosen. The alert's only reachable steady state was permanently firing.
       #
-      # Safe to alert on only because f2b_banned_ip_max_bantime_seconds is
-      # computed BEFORE truncation. Until that fix, hitting the cap also
-      # silently under-reported the longest active ban, so this alert would
-      # have fired alongside a panel that was quietly wrong.
+      # The metric survives as a dashboard footnote -- "showing 100 of 405" --
+      # and the signal it was reaching for is now Fail2banBanRateSpike below.
+
+  # The only place in this file where bans themselves are alerted on.
+  #
+  # The distinction from the header comment is between level and derivative.
+  # A high standing ban count is the control working. A sudden change in how
+  # fast bans arrive is a statement about the outside world: a new scanner
+  # campaign, a newly-exposed service, or a filter that started matching
+  # something it should not.
+  - name: fail2ban-activity
+    rules:
+      # Ban arrival rate stepped up sharply against its own recent baseline.
       #
-      # Peak concurrent bans in any jail to date is 84, so this has headroom
-      # and should not fire in normal operation.
-      - alert: Fail2banBanListTruncated
-        expr: f2b_banned_ip_truncated > 0
-        for: 15m
+      # WHY NOT rate(f2b_jail_banned_total)
+      #
+      # Because that counter counts restored bans. banmanager.py addBanTicket()
+      # increments __banTotal, and actions.py calls it for restored tickets as
+      # well as new ones -- the same call site that logs "Restore Ban". So a
+      # fail2ban restart resets the counter to zero and then replays the entire
+      # stored ban list into it: 97 bans inside two seconds at the 2026-08-12
+      # restart, which rate() would faithfully report as ~2900 bans/minute.
+      # Every deploy would page. f2b_jail_bans_started_1h is counted from ban
+      # START times, which are restored from sqlite unchanged, so a restart
+      # does not perturb it at all.
+      #
+      # WHY A RATIO AND NOT A FIXED THRESHOLD
+      #
+      # The jails are 30x apart in baseline rate. Measured over 7d:
+      #
+      #   jail                median/hr   peak/hr   mean/hr
+      #   port-decoy               61        90       29.9
+      #   ssh-decoy                 8        19        7.3
+      #   nginx-probe               5        40        5.8
+      #   recidive                  2        13        2.4
+      #   nginx-bad-request         1         3        0.13
+      #
+      # Any single number is either deaf to recidive or screaming at
+      # port-decoy. The ratio makes each jail its own reference.
+      #
+      # The absolute floor is what keeps the quiet jails quiet: without it,
+      # nginx-bad-request going from 0 to 2 bans is an infinite ratio.
+      #
+      # 4x against the 7d mean, checked against the table above: port-decoy
+      # would need 120/hr (peak seen: 90), ssh-decoy 29 (peak 19), recidive 25
+      # via the floor (peak 13). Only nginx-probe's outlier hour of 40 would
+      # have tripped it, which is a 7x jump over its median and arguably
+      # deserved the look.
+      #
+      # THIS ALERT SELF-RESOLVES, BY DESIGN
+      #
+      # A sustained step change is absorbed into the 7d baseline and the alert
+      # clears roughly 10 hours later, even though the new rate persists. That
+      # is intended: it is a change detector, not a level monitor, and the
+      # thing it exists to catch is the transition. The old truncation alert
+      # failed precisely by never clearing.
+      #
+      # It is also quiet on rollout: with only minutes of history the baseline
+      # equals the current value, the ratio is 1, and nothing fires.
+      #
+      # `for: 1h` filters single burst hours. The metric is a 1h trailing
+      # window, so one busy hour holds the condition for about an hour and
+      # sits right at the edge; anything genuinely sustained clears it easily.
+      - alert: Fail2banBanRateSpike
+        expr: |
+          f2b_jail_bans_started_1h > 25
+          and
+          f2b_jail_bans_started_1h > 4 * avg_over_time(f2b_jail_bans_started_1h[7d])
+        for: 1h
         labels:
           severity: warning
         annotations:
-          summary: "fail2ban jail {{ $labels.jail }} exceeded its ban-list cap on {{ $labels.hostname }}"
+          summary: "fail2ban ban rate in jail {{ $labels.jail }} stepped up on {{ $labels.hostname }}"
           description: >-
-            {{ $value }} banned address(es) in jail {{ $labels.jail }} are
-            omitted from the exported metrics because the 200-per-jail cap was
-            hit. Aggregates stay correct, but the Active Bans table is
-            incomplete. Either an unusually large sweep is in progress or
-            MAX_PER_JAIL needs raising.
+            Jail {{ $labels.jail }} banned {{ $value }} address(es) in the last
+            hour, more than 4x its own 7-day average. Something changed
+            outside: a new scan campaign, a newly-exposed port, or a filter
+            that started matching traffic it should not. Check
+            `journalctl -u fail2ban --since '2 hours ago' | grep ' Ban '` for
+            what is being caught, and confirm it is hostile before treating
+            this as routine. Standing ban totals are not the concern here and
+            are not alerted on.
+
+  # Saturation, not security. These two are about the machinery running out of
+  # room, and they are the only rules here whose thresholds come from measured
+  # limits of this host rather than from what its traffic normally looks like.
+  #
+  # WHAT DOES AND DOES NOT SCALE WITH BAN COUNT
+  #
+  # Since bans moved from per-address iptables rules to an ipset, per-packet
+  # cost no longer tracks the ban count at all. `hash:ip` resizes to keep
+  # bucket occupancy bounded (the live set reports `bucketsize 12`), so growing
+  # the set adds buckets rather than depth and a lookup does the same work at
+  # 1k entries as at 65k. Measured on the live set: ~55 bytes/entry, so even a
+  # full set is ~3.6 MB. Neither CPU nor memory is what runs out.
+  #
+  # Two things do:
+  #
+  #   Restore time. fail2ban replays every stored ban through one `ipset add`
+  #   subprocess at startup. Measured at the 2026-08-15 restart: 493 bans in
+  #   4 seconds, ~123/s. That is linear, and it is paid on every deploy.
+  #
+  #   maxelem. The per-set ceiling is 65536, fixed at set creation. Past it
+  #   `ipset add` fails while fail2ban still records the address as banned --
+  #   an address reported as blocked that is not actually blocked.
+  - name: fail2ban-capacity
+    rules:
+      # Standing bans far above the expected steady state.
+      #
+      # This is NOT a performance threshold. At 5000 the only real cost is
+      # about 40 seconds of restore, and the packet path does not care at all.
+      # Its job is to be the backstop for Fail2banBanRateSpike, which
+      # SELF-RESOLVES by design: a permanent step change is absorbed into its
+      # own 7-day baseline and goes quiet within about ten hours, so after that
+      # nothing is watching the cumulative result. This rule is what notices
+      # that the steady state moved and stayed moved.
+      #
+      # 5000 is ~10x the standing total at the time of writing (~490), so it
+      # takes a structural change to reach, not a busy week.
+      #
+      # This deliberately resembles the retired Fail2banBanListTruncated, and
+      # the difference is worth stating because the resemblance is the trap.
+      # That rule fired at 200 against a real steady state of 405 -- it sat
+      # BELOW normal and could never stop firing, and its only remedy was
+      # editing a display constant, which is not an action. This one sits an
+      # order of magnitude above normal, and if it fires there are real levers:
+      # shorten recidive's bantime, cut intake at the decoy ports, or decide
+      # the growth is legitimate and re-baseline. Re-baselining this threshold
+      # is a defensible response. It never was for the old one.
+      #
+      # Summed across jails on purpose. An address banned in three jails is
+      # three tickets, three ipset adds and three sqlite rows, so for restore
+      # cost the double count is the honest number. Do not "fix" it to count
+      # distinct addresses.
+      #
+      # 6h because standing totals move on the timescale of recidive's
+      # week-long bans. There is no such thing as an urgent change here, and a
+      # long window costs nothing.
+      - alert: Fail2banStandingBansHigh
+        expr: sum by (hostname) (f2b_jail_banned_current) > 5000
+        for: 6h
+        labels:
+          severity: warning
+        annotations:
+          summary: "fail2ban standing ban count is far above steady state on {{ $labels.hostname }}"
+          description: >-
+            {{ $value }} bans are in force across all jails, roughly 10x the
+            expected steady state. Nothing is broken -- the packet path is
+            unaffected by ban count and this is about 40s of fail2ban restore
+            time -- but the arrival rate has changed and stayed changed, which
+            Fail2banBanRateSpike stops reporting once the shift ages into its
+            baseline. Find what grew in the Ban Rate panel, then either reduce
+            intake, shorten the bantime of the jail responsible, or raise this
+            threshold deliberately if the growth is legitimate.
+
+      # A single jail approaching its ipset maxelem ceiling.
+      #
+      # PER JAIL, NOT SUMMED, and that is the whole point of this rule
+      # existing separately. maxelem is a property of each set, so
+      # `f2b-recidive` hits its wall at 65536 regardless of what the other
+      # jails hold. A total-based rule cannot see this coming.
+      #
+      # Critical rather than warning because of how it fails. Past maxelem,
+      # `ipset add` returns an error, fail2ban logs it and carries on, and the
+      # address stays listed as banned in every status query and on every
+      # dashboard panel -- while packets from it are delivered normally.
+      #
+      # Note the failure is NOT silent in the journal; it is silent everywhere
+      # anyone actually looks. Every monitoring surface reads green while the
+      # block does not exist, and the only evidence is a log line nobody has a
+      # reason to go looking for. That is worse than an outage, and it is why
+      # the annotation below sends responders to the journal explicitly.
+      #
+      # 30000 is ~2x headroom. Given recidive's week-long bans that is weeks of
+      # lead time, which it needs: maxelem is fixed when the set is created and
+      # `ipset -exist create` will not change it, so raising it means editing
+      # the action, deploying, and destroying the set to force recreation. Not
+      # something to discover with hours to spare. Raise `hashsize` at the same
+      # time -- it defaults to 1024 and a set that large will otherwise rehash
+      # its way up.
+      - alert: Fail2banJailApproachingSetLimit
+        expr: f2b_jail_banned_current > 30000
+        for: 1h
+        labels:
+          severity: critical
+        annotations:
+          summary: "fail2ban jail {{ $labels.jail }} is approaching its ipset limit on {{ $labels.hostname }}"
+          description: >-
+            Jail {{ $labels.jail }} holds {{ $value }} bans against a per-set
+            maxelem of 65536. Past that ceiling `ipset add` fails and fail2ban
+            logs the error, but it carries on and keeps reporting the address
+            as banned -- so every status query and dashboard panel stays green
+            while the packets are delivered normally. The journal is the only
+            place the failure is visible: check
+            `journalctl -u fail2ban | grep -i ipset`. Raising maxelem requires
+            recreating the set (`ipset -exist create` will not alter it), so
+            treat this as scheduled work, not a page to sit on. Raise hashsize
+            from its 1024 default at the same time.

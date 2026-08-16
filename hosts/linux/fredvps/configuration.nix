@@ -367,20 +367,58 @@ in
 
           mkdir -p "$TEXTFILE_DIR"
 
-          # Cap per jail. Only CURRENTLY banned addresses are emitted, so this
-          # normally sits around ten and expires down on its own -- but a
-          # distributed sweep during a 64h escalated bantime could pile up, and
-          # unbounded per-IP labels are how a metrics backend gets hurt. Anything
-          # past the cap is counted, not emitted.
-          MAX_PER_JAIL=200
+          # Scratch for one jail's parsed bans, reused across jails. Kept out
+          # of TEXTFILE_DIR so a crash mid-run cannot leave a file that
+          # node_exporter would try to parse as metrics -- it reads every
+          # *.prom in that directory and rejects the whole scrape on one bad
+          # sample. Cleared with `: >` at the top of each jail rather than
+          # recreated, so the trap only has one path to clean up.
+          ROWS=$(mktemp -t fail2ban-ban-rows.XXXXXX) || exit 1
+          trap 'rm -f "$ROWS" "$TMP"' EXIT
+
+          # How many bans per jail get per-IP series, MOST RECENT FIRST.
+          #
+          # This is a display window, not a safety cap, and the distinction is
+          # the whole point. It was a cap (200, then briefly 1500) sized to sit
+          # above the expected concurrent ban count, with an alert when the
+          # count exceeded it. That framing was wrong twice over.
+          #
+          # It does not scale. recidive holds a flat one-week ban, so its
+          # steady state is 7 x daily intake with no decay in between -- 405
+          # when the 200 cap first blew, and ~1000 projected at the intake that
+          # followed the 2026-08-12 decoy port expansion. Any number chosen
+          # here is overtaken by the next step change in scan volume.
+          #
+          # And a total is not the signal anyone wants. 10k standing bans is
+          # not an incident; going from 20 bans/hour to 100 is. Rate is what
+          # gets alerted on now (f2b_jail_bans_started_1h below), which leaves
+          # this free to be sized for READABILITY rather than for headroom.
+          # Nobody reads row 900 of a ban list, so 100 recent bans is a table
+          # and 1500 is a denial of service against the person on call.
+          #
+          # Selection is by ban START time, descending. Note that this is NOT
+          # the order fail2ban hands us: `banip --with-time` sorts ascending by
+          # EXPIRY, and expiry order only equals start order within a jail
+          # whose bans are all the same length. recidive happens to satisfy
+          # that today; the escalating jails do not, so the sort below is
+          # load-bearing rather than defensive.
+          #
+          # Cardinality note, so the next person does not mistake this for one:
+          # this bounds CONCURRENT series only. Roughly 1900 unique addresses
+          # are banned here per day, each producing series that live for
+          # Prometheus' full 90d retention, and that churn is untouched by this
+          # value. A real cardinality diet has to address the churn.
+          RECENT_PER_JAIL=100
 
           {
             echo "# HELP f2b_banned_ip_bantime_seconds Length of the current ban for this address."
             echo "# TYPE f2b_banned_ip_bantime_seconds gauge"
             echo "# HELP f2b_banned_ip_expiry_timestamp_seconds Unix time at which this ban expires."
             echo "# TYPE f2b_banned_ip_expiry_timestamp_seconds gauge"
-            echo "# HELP f2b_banned_ip_truncated Banned addresses omitted because the per-jail cap was hit."
-            echo "# TYPE f2b_banned_ip_truncated gauge"
+            echo "# HELP f2b_banned_ip_outside_window Active bans older than the most-recent-N window, so absent from the per-IP series."
+            echo "# TYPE f2b_banned_ip_outside_window gauge"
+            echo "# HELP f2b_jail_bans_started_1h Bans in this jail that started within the last hour."
+            echo "# TYPE f2b_jail_bans_started_1h gauge"
             echo "# HELP f2b_ban_metrics_generated_timestamp_seconds Unix time this file was last written."
             echo "# TYPE f2b_ban_metrics_generated_timestamp_seconds gauge"
             echo "# HELP f2b_ban_metrics_fail2ban_up Whether the jail list could be read from fail2ban."
@@ -389,7 +427,7 @@ in
             echo "# TYPE f2b_ban_metrics_parse_failures gauge"
             echo "# HELP f2b_ban_metrics_jail_query_failures Jails whose ban list could not be read."
             echo "# TYPE f2b_ban_metrics_jail_query_failures gauge"
-            echo "# HELP f2b_banned_ip_max_bantime_seconds Longest ban in force in this jail, including addresses omitted by the cap."
+            echo "# HELP f2b_banned_ip_max_bantime_seconds Longest ban in force in this jail, including addresses outside the window."
             echo "# TYPE f2b_banned_ip_max_bantime_seconds gauge"
 
             # Health, kept separate from freshness on purpose.
@@ -412,9 +450,13 @@ in
             parse_failures=0
             jail_query_failures=0
 
+            now=$(date +%s)
+            hour_ago=$((now - 3600))
+
             for jail in $jails; do
-              n=0
-              omitted=0
+              total=0
+              shown=0
+              started_1h=0
               max_bantime=0
 
               # Captured into a variable rather than piped directly into the
@@ -427,10 +469,16 @@ in
               # rather than clearing fail2ban_up.
               if ! banlist=$(fail2ban-client get "$jail" banip --with-time 2>/dev/null); then
                 jail_query_failures=$((jail_query_failures + 1))
-                printf 'f2b_banned_ip_truncated{jail="%s"} 0\n' "$jail"
+                printf 'f2b_banned_ip_outside_window{jail="%s"} 0\n' "$jail"
                 printf 'f2b_banned_ip_max_bantime_seconds{jail="%s"} 0\n' "$jail"
+                printf 'f2b_jail_bans_started_1h{jail="%s"} 0\n' "$jail"
                 continue
               fi
+
+              # Parsed rows, one per line, as "<start_epoch> <ip> <bantime>
+              # <expiry_epoch>". Collected first and emitted after, because
+              # picking the most recent N requires seeing all of them.
+              : > "$ROWS"
 
               # Output line: <ip> \t <start> + <bantime> = <expiry>
               while IFS= read -r line; do
@@ -453,41 +501,68 @@ in
                   continue
                 fi
 
-                # Tracked before the cap, so the aggregate stays correct even
-                # when per-IP series are dropped.
-                #
-                # `banip --with-time` returns bans sorted ascending by EXPIRY
-                # (banmanager.py getBanList -> lst.sort on end-of-ban), and
-                # expiry order is not bantime order -- a fresh 1h ban expires
-                # before an older 2h one. So the cap removes an arbitrary
-                # slice with respect to duration, and max() over the emitted
-                # series alone can under-report the longest ban in force.
-                # Which is exactly the number the "Longest Active Ban" panel
-                # exists to show, and exactly when it matters: a sweep large
-                # enough to hit the cap.
+                # Derived rather than parsed from the line's own start field,
+                # which is the same number but would cost a second `date`
+                # fork per ban. At ~400 bans every two minutes on a 3-core
+                # box, that is worth avoiding.
+                start=$((epoch - bantime))
+
+                # Tracked across every ban, not just the emitted ones, so the
+                # aggregate stays correct when the window drops rows. This is
+                # what the "Longest Active Ban" panel reads, and the moment it
+                # matters most is exactly the moment rows are being dropped.
                 if [ "$bantime" -gt "$max_bantime" ]; then
                   max_bantime=$bantime
                 fi
 
-                n=$((n + 1))
-                if [ "$n" -gt "$MAX_PER_JAIL" ]; then
-                  omitted=$((omitted + 1))
-                  continue
+                # The rate signal. Counted here rather than derived in
+                # Prometheus from f2b_jail_banned_total, because that counter
+                # is incremented by restored bans too: banmanager.py
+                # addBanTicket() bumps __banTotal, and actions.py calls it for
+                # restored tickets as well as new ones (it is the same call
+                # that logs "Restore Ban"). A fail2ban restart therefore reads
+                # as the entire ban list arriving at once -- 97 restores inside
+                # two seconds at the last restart -- which any rate() would
+                # report as a spike that never happened.
+                #
+                # Ban start times come from the sqlite database and survive
+                # restarts unchanged, so counting them is immune to that.
+                #
+                # Sound only while every jail's bantime is >= 1h: a ban that
+                # started within the last hour must still be active to appear
+                # in this list at all. The shortest bantime here is 1h exactly.
+                # Shorten any jail below that and this undercounts.
+                if [ "$start" -gt "$hour_ago" ]; then
+                  started_1h=$((started_1h + 1))
                 fi
 
-                # ban_id exists so the dashboard can join the two series on a
-                # key that is actually unique. An address in two jails at once
-                # is routine here -- the three nginx jails read the same log --
-                # and joining on ip alone pairs the wrong ban length with the
-                # wrong jail, producing a plausible-looking wrong row.
-                printf 'f2b_banned_ip_bantime_seconds{jail="%s",ip="%s",ban_id="%s:%s"} %s\n' \
-                  "$jail" "$ip" "$jail" "$ip" "$bantime"
-                printf 'f2b_banned_ip_expiry_timestamp_seconds{jail="%s",ip="%s",ban_id="%s:%s"} %s\n' \
-                  "$jail" "$ip" "$jail" "$ip" "$epoch"
+                total=$((total + 1))
+                printf '%s %s %s %s\n' "$start" "$ip" "$bantime" "$epoch" >> "$ROWS"
               done <<< "$banlist"
 
-              printf 'f2b_banned_ip_truncated{jail="%s"} %s\n' "$jail" "$omitted"
+              # Most recent N by ban start, newest first. The sort is required:
+              # the input is ordered by expiry, which only matches start order
+              # in a jail where every ban is the same length.
+              if [ "$total" -gt 0 ]; then
+                while read -r r_start r_ip r_bantime r_epoch; do
+                  [ -z "$r_start" ] && continue
+
+                  # ban_id exists so the dashboard can join the series on a key
+                  # that is actually unique. An address in two jails at once is
+                  # routine here -- the three nginx jails read the same log --
+                  # and joining on ip alone pairs the wrong ban length with the
+                  # wrong jail, producing a plausible-looking wrong row.
+                  printf 'f2b_banned_ip_bantime_seconds{jail="%s",ip="%s",ban_id="%s:%s"} %s\n' \
+                    "$jail" "$r_ip" "$jail" "$r_ip" "$r_bantime"
+                  printf 'f2b_banned_ip_expiry_timestamp_seconds{jail="%s",ip="%s",ban_id="%s:%s"} %s\n' \
+                    "$jail" "$r_ip" "$jail" "$r_ip" "$r_epoch"
+                  shown=$((shown + 1))
+                done <<< "$(sort -rn -k1,1 "$ROWS" | head -n "$RECENT_PER_JAIL")"
+              fi
+
+              printf 'f2b_banned_ip_outside_window{jail="%s"} %s\n' "$jail" "$((total - shown))"
               printf 'f2b_banned_ip_max_bantime_seconds{jail="%s"} %s\n' "$jail" "$max_bantime"
+              printf 'f2b_jail_bans_started_1h{jail="%s"} %s\n' "$jail" "$started_1h"
             done
 
             printf 'f2b_ban_metrics_parse_failures %s\n' "$parse_failures"
@@ -546,33 +621,70 @@ in
                     {^LN-BEG}
     '';
 
-    # Host-wide, silent bans.
+    # Host-wide, silent bans, held in an ipset rather than in iptables rules.
     #
-    # Two deviations from the stock `iptables-multiport` + REJECT default,
-    # both deliberate.
+    # Three deviations from the stock `iptables-multiport` + REJECT default,
+    # all deliberate.
+    #
+    # IPSET, NOT ONE IPTABLES RULE PER ADDRESS. This is the load-bearing one.
+    # `iptables.conf` bans by inserting `-s <ip> -j DROP` into a per-jail
+    # chain, and an iptables chain is a LINEAR scan: a packet that matches
+    # nothing -- which is every packet from a legitimate client -- is compared
+    # against every rule in every f2b chain before it reaches nixos-fw. That
+    # cost is proportional to the ban count, and the ban count here is not
+    # small or stable. Measured on 2026-08-15, before this change:
+    #
+    #   f2b-recidive        407 rules
+    #   f2b-port-decoy       56
+    #   f2b-ssh-decoy        21
+    #   f2b-nginx-probe      14
+    #   total INPUT path    588
+    #
+    # recidive is a flat one-week ban (see the jail below), so its steady
+    # state is 7 x the daily intake, and daily intake went from ~25 to ~141
+    # when the decoy port list grew on 2026-08-12. That puts the chain on a
+    # path to ~1000 rules with no ceiling in sight, and f2b-recidive sits LAST
+    # in the INPUT jump order, so it is the full-length walk that every
+    # accepted packet pays for.
+    #
+    # `iptables-ipset.conf` replaces the whole per-jail chain with a single
+    # INPUT rule matching a kernel hash set:
+    #
+    #   -A INPUT -p tcp -m set --match-set f2b-recidive src -j DROP
+    #
+    # One rule per jail, O(1) lookup, and the ban count stops being a
+    # per-packet cost at all. Requires the `ipset` binary (see extraPackages
+    # below) and the xt_set / ip_set_hash_ip kernel modules, both present.
+    #
+    # WHERE THE BANS LIVE NOW. There is no f2b-<name> iptables chain under
+    # this action -- `iptables -L f2b-recidive` will report no such chain.
+    # Banned addresses are set members: `ipset list f2b-recidive`. The stock
+    # maxelem of 65536 is left alone; it is two orders of magnitude above the
+    # projected steady state. ipsettime is also left at 0, which means the set
+    # entries carry no kernel-side timeout and fail2ban continues to own
+    # unbanning -- identical expiry semantics to the iptables action, so the
+    # escalation ladder and the exported bantimes are unaffected.
     #
     # ALLPORTS, NOT MULTIPORT. The stock action installs the jump into INPUT
     # as `-p tcp -m multiport --dports http,https -j f2b-nginx-probe`, so a
-    # prober banned by an nginx jail was still free to hit sshd on 2269. Note
-    # that this is NOT visible in `iptables -L f2b-nginx-probe`: the per-
-    # address rules in that chain always read `all -- <ip> 0.0.0.0/0`, because
-    # the port match lives on the INPUT jump rule, not on the ban rules. The
-    # chain listing looks host-wide under both actions; `iptables -L INPUT -n`
-    # is where the difference actually shows. `type = allports` drops the port
-    # match from the jump, which makes the "all" in the chain listing mean
-    # what it appears to.
+    # prober banned by an nginx jail was still free to hit sshd on 2269.
+    # `type = allports` drops the port match, so the ban is genuinely
+    # host-wide. Under ipset this is visible directly in `iptables -S INPUT`:
+    # the match-set rule carries no --dports.
     #
     # DROP, NOT REJECT. The default answers with ICMP port-unreachable, which
     # tells a scanner immediately that it is blocked and frees it to move on.
     # DROP makes it wait for its own TCP timeout on every connection, and
     # since our bans are host-wide that cost applies to every port it tries.
     #
-    # blocktype is set for both families -- iptables.conf overrides it under
-    # [Init?family=inet6] for the ICMPv6 variant, so setting only the v4 value
-    # would leave IPv6 offenders on REJECT.
-    "fail2ban/action.d/iptables-allports-drop.conf".text = ''
+    # blocktype is set for both families. iptables-ipset.conf pulls in
+    # iptables.conf, which overrides blocktype under [Init?family=inet6] for
+    # the ICMPv6 variant, so setting only the v4 value would leave IPv6
+    # offenders on REJECT. The v6 set is a separate ipset (f2b-<name>6),
+    # created automatically by the family=inet6 init.
+    "fail2ban/action.d/iptables-ipset-allports-drop.conf".text = ''
       [INCLUDES]
-      before = iptables.conf
+      before = iptables-ipset.conf
 
       [Definition]
       type = allports
@@ -736,11 +848,16 @@ in
       maxretry = 5;
       bantime = "1h";
 
-      # Host-wide silent bans for every jail. See the action definition above
-      # for why allports and why DROP. Both are set because banaction-allports
-      # is what the recidive jail below uses.
-      banaction = "iptables-allports-drop";
-      banaction-allports = "iptables-allports-drop";
+      # Host-wide silent bans for every jail, backed by ipset. See the action
+      # definition above for why ipset, why allports and why DROP. Both are
+      # set because banaction-allports is what the recidive jail below uses.
+      banaction = "iptables-ipset-allports-drop";
+      banaction-allports = "iptables-ipset-allports-drop";
+
+      # The action above shells out to `ipset`, which is not otherwise on the
+      # unit's PATH. Without this every actionban fails and nothing is
+      # actually blocked, while fail2ban still reports the address as banned.
+      extraPackages = [ pkgs.ipset ];
 
       # How long ban history is retained, which is what the escalation above
       # counts against. The stock value is 1d, so an address that stays away
