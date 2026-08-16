@@ -97,17 +97,17 @@ in
           NATCA = {
             primary = false;
             realName = "Fred Clausen";
-            address = "fclausen@natca.net";
-            userName = "fclausen@natca.net";
+            address = "fclausen@natca.org";
+            userName = "fclausen@natca.org";
 
             imap = {
-              host = "secure.emailsrvr.com";
+              host = "mail.natca.org";
               port = 993;
               tls.enable = true;
             };
 
             smtp = {
-              host = "secure.emailsrvr.com";
+              host = "mail.natca.org";
               port = 587;
               authentication = "login";
               tls = {
