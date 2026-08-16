@@ -1,5 +1,5 @@
 {
-  "generated_at": 1786845810,
+  "generated_at": 1786852021,
   "hosts": {
     "Daytona": {
       "history": [
@@ -386,6 +386,11 @@
     "fredvps": {
       "history": [
         {
+          "at": 1786852021,
+          "rev": "872509eb3075d986ff53fa98eeead63a338c398d",
+          "toplevel": "/nix/store/hyf525havrd41sg1hbgdhn7dm309w0gf-nixos-system-fredvps-26.05.20260814.02e0898"
+        },
+        {
           "at": 1786844338,
           "rev": "2c005c54a41f7af16a5b0e250dc1f6fd63a9020a",
           "toplevel": "/nix/store/zb367f5kpy5xwxiinwi9vxidp19qwjsf-nixos-system-fredvps-26.05.20260814.02e0898"
@@ -504,11 +509,6 @@
           "at": 1786238976,
           "rev": "e8c1ceb0a121ffbe358fc27954bec0c4f8f5c19c",
           "toplevel": "/nix/store/88dkp62qqw455wx85s3aqhvsq41d7vh8-nixos-system-fredvps-26.05.20260807.ee48b14"
-        },
-        {
-          "at": 1786238855,
-          "rev": "3fe0a8eee325d29e03c9de20ffa0d317c41a0208",
-          "toplevel": "/nix/store/zd5qahmamqkjcnfg9hg8f6bbqgqv6lbg-nixos-system-fredvps-26.05.20260806.445d861"
         }
       ]
     },
@@ -956,6 +956,11 @@
     "sdrhub": {
       "history": [
         {
+          "at": 1786852021,
+          "rev": "872509eb3075d986ff53fa98eeead63a338c398d",
+          "toplevel": "/nix/store/bbrkmmgprnpi23mfm5r6z9qxj85q65gx-nixos-system-sdrhub-26.05.20260814.02e0898"
+        },
+        {
           "at": 1786844338,
           "rev": "2c005c54a41f7af16a5b0e250dc1f6fd63a9020a",
           "toplevel": "/nix/store/54drkg5nl63hf1my07v8zp99dc2rndmz-nixos-system-sdrhub-26.05.20260814.02e0898"
@@ -1074,11 +1079,6 @@
           "at": 1786309039,
           "rev": "7640bb1264f7730f207de0878017723afdcd6357",
           "toplevel": "/nix/store/gf3wwn62slvk6q6b8b0ff6jy8kmxzp82-nixos-system-sdrhub-26.05.20260807.ee48b14"
-        },
-        {
-          "at": 1786279879,
-          "rev": "1838d6d27d59a520b07e6303cdc01e517c21ea4c",
-          "toplevel": "/nix/store/jv1np9pcyrqcxdcxh9z8vgbcglf0f4k9-nixos-system-sdrhub-26.05.20260807.ee48b14"
         }
       ]
     },
@@ -1212,6 +1212,6 @@
       ]
     }
   },
-  "rev": "d950295d7d6ffbc01c8db876290b3bf753e8c8de",
+  "rev": "872509eb3075d986ff53fa98eeead63a338c398d",
   "schema": 1
 }
