@@ -278,3 +278,98 @@ tests:
       - eval_time: 90m
         alertname: Fail2banBanRateSpike
         exp_alerts: []
+
+  #########################################################################
+  # Fail2banStandingBansHigh
+  #
+  # for: 6h, so the series has to outlast 360m of pending. interval stays at
+  # 5m per the staleness note at the top of this file.
+  #########################################################################
+  - interval: 5m
+    name: Fail2banStandingBansHigh fires on a sustained high standing total
+    input_series:
+      - series: 'f2b_jail_banned_current{hostname="fredvps", jail="recidive", role="agent"}'
+        values: "6000+0x100"
+    alert_rule_test:
+      - eval_time: 400m
+        alertname: Fail2banStandingBansHigh
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              hostname: fredvps
+            exp_annotations:
+              summary: "fail2ban standing ban count is far above steady state on fredvps"
+              description: "6000 bans are in force across all jails, roughly 10x the expected steady state. Nothing is broken -- the packet path is unaffected by ban count and this is about 40s of fail2ban restore time -- but the arrival rate has changed and stayed changed, which Fail2banBanRateSpike stops reporting once the shift ages into its baseline. Find what grew in the Ban Rate panel, then either reduce intake, shorten the bantime of the jail responsible, or raise this threshold deliberately if the growth is legitimate."
+
+  - interval: 5m
+    name: Fail2banStandingBansHigh sums across jails rather than watching one
+    input_series:
+      # No single jail is close to 5000, but the host is holding 6600 bans.
+      # Restore cost is per ticket, so the sum is what matters.
+      - series: 'f2b_jail_banned_current{hostname="fredvps", jail="recidive"}'
+        values: "3000+0x100"
+      - series: 'f2b_jail_banned_current{hostname="fredvps", jail="port-decoy"}'
+        values: "2400+0x100"
+      - series: 'f2b_jail_banned_current{hostname="fredvps", jail="ssh-decoy"}'
+        values: "1200+0x100"
+    alert_rule_test:
+      - eval_time: 400m
+        alertname: Fail2banStandingBansHigh
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              hostname: fredvps
+            exp_annotations:
+              summary: "fail2ban standing ban count is far above steady state on fredvps"
+              description: "6600 bans are in force across all jails, roughly 10x the expected steady state. Nothing is broken -- the packet path is unaffected by ban count and this is about 40s of fail2ban restore time -- but the arrival rate has changed and stayed changed, which Fail2banBanRateSpike stops reporting once the shift ages into its baseline. Find what grew in the Ban Rate panel, then either reduce intake, shorten the bantime of the jail responsible, or raise this threshold deliberately if the growth is legitimate."
+
+  - interval: 5m
+    name: Fail2banStandingBansHigh silent at a normal standing total
+    input_series:
+      # Roughly today's shape, an order of magnitude below the threshold.
+      - series: 'f2b_jail_banned_current{hostname="fredvps", jail="recidive"}'
+        values: "410+0x100"
+      - series: 'f2b_jail_banned_current{hostname="fredvps", jail="port-decoy"}'
+        values: "60+0x100"
+    alert_rule_test:
+      - eval_time: 400m
+        alertname: Fail2banStandingBansHigh
+        exp_alerts: []
+
+  #########################################################################
+  # Fail2banJailApproachingSetLimit
+  #########################################################################
+  - interval: 5m
+    name: Fail2banJailApproachingSetLimit fires for one oversized jail
+    input_series:
+      - series: 'f2b_jail_banned_current{hostname="fredvps", jail="recidive", role="agent"}'
+        values: "35000+0x40"
+    alert_rule_test:
+      - eval_time: 120m
+        alertname: Fail2banJailApproachingSetLimit
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              hostname: fredvps
+              jail: recidive
+              role: agent
+            exp_annotations:
+              summary: "fail2ban jail recidive is approaching its ipset limit on fredvps"
+              description: "Jail recidive holds 35000 bans against a per-set maxelem of 65536. Past that ceiling `ipset add` fails silently: fail2ban keeps reporting the address as banned while its packets are delivered normally, so the dashboard stays green while the block does not exist. Raising maxelem requires recreating the set (`ipset -exist create` will not alter it), so treat this as scheduled work, not a page to sit on. Raise hashsize from its 1024 default at the same time."
+
+  - interval: 5m
+    name: Fail2banJailApproachingSetLimit ignores a high total spread over jails
+    input_series:
+      # 45000 bans on the host, but maxelem is per set and no set is near it.
+      # This is the case a summed rule would get wrong in the alarming
+      # direction; Fail2banStandingBansHigh is what covers the total.
+      - series: 'f2b_jail_banned_current{hostname="fredvps", jail="recidive"}'
+        values: "15000+0x40"
+      - series: 'f2b_jail_banned_current{hostname="fredvps", jail="port-decoy"}'
+        values: "15000+0x40"
+      - series: 'f2b_jail_banned_current{hostname="fredvps", jail="ssh-decoy"}'
+        values: "15000+0x40"
+    alert_rule_test:
+      - eval_time: 120m
+        alertname: Fail2banJailApproachingSetLimit
+        exp_alerts: []
