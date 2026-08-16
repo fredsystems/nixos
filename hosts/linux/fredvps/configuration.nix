@@ -546,33 +546,70 @@ in
                     {^LN-BEG}
     '';
 
-    # Host-wide, silent bans.
+    # Host-wide, silent bans, held in an ipset rather than in iptables rules.
     #
-    # Two deviations from the stock `iptables-multiport` + REJECT default,
-    # both deliberate.
+    # Three deviations from the stock `iptables-multiport` + REJECT default,
+    # all deliberate.
+    #
+    # IPSET, NOT ONE IPTABLES RULE PER ADDRESS. This is the load-bearing one.
+    # `iptables.conf` bans by inserting `-s <ip> -j DROP` into a per-jail
+    # chain, and an iptables chain is a LINEAR scan: a packet that matches
+    # nothing -- which is every packet from a legitimate client -- is compared
+    # against every rule in every f2b chain before it reaches nixos-fw. That
+    # cost is proportional to the ban count, and the ban count here is not
+    # small or stable. Measured on 2026-08-15, before this change:
+    #
+    #   f2b-recidive        407 rules
+    #   f2b-port-decoy       56
+    #   f2b-ssh-decoy        21
+    #   f2b-nginx-probe      14
+    #   total INPUT path    588
+    #
+    # recidive is a flat one-week ban (see the jail below), so its steady
+    # state is 7 x the daily intake, and daily intake went from ~25 to ~141
+    # when the decoy port list grew on 2026-08-12. That puts the chain on a
+    # path to ~1000 rules with no ceiling in sight, and f2b-recidive sits LAST
+    # in the INPUT jump order, so it is the full-length walk that every
+    # accepted packet pays for.
+    #
+    # `iptables-ipset.conf` replaces the whole per-jail chain with a single
+    # INPUT rule matching a kernel hash set:
+    #
+    #   -A INPUT -p tcp -m set --match-set f2b-recidive src -j DROP
+    #
+    # One rule per jail, O(1) lookup, and the ban count stops being a
+    # per-packet cost at all. Requires the `ipset` binary (see extraPackages
+    # below) and the xt_set / ip_set_hash_ip kernel modules, both present.
+    #
+    # WHERE THE BANS LIVE NOW. There is no f2b-<name> iptables chain under
+    # this action -- `iptables -L f2b-recidive` will report no such chain.
+    # Banned addresses are set members: `ipset list f2b-recidive`. The stock
+    # maxelem of 65536 is left alone; it is two orders of magnitude above the
+    # projected steady state. ipsettime is also left at 0, which means the set
+    # entries carry no kernel-side timeout and fail2ban continues to own
+    # unbanning -- identical expiry semantics to the iptables action, so the
+    # escalation ladder and the exported bantimes are unaffected.
     #
     # ALLPORTS, NOT MULTIPORT. The stock action installs the jump into INPUT
     # as `-p tcp -m multiport --dports http,https -j f2b-nginx-probe`, so a
-    # prober banned by an nginx jail was still free to hit sshd on 2269. Note
-    # that this is NOT visible in `iptables -L f2b-nginx-probe`: the per-
-    # address rules in that chain always read `all -- <ip> 0.0.0.0/0`, because
-    # the port match lives on the INPUT jump rule, not on the ban rules. The
-    # chain listing looks host-wide under both actions; `iptables -L INPUT -n`
-    # is where the difference actually shows. `type = allports` drops the port
-    # match from the jump, which makes the "all" in the chain listing mean
-    # what it appears to.
+    # prober banned by an nginx jail was still free to hit sshd on 2269.
+    # `type = allports` drops the port match, so the ban is genuinely
+    # host-wide. Under ipset this is visible directly in `iptables -S INPUT`:
+    # the match-set rule carries no --dports.
     #
     # DROP, NOT REJECT. The default answers with ICMP port-unreachable, which
     # tells a scanner immediately that it is blocked and frees it to move on.
     # DROP makes it wait for its own TCP timeout on every connection, and
     # since our bans are host-wide that cost applies to every port it tries.
     #
-    # blocktype is set for both families -- iptables.conf overrides it under
-    # [Init?family=inet6] for the ICMPv6 variant, so setting only the v4 value
-    # would leave IPv6 offenders on REJECT.
-    "fail2ban/action.d/iptables-allports-drop.conf".text = ''
+    # blocktype is set for both families. iptables-ipset.conf pulls in
+    # iptables.conf, which overrides blocktype under [Init?family=inet6] for
+    # the ICMPv6 variant, so setting only the v4 value would leave IPv6
+    # offenders on REJECT. The v6 set is a separate ipset (f2b-<name>6),
+    # created automatically by the family=inet6 init.
+    "fail2ban/action.d/iptables-ipset-allports-drop.conf".text = ''
       [INCLUDES]
-      before = iptables.conf
+      before = iptables-ipset.conf
 
       [Definition]
       type = allports
@@ -736,11 +773,16 @@ in
       maxretry = 5;
       bantime = "1h";
 
-      # Host-wide silent bans for every jail. See the action definition above
-      # for why allports and why DROP. Both are set because banaction-allports
-      # is what the recidive jail below uses.
-      banaction = "iptables-allports-drop";
-      banaction-allports = "iptables-allports-drop";
+      # Host-wide silent bans for every jail, backed by ipset. See the action
+      # definition above for why ipset, why allports and why DROP. Both are
+      # set because banaction-allports is what the recidive jail below uses.
+      banaction = "iptables-ipset-allports-drop";
+      banaction-allports = "iptables-ipset-allports-drop";
+
+      # The action above shells out to `ipset`, which is not otherwise on the
+      # unit's PATH. Without this every actionban fails and nothing is
+      # actually blocked, while fail2ban still reports the address as banned.
+      extraPackages = [ pkgs.ipset ];
 
       # How long ban history is retained, which is what the escalation above
       # counts against. The stock value is 1d, so an address that stays away
