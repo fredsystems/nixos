@@ -501,6 +501,63 @@
       ]
     },
     {
+      "id": 34,
+      "type": "stat",
+      "title": "Hidden From Table",
+      "description": "Active bans too old to appear in Recent Bans, which shows only the 100 most recently started per jail. These addresses are still fully banned -- this is a display limit, not an enforcement one. Normally this is entirely recidive, whose week-long bans accumulate far past what is worth rendering as a table; the short-bantime jails expire below the window on their own and contribute nothing here. Add this to the table's row count to reconcile against Currently Banned. A non-zero value is expected and is not a fault.",
+      "gridPos": {
+        "h": 6,
+        "w": 10,
+        "x": 0,
+        "y": 12
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "sum(f2b_banned_ip_outside_window)",
+          "instant": true,
+          "refId": "A"
+        }
+      ]
+    },
+    {
       "id": 31,
       "type": "table",
       "title": "Recent Bans",
