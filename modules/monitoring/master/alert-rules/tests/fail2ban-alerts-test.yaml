@@ -217,7 +217,7 @@ tests:
               role: agent
             exp_annotations:
               summary: "fail2ban jail nginx-probe exceeded its ban-list cap on fredvps"
-              description: "12 banned address(es) in jail nginx-probe are omitted from the exported metrics because the 200-per-jail cap was hit. Aggregates stay correct, but the Active Bans table is incomplete. Either an unusually large sweep is in progress or MAX_PER_JAIL needs raising."
+              description: "12 banned address(es) in jail nginx-probe are omitted from the exported metrics because the 1500-per-jail cap was hit. Aggregates stay correct, but the Active Bans table is incomplete. Either an unusually large sweep is in progress or MAX_PER_JAIL needs raising."
 
   - interval: 1m
     name: Fail2banBanListTruncated silent when under the cap

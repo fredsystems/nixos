@@ -370,7 +370,7 @@
       "id": 32,
       "type": "stat",
       "title": "Longest Active Ban",
-      "description": "Highest ban length currently in force. Climbs as the escalation ladder engages. Computed across every active ban, including any the table below omits when a jail exceeds its 200-address cap, so this stays correct during a large sweep.",
+      "description": "Highest ban length currently in force. Climbs as the escalation ladder engages. Computed across every active ban, including any the table below omits when a jail exceeds its 1500-address cap, so this stays correct during a large sweep.",
       "gridPos": {
         "h": 5,
         "w": 5,

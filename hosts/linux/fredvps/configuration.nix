@@ -367,12 +367,29 @@ in
 
           mkdir -p "$TEXTFILE_DIR"
 
-          # Cap per jail. Only CURRENTLY banned addresses are emitted, so this
-          # normally sits around ten and expires down on its own -- but a
-          # distributed sweep during a 64h escalated bantime could pile up, and
-          # unbounded per-IP labels are how a metrics backend gets hurt. Anything
-          # past the cap is counted, not emitted.
-          MAX_PER_JAIL=200
+          # Cap per jail. Only CURRENTLY banned addresses are emitted, so the
+          # short-bantime jails expire down on their own and sit well under
+          # this. recidive does not: its bantime is a flat week, so its steady
+          # state is 7 x the daily intake with no decay in between.
+          #
+          # This was 200, chosen against an observed peak of 84. The decoy port
+          # list grew on 2026-08-12 and recidive's daily intake went from ~25
+          # to ~141, which puts the steady state near 1000 -- so the old cap
+          # was not marginally small, it was ~5x short, and the alert on it
+          # would have been stuck on permanently rather than flagging an
+          # anomaly. 1500 restores headroom over the projected steady state.
+          #
+          # The cap still exists because unbounded per-IP labels are how a
+          # metrics backend gets hurt, but note what it does and does not
+          # bound: it bounds CONCURRENT series, not distinct series over
+          # retention. Roughly 1900 unique addresses are banned here per day,
+          # each producing two series that live for Prometheus' full 90d
+          # retention, and that number is unaffected by this value. If the
+          # exporter ever needs a real cardinality diet, it is the churn that
+          # has to be addressed, not this cap.
+          #
+          # Anything past the cap is counted, not emitted.
+          MAX_PER_JAIL=1500
 
           {
             echo "# HELP f2b_banned_ip_bantime_seconds Length of the current ban for this address."

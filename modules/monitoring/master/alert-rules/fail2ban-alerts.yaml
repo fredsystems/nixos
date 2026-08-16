@@ -169,7 +169,7 @@ groups:
             `fail2ban-client get <jail> banip --with-time` against the parser
             in hosts/linux/fredvps/configuration.nix.
 
-      # A jail exceeded the 200-address per-jail cap.
+      # A jail exceeded the 1500-address per-jail cap.
       #
       # Two possible meanings, both worth knowing about: either the host is
       # under a distributed sweep large enough to matter, or the cap needs
@@ -180,8 +180,18 @@ groups:
       # silently under-reported the longest active ban, so this alert would
       # have fired alongside a panel that was quietly wrong.
       #
-      # Peak concurrent bans in any jail to date is 84, so this has headroom
-      # and should not fire in normal operation.
+      # The cap was 200, sized against a then-peak of 84. On 2026-08-15 the
+      # recidive jail hit 405 and this fired for real: the decoy port list had
+      # grown three days earlier and recidive's daily intake went ~25 -> ~141.
+      # Because recidive bans are a flat week, steady state is 7 x intake, so
+      # the honest projection was ~1000 and the alert would have been stuck on
+      # rather than signalling an anomaly. Raised to 1500 for headroom over
+      # that projection.
+      #
+      # If this fires again, check the intake trend before reaching for the
+      # cap again -- a further step change in daily bans is the thing worth
+      # knowing about, and raising the cap is only the right response once the
+      # new steady state is understood.
       - alert: Fail2banBanListTruncated
         expr: f2b_banned_ip_truncated > 0
         for: 15m
@@ -191,7 +201,7 @@ groups:
           summary: "fail2ban jail {{ $labels.jail }} exceeded its ban-list cap on {{ $labels.hostname }}"
           description: >-
             {{ $value }} banned address(es) in jail {{ $labels.jail }} are
-            omitted from the exported metrics because the 200-per-jail cap was
-            hit. Aggregates stay correct, but the Active Bans table is
+            omitted from the exported metrics because the 1500-per-jail cap
+            was hit. Aggregates stay correct, but the Active Bans table is
             incomplete. Either an unusually large sweep is in progress or
             MAX_PER_JAIL needs raising.
