@@ -49,6 +49,14 @@ on:
 
   workflow_dispatch:
 
+# Static group name: push-to-main, the daily schedule, and a manual
+# dispatch all archive the same input set to the same cache.
+# cancel-in-progress must stay false -- this pushes NARs to Attic, and a
+# cancelled push should not be interrupted mid-upload.
+concurrency:
+  group: cache-flake-inputs
+  cancel-in-progress: false
+
 permissions:
   contents: read
 

@@ -7,6 +7,20 @@ on:
     types: [opened, synchronize, reopened]
   workflow_dispatch:
 
+# Keyed on the ref so unrelated PRs (and merge-queue entries) never cancel
+# each other. cancel-in-progress is true: a superseded push to the same PR
+# ref should not keep occupying the scarce self-hosted macOS runners while
+# a newer commit is waiting to build.
+concurrency:
+  group: ci-darwin-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  # `gh pr view` in the merge-queue-ci-skipper composite action (used by
+  # skip-if-clean below) reads the PR for the current ref.
+  pull-requests: read
+
 jobs:
   # =====================================================================
   # Fast-path: Detect whether merge_queue introduces zero diff
