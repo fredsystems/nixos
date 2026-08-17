@@ -439,6 +439,32 @@ in
   networking = {
     firewall = {
       allowedTCPPorts = [
+        # DNS over TCP.
+        #
+        # Not optional: RFC 7766 makes TCP a required transport for every DNS
+        # server, and it is how a resolver recovers when a UDP answer comes back
+        # truncated (TC=1). Without it those names simply fail rather than
+        # retrying, which is a silent, per-name, intermittent fault -- the worst
+        # kind to notice.
+        #
+        # AdGuard has been listening on TCP 53 the whole time (`ss -tlnp` shows
+        # AdGuardHome on `*:53`); only the firewall was dropping it, so this
+        # opens an existing listener rather than exposing anything new. The
+        # audience is unchanged too: UDP 53 was already open to the same LAN.
+        #
+        # Measured before adding, so the size of the problem is on record rather
+        # than assumed. With unbound advertising `edns-buffer-size: 1232` (the
+        # DNS Flag Day 2020 value), nothing in normal use truncates -- the root
+        # DNSKEY, the largest realistic case, comes back at 1139 bytes. So this
+        # is a correctness fix for the tail (long SPF/TXT chains, DNSSEC-heavy
+        # zones, ANY queries), not a fix for anything currently failing, and it
+        # is unrelated to the 2026-08-15/16 outages.
+        #
+        # Note there is deliberately no blackbox probe for this. The exporter
+        # runs on this host, and traffic to sdrhub's own address arrives over
+        # `lo`, which is in trustedInterfaces -- so a probe would pass whether or
+        # not this rule existed, asserting something weaker than it appears to.
+        53
         80
         # nginx TLS, for the vhosts that have been migrated to the
         # int.fredsystems.org certificate. 80 stays open: the `.lan` vhosts
