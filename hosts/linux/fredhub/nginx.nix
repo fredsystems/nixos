@@ -59,7 +59,20 @@
     acceptTerms = true;
     defaults.email = "clausen.fred@me.com";
 
+    # One certificate covering every int.fredsystems.org name this host serves.
+    #
+    # The cert is *named* for attic because that was the first vhost here; the
+    # name is only an identifier for the state directory and the `useACMEHost`
+    # reference. `extraDomainNames` is what makes it cover the rest. One order
+    # and one renewal beats three of each, and unlike sdrhub's wildcard it
+    # cannot race another host on a shared `_acme-challenge` record, because
+    # each name gets its own.
     certs."attic.int.fredsystems.org" = {
+      extraDomainNames = [
+        "ai.int.fredsystems.org"
+        "jellyfin.int.fredsystems.org"
+      ];
+
       dnsProvider = "cloudflare";
 
       # credentialFiles, not environmentFile: rendered as a systemd
@@ -93,32 +106,95 @@
     # NAR that attic has already compressed, and the default gzip_types would
     # not match it anyway -- it would be CPU spent to no effect.
 
-    virtualHosts."attic.int.fredsystems.org" = {
-      forceSSL = true;
-      useACMEHost = "attic.int.fredsystems.org";
+    # Both application vhosts below push updates over websockets, so they need
+    # the upgrade dance. Same map sdrhub uses.
+    appendHttpConfig = ''
+      map $http_upgrade $connection_upgrade {
+        default upgrade;
+        "" close;
+      }
+    '';
 
-      locations."/" = {
-        proxyPass = "http://127.0.0.1:8080";
+    # OpenWebUI. Previously reached as ai.int.fredsystems.org on SDRHUB, which
+    # proxied here over plain HTTP -- so the login crossed the LAN in cleartext
+    # on that second hop even though the client saw TLS. Serving it from the
+    # machine it actually runs on removes the hop rather than encrypting it,
+    # which is both simpler and strictly better.
+    #
+    # The matching AdGuard rewrite now answers with this host; the `.lan` alias
+    # still redirects from sdrhub for anything with an old bookmark.
+    virtualHosts = {
+      "ai.int.fredsystems.org" = {
+        forceSSL = true;
+        useACMEHost = "attic.int.fredsystems.org";
 
-        extraConfig = ''
-          # NAR uploads are large and unbounded. nginx defaults to a 1 MB body
-          # limit, which would reject essentially every push with a 413 -- and
-          # the client reports that as a generic upload failure, so it is worth
-          # being explicit rather than picking a number that happens to work
-          # until the day a big closure comes along.
-          client_max_body_size 0;
+        locations."/" = {
+          proxyPass = "http://127.0.0.1:${toString config.ai.local-llm.webuiPort}";
+          extraConfig = ''
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection $connection_upgrade;
 
-          # Stream to atticd rather than spooling the whole body to disk first.
-          # With buffering on, a multi-gigabyte push is written to nginx's temp
-          # directory in full before atticd sees a single byte, which doubles
-          # the I/O and can fill the disk.
-          proxy_request_buffering off;
+            # Model responses stream token by token. With buffering on, nginx
+            # holds the whole reply and the UI appears frozen until it finishes.
+            proxy_buffering off;
 
-          # A large push legitimately takes minutes. The defaults are 60s, which
-          # would cut long uploads off partway with a 504.
-          proxy_read_timeout 600s;
-          proxy_send_timeout 600s;
-        '';
+            # A long generation legitimately outlasts the 60s default.
+            proxy_read_timeout 600s;
+          '';
+        };
+      };
+
+      # Jellyfin. Same second-hop problem as ai above, same fix.
+      "jellyfin.int.fredsystems.org" = {
+        forceSSL = true;
+        useACMEHost = "attic.int.fredsystems.org";
+
+        locations."/" = {
+          proxyPass = "http://127.0.0.1:8096";
+          extraConfig = ''
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection $connection_upgrade;
+
+            # Jellyfin streams media and pushes session state over a websocket;
+            # buffering either would add latency for no benefit.
+            proxy_buffering off;
+
+            # Uploads (subtitles, artwork) and long-lived stream connections.
+            client_max_body_size 512m;
+            proxy_read_timeout 600s;
+          '';
+        };
+      };
+
+      "attic.int.fredsystems.org" = {
+        forceSSL = true;
+        useACMEHost = "attic.int.fredsystems.org";
+
+        locations."/" = {
+          proxyPass = "http://127.0.0.1:8080";
+
+          extraConfig = ''
+            # NAR uploads are large and unbounded. nginx defaults to a 1 MB body
+            # limit, which would reject essentially every push with a 413 -- and
+            # the client reports that as a generic upload failure, so it is worth
+            # being explicit rather than picking a number that happens to work
+            # until the day a big closure comes along.
+            client_max_body_size 0;
+
+            # Stream to atticd rather than spooling the whole body to disk first.
+            # With buffering on, a multi-gigabyte push is written to nginx's temp
+            # directory in full before atticd sees a single byte, which doubles
+            # the I/O and can fill the disk.
+            proxy_request_buffering off;
+
+            # A large push legitimately takes minutes. The defaults are 60s, which
+            # would cut long uploads off partway with a 504.
+            proxy_read_timeout 600s;
+            proxy_send_timeout 600s;
+          '';
+        };
       };
     };
   };

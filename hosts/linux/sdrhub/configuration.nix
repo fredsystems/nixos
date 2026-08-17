@@ -202,31 +202,6 @@ let
       vhost.locations."/".proxyPass = "http://192.168.31.20:8084";
     };
 
-    # OpenWebUI on fredhub. Carries a login and chat history, so this is one
-    # of the three that motivated migrating the rest of the host.
-    #
-    # NOTE: TLS here covers client -> sdrhub only. The proxy_pass to fredhub
-    # is still plaintext across the LAN, so the credential is protected on the
-    # first hop and not the second. Fixing that needs TLS on fredhub, which is
-    # a separate piece of work.
-    ai = {
-      legacy = [
-        "ai.sdrhub.lan"
-        "ai.sdrhub.local"
-      ];
-      vhost.locations."/".proxyPass = "http://192.168.31.14:8889";
-    };
-
-    # Jellyfin on fredhub. Same login exposure, and the same second-hop
-    # caveat as ai above.
-    jellyfin = {
-      legacy = [
-        "jellyfin.sdrhub.lan"
-        "jellyfin.sdrhub.local"
-      ];
-      vhost.locations."/".proxyPass = "http://192.168.31.14:8096";
-    };
-
     # degoog. Search queries are worth protecting on their own, and the
     # container carries a settings password.
     search = {
@@ -402,15 +377,51 @@ let
   # cannot come from migratedVhosts above -- that map is specifically the vhosts
   # this host's nginx terminates, and its answer is hardcoded to sdrhub.
   #
-  # attic is the binary cache on fredhub. TLS terminates there rather than being
-  # proxied through here on purpose: proxying would leave the push token in
-  # cleartext on the sdrhub -> fredhub hop, which is the whole thing it exists
-  # to prevent. See hosts/linux/fredhub/nginx.nix.
+  # All three live on fredhub and terminate TLS there rather than being proxied
+  # through here. For attic that is the point: proxying would leave the push
+  # token in cleartext on the sdrhub -> fredhub hop, which is the whole thing it
+  # exists to prevent. ai and jellyfin had exactly that defect -- the client saw
+  # TLS while their logins crossed the LAN in the clear on the second hop -- and
+  # the fix is to remove the hop rather than encrypt it. See
+  # hosts/linux/fredhub/nginx.nix.
+  externalTlsHosts = {
+    attic = "192.168.31.14";
+    ai = "192.168.31.14";
+    jellyfin = "192.168.31.14";
+  };
+
   externalTlsRewrites = lib.mapAttrsToList (name: ip: {
     enabled = true;
     domain = "${name}.${internalDomain}";
     answer = ip;
-  }) { attic = "192.168.31.14"; };
+  }) externalTlsHosts;
+
+  # The plaintext `.lan` aliases for services that USED to be served here and
+  # have since moved to another host.
+  #
+  # They still resolve to sdrhub (they are in lanHosts), so without these there
+  # would be nothing listening for them and an old bookmark would get the
+  # catch-all rather than a redirect. Same 308 the migratedVhosts entries emit,
+  # pointing at whichever host now serves the name.
+  relocatedLegacyVhosts =
+    lib.mapAttrs'
+      (
+        name: legacy:
+        lib.nameValuePair (lib.head legacy) {
+          serverAliases = lib.tail legacy;
+          locations."/".return = "308 https://${name}.${internalDomain}$request_uri";
+        }
+      )
+      {
+        ai = [
+          "ai.sdrhub.lan"
+          "ai.sdrhub.local"
+        ];
+        jellyfin = [
+          "jellyfin.sdrhub.lan"
+          "jellyfin.sdrhub.local"
+        ];
+      };
 in
 {
   imports = [
@@ -1315,6 +1326,7 @@ in
       virtualHosts =
         tlsVirtualHosts
         // legacyRedirectVirtualHosts
+        // relocatedLegacyVhosts
         // {
           # Explicit catch-all for unmatched SNI on 443.
           #
