@@ -735,7 +735,12 @@ jobs:
     runs-on: [self-hosted, Linux]
     needs: [skip-if-clean]
     if: ${{ needs.skip-if-clean.outputs.skip != 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+    # Matches build-servers/build-desktops. id-token is not used by this job,
+    # but nix-installer-action warns on every run without it ("FlakeHub is
+    # disabled because the workflow is misconfigured"), and this repo treats a
+    # noisy CI log as a defect.
     permissions:
+      id-token: "write"
       contents: "read"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -748,12 +753,19 @@ jobs:
             access-tokens = github.com=${{ github.token }}
             accept-flake-config = true
 
+      # jq comes from `nix shell`, not the runner: the self-hosted NixOS
+      # runners have no jq on PATH (ubuntu-latest does, which is why this only
+      # surfaced after moving off it). Same invocation fleet-manifest.yaml uses
+      # for gen-fleet-manifest.sh.
+      #
       # No --emit-paths: the paths JSON exists only so gen-fleet-manifest.sh
-      # can reuse this eval. Emitting it here dumped 10 store paths as one
-      # unreadable line into the log.
+      # can reuse this eval. Emitting it here dumped 10 store paths into the
+      # log as one unreadable line.
       - name: Check colmena/nixosConfigurations parity
         shell: bash
-        run: ./scripts/check-colmena-parity.sh
+        run: |
+          nix shell --inputs-from . nixpkgs#jq --command \
+            ./scripts/check-colmena-parity.sh
 
   # =====================================================================
   # Required summary check
