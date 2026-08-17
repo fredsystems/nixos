@@ -451,8 +451,16 @@ let
           valid_rcodes = [ "NOERROR" ];
           transport_protocol = "udp";
           preferred_ip_protocol = "ip4";
+          # Anchored at both ends of the address, and that is load-bearing.
+          # The exporter matches this against each answer RR's string form
+          # (`sdrhub.lan.\t60\tIN\tA\t192.168.31.20`), so an unanchored
+          # `.*192\.168\.31\.20` is also satisfied by 192.168.31.200 -- a
+          # rewrite silently repointed at a different host in the same /24
+          # would keep the probe green. `\s` matches the tab that separates
+          # the rdata from the type, so the leading `.*` cannot absorb part
+          # of the address either.
           validate_answer_rrs = {
-            fail_if_not_matches_regexp = [ ".*192\\.168\\.31\\.20" ];
+            fail_if_not_matches_regexp = [ ".*\\s192\\.168\\.31\\.20$" ];
           };
         };
       };
