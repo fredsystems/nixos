@@ -93,12 +93,26 @@ sops modules/secrets/secrets.yaml
 Put the `ci` token in GitHub: **Settings, Secrets and variables, Actions,
 `ATTIC_TOKEN`**.
 
-Deploy the two desktops and commit the sops change:
+Deploy **both** desktops and commit the sops change:
 
 ```sh
+# on maranello
 sudo nixos-rebuild switch --flake .#maranello
+
+# on Daytona -- note the capital D, that is the attribute name
+sudo nixos-rebuild switch --flake .#Daytona
+
 git add modules/secrets/secrets.yaml && git commit
 ```
+
+Daytona is not optional and is not covered by `colmena apply`: both desktops are
+excluded from the colmena topology (see `flake/deployment/colmena.nix`), and both
+set `programs.atticClient.tokenFile` in `home-profiles/desktop.nix`, which
+`modules/services/attic/attic_client.nix` renders into `config.toml` during
+home-manager activation. A desktop that is not activated keeps the token it last
+activated with, and loses push access the moment that token expires or the
+signing key is rotated. Commit only after both have activated, so the committed
+sops value and the fleet agree.
 
 Then run the checks in "Verifying a change" below.
 
@@ -240,14 +254,10 @@ to reject while the key is wrong.
 ## Verifying a change
 
 ```sh
-# anonymous pull still works
+# anonymous pull still works. Plaintext on purpose -- this is the substituter
+# path, and it is the one thing that must not depend on DNS or a certificate.
 curl -s -o /dev/null -w '%{http_code}\n' \
   http://192.168.31.14:8080/fred/nix-cache-info          # expect 200
-
-# an old token is genuinely dead (after Procedure B or C only)
-curl -s -o /dev/null -w '%{http_code}\n' \
-  -H "Authorization: Bearer <OLD_TOKEN>" \
-  http://192.168.31.14:8080/fred/nix-cache-info          # expect 401
 
 # push works from a desktop
 attic push fred /run/current-system
@@ -259,6 +269,44 @@ grep -rn "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9" \
 ```
 
 Then trigger any workflow with a push step and confirm it succeeds.
+
+### Proving an old token is dead
+
+After Procedure B or C only. This needs its own section because the obvious
+check does not work.
+
+`/fred/nix-cache-info` cannot prove anything: an unverifiable signature makes
+the request **anonymous** rather than an error (see `Read this first`), and
+anonymous already has pull on a public cache, so that endpoint returns 200 both
+before and after a rotation. The check has to use an endpoint that requires a
+permission anonymous does not have.
+
+`POST /_api/v1/get-missing-paths` is the one to use. It `require_push()`es, it
+mutates nothing, and it is the same call `attic push` makes first — so a 403
+here is exactly the failure a real push would hit:
+
+```sh
+hash=$(readlink -f /run/current-system | sed 's|^/nix/store/||; s|-.*$||')
+body="{\"cache\":\"fred\",\"store_path_hashes\":[\"$hash\"]}"
+
+probe() {
+  curl -s -o /dev/null -w '%{http_code}\n' -X POST \
+    -H 'Content-Type: application/json' -H "Authorization: Bearer $1" \
+    --data "$body" \
+    https://attic.int.fredsystems.org/_api/v1/get-missing-paths
+}
+
+probe "<OLD_TOKEN>"   # expect 403 -- revoked, so treated as anonymous
+probe "<NEW_TOKEN>"   # expect 200 -- the control: proves the probe itself works
+```
+
+Run both. A 403 on its own is ambiguous — a typo'd cache name gives 404 and
+malformed JSON gives 400, but a mis-copied *token* also gives 403, so without
+the second call you cannot tell a successful rotation from a broken probe.
+
+Note the HTTPS endpoint, not `192.168.31.14:8080`. Sending a token you are
+trying to prove is dead over plaintext is pointless if it turns out to be
+alive.
 
 ## Invariants
 
@@ -276,7 +324,12 @@ Then trigger any workflow with a push step and confirm it succeeds.
   keyed on the literal value, and CI ignores it entirely — every run logs
   `ignoring untrusted flake configuration setting`. Never let it be the only
   place a key lives.
-- **Plaintext HTTP on the LAN is an accepted risk for reads** — content is
-  signature-verified, so a MITM cannot inject anything Nix accepts. It is not
-  accepted for pushes, which carry a bearer token; moving the push endpoint
-  behind TLS on fredhub is tracked separately.
+- **Plaintext HTTP on the LAN is for anonymous reads only.** The substituter
+  stays on `http://192.168.31.14:8080/fred`: content is signature-verified, so a
+  MITM cannot inject anything Nix accepts, and that path needs no DNS,
+  certificate or nginx — which is what you want when the host being rebuilt from
+  the cache is the cache. Anything carrying a bearer token goes over
+  `https://attic.int.fredsystems.org`, which terminates TLS on fredhub itself
+  (see `hosts/linux/fredhub/nginx.nix`). That covers `attic push`, `attic login`
+  and the `_api/v1` calls in the verification section above. Never send a token
+  to port 8080.
