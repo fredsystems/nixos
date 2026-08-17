@@ -7,6 +7,20 @@ on:
     types: [opened, synchronize, reopened]
   workflow_dispatch:
 
+# Keyed on the ref so unrelated PRs (and merge-queue entries) never cancel
+# each other. cancel-in-progress is true: a superseded push to the same PR
+# ref should not keep occupying the scarce self-hosted Linux runners while
+# a newer commit is waiting to build.
+concurrency:
+  group: ci-linux-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  # `gh pr view` in the merge-queue-ci-skipper composite action (used by
+  # skip-if-clean below) reads the PR for the current ref.
+  pull-requests: read
+
 jobs:
   # =====================================================================
   # Fast-path: MUST ALWAYS RUN or downstream jobs will skip
@@ -681,12 +695,55 @@ jobs:
           fi
 
   # =====================================================================
+  # Colmena / nixosConfigurations parity
+  #
+  # flake/deployment/colmena.nix and nixosConfigurations are two
+  # independent evaluation paths through the same host modules, and they
+  # have actually diverged before: colmena's plain `pkgs.lib` versus the
+  # flake-extended `lib` nixosSystem uses produced different
+  # `versionSuffix` values, which made the entire server fleet report
+  # `unmanaged`. See the comment in flake/deployment/colmena.nix.
+  #
+  # scripts/gen-fleet-manifest.sh already runs this exact check before
+  # every fleet-manifest publish, but that workflow only triggers on push
+  # to main and a 6-hour schedule -- a regression can merge with this PR
+  # check green and not surface for hours. Running it here closes that
+  # gap at review time instead.
+  #
+  # This is a pure Nix eval: colmenaHive is colmena.lib.makeHive, a Nix
+  # library function, and .outPath needs no realisation. It runs on
+  # ubuntu-latest rather than the self-hosted build runners for the same
+  # reason find-systems and find-devshell do. No fork guard is needed --
+  # this repo's fork guards exist to keep fork PR code off the
+  # self-hosted runners specifically; a GitHub-hosted runner evaluating a
+  # fork's flake has nothing sensitive to protect.
+  colmena-parity:
+    name: Colmena / nixosConfigurations parity
+    runs-on: ubuntu-latest
+    needs: [skip-if-clean]
+    if: ${{ needs.skip-if-clean.outputs.skip != 'true' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
+        with:
+          extra-conf: |
+            access-tokens = github.com=${{ github.token }}
+            accept-flake-config = true
+
+      - name: Check colmena/nixosConfigurations parity
+        shell: bash
+        run: ./scripts/check-colmena-parity.sh
+
+  # =====================================================================
   # Required summary check
   # =====================================================================
   build-linux-summary:
     name: Build Linux Summary
     runs-on: ubuntu-latest
-    needs: [skip-if-clean, build-servers, build-desktops, dev-shell]
+    needs:
+      [skip-if-clean, build-servers, build-desktops, dev-shell, colmena-parity]
     if: ${{ always() }}
 
     steps:
@@ -701,19 +758,25 @@ jobs:
           SERVERS="${{ needs.build-servers.result }}"
           DESKTOPS="${{ needs.build-desktops.result }}"
           DEVSHELL="${{ needs.dev-shell.result }}"
+          PARITY="${{ needs.colmena-parity.result }}"
 
-          echo "Servers result:   $SERVERS"
-          echo "Desktops result:  $DESKTOPS"
-          echo "Dev shell result: $DEVSHELL"
+          echo "Servers result:        $SERVERS"
+          echo "Desktops result:       $DESKTOPS"
+          echo "Dev shell result:      $DEVSHELL"
+          echo "Colmena parity result: $PARITY"
 
           # A result of "skipped" means the matrix was empty (no systems in
           # scope for this PR) — that is a valid outcome, not a failure.
-          if [ "$SERVERS" = "failure" ] || [ "$DESKTOPS" = "failure" ] || [ "$DEVSHELL" = "failure" ]; then
+          # colmena-parity is never skipped for a non-empty skip flag (it
+          # has no system-count gate of its own), so "skipped" there only
+          # happens via the same skip-if-clean fast-path already handled
+          # above.
+          if [ "$SERVERS" = "failure" ] || [ "$DESKTOPS" = "failure" ] || [ "$DEVSHELL" = "failure" ] || [ "$PARITY" = "failure" ]; then
             echo "❌ One or more Linux builds failed."
             exit 1
           fi
 
-          if [ "$SERVERS" = "cancelled" ] || [ "$DESKTOPS" = "cancelled" ] || [ "$DEVSHELL" = "cancelled" ]; then
+          if [ "$SERVERS" = "cancelled" ] || [ "$DESKTOPS" = "cancelled" ] || [ "$DEVSHELL" = "cancelled" ] || [ "$PARITY" = "cancelled" ]; then
             echo "❌ Build job was cancelled — treating as failure."
             exit 1
           fi

@@ -88,127 +88,36 @@ done
 
 NOW="$(date +%s)"
 
-# Evaluate every host's toplevel output path in a single eval.
+# Evaluate every host's toplevel output path, and verify colmena would
+# deploy the same closures nixosConfigurations describes.
 #
-# stderr is captured to a file rather than merged into stdout: nix prints
-# "Using saved setting for 'extra-substituters = ...'" notices for this flake's
-# nixConfig whenever the invoking user is not a trusted user, and folding those
-# into the JSON would corrupt it. This is the same trap the impacted-hosts
-# script documents.
-EVAL_STDERR="$(mktemp)"
-trap 'rm -f "$EVAL_STDERR"' EXIT
+# This is a regression guard for a bug that made the entire server fleet
+# report `unmanaged`: nixpkgs' `lib.nixosSystem` passes a flake-extended
+# `lib` into eval-config, colmena calls eval-config directly with the
+# plain `pkgs.lib`, and `system.nixos.versionSuffix` consequently came out
+# as `pre-git` instead of `.<date>.<shortRev>` -- so colmena and
+# nixosConfigurations evaluated to DIFFERENT store paths for the same host
+# at the same commit, and the manifest described paths that no server
+# would ever be running. See the comment in flake/deployment/colmena.nix.
+#
+# The eval and the comparison both live in check-colmena-parity.sh so
+# there is exactly one copy of this logic in the repo; that script is also
+# run standalone in CI on every pull request (see ci-linux.yaml's
+# colmena-parity job) so a divergence is caught long before it would
+# otherwise surface here, hours later, as a stale-manifest alert.
+#
+# The script prints the nixosConfigurations toplevel-outPath JSON (what
+# this generator needs as PATHS_JSON) on stdout and exits non-zero on any
+# failure, including a genuine parity mismatch -- so under `set -e` a
+# mismatch aborts this script too, before anything is published.
+echo "Evaluating system.build.toplevel for every host and verifying colmena parity (rev ${REV})..." >&2
 
-echo "Evaluating system.build.toplevel for every host (rev ${REV})..." >&2
-
-if ! PATHS_JSON="$(
-    nix eval --json .#nixosConfigurations \
-        --apply 'cfgs: builtins.mapAttrs (_: c: c.config.system.build.toplevel.outPath) cfgs' \
-        2>"$EVAL_STDERR"
-)"; then
-    printf 'error: failed to evaluate host toplevels:\n%s\n' "$(cat "$EVAL_STDERR")" >&2
-    exit 1
-fi
-
-# Mirror the CI policy that an evaluation warning is a failure. A warning does
-# not by itself change an output path, but publishing a manifest from a tree
-# that CI would have rejected would advertise paths for a commit that is not
-# actually deployable.
-if grep -q 'evaluation warning:' "$EVAL_STDERR"; then
-    printf 'error: evaluation produced warnings:\n%s\n' "$(cat "$EVAL_STDERR")" >&2
-    exit 1
-fi
-
-# An empty or non-object result means the flake changed shape; publishing it
-# would silently blank the manifest and disable drift detection fleet-wide.
-if [[ "$(jq -r 'type' <<<"$PATHS_JSON")" != "object" ]] ||
-    [[ "$(jq -r 'length' <<<"$PATHS_JSON")" -eq 0 ]]; then
-    echo "error: host evaluation produced no hosts -- refusing to publish" >&2
+if ! PATHS_JSON="$("$REPO_ROOT/scripts/check-colmena-parity.sh")"; then
+    echo "error: colmena/nixosConfigurations parity check failed (see above) -- refusing to publish" >&2
     exit 1
 fi
 
 echo "Evaluated $(jq -r 'length' <<<"$PATHS_JSON") host(s)." >&2
-
-# Assert that what colmena would deploy matches what this manifest publishes.
-#
-# This is a regression guard for a bug that made the entire server fleet report
-# `unmanaged`. The manifest is generated from `nixosConfigurations`, but servers
-# are deployed by colmena, and the two used to evaluate to DIFFERENT store paths
-# for the same host at the same commit: nixpkgs' `lib.nixosSystem` passes a
-# flake-extended `lib` into eval-config, colmena calls eval-config directly with
-# the plain `pkgs.lib`, and `system.nixos.versionSuffix` consequently came out as
-# `pre-git` instead of `.<date>.<shortRev>`. The manifest therefore described
-# paths that no server would ever be running. See the comment in
-# flake/deployment/colmena.nix.
-#
-# Nothing else in CI evaluates colmenaHive, so without this check the two paths
-# can silently diverge again -- a nixpkgs change to that lib overlay, or a
-# colmena bump, would be enough. Publishing a manifest that describes
-# undeployable paths is worse than not publishing: it marks every server
-# unmanaged. So divergence is fatal here rather than a warning.
-echo "Verifying colmena and nixosConfigurations agree..." >&2
-
-COLMENA_STDERR="$(mktemp)"
-trap 'rm -f "$EVAL_STDERR" "$COLMENA_STDERR"' EXIT
-
-if ! COLMENA_JSON="$(
-    nix eval --json '.#colmenaHive.nodes' \
-        --apply 'ns: builtins.mapAttrs (_: n: n.config.system.build.toplevel.outPath) ns' \
-        2>"$COLMENA_STDERR"
-)"; then
-    printf 'error: failed to evaluate colmenaHive nodes:\n%s\n' "$(cat "$COLMENA_STDERR")" >&2
-    echo "       Cannot confirm the manifest describes deployable paths; refusing to publish." >&2
-    exit 1
-fi
-
-# Same warnings-are-fatal policy the nixosConfigurations eval above applies.
-# This is the only place it can ever be enforced for the colmena evaluator:
-# nothing in CI evaluates colmenaHive, so a warning introduced by a nixpkgs or
-# colmena bump would otherwise never surface anywhere.
-if grep -q 'evaluation warning:' "$COLMENA_STDERR"; then
-    printf 'error: colmena evaluation produced warnings:\n%s\n' "$(cat "$COLMENA_STDERR")" >&2
-    exit 1
-fi
-
-# An empty or non-object node set would make the comparison below vacuous and
-# report "agree for 0 servers" on its way to publishing an unverified manifest.
-# Mirrors the identical guard applied to PATHS_JSON above.
-if [[ "$(jq -r 'type' <<<"$COLMENA_JSON")" != "object" ]] ||
-    [[ "$(jq -r 'length' <<<"$COLMENA_JSON")" -eq 0 ]]; then
-    echo "error: colmena evaluation produced no nodes -- refusing to publish" >&2
-    exit 1
-fi
-
-# A colmena node with no nixosConfigurations entry counts as a mismatch rather
-# than being skipped. Such a node should be unreachable -- mkNode dereferences
-# `self.nixosConfigurations.<name>._colmena`, so a missing entry throws during
-# evaluation and is caught above -- but suppressing the case would hide exactly
-# the failure this guard exists to report: a host colmena deploys that the
-# manifest has no path for, which reports `unmanaged` forever.
-MISMATCHED="$(
-    jq -rn \
-        --argjson a "$PATHS_JSON" \
-        --argjson b "$COLMENA_JSON" \
-        '$b | to_entries
-         | map(select($a[.key] != .value)
-               | "  \(.key)\n    nixosConfigurations: \($a[.key] // "<missing>")\n    colmena:             \(.value)")
-         | join("\n")'
-)"
-
-if [[ -n "$MISMATCHED" ]]; then
-    cat >&2 <<EOF
-error: colmena would deploy different closures than this manifest publishes.
-
-$MISMATCHED
-
-Every affected host would report deploy state 'unmanaged' forever, because its
-running closure is a path the manifest can never contain. Refusing to publish.
-
-Fix the divergence (see flake/deployment/colmena.nix) rather than this check.
-EOF
-    exit 1
-fi
-
-echo "colmena and nixosConfigurations agree for $(jq -r 'length' <<<"$COLMENA_JSON") server(s)." >&2
 
 # Previous manifest, if any. A malformed existing file is treated as absent
 # rather than fatal so a corrupted manifest self-heals on the next run.

@@ -33,6 +33,15 @@ on:
       - "flake.lock"
       - "overlays/opencode.nix"
 
+# Keyed on the ref so unrelated PRs never cancel each other.
+# cancel-in-progress is true: this pushes a fixup commit onto the PR
+# branch, and on rapid repushes only the newest head's hash matters -- a
+# superseded run racing to push a correction for a commit that no longer
+# exists is pure waste.
+concurrency:
+  group: opencode-hash-guard-${{ github.ref }}
+  cancel-in-progress: true
+
 # Only what checkout needs. The push authenticates with a PAT supplied inline
 # at push time, so the job token never needs write access, and nothing here
 # touches the pull-requests API.
