@@ -1,14 +1,63 @@
 {
   #######################################
-  # SOPS Secret
+  # SOPS Secrets
   #######################################
-  sops.secrets."monitoring/grafana_pw" = {
-    owner = "grafana";
-  };
+  # restartUnits on both secrets below, for the same reason it is on atticd_env
+  # in modules/services/attic/attic_server.nix.
+  #
+  # Grafana reads both through `$__file{...}`, which it resolves once while
+  # parsing grafana.ini at process start. The referenced path never changes, so
+  # editing a secret's VALUE produces a byte-identical unit and a byte-identical
+  # config file: switch-to-configuration sees no change, restarts nothing, and
+  # Grafana keeps using the value it loaded at its last start. A rotation would
+  # therefore appear to have been applied while the old key or password was
+  # still live -- exactly the failure that made the attic key rotation silently
+  # not happen.
+  #
+  # sops-install-secrets resolves restartUnits at activation by comparing the
+  # decrypted bytes, so this restarts Grafana only when a value actually
+  # changes, not on every deploy.
+  sops.secrets = {
+    "monitoring/grafana_pw" = {
+      owner = "grafana";
+      restartUnits = [ "grafana.service" ];
+    };
 
-  networking.firewall.allowedTCPPorts = [
-    3333 # Grafana
-  ];
+    # Grafana's envelope-encryption root key.
+    #
+    # This used to be the string literal "SW2YcwTIb9zpOOhoPsMm" in this file --
+    # which is nixpkgs' pre-26.05 default, i.e. a publicly documented constant,
+    # committed to a public repository and rendered world-readable into the Nix
+    # store. It protected nothing, twice over.
+    #
+    # Moving the SAME value into sops would have been theatre: it is already
+    # public and unchangeable in git history. So the value behind this secret is
+    # a freshly generated one, and the old constant is now dead.
+    #
+    # Rotating it is safe here, which was verified against the live database
+    # rather than assumed:
+    #
+    #   * Both datasources' `secure_json_data` is `{}` -- they proxy to loopback
+    #     Prometheus and Loki with no credentials to lose.
+    #   * The `secrets` table holds one 79-byte row per datasource, and both
+    #     datasources are provisioned declaratively below, so Grafana re-encrypts
+    #     and rewrites them with the new key on the next start.
+    #   * The unified-alerting config is Grafana's untouched default, whose only
+    #     receiver carries a placeholder address in plain `settings`, not
+    #     `secureSettings`.
+    #   * Dashboards, users, alert rules and annotations are not encrypted with
+    #     this key at all.
+    #   * Browser sessions live in `user_auth_token` as hashes and are unrelated,
+    #     so rotating does not sign anyone out.
+    #
+    # The 42 rows in `data_keys` are wrapped with the old key and become
+    # undecryptable. They protect nothing per the above; expect Grafana to log
+    # decryption errors for them once and then move on.
+    "monitoring/grafana_secret_key" = {
+      owner = "grafana";
+      restartUnits = [ "grafana.service" ];
+    };
+  };
 
   environment.etc = {
     "grafana/provisioning/dashboards/system/node-exporter-full.json" = {
@@ -78,14 +127,40 @@
       settings = {
         server = {
           http_port = 3333;
-          http_addr = "0.0.0.0";
+
+          # Loopback only. Grafana was previously on 0.0.0.0 with 3333 opened in
+          # the firewall and no TLS anywhere, which meant the admin password
+          # crossed the LAN in cleartext on every login -- to a service that is
+          # a full read/write control plane, not a read-only dashboard.
+          #
+          # It is now reached exclusively through the nginx vhost in
+          # hosts/linux/sdrhub/configuration.nix, the same treatment karma and
+          # the clipboard server already get. The `networking.firewall` entry
+          # for 3333 is gone with it.
+          #
+          # This does not affect the Prometheus scrape job in prometheus.nix,
+          # which already targets 127.0.0.1:3333.
+          http_addr = "127.0.0.1";
+
+          # Required once Grafana is behind a proxy: it builds absolute URLs
+          # (login redirects, alert links, generated share URLs) from these, and
+          # without them it would advertise http://localhost:3333 to browsers
+          # that reached it over TLS on another name.
+          #
+          # Kept in lockstep with the vhost by an assertion in
+          # hosts/linux/sdrhub/configuration.nix, which fails the build if this
+          # URL and the server_name stop agreeing.
+          domain = "grafana.int.fredsystems.org";
+          root_url = "https://grafana.int.fredsystems.org/";
         };
 
         security = {
           admin_user = "admin";
           admin_password = "$__file{/run/secrets/monitoring/grafana_pw}";
 
-          secret_key = "SW2YcwTIb9zpOOhoPsMm"; # default from pre 26.05. Why we removed it I'll never know.
+          # See the sops block at the top of this file for why this is no longer
+          # a literal, and for the evidence that rotating it is safe.
+          secret_key = "$__file{/run/secrets/monitoring/grafana_secret_key}";
         };
       };
 

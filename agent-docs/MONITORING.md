@@ -112,7 +112,40 @@ their own modules rather than here: `scrapeConfigs` and `ruleFiles` are both
 | blackbox-exporter       | 127.0.0.1:9115 (the exporter itself)    | none                     |
 | blackbox-https          | 3 public HTTPS endpoints, must be 2xx   | instance, job            |
 | blackbox-https-redirect | 11 apex domains, must be 3xx            | instance, job            |
-| blackbox-http-internal  | 6 internal vhosts via the nginx proxy   | instance, job            |
+| blackbox-https-internal-secondary | 10 internal TLS vhosts via nginx | instance, job        |
+| blackbox-https-internal-authed | 1 internal TLS vhost, must be 401 | instance, job         |
+| blackbox-http-internal-redirect | 9 legacy .lan names, must be 308 | instance, job         |
+| blackbox-dns-chain      | external name via AdGuard :53           | instance, job            |
+| blackbox-dns-upstream   | external name via unbound :5335         | instance, job            |
+| blackbox-dns-rewrite    | local rewrite via AdGuard :53           | instance, job            |
+| unbound                 | 127.0.0.1:9167 (recursive resolver)     | hostname, role, exporter |
+
+The three `blackbox-dns-*` jobs are read together, not individually. They exist
+to localise a DNS fault rather than just report one: chain and upstream failing
+while rewrite passes means the forwarders are broken and AdGuard is healthy,
+which is the signature of the 2026-08-15 and 2026-08-16 outages. See the header
+comment in `modules/monitoring/master/blackbox.nix` for the full matrix, and
+`DnsResolutionFailing` in `alert-rules/blackbox-alerts.yaml` for the alert.
+
+Note that during a real external-DNS outage the alert fires but Pushover cannot
+be delivered, because `api.pushover.net` is unresolvable too. The signal that
+escapes is the healthchecks.io deadman going quiet.
+
+The `unbound` job complements those probes rather than duplicating them. A probe
+answers "is resolution working right now"; the exporter answers "is it getting
+worse" -- SERVFAIL rate, cache hit ratio, and per-upstream behaviour, which is
+what shows one of the four DoT upstreams going lame while the others still carry
+the load. It requires `extended-statistics` and `statistics-cumulative` on
+unbound; `modules/monitoring/master/unbound-exporter.nix` asserts both, because
+without the first there are no rcode counters at all and without the second any
+manual `unbound-control stats` silently zeroes the exporter's view.
+
+Useful by hand (note `sudo` -- the control certs are `0640 unbound:unbound`):
+
+```sh
+sudo unbound-control dump_infra | rg "@853"   # per-upstream RTT and health
+sudo unbound-control stats_noreset            # counters without clearing them
+```
 
 `dump978` is scraped on 9275, but only because the container now runs the
 `telegraf-*` image variant -- see below. It carries `metric_relabel_configs`,

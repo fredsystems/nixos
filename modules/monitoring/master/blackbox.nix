@@ -130,21 +130,117 @@ let
   # single redirect to /skyaware978/, which is why the internal module follows
   # redirects and the public ones do not).
   # Endpoints that legitimately answer 401 unauthenticated. Probing these with
-  # http_2xx would fire permanently; the point of the probe is to prove nginx
-  # still reaches a live upstream, and a 401 proves exactly that without
+  # a 2xx module would fire permanently; the point of the probe is to prove
+  # nginx still reaches a live upstream, and a 401 proves exactly that without
   # putting a credential in the exporter.
-  internalAuthedEndpoints = [
-    "http://clipboard.sdrhub.local/" # -> 127.0.0.1:5033 (syncclipboard)
+  #
+  # This target's module asserts `fail_if_not_ssl`. That is the exact inverse
+  # of the `fail_if_ssl` these internal probes used to assert, back when every
+  # vhost here was plain HTTP by design. The inversion is not optional
+  # bookkeeping: leaving a migrated target on a module that asserts plaintext
+  # produces a probe that keeps reporting success while asserting something
+  # that is no longer true, which is strictly worse than one that fails.
+  internalTlsAuthedEndpoints = [
+    "https://clipboard.int.fredsystems.org/" # -> 127.0.0.1:5033 (syncclipboard)
   ];
 
+  # The rest of the TLS vhosts on this host, all sharing the one wildcard
+  # certificate. See hosts/linux/sdrhub/configuration.nix.
+  #
+  # This is now every vhost that answers 2xx, rather than the six that
+  # happened to be probed before. jellyfin and karma had been omitted only
+  # because neither had ever been verified to answer 2xx unauthenticated --
+  # adding an unverified target is how a permanently-red probe gets made --
+  # and both were confirmed 200 during the TLS migration.
+  #
+  # jellyfin needs the module's follow_redirects: it answers 302 on / and
+  # serves the app from /web/. Same reason dump978 needs it.
   internalEndpoints = [
-    "http://sdrhub.local/" # landing page
-    "http://tar1090.sdrhub.local/" # -> 192.168.31.20:8080
-    "http://dump978.sdrhub.local/" # -> 192.168.31.20:8083
-    "http://piaware.sdrhub.local/" # -> 192.168.31.20:8084
-    "http://ai.sdrhub.local/" # -> fredhub 192.168.31.14:8889
-    "http://search.sdrhub.local/" # -> 127.0.0.1:4444
+    "https://sdrhub.int.fredsystems.org/" # landing page
+    "https://tar1090.int.fredsystems.org/" # -> 192.168.31.20:8080
+    "https://dump978.int.fredsystems.org/" # -> 192.168.31.20:8083
+    "https://piaware.int.fredsystems.org/" # -> 192.168.31.20:8084
+    "https://ai.int.fredsystems.org/" # -> fredhub 192.168.31.14:8889
+    "https://search.int.fredsystems.org/" # -> 127.0.0.1:4444
+    "https://jellyfin.int.fredsystems.org/" # -> fredhub 192.168.31.14:8096
+    "https://karma.int.fredsystems.org/" # -> 127.0.0.1 (karma.nix)
+
+    # AdGuard Home's admin UI, which answers 200 on / directly (verified from
+    # sdrhub). Worth probing beyond the DNS probes above: those prove resolution
+    # works, this proves the control plane is still reachable to fix it when it
+    # does not.
+    "https://adguard.int.fredsystems.org/" # -> 127.0.0.1:3003
+
+    # /api/health rather than /, deliberately. Grafana answers 302 -> /login on
+    # `/`, which the module's follow_redirects would turn into a 200 that only
+    # proves the login page renders. /api/health is unauthenticated by design
+    # and returns 200 only when Grafana can also reach its database, so the
+    # probe fails for a broken Grafana rather than a merely reachable one.
+    # Verified 200 from sdrhub.
+    "https://grafana.int.fredsystems.org/api/health" # -> 127.0.0.1:3333
   ];
+
+  # The legacy `.lan` / `.local` names. They no longer proxy anything -- each
+  # is now a 308 to its TLS counterpart, kept so existing links and bookmarks
+  # continue to work.
+  #
+  # Probed because that compatibility layer is precisely the kind of thing
+  # that rots unnoticed: it has no users who would complain quickly, and its
+  # whole purpose is to not break the ones it does have. A dropped
+  # serverAlias or a stale AdGuard rewrite would be invisible otherwise.
+  #
+  # All nine are listed, unlike internalEndpoints. A redirect either is issued
+  # or is not -- it does not depend on the application behind it -- so every
+  # one of these can be asserted from the configuration without needing to be
+  # verified against a live backend first.
+  #
+  # `.local` rather than `.lan`, matching the pre-existing convention here:
+  # `.local` is the serverAlias, and probing the alias is what catches it
+  # being dropped.
+  internalRedirectEndpoints = [
+    "http://sdrhub.local/"
+    "http://ai.sdrhub.local/"
+    "http://clipboard.sdrhub.local/"
+    "http://dump978.sdrhub.local/"
+    "http://jellyfin.sdrhub.local/"
+    "http://karma.sdrhub.local/"
+    "http://piaware.sdrhub.local/"
+    "http://search.sdrhub.local/"
+    "http://tar1090.sdrhub.local/"
+  ];
+
+  # DNS resolution probes.
+  #
+  # These exist because of a 29-minute LAN-wide external-DNS outage on
+  # 2026-08-16, and an identical 8-minute one on 2026-08-15 that nobody noticed
+  # at all. Neither was detected directly. The first was found by observing that
+  # the healthchecks.io deadman had gone quiet and then reading journals for an
+  # hour; the proximate suspect was an unrelated deploy that happened to land
+  # 106 seconds before the first symptom.
+  #
+  # No unit-level alert could ever have caught it: AdGuard, unbound and nscd all
+  # stayed `active (running)` throughout, with NRestarts=0, while the LAN had no
+  # external DNS.
+  #
+  # WHY THREE TARGETS AND NOT ONE
+  #
+  # One probe tells you DNS is broken. These three tell you which layer:
+  #
+  #   blackbox-dns-chain     external name via AdGuard on :53   -- what clients see
+  #   blackbox-dns-upstream  external name via unbound on :5335 -- excludes AdGuard
+  #   blackbox-dns-rewrite   an internal rewrite via AdGuard    -- AdGuard liveness
+  #
+  #   chain 0, upstream 0, rewrite 1  ->  forwarders/upstream. The exact
+  #                                       signature of both outages above.
+  #   chain 0, upstream 1, rewrite 0  ->  AdGuard itself.
+  #   chain 0, upstream 1, rewrite 1  ->  AdGuard's path to unbound.
+  #   all three 0                     ->  the host, or its network.
+  #
+  # Probed over loopback, so these measure resolution and not reachability of
+  # the box.
+  dnsChainEndpoints = [ "127.0.0.1:53" ]; # AdGuard, the LAN's actual resolver
+  dnsUpstreamEndpoints = [ "127.0.0.1:5335" ]; # unbound, behind AdGuard
+  dnsRewriteEndpoints = [ "127.0.0.1:53" ]; # AdGuard again, local answer only
 
   # The relabel dance is the entire trick of a blackbox scrape job, and it is
   # silently wrong if any step is missing:
@@ -211,17 +307,20 @@ let
       # cert-expiry alerts would then be watching the wrong certificates.
       # Accepts only 401. A 2xx here would mean the server stopped requiring
       # authentication, which is itself worth catching.
-      http_401 = {
+      #
+      # follow_redirects = false. This target's certificate is the one the
+      # cert-expiry rules watch, and the exporter reads TLS state off the
+      # FINAL response in the chain, so following a redirect would attribute
+      # some other host's expiry to this instance. syncclipboard answers 401
+      # directly, so there is no redirect to follow anyway.
+      https_401 = {
         prober = "http";
         timeout = "10s";
         http = {
           method = "GET";
           valid_status_codes = [ 401 ];
-          follow_redirects = true;
-          # Matches http_2xx: these vhosts are plain HTTP by design, so TLS
-          # appearing here means something was reconfigured and the probe
-          # should say so rather than quietly passing.
-          fail_if_ssl = true;
+          follow_redirects = false;
+          fail_if_not_ssl = true;
           preferred_ip_protocol = "ip4";
         };
       };
@@ -255,18 +354,114 @@ let
         };
       };
 
-      # Internal LAN vhosts. Redirects are followed here because dump978's
-      # container redirects / -> /skyaware978/ and the end state is what
-      # matters; there is no certificate to attribute to the wrong host.
-      http_2xx = {
+      # Internal LAN vhosts, all terminating TLS with the int.fredsystems.org
+      # wildcard.
+      #
+      # Cannot just reuse https_2xx: redirects must be followed here, because
+      # dump978's container redirects / -> /skyaware978/ and the end state is
+      # what matters. https_2xx sets follow_redirects = false specifically to
+      # keep certificate attribution correct for the public per-vhost certs.
+      #
+      # Following redirects is safe for attribution here only because these
+      # targets are excluded from the cert-expiry rules -- their job carries
+      # the `-secondary` suffix. The wildcard's expiry is watched through
+      # blackbox-https-internal-authed, which does not follow.
+      https_2xx_internal = {
         prober = "http";
         timeout = "10s";
         http = {
           method = "GET";
           valid_status_codes = [ ];
           follow_redirects = true;
+          fail_if_not_ssl = true;
+          preferred_ip_protocol = "ip4";
+        };
+      };
+
+      # The legacy plaintext names, which now only issue a 308 to their TLS
+      # counterpart.
+      #
+      # fail_if_ssl, not fail_if_not_ssl: these listeners are deliberately
+      # plain HTTP. They exist to catch clients that have not moved yet, and a
+      # client that could already speak TLS to them would not need them. A
+      # successful handshake here means the redirect layer was reconfigured
+      # into something else.
+      #
+      # follow_redirects = false: the assertion is that the redirect is
+      # issued, not that its destination works. The destinations have their
+      # own probes above, and following would make one broken TLS vhost fail
+      # two jobs and obscure which layer actually broke.
+      #
+      # 308 rather than 301 -- see the redirect vhosts in
+      # hosts/linux/sdrhub/configuration.nix for why the method must be
+      # preserved.
+      http_308 = {
+        prober = "http";
+        timeout = "10s";
+        http = {
+          method = "GET";
+          valid_status_codes = [ 308 ];
+          follow_redirects = false;
           fail_if_ssl = true;
           preferred_ip_protocol = "ip4";
+        };
+      };
+
+      # Resolution of a name that can only be answered from the internet.
+      #
+      # example.com is chosen deliberately. It is IANA-operated, about as stable
+      # as a DNS record gets, and -- the part that matters -- owned by neither
+      # Quad9 nor Cloudflare. Probing a name belonging to one of the configured
+      # upstreams could pass because that provider was serving its own zone,
+      # while resolution of everything else was broken.
+      #
+      # 5s rather than the 10s used by the HTTP modules: a resolver that takes
+      # longer than 5s has already failed as far as any client is concerned, and
+      # a tight timeout keeps this inside the job's scrape_timeout with room to
+      # spare.
+      dns_external = {
+        prober = "dns";
+        timeout = "5s";
+        dns = {
+          query_name = "example.com";
+          query_type = "A";
+          valid_rcodes = [ "NOERROR" ];
+          transport_protocol = "udp";
+          preferred_ip_protocol = "ip4";
+        };
+      };
+
+      # Resolution of an AdGuard rewrite, answered locally and never forwarded.
+      #
+      # This is the control in the experiment: it stays green when the upstream
+      # path is broken, which is what distinguishes "the internet is
+      # unreachable" from "AdGuard is dead". Without it, a failing chain probe
+      # cannot tell you which.
+      #
+      # The answer is asserted, not just the rcode. A rewrite that silently
+      # stopped resolving to the right host would otherwise still return NOERROR
+      # from the upstream and look fine -- and the whole `.lan` -> TLS migration
+      # depends on these rewrites pointing where they claim to.
+      dns_internal = {
+        prober = "dns";
+        timeout = "5s";
+        dns = {
+          query_name = "sdrhub.lan";
+          query_type = "A";
+          valid_rcodes = [ "NOERROR" ];
+          transport_protocol = "udp";
+          preferred_ip_protocol = "ip4";
+          # Anchored at both ends of the address, and that is load-bearing.
+          # The exporter matches this against each answer RR's string form
+          # (`sdrhub.lan.\t60\tIN\tA\t192.168.31.20`), so an unanchored
+          # `.*192\.168\.31\.20` is also satisfied by 192.168.31.200 -- a
+          # rewrite silently repointed at a different host in the same /24
+          # would keep the probe green. `\s` matches the tab that separates
+          # the rdata from the type, so the leading `.*` cannot absorb part
+          # of the address either.
+          validate_answer_rrs = {
+            fail_if_not_matches_regexp = [ ".*\\s192\\.168\\.31\\.20$" ];
+          };
         };
       };
     };
@@ -310,8 +505,31 @@ in
       (mkProbeJob "blackbox-https-secondary" "https_2xx" publicAppSecondaryEndpoints)
       (mkProbeJob "blackbox-https-redirect-secondary" "https_redirect" publicRedirectSecondaryEndpoints)
 
-      (mkProbeJob "blackbox-http-internal" "http_2xx" internalEndpoints)
-      (mkProbeJob "blackbox-http-internal-authed" "http_401" internalAuthedEndpoints)
+      # `-secondary`, because every one of these shares the single
+      # int.fredsystems.org wildcard with the authed job below. Without the
+      # suffix, one failed renewal of that wildcard would be reported ten
+      # times on ten instance labels.
+      (mkProbeJob "blackbox-https-internal-secondary" "https_2xx_internal" internalEndpoints)
+
+      # No `-secondary` suffix, deliberately. The cert-expiry rules select
+      # `job!~".*-secondary"`, and this job is the only non-secondary probe of
+      # the int.fredsystems.org wildcard -- so it is exactly the one target
+      # that carries that certificate's expiry alerting, satisfying the
+      # one-target-per-certificate invariant those rules need.
+      (mkProbeJob "blackbox-https-internal-authed" "https_401" internalTlsAuthedEndpoints)
+
+      # The plaintext -> TLS compatibility layer. No certificate involved, so
+      # the `-secondary` question does not arise; probe_ssl_earliest_cert_expiry
+      # is simply absent for these.
+      (mkProbeJob "blackbox-http-internal-redirect" "http_308" internalRedirectEndpoints)
+
+      # The three DNS probes. Job names are load-bearing: the DnsResolutionFailing
+      # rule in alert-rules/blackbox-alerts.yaml selects on `blackbox-dns-.*`,
+      # and BlackboxProbeFailed excludes that same pattern so a DNS fault pages
+      # once with a useful description rather than twice with a generic one.
+      (mkProbeJob "blackbox-dns-chain" "dns_external" dnsChainEndpoints)
+      (mkProbeJob "blackbox-dns-upstream" "dns_external" dnsUpstreamEndpoints)
+      (mkProbeJob "blackbox-dns-rewrite" "dns_internal" dnsRewriteEndpoints)
 
       # The exporter's own operational metrics -- not a probe, a normal scrape.
       # Without this, a dead exporter yields no probe_success series at all,

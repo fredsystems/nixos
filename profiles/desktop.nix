@@ -46,6 +46,19 @@
       # Standard email secrets for desktops
       sops.secrets = {
         "wifi.env" = { };
+
+        # Attic push credential. Only the two desktops push by hand; every
+        # server and both Macs pull anonymously and get no token at all.
+        #
+        # Owned by the user because it is read by a Home Manager activation
+        # script running as them, which renders ~/.config/attic/config.toml
+        # from it. See modules/services/attic/attic_client.nix for why the
+        # token cannot simply be a `home.file` entry, and
+        # agent-docs/ATTIC_OPERATIONS.md for how it is minted and rotated.
+        "attic/desktop_token" = {
+          owner = user;
+          mode = "0400";
+        };
         "email/natca/signature" = {
           owner = user;
           mode = "0600";

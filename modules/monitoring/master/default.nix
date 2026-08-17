@@ -7,5 +7,6 @@
     ./loki.nix
     ./loki-ruler.nix
     ./prometheus.nix
+    ./unbound-exporter.nix
   ];
 }

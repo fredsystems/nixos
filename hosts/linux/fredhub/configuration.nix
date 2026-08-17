@@ -21,6 +21,7 @@ in
     ./hardware-configuration.nix
     ../../../profiles/adsb-hub.nix
     ../../../modules/services/attic/attic_server.nix
+    ./nginx.nix
   ];
 
   nixpkgs.config.allowUnfreePredicate =
