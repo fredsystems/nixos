@@ -66,13 +66,6 @@
     # that does not match is treated by Renovate as an unparseable
     # currentValue and silently never updated.
     #
-    # The ref below is knowingly stale -- nixos-25.11-small stopped
-    # receiving commits on 2026-06-30 when 25.11 went EOL.  It is left
-    # in place deliberately so the newly-added annotation has something
-    # to act on: the next Renovate run should open the grouped "nixos
-    # stable channel" PR moving this to nixos-26.05-small.  Do not bump
-    # it by hand before that PR lands, or the fix goes untested.
-    #
     # renovate: datasource=git-refs depName=nixpkgs-kernel packageName=https://github.com/NixOS/nixpkgs versioning=regex:^nixos-(?<major>\d+)\.(?<minor>\d+)-small$
     nixpkgs-kernel = {
       url = "github:nixos/nixpkgs/nixos-26.05-small";
