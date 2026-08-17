@@ -2,23 +2,9 @@
   config,
   stateVersion,
   lib,
-  pkgs,
   ...
 }:
 let
-  # Throwaway certificate for the catch-all 443 server block below. There is
-  # no real name to get an ACME certificate for unmatched SNI, and the point
-  # is only to avoid handing a *real* vhost's certificate to a client that
-  # asked for a name we do not serve.
-  snakeoilCert =
-    pkgs.runCommand "nginx-default-snakeoil-cert" { nativeBuildInputs = [ pkgs.openssl ]; }
-      ''
-        mkdir -p "$out"
-        openssl req -x509 -nodes -newkey rsa:2048 -days 36500 \
-          -keyout "$out/key.pem" -out "$out/cert.pem" \
-          -subj "/CN=invalid"
-      '';
-
   # Restart the consuming container when its --env-file secret changes.
   # See modules/services/mk-container-secret.nix for why this is declared
   # here rather than derived inside adsb-docker-units.nix.
@@ -1337,18 +1323,30 @@ in
           # hosts/linux/fredvps/nginx.nix, where a typo'd domain ended up
           # being served acarshub.app's certificate.
           #
-          # onlySSL rather than addSSL, unlike fredvps: the plaintext landing
-          # page already claims default_server on port 80 and nginx rejects a
-          # duplicate. This block therefore takes the 443 default only.
+          # rejectSSL rather than a certificate, unlike fredvps: this emits
+          # `ssl_reject_handshake on;`, so nginx aborts the handshake with an
+          # `unrecognized_name` alert before a certificate is chosen. There is
+          # therefore no certificate to declare at all. The alternative --
+          # generating a throwaway self-signed pair in the derivation -- is
+          # worse than it looks: `openssl req -newkey` draws fresh randomness on
+          # every build, so the same store path would hold a different NAR on
+          # each builder, which breaks reproducibility and the binary cache.
+          #
+          # An explicit `listen` rather than letting the module derive it. Without
+          # rejectSSL implying onlySSL, the module would also emit a port 80
+          # `default_server` line here, and the plaintext landing page above
+          # already claims that -- nginx refuses to start on the duplicate. The
+          # addresses come from the module's own default list so this cannot
+          # drift from what the other vhosts bind.
           "_" = {
             default = true;
             serverName = "_";
-            onlySSL = true;
-            sslCertificate = "${snakeoilCert}/cert.pem";
-            sslCertificateKey = "${snakeoilCert}/key.pem";
-            extraConfig = ''
-              return 444;
-            '';
+            rejectSSL = true;
+            listen = map (addr: {
+              inherit addr;
+              port = 443;
+              ssl = true;
+            }) config.services.nginx.defaultListenAddresses;
           };
         };
     };
