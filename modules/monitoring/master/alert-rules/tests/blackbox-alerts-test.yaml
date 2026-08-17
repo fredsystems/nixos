@@ -58,7 +58,7 @@ tests:
   - interval: 1m
     name: BlackboxProbeFailed fires for an internal LAN vhost
     input_series:
-      - series: 'probe_success{job="blackbox-http-internal", instance="http://tar1090.sdrhub.local/"}'
+      - series: 'probe_success{job="blackbox-https-internal-secondary", instance="https://tar1090.int.fredsystems.org/"}'
         values: "0+0x15"
     alert_rule_test:
       - eval_time: 10m
@@ -66,11 +66,11 @@ tests:
         exp_alerts:
           - exp_labels:
               severity: critical
-              job: blackbox-http-internal
-              instance: http://tar1090.sdrhub.local/
+              job: blackbox-https-internal-secondary
+              instance: https://tar1090.int.fredsystems.org/
             exp_annotations:
-              summary: "Endpoint http://tar1090.sdrhub.local/ is failing its probe"
-              description: "Blackbox job blackbox-http-internal has been unable to get a valid response from http://tar1090.sdrhub.local/ for 5 minutes."
+              summary: "Endpoint https://tar1090.int.fredsystems.org/ is failing its probe"
+              description: "Blackbox job blackbox-https-internal-secondary has been unable to get a valid response from https://tar1090.int.fredsystems.org/ for 5 minutes."
 
   - interval: 1m
     name: BlackboxProbeFailed stays silent while probes succeed
@@ -79,7 +79,7 @@ tests:
         values: "1+0x15"
       - series: 'probe_success{job="blackbox-https-redirect", instance="https://sdr-e.org/"}'
         values: "1+0x15"
-      - series: 'probe_success{job="blackbox-http-internal", instance="http://sdrhub.local/"}'
+      - series: 'probe_success{job="blackbox-https-internal-secondary", instance="https://sdrhub.int.fredsystems.org/"}'
         values: "1+0x15"
     alert_rule_test:
       - eval_time: 10m
@@ -131,7 +131,7 @@ tests:
         values: "0.2+0x25"
       - series: 'probe_duration_seconds{job="blackbox-https", instance="https://flipaholics.pro/"}'
         values: "0.62+0x25"
-      - series: 'probe_duration_seconds{job="blackbox-http-internal", instance="http://sdrhub.local/"}'
+      - series: 'probe_duration_seconds{job="blackbox-https-internal-secondary", instance="https://sdrhub.int.fredsystems.org/"}'
         values: "0.007+0x25"
       - series: 'probe_duration_seconds{job="blackbox-https-redirect", instance="https://sdr-e.org/"}'
         values: "1.03+0x25"

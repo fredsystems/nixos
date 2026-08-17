@@ -112,7 +112,9 @@ their own modules rather than here: `scrapeConfigs` and `ruleFiles` are both
 | blackbox-exporter       | 127.0.0.1:9115 (the exporter itself)    | none                     |
 | blackbox-https          | 3 public HTTPS endpoints, must be 2xx   | instance, job            |
 | blackbox-https-redirect | 11 apex domains, must be 3xx            | instance, job            |
-| blackbox-http-internal  | 6 internal vhosts via the nginx proxy   | instance, job            |
+| blackbox-https-internal-secondary | 6 internal TLS vhosts via nginx | instance, job         |
+| blackbox-https-internal-authed | 1 internal TLS vhost, must be 401 | instance, job         |
+| blackbox-http-internal-redirect | 9 legacy .lan names, must be 308 | instance, job         |
 
 `dump978` is scraped on 9275, but only because the container now runs the
 `telegraf-*` image variant -- see below. It carries `metric_relabel_configs`,

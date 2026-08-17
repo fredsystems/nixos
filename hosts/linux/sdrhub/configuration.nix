@@ -77,60 +77,268 @@ let
   # turns that into a build error instead.
   internalDomain = "int.fredsystems.org";
 
-  # Hosts migrated to real TLS, as <bare name> -> <answer IP>. Each produces
-  # one `<name>.${internalDomain}` AdGuard rewrite.
+  # Every nginx vhost on this host, keyed by the label it takes under
+  # `internalDomain`. Each entry produces TWO server blocks:
   #
-  # Deliberately a separate map from lanHosts rather than a third TLD emitted
-  # by mkRewrites. Two reasons:
+  #   <label>.int.fredsystems.org   the real one -- TLS, ACME, the proxying
+  #   <legacy names>                a 308 to it, so old links keep working
   #
-  #   * Most of lanHosts is not served by nginx here at all (acarshub,
-  #     fredvps, nvrhub, ... are plain DNS convenience). Emitting TLS names
-  #     for those would advertise names that resolve but have no vhost, so
-  #     they would land on the default server holding a certificate for a
-  #     name the client did not ask for.
-  #   * The migration is deliberately incremental -- this host fronts the
-  #     ADS-B stack, and a botched nginx reload takes that down with it. A
-  #     name only appears here once its vhost actually terminates TLS.
+  # Generating both from one definition is the point: the serving config
+  # exists once, so the two cannot drift, and retiring the plaintext layer
+  # later is a matter of deleting `legacy` rather than deleting a vhost and
+  # hoping nothing referenced it.
   #
-  # Note the shape differs from the `.lan` names on purpose: the `sdrhub`
-  # label is dropped, because `int.fredsystems.org` already says which
-  # network this is and a wildcard only covers a single label level.
-  tlsHosts = {
-    "clipboard" = "192.168.31.20";
-  };
+  # Fields:
+  #   legacy         plaintext names that must keep working. Head becomes the
+  #                  server block's name, tail its serverAliases.
+  #   legacyDefault  make the plaintext block port 80's default_server.
+  #   vhost          the serving configuration; gains forceSSL + useACMEHost.
+  migratedVhosts = {
+    # Landing page. Also the plaintext default, so an unknown Host (a raw IP,
+    # say) still lands here rather than on whichever vhost sorts first.
+    sdrhub = {
+      legacyDefault = true;
+      legacy = [
+        "sdrhub.lan"
+        "sdrhub.local"
+        "localhost"
+      ];
+      vhost = {
+        root = ./html;
 
-  mkTlsRewrites =
-    hosts:
-    lib.mapAttrsToList (name: ip: {
-      enabled = true;
-      domain = "${name}.${internalDomain}";
-      answer = ip;
-    }) hosts;
+        locations = {
+          "/" = {
+            index = "index.html";
+          };
 
-  # Shared by both clipboard vhosts -- the plaintext `.lan` one and the TLS
-  # one -- so the two cannot drift while both are live.
-  #
-  # Clipboard payloads are whatever happened to be on a clipboard, so the
-  # default 1m body limit is far too small once images are in play. The
-  # upstream is loopback-only, so these vhosts are the only way in.
-  clipboardLocations = {
-    "/" = {
-      proxyPass = "http://127.0.0.1:5033";
-      extraConfig = ''
-        client_max_body_size 512m;
+          "/dozzle/" = {
+            proxyPass = "http://192.168.31.20:9999";
+            extraConfig = "proxy_redirect / /dozzle/;";
+          };
 
-        # Stream to the upstream instead of buffering. Auth happens in
-        # SyncClipboard, not nginx, so with the default
-        # proxy_request_buffering on any LAN client could push 512m of
-        # body to disk before ever being told 401. Streaming lets the
-        # upstream reject it immediately, and client_body_timeout bounds
-        # a slow trickle (proxy_read_timeout only covers the response).
-        proxy_request_buffering off;
-        client_body_timeout 60s;
-        proxy_read_timeout 300s;
-      '';
+          "/graphs/" = {
+            proxyPass = "http://192.168.31.20:8080/graphs1090/";
+          };
+
+          # fr24 and planefinder are reached on their published container
+          # ports, with no vhost of their own, so these redirects stay
+          # plaintext. Giving them names under internalDomain would be a
+          # straightforward follow-up; they are feeder status pages carrying
+          # no credentials, which is why they are not in this pass.
+          "/fr24/" = {
+            return = "302 http://192.168.31.20:8082/";
+          };
+
+          "/fr24" = {
+            return = "302 http://192.168.31.20:8082/";
+          };
+
+          "/planefinder/" = {
+            return = "302 http://192.168.31.20:8087/";
+          };
+
+          "/planefinder" = {
+            return = "302 http://192.168.31.20:8087/";
+          };
+
+          # Karma serves its assets from absolute paths, so a sub-path proxy
+          # would break them. Redirect to the dedicated vhost instead, the
+          # same approach used for fr24 and planefinder above.
+          "/karma/" = {
+            return = "302 https://karma.${internalDomain}/";
+          };
+
+          "/karma" = {
+            return = "302 https://karma.${internalDomain}/";
+          };
+
+          "/acarshub/" = {
+            proxyPass = "http://192.168.31.20:8085/";
+            extraConfig = ''
+              proxy_http_version 1.1;
+              proxy_set_header Upgrade $http_upgrade;
+              proxy_set_header Connection $connection_upgrade;
+            '';
+          };
+
+          "/acarshub-test/" = {
+            proxyPass = "http://192.168.31.20:8086/";
+            extraConfig = ''
+              proxy_http_version 1.1;
+              proxy_set_header Upgrade $http_upgrade;
+              proxy_set_header Connection $connection_upgrade;
+            '';
+          };
+        };
+      };
+    };
+
+    # tar1090, dump978 and piaware all serve assets from absolute paths
+    # (/data, /chunks, /db, ...). Sub-path proxying breaks them, so each keeps
+    # its own vhost.
+    tar1090 = {
+      legacy = [
+        "tar1090.sdrhub.lan"
+        "tar1090.sdrhub.local"
+      ];
+      vhost.locations."/".proxyPass = "http://192.168.31.20:8080";
+    };
+
+    dump978 = {
+      legacy = [
+        "dump978.sdrhub.lan"
+        "dump978.sdrhub.local"
+      ];
+      vhost.locations."/".proxyPass = "http://192.168.31.20:8083";
+    };
+
+    piaware = {
+      legacy = [
+        "piaware.sdrhub.lan"
+        "piaware.sdrhub.local"
+      ];
+      vhost.locations."/".proxyPass = "http://192.168.31.20:8084";
+    };
+
+    # OpenWebUI on fredhub. Carries a login and chat history, so this is one
+    # of the three that motivated migrating the rest of the host.
+    #
+    # NOTE: TLS here covers client -> sdrhub only. The proxy_pass to fredhub
+    # is still plaintext across the LAN, so the credential is protected on the
+    # first hop and not the second. Fixing that needs TLS on fredhub, which is
+    # a separate piece of work.
+    ai = {
+      legacy = [
+        "ai.sdrhub.lan"
+        "ai.sdrhub.local"
+      ];
+      vhost.locations."/".proxyPass = "http://192.168.31.14:8889";
+    };
+
+    # Jellyfin on fredhub. Same login exposure, and the same second-hop
+    # caveat as ai above.
+    jellyfin = {
+      legacy = [
+        "jellyfin.sdrhub.lan"
+        "jellyfin.sdrhub.local"
+      ];
+      vhost.locations."/".proxyPass = "http://192.168.31.14:8096";
+    };
+
+    # degoog. Search queries are worth protecting on their own, and the
+    # container carries a settings password.
+    search = {
+      legacy = [
+        "search.sdrhub.lan"
+        "search.sdrhub.local"
+      ];
+      vhost.locations."/".proxyPass = "http://127.0.0.1:4444";
+    };
+
+    # Karma alert dashboard. Bound to loopback by
+    # modules/monitoring/master/karma.nix and reached only through here, so it
+    # needs no firewall port of its own. The port is read from the service
+    # definition rather than hardcoded.
+    #
+    # Karma pushes live alert updates over a websocket, hence the upgrade
+    # headers (the $connection_upgrade map is defined in appendHttpConfig).
+    karma = {
+      legacy = [
+        "karma.sdrhub.lan"
+        "karma.sdrhub.local"
+      ];
+      vhost.locations."/" = {
+        proxyPass = "http://127.0.0.1:${toString config.services.karma.settings.listen.port}";
+        extraConfig = ''
+          proxy_http_version 1.1;
+          proxy_set_header Upgrade $http_upgrade;
+          proxy_set_header Connection $connection_upgrade;
+        '';
+      };
+    };
+
+    # Clipboard payloads are whatever happened to be on a clipboard, so the
+    # default 1m body limit is far too small once images are in play. The
+    # upstream is loopback-only, so this vhost is the only way in.
+    clipboard = {
+      legacy = [
+        "clipboard.sdrhub.lan"
+        "clipboard.sdrhub.local"
+      ];
+      vhost.locations."/" = {
+        proxyPass = "http://127.0.0.1:5033";
+        extraConfig = ''
+          client_max_body_size 512m;
+
+          # Stream to the upstream instead of buffering. Auth happens in
+          # SyncClipboard, not nginx, so with the default
+          # proxy_request_buffering on any LAN client could push 512m of
+          # body to disk before ever being told 401. Streaming lets the
+          # upstream reject it immediately, and client_body_timeout bounds
+          # a slow trickle (proxy_read_timeout only covers the response).
+          proxy_request_buffering off;
+          client_body_timeout 60s;
+          proxy_read_timeout 300s;
+        '';
+      };
     };
   };
+
+  # The serving half.
+  tlsVirtualHosts = lib.mapAttrs' (
+    name: def:
+    lib.nameValuePair "${name}.${internalDomain}" (
+      def.vhost
+      // {
+        forceSSL = true;
+        useACMEHost = internalDomain;
+      }
+    )
+  ) migratedVhosts;
+
+  # The compatibility half: the old plaintext names, now doing nothing but
+  # pointing at the new ones.
+  #
+  # 308, not 301. A 301 permits a client to replay the request as a GET, and
+  # historically most do; 308 requires the method and body to be preserved.
+  # That is irrelevant for the browser-facing vhosts and load-bearing for
+  # clipboard, whose clients PUT and POST -- a 301 there would silently
+  # degrade a clipboard upload into a GET.
+  #
+  # An explicit `return` rather than nginx's `globalRedirect`, which emits the
+  # scheme of the *redirecting* server block. On these plaintext blocks that
+  # yields `http://<new name>`, which the TLS vhost then has to bounce a
+  # second time -- two round trips, the first still in the clear, which is
+  # most of what this change exists to stop.
+  legacyRedirectVirtualHosts = lib.mapAttrs' (
+    name: def:
+    lib.nameValuePair (lib.head def.legacy) (
+      {
+        serverAliases = lib.tail def.legacy;
+        locations."/".return = "308 https://${name}.${internalDomain}$request_uri";
+      }
+      // lib.optionalAttrs (def.legacyDefault or false) { default = true; }
+    )
+  ) migratedVhosts;
+
+  # AdGuard rewrites for the TLS names. Every migrated vhost answers on this
+  # host, so they all resolve to it.
+  #
+  # Deliberately derived from migratedVhosts rather than emitted as a third
+  # TLD by mkRewrites over lanHosts. Most of lanHosts is not served by nginx
+  # at all (acarshub, fredvps, nvrhub, ... are plain DNS convenience for
+  # reaching other machines), and giving those names under internalDomain
+  # would advertise names that resolve but have no vhost, landing them on the
+  # catch-all.
+  #
+  # Note the shape differs from the `.lan` names on purpose: the `sdrhub`
+  # label is dropped, because `int.fredsystems.org` already says which network
+  # this is and a wildcard only covers a single label level.
+  tlsRewrites = lib.mapAttrsToList (name: _: {
+    enabled = true;
+    domain = "${name}.${internalDomain}";
+    answer = "192.168.31.20";
+  }) migratedVhosts;
 in
 {
   imports = [
@@ -262,7 +470,7 @@ in
           parental_enabled = false;
           safe_search.enabled = false;
 
-          rewrites = mkRewrites lanHosts ++ mkTlsRewrites tlsHosts;
+          rewrites = mkRewrites lanHosts ++ tlsRewrites;
         };
 
         user_rules = [
@@ -856,194 +1064,33 @@ in
         }
       '';
 
-      virtualHosts = {
-        # Landing page — bound to sdrhub.lan AND set as the default server
-        # so any unknown Host header (e.g. raw IP) also gets the dashboard
-        # instead of accidentally hitting ai.sdrhub.lan / OpenWebUI.
-        "sdrhub.lan" = {
-          default = true;
-          serverAliases = [
-            "localhost"
-            "sdrhub.local"
-          ];
-          root = ./html;
-
-          locations = {
-            "/" = {
-              index = "index.html";
-            };
-
-            "/dozzle/" = {
-              proxyPass = "http://192.168.31.20:9999";
-              extraConfig = "proxy_redirect / /dozzle/;";
-            };
-
-            "/graphs/" = {
-              proxyPass = "http://192.168.31.20:8080/graphs1090/";
-            };
-
-            "/fr24/" = {
-              return = "302 http://192.168.31.20:8082/";
-            };
-
-            "/fr24" = {
-              return = "302 http://192.168.31.20:8082/";
-            };
-
-            "/planefinder/" = {
-              return = "302 http://192.168.31.20:8087/";
-            };
-
-            # Karma serves its assets from absolute paths, so a sub-path proxy
-            # would break them. Redirect to the dedicated vhost instead, the
-            # same approach used for fr24 and planefinder above.
-            "/karma/" = {
-              return = "302 http://karma.sdrhub.lan/";
-            };
-
-            "/karma" = {
-              return = "302 http://karma.sdrhub.lan/";
-            };
-
-            "/planefinder" = {
-              return = "302 http://192.168.31.20:8087/";
-            };
-
-            "/acarshub/" = {
-              proxyPass = "http://192.168.31.20:8085/";
-              extraConfig = ''
-                proxy_http_version 1.1;
-                proxy_set_header Upgrade $http_upgrade;
-                proxy_set_header Connection $connection_upgrade;
-              '';
-            };
-
-            "/acarshub-test/" = {
-              proxyPass = "http://192.168.31.20:8086/";
-              extraConfig = ''
-                proxy_http_version 1.1;
-                proxy_set_header Upgrade $http_upgrade;
-                proxy_set_header Connection $connection_upgrade;
-              '';
-            };
-          };
-        };
-
-        # tar1090, dump978 and piaware all serve assets from absolute
-        # paths (/data, /chunks, /db, ...). Sub-path proxying breaks them,
-        # so give each its own vhost. Update your landing page links to
-        # http://tar1090.sdrhub.lan, http://dump978.sdrhub.lan, etc.
-        "tar1090.sdrhub.lan" = {
-          serverAliases = [ "tar1090.sdrhub.local" ];
-          locations."/".proxyPass = "http://192.168.31.20:8080";
-        };
-
-        "dump978.sdrhub.lan" = {
-          serverAliases = [ "dump978.sdrhub.local" ];
-          locations."/".proxyPass = "http://192.168.31.20:8083";
-        };
-
-        # Plaintext clipboard vhost. Kept alive deliberately: the TLS vhost
-        # below is a pilot, and this host fronts the ADS-B stack, so the
-        # working path stays up until the new one is proven. Retire this
-        # vhost -- and the "clipboard.sdrhub" entry in lanHosts -- once no
-        # client is left on it.
-        #
-        # It gets no forceSSL. Redirecting it to HTTPS would send clients to
-        # a listener whose certificate covers int.fredsystems.org and not
-        # `.lan`, which is a name error rather than an upgrade.
-        "clipboard.sdrhub.lan" = {
-          serverAliases = [ "clipboard.sdrhub.local" ];
-          locations = clipboardLocations;
-        };
-
-        # The same backend over TLS, on a name a public CA can issue for.
-        #
-        # A separate vhost rather than a serverAlias on the one above,
-        # precisely so that adding forceSSL here cannot affect the `.lan`
-        # path: serverAliases share a server block, and forceSSL applies to
-        # the whole block.
-        #
-        # This is the vhost that motivated the whole exercise -- it is the
-        # only one on the host that carries credentials (HTTP Basic, on every
-        # request) and a payload worth reading.
-        "clipboard.${internalDomain}" = {
-          forceSSL = true;
-          useACMEHost = internalDomain;
-          locations = clipboardLocations;
-        };
-
-        "piaware.sdrhub.lan" = {
-          serverAliases = [ "piaware.sdrhub.local" ];
-          locations."/".proxyPass = "http://192.168.31.20:8084";
-        };
-
-        "ai.sdrhub.lan" = {
-          serverAliases = [ "ai.sdrhub.local" ];
-          locations."/" = {
-            proxyPass = "http://192.168.31.14:8889";
-          };
-        };
-        "jellyfin.sdrhub.lan" = {
-          serverAliases = [ "jellyfin.sdrhub.local" ];
-          locations."/" = {
-            proxyPass = "http://192.168.31.14:8096";
-          };
-        };
-        "search.sdrhub.lan" = {
-          serverAliases = [ "search.sdrhub.local" ];
-          locations."/" = {
-            proxyPass = "http://127.0.0.1:4444";
-          };
-        };
-
-        # Karma alert dashboard. Bound to loopback by
-        # modules/monitoring/master/karma.nix and reached only through here, so
-        # it needs no firewall port of its own. The port is read from the
-        # service definition rather than hardcoded.
-        #
-        # Karma pushes live alert updates over a websocket, hence the upgrade
-        # headers (the $connection_upgrade map is defined in appendHttpConfig).
-        "karma.sdrhub.lan" = {
-          serverAliases = [ "karma.sdrhub.local" ];
-          locations."/" = {
-            proxyPass = "http://127.0.0.1:${toString config.services.karma.settings.listen.port}";
+      virtualHosts =
+        tlsVirtualHosts
+        // legacyRedirectVirtualHosts
+        // {
+          # Explicit catch-all for unmatched SNI on 443.
+          #
+          # Without it nginx promotes whichever TLS server block sorts first
+          # to be the implicit default_server, and hands that vhost's
+          # certificate to clients asking for names we do not serve. That is
+          # exactly the bug documented at length in
+          # hosts/linux/fredvps/nginx.nix, where a typo'd domain ended up
+          # being served acarshub.app's certificate.
+          #
+          # onlySSL rather than addSSL, unlike fredvps: the plaintext landing
+          # page already claims default_server on port 80 and nginx rejects a
+          # duplicate. This block therefore takes the 443 default only.
+          "_" = {
+            default = true;
+            serverName = "_";
+            onlySSL = true;
+            sslCertificate = "${snakeoilCert}/cert.pem";
+            sslCertificateKey = "${snakeoilCert}/key.pem";
             extraConfig = ''
-              proxy_http_version 1.1;
-              proxy_set_header Upgrade $http_upgrade;
-              proxy_set_header Connection $connection_upgrade;
+              return 444;
             '';
           };
         };
-
-        # Explicit catch-all for unmatched SNI on 443.
-        #
-        # Without it nginx promotes whichever TLS server block sorts first to
-        # be the implicit default_server, and hands that vhost's certificate
-        # to clients asking for names we do not serve. That is exactly the bug
-        # documented at length in hosts/linux/fredvps/nginx.nix, where a
-        # typo'd domain ended up being served acarshub.app's certificate.
-        #
-        # It matters here as soon as there is more than one TLS vhost: with
-        # only clipboard listening, unmatched SNI got the certificate a client
-        # would have been handed anyway, so nothing leaked. With the rest of
-        # the vhosts migrating, that stops being true.
-        #
-        # onlySSL rather than addSSL, unlike fredvps: `sdrhub.lan` already
-        # claims default_server on port 80 and nginx rejects a duplicate. This
-        # block therefore takes the 443 default only, and leaves the plaintext
-        # default where it is.
-        "_" = {
-          default = true;
-          serverName = "_";
-          onlySSL = true;
-          sslCertificate = "${snakeoilCert}/cert.pem";
-          sslCertificateKey = "${snakeoilCert}/key.pem";
-          extraConfig = ''
-            return 444;
-          '';
-        };
-      };
     };
   };
 

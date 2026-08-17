@@ -13,15 +13,21 @@
 #                                      answer 2xx, sharing a cert with a primary
 #   blackbox-https-redirect-secondary  www aliases that must answer 3xx,
 #                                      sharing a cert with a primary
-#   blackbox-http-internal             LAN-only nginx vhosts on sdrhub
-#   blackbox-http-internal-authed      LAN-only vhosts that answer 401
-#                                      unauthenticated, over plain HTTP
-#   blackbox-https-internal-authed     the same, over TLS on
-#                                      int.fredsystems.org
+#   blackbox-https-internal-secondary  LAN-only nginx vhosts on sdrhub, all
+#                                      sharing the int.fredsystems.org wildcard
+#   blackbox-https-internal-authed     the LAN vhost that answers 401
+#                                      unauthenticated, on that same wildcard
+#   blackbox-http-internal-redirect    the legacy .lan / .local names, which
+#                                      now only 308 to their TLS counterpart
 #
-# The last of those is the only probe of sdrhub's own wildcard certificate,
-# so the TLS rules below are what watches its renewal -- the internal cert is
-# not a special case, it is just another non-`-secondary` job.
+# blackbox-https-internal-authed is the only non-`-secondary` probe of
+# sdrhub's own wildcard, so the TLS rules below are what watches its renewal.
+# The internal certificate is not a special case; it is just another
+# one-target-per-certificate job.
+#
+# blackbox-http-internal-redirect has no certificate at all -- those listeners
+# are deliberately plaintext -- so probe_ssl_earliest_cert_expiry is simply
+# absent for it and the TLS rules never select it.
 #
 # THE `-secondary` JOBS AND TLS
 #
@@ -99,6 +105,13 @@ groups:
         # loopback backends on the same host as an already-measured vhost. If a
         # future target is added that is not in one of those classes, re-measure
         # rather than assuming this margin still holds.
+        #
+        # The "LAN nginx vhosts" figure above predates those vhosts terminating
+        # TLS, so it no longer includes a handshake. The handshake is local and
+        # costs single-digit milliseconds against a 5s threshold, which is why
+        # this was not re-measured -- the margin is three orders of magnitude,
+        # not a judgement call. The figure is left as recorded rather than
+        # silently adjusted to a number nobody measured.
         #
         # Deliberately below the module timeout (10s) and the job's
         # scrape_timeout (15s), so a slow-but-working endpoint surfaces here
