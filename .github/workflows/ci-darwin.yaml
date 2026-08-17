@@ -327,7 +327,7 @@ jobs:
           error=0
 
           echo "Logging in..."
-          nix shell --inputs-from . nixpkgs#attic-client --command attic login fred http://192.168.31.14:8080 "$ATTIC_TOKEN"
+          nix shell --inputs-from . nixpkgs#attic-client --command attic login fred https://attic.int.fredsystems.org "$ATTIC_TOKEN"
 
           : > build.stderr
 
@@ -476,7 +476,7 @@ jobs:
           echo "Building dev outputs for system: $system"
 
           echo "Logging in to Attic..."
-          nix shell --inputs-from . nixpkgs#attic-client --command attic login fred http://192.168.31.14:8080 "$ATTIC_TOKEN"
+          nix shell --inputs-from . nixpkgs#attic-client --command attic login fred https://attic.int.fredsystems.org "$ATTIC_TOKEN"
 
           echo "Building dev shell..."
           nix build --no-link --print-out-paths \

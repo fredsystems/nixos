@@ -45,7 +45,15 @@
   # credentials rather than being read by a service running as its own user.
   sops.secrets.cloudflare_acme_token = { };
 
-  networking.firewall.allowedTCPPorts = [ 443 ];
+  networking.firewall.allowedTCPPorts = [
+    # 80 exists only for the redirect that `forceSSL` generates. Nothing here
+    # is served over it, and it is not used for certificate issuance either --
+    # this host validates over DNS-01, so there is no HTTP-01 challenge to
+    # answer. Without it a client that reached for http:// gets a connection
+    # timeout instead of being told where to go.
+    80
+    443
+  ];
 
   security.acme = {
     acceptTerms = true;

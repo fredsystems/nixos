@@ -34,17 +34,30 @@
 let
   cfg = config.programs.atticClient;
 
-  endpoint = "http://192.168.31.14:8080";
+  endpoint = "https://attic.int.fredsystems.org";
 
-  # Deliberately still plain HTTP, and deliberately an address rather than a
-  # name. Reads are anonymous and every NAR is signature-checked against
-  # trusted-public-keys, so a MITM cannot inject anything Nix will accept --
-  # plaintext costs only the privacy of which paths are fetched. In exchange
-  # the substituter depends on nothing but the host being up and IP routing,
-  # which is what you want when the thing you are rebuilding IS the cache.
+  # HTTPS, terminating on fredhub itself -- see hosts/linux/fredhub/nginx.nix.
   #
-  # The push path is a different matter: it carries a bearer token in the
-  # clear, and moving it behind TLS on fredhub is tracked separately.
+  # This endpoint is used by the attic CLI, which sends a bearer token on every
+  # request. That is the whole reason it is encrypted: atticd signs whatever it
+  # is given with the cache's NAR signing key, so a push token read off the wire
+  # would let an attacker place content the entire fleet then trusts.
+  #
+  # It is NOT the substituter. Nix pulls from
+  # http://192.168.31.14:8080/fred, configured in modules/base/system.nix, and
+  # never reads this file -- Nix and the attic CLI are separate consumers that
+  # share nothing. That split is deliberate rather than an oversight:
+  #
+  #   * Reads are anonymous and every NAR is signature-checked against
+  #     trusted-public-keys, so a MITM cannot inject anything Nix will accept.
+  #     Plaintext there costs only the privacy of which paths are fetched.
+  #   * An address and a port depend on nothing but the host being up and IP
+  #     routing -- no DNS, no certificate, no nginx. That is what you want when
+  #     the thing being rebuilt from the cache is the cache's own host.
+  #
+  # So: the credential goes over TLS, and the anonymous bulk transfer takes the
+  # route with the fewest moving parts. agent-docs/ATTIC_OPERATIONS.md carries
+  # the same reasoning for anyone changing either one.
   baseConfig = ''
     default-server = "local"
 
