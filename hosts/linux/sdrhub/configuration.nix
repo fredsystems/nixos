@@ -56,6 +56,7 @@ in
 {
   imports = [
     ./hardware-configuration.nix
+    ./acme.nix
     ../../../modules/secrets/sops.nix
     ../../../modules/services/adsb-docker-units.nix
     ../../../modules/monitoring/master
