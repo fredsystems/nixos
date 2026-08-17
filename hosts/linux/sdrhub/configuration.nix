@@ -433,11 +433,63 @@ in
           }
           {
             name = ".";
+
+            # TWO INDEPENDENT PROVIDERS, not one provider's two addresses.
+            #
+            # This is the fix for a total LAN external-DNS outage on 2026-08-16
+            # (29 minutes) and an identical one on 2026-08-15 (8 minutes). Every
+            # address here was Quad9, so one provider becoming unreachable left
+            # unbound with no working upstream at all. Combined with
+            # `forward-first = false` below there was no fallback, so unbound
+            # answered SERVFAIL for every external name, AdGuard passed that
+            # straight through to the LAN, and every service involved stayed
+            # `active (running)` the whole time.
+            #
+            # unbound tracks round-trip time per upstream in its infra cache and
+            # marks unresponsive servers down, so it fails over across these
+            # without any further configuration.
+            #
+            # Both are each provider's MALWARE-FILTERING variant on purpose --
+            # Quad9's dns11 and Cloudflare's `security` endpoint. Mixing a
+            # filtering resolver with a non-filtering one would make blocking
+            # depend on which upstream happened to win the RTT race, which is
+            # the kind of difference nobody notices until it matters.
+            #
+            # One real behavioural difference to know about: 9.9.9.11 supports
+            # EDNS Client Subnet (which is why that variant was chosen, and
+            # AdGuard sets edns_client_subnet.enabled) whereas Cloudflare
+            # strips ECS. CDN answers may be geolocated slightly less precisely
+            # when Cloudflare serves the query. That is an acceptable trade for
+            # not losing the LAN's DNS.
+            #
+            # Verified from sdrhub before committing: all four reachable on 853,
+            # and all four complete a real DoT query with certificate validation
+            # against the system CA bundle
+            # (`kdig +tls +tls-ca +tls-hostname=<name> @<addr>`).
             forward-addr = [
               "9.9.9.11@853#dns11.quad9.net"
               "149.112.112.11@853#dns11.quad9.net"
+              "1.1.1.2@853#security.cloudflare-dns.com"
+              "1.0.0.2@853#security.cloudflare-dns.com"
             ];
             forward-tls-upstream = true;
+
+            # Deliberately still false, and this is a decision rather than an
+            # oversight.
+            #
+            # `forward-first = true` makes unbound fall back to ordinary
+            # iterative resolution when a forwarded query SERVFAILs. That would
+            # have kept the LAN up on both outage dates -- but it does it
+            # silently over plaintext port 53, leaking every query with no
+            # signal that it happened, which removes the entire reason DoT is
+            # configured here.
+            #
+            # The mitigation chosen instead is redundancy (above) plus detection
+            # (the DNS probes in modules/monitoring/master/blackbox.nix).
+            # Revisit only if an outage is ever traced to outbound 853 being
+            # blocked wholesale rather than to a single provider failing --
+            # redundancy cannot help with that, and the probes are what would
+            # tell the difference.
             forward-first = false;
           }
         ];
