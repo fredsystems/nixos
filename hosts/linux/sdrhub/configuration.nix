@@ -397,6 +397,20 @@ let
     domain = "${name}.${internalDomain}";
     answer = "192.168.31.20";
   }) migratedVhosts;
+
+  # TLS names under internalDomain that are served by a DIFFERENT host, so they
+  # cannot come from migratedVhosts above -- that map is specifically the vhosts
+  # this host's nginx terminates, and its answer is hardcoded to sdrhub.
+  #
+  # attic is the binary cache on fredhub. TLS terminates there rather than being
+  # proxied through here on purpose: proxying would leave the push token in
+  # cleartext on the sdrhub -> fredhub hop, which is the whole thing it exists
+  # to prevent. See hosts/linux/fredhub/nginx.nix.
+  externalTlsRewrites = lib.mapAttrsToList (name: ip: {
+    enabled = true;
+    domain = "${name}.${internalDomain}";
+    answer = ip;
+  }) { attic = "192.168.31.14"; };
 in
 {
   imports = [
@@ -704,7 +718,7 @@ in
           parental_enabled = false;
           safe_search.enabled = false;
 
-          rewrites = mkRewrites lanHosts ++ tlsRewrites;
+          rewrites = mkRewrites lanHosts ++ tlsRewrites ++ externalTlsRewrites;
         };
 
         user_rules = [
