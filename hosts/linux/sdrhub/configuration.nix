@@ -52,6 +52,71 @@ let
         }
       ]) hosts
     );
+
+  # The zone the wildcard certificate in ./acme.nix is issued for.
+  #
+  # This string must equal that certificate's name, because `useACMEHost`
+  # below is keyed on it. Drift does NOT fail evaluation on its own -- the
+  # nginx module would quietly declare a *second* certificate under whatever
+  # name it was given, inheriting a null dnsProvider, and that only surfaces
+  # as a failed issuance on the host. The assertion at the bottom of this file
+  # turns that into a build error instead.
+  internalDomain = "int.fredsystems.org";
+
+  # Hosts migrated to real TLS, as <bare name> -> <answer IP>. Each produces
+  # one `<name>.${internalDomain}` AdGuard rewrite.
+  #
+  # Deliberately a separate map from lanHosts rather than a third TLD emitted
+  # by mkRewrites. Two reasons:
+  #
+  #   * Most of lanHosts is not served by nginx here at all (acarshub,
+  #     fredvps, nvrhub, ... are plain DNS convenience). Emitting TLS names
+  #     for those would advertise names that resolve but have no vhost, so
+  #     they would land on the default server holding a certificate for a
+  #     name the client did not ask for.
+  #   * The migration is deliberately incremental -- this host fronts the
+  #     ADS-B stack, and a botched nginx reload takes that down with it. A
+  #     name only appears here once its vhost actually terminates TLS.
+  #
+  # Note the shape differs from the `.lan` names on purpose: the `sdrhub`
+  # label is dropped, because `int.fredsystems.org` already says which
+  # network this is and a wildcard only covers a single label level.
+  tlsHosts = {
+    "clipboard" = "192.168.31.20";
+  };
+
+  mkTlsRewrites =
+    hosts:
+    lib.mapAttrsToList (name: ip: {
+      enabled = true;
+      domain = "${name}.${internalDomain}";
+      answer = ip;
+    }) hosts;
+
+  # Shared by both clipboard vhosts -- the plaintext `.lan` one and the TLS
+  # one -- so the two cannot drift while both are live.
+  #
+  # Clipboard payloads are whatever happened to be on a clipboard, so the
+  # default 1m body limit is far too small once images are in play. The
+  # upstream is loopback-only, so these vhosts are the only way in.
+  clipboardLocations = {
+    "/" = {
+      proxyPass = "http://127.0.0.1:5033";
+      extraConfig = ''
+        client_max_body_size 512m;
+
+        # Stream to the upstream instead of buffering. Auth happens in
+        # SyncClipboard, not nginx, so with the default
+        # proxy_request_buffering on any LAN client could push 512m of
+        # body to disk before ever being told 401. Streaming lets the
+        # upstream reject it immediately, and client_body_timeout bounds
+        # a slow trickle (proxy_read_timeout only covers the response).
+        proxy_request_buffering off;
+        client_body_timeout 60s;
+        proxy_read_timeout 300s;
+      '';
+    };
+  };
 in
 {
   imports = [
@@ -95,6 +160,10 @@ in
     firewall = {
       allowedTCPPorts = [
         80
+        # nginx TLS, for the vhosts that have been migrated to the
+        # int.fredsystems.org certificate. 80 stays open: the `.lan` vhosts
+        # are still plaintext by design during the migration.
+        443
         6379
         5432
       ];
@@ -179,7 +248,7 @@ in
           parental_enabled = false;
           safe_search.enabled = false;
 
-          rewrites = mkRewrites lanHosts;
+          rewrites = mkRewrites lanHosts ++ mkTlsRewrites tlsHosts;
         };
 
         user_rules = [
@@ -760,6 +829,11 @@ in
       recommendedGzipSettings = true;
       recommendedOptimisation = true;
       recommendedProxySettings = true;
+      # New here, and safe to add in the same change that introduces the
+      # first TLS vhost: it only touches TLS parameters (protocol floor,
+      # cipher list, session cache, stapling), and until now this host
+      # terminated no TLS at all, so there is nothing it can regress.
+      recommendedTlsSettings = true;
 
       appendHttpConfig = ''
         map $http_upgrade $connection_upgrade {
@@ -855,27 +929,34 @@ in
           locations."/".proxyPass = "http://192.168.31.20:8083";
         };
 
-        # Clipboard payloads are whatever happened to be on a clipboard, so
-        # the default 1m body limit is far too small once images are in play.
-        # The upstream is loopback-only, so this vhost is the only way in.
+        # Plaintext clipboard vhost. Kept alive deliberately: the TLS vhost
+        # below is a pilot, and this host fronts the ADS-B stack, so the
+        # working path stays up until the new one is proven. Retire this
+        # vhost -- and the "clipboard.sdrhub" entry in lanHosts -- once no
+        # client is left on it.
+        #
+        # It gets no forceSSL. Redirecting it to HTTPS would send clients to
+        # a listener whose certificate covers int.fredsystems.org and not
+        # `.lan`, which is a name error rather than an upgrade.
         "clipboard.sdrhub.lan" = {
           serverAliases = [ "clipboard.sdrhub.local" ];
-          locations."/" = {
-            proxyPass = "http://127.0.0.1:5033";
-            extraConfig = ''
-              client_max_body_size 512m;
+          locations = clipboardLocations;
+        };
 
-              # Stream to the upstream instead of buffering. Auth happens in
-              # SyncClipboard, not nginx, so with the default
-              # proxy_request_buffering on any LAN client could push 512m of
-              # body to disk before ever being told 401. Streaming lets the
-              # upstream reject it immediately, and client_body_timeout bounds
-              # a slow trickle (proxy_read_timeout only covers the response).
-              proxy_request_buffering off;
-              client_body_timeout 60s;
-              proxy_read_timeout 300s;
-            '';
-          };
+        # The same backend over TLS, on a name a public CA can issue for.
+        #
+        # A separate vhost rather than a serverAlias on the one above,
+        # precisely so that adding forceSSL here cannot affect the `.lan`
+        # path: serverAliases share a server block, and forceSSL applies to
+        # the whole block.
+        #
+        # This is the vhost that motivated the whole exercise -- it is the
+        # only one on the host that carries credentials (HTTP Basic, on every
+        # request) and a payload worth reading.
+        "clipboard.${internalDomain}" = {
+          forceSSL = true;
+          useACMEHost = internalDomain;
+          locations = clipboardLocations;
         };
 
         "piaware.sdrhub.lan" = {
@@ -923,6 +1004,29 @@ in
       };
     };
   };
+
+  # The TLS vhost above and the certificate in ./acme.nix are joined only by a
+  # bare string, and the nginx module does not check that the string resolves
+  # to anything. Given a name it does not recognise it silently declares a
+  # *new* certificate under it, which inherits `security.acme.defaults` and so
+  # has no dnsProvider -- leaving a host that builds and deploys fine and then
+  # fails issuance, with the TLS vhost serving nothing.
+  #
+  # Any real certificate for this domain must have a dnsProvider, since DNS-01
+  # is the only challenge that can work for a name with no public address
+  # record. Its absence therefore means exactly one thing: the two files have
+  # drifted apart.
+  assertions = [
+    {
+      assertion = config.security.acme.certs.${internalDomain}.dnsProvider != null;
+      message = ''
+        sdrhub: nginx uses useACMEHost = "${internalDomain}", but no certificate
+        of that name declares a dnsProvider. Either `internalDomain` in
+        configuration.nix or the `security.acme.certs.<name>` attribute in
+        acme.nix was renamed without the other.
+      '';
+    }
+  ];
 
   system.stateVersion = stateVersion;
 
