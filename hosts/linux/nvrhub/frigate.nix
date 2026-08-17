@@ -403,9 +403,24 @@ in
     };
   };
 
+  # restartUnits is set directly (rather than reusing mkContainerSecret from
+  # modules/services/mk-container-secret.nix) because that helper hardcodes
+  # `restartUnits = [ "docker-${containerName}.service" ]`, and nvrhub runs no
+  # Docker containers -- Frigate is the native `services.frigate` module,
+  # started as `systemd.services.frigate` (see LoadCredential= above). Pointing
+  # restartUnits at a nonexistent docker-frigate.service would restart nothing
+  # while looking fixed. Without restartUnits here at all, rotating the shared
+  # camera credential and redeploying would leave Frigate's LoadCredential=
+  # holding the stale password with no error and no restart -- the same
+  # silent-stale-credential failure mode documented for the attic token at
+  # modules/services/attic/attic_server.nix:36-40.
   sops.secrets = {
-    "cameras/username" = { };
-    "cameras/password" = { };
+    "cameras/username" = {
+      restartUnits = [ "frigate.service" ];
+    };
+    "cameras/password" = {
+      restartUnits = [ "frigate.service" ];
+    };
   };
 
   # Expose Frigate's Prometheus metrics to the monitoring master.

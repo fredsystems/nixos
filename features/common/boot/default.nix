@@ -1,8 +1,21 @@
 {
   boot = {
     # ── Bootloader ─────────────────────────────────────────────────────────────
-    loader.systemd-boot.enable = true;
-    loader.efi.canTouchEfiVariables = true;
+    loader = {
+      systemd-boot.enable = true;
+      efi.canTouchEfiVariables = true;
+
+      # Every host's /boot is a small VFAT ESP (confirmed on nvrhub), and
+      # none use grub. Left uncapped, systemd-boot keeps a kernel+initrd set
+      # for every generation ever built, and colmena deploys frequently
+      # enough (every push that touches an impacted host) that the ESP
+      # fills up and the NEXT deploy fails to write its boot entry -- the
+      # classic "cannot write to /boot: No space left on device" that
+      # leaves a host stuck one generation short of booting at all. 10 is
+      # enough rollback depth to survive a bad deploy discovered a few
+      # pushes later while keeping the ESP's worst case bounded.
+      systemd-boot.configurationLimit = 10;
+    };
 
     # ── Plymouth (graphical splash) ────────────────────────────────────────────
     plymouth = {

@@ -26,6 +26,14 @@ on:
     - cron: "40 4 * * *"
   workflow_dispatch:
 
+# Static group name: the daily cron and a manual dispatch open/update the
+# same PR branch. cancel-in-progress must stay false -- a cancelled run
+# could leave the branch mid-update (one pin moved, the other not yet),
+# which is exactly the divergence this workflow exists to prevent.
+concurrency:
+  group: update-syncclipboard
+  cancel-in-progress: false
+
 permissions:
   contents: write
   pull-requests: write

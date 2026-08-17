@@ -39,7 +39,12 @@ jobs:
   relock:
     # Only act on Renovate's PRs.  Skip everything else (incl. our own
     # follow-up push, which is authored by github[bot]) to avoid loops.
-    if: github.event.pull_request.user.login == 'renovate[bot]'
+    # The same-repo check matters because this checks out the PR head,
+    # runs `nix flake lock --refresh` against it, and pushes the result
+    # with a write-scoped PAT (not GITHUB_TOKEN -- see below): a
+    # same-named fork PR would otherwise get its (attacker-controlled)
+    # flake.nix evaluated and re-locked with that PAT.
+    if: github.event.pull_request.user.login == 'renovate[bot]' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

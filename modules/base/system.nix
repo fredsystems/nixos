@@ -79,6 +79,27 @@ in
         "nix-command"
         "flakes"
       ];
+
+      # min-free/max-free are checked by the Nix daemon around normal store
+      # operations (substitutions, builds), not just the scheduled `gc`
+      # below -- when free space on the store's filesystem drops under
+      # min-free, the daemon runs garbage collection there and then,
+      # deleting until max-free is reached (or nothing is left to collect).
+      # This is what actually reclaims space mid-week; `gc.automatic` above
+      # only ever fires once a week and does nothing about a Tuesday that
+      # fills the disk.
+      #
+      # Values are bytes and deliberately conservative given how wide this
+      # fleet's disk sizes are -- a small VPS up to bare-metal servers with
+      # multi-TB volumes all read this same setting. 1 GiB min-free is a
+      # floor that still leaves real headroom before "disk full" on the
+      # smallest host, without being so large it starts collecting
+      # constantly there. 5 GiB max-free is a small, fast reclaim on a big
+      # server and a meaningful chunk of breathing room on a small one;
+      # either way collection stops well before it turns into an unbounded
+      # sweep of the whole store.
+      min-free = 1073741824; # 1 GiB
+      max-free = 5368709120; # 5 GiB
     };
 
     gc = {

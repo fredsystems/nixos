@@ -7,6 +7,12 @@ on:
     types: [opened, synchronize, reopened]
   workflow_dispatch:
 
+permissions:
+  contents: read
+  # `gh pr view` in the merge-queue-ci-skipper composite action (used by
+  # skip-if-clean below) reads the PR for the current ref.
+  pull-requests: read
+
 jobs:
   # =====================================================================
   # Fast-path job — now always runs, but only sets skip=true on merge_group

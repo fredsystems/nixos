@@ -33,6 +33,14 @@ on:
     - cron: "15 5 * * 1"
   workflow_dispatch:
 
+# Static group name: the weekly cron and a manual dispatch open/update the
+# same PR branch. cancel-in-progress must stay false -- a cancelled run
+# could leave the branch mid-update (hash rewritten, PR body not yet
+# refreshed), which is worse than letting a redundant run finish.
+concurrency:
+  group: update-apple-fonts
+  cancel-in-progress: false
+
 permissions:
   contents: write
   pull-requests: write
