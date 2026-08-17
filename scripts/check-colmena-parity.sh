@@ -37,10 +37,16 @@
 #   scripts/check-colmena-parity.sh
 set -euo pipefail
 
-REPO_ROOT="$(git rev-parse --show-toplevel)"
+# Located via BASH_SOURCE rather than `git rev-parse`, for two reasons: it
+# does not require git merely to find the repo root (the tool check below
+# cannot fire if discovery itself dies on a missing git first), and it works
+# from inside a sandboxed Nix build, where there is no .git at all. Matches
+# check-sops-recipients.sh, check-doc-drift.sh and check-opencode-jsonc.sh.
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
-for tool in nix jq git; do
+# git is deliberately NOT in this list: nothing below shells out to it.
+for tool in nix jq; do
     command -v "$tool" >/dev/null 2>&1 || {
         echo "error: required tool not on PATH: $tool" >&2
         exit 1

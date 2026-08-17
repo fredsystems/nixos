@@ -163,15 +163,61 @@ done
 
 # --- structural check: every `command.*` entry requires `template` -------
 
-mapfile -t commands_missing_template < <(
-  jq -r '(.command // {}) | to_entries[] | select(.value.template == null) | .key' "$canonical_json"
-)
+# This must FAIL CLOSED, and getting that right takes more than the obvious
+# one-liner. Two traps:
+#
+#   1. `mapfile < <(jq ...)` does NOT propagate the process substitution's
+#      exit status, and `set -e` does not catch it either -- mapfile returns
+#      0 regardless. So a jq error yields an EMPTY array, which reads as
+#      "no commands are missing a template" and PASSES.
+#   2. If `command` or any entry under it is a scalar rather than an object,
+#      `.value.template` makes jq error ("Cannot index string with string")
+#      and exit 5 -- hitting trap 1 above.
+#
+# Combined, a config like {"command": {"foo": "bar"}} would have been
+# reported as valid by a check whose whole purpose is to reject it. So:
+# validate the shapes first, and capture jq's status explicitly rather than
+# through a pipeline that discards it.
 
-for c in "${commands_missing_template[@]}"; do
-  [[ -n $c ]] && errors+=(
-    "${CONFIG_FILE}: command '${c}' has no 'template' field, which opencode's schema requires for every command entry."
-  )
-done
+command_type="$(jq -r 'if has("command") then (.command | type) else "absent" end' "$canonical_json")"
+command_count=0
+
+case "$command_type" in
+  absent | 'null') ;; # no `command` block at all is fine
+  object)
+    command_count="$(jq -r '.command | length' "$canonical_json")"
+
+    # Reject non-object entries explicitly, before anything indexes into them.
+    mapfile -t non_object_commands < <(
+      jq -r '.command | to_entries[] | select((.value | type) != "object") | "\(.key) (\(.value | type))"' \
+        "$canonical_json"
+    )
+    for c in "${non_object_commands[@]}"; do
+      [[ -n $c ]] && errors+=(
+        "${CONFIG_FILE}: command '${c%% *}' is a ${c#* }, not an object -- opencode's schema requires each command entry to be an object with a 'template' field."
+      )
+    done
+
+    # Only now is it safe to read .template. Capture jq's status via a temp
+    # file rather than process substitution, so a failure is actually seen.
+    if ! jq -r '.command | to_entries[] | select((.value | type) == "object") | select(.value.template == null) | .key' \
+      "$canonical_json" >"${workdir}/missing-template.txt" 2>"${workdir}/missing-template.err"; then
+      echo "error: failed to inspect 'command' entries in $CONFIG_FILE" >&2
+      cat "${workdir}/missing-template.err" >&2
+      exit 1
+    fi
+    while IFS= read -r c; do
+      [[ -n $c ]] && errors+=(
+        "${CONFIG_FILE}: command '${c}' has no 'template' field, which opencode's schema requires for every command entry."
+      )
+    done <"${workdir}/missing-template.txt"
+    ;;
+  *)
+    errors+=(
+      "${CONFIG_FILE}: top-level 'command' is a ${command_type}, not an object -- opencode's schema expects a map of command name to command object."
+    )
+    ;;
+esac
 
 if [[ ${#errors[@]} -gt 0 ]]; then
   echo "opencode.jsonc structural check FAILED:" >&2
@@ -182,7 +228,7 @@ if [[ ${#errors[@]} -gt 0 ]]; then
   exit 1
 fi
 
-echo "opencode.jsonc structural check OK (${#actual_keys[@]} top-level keys, ${#commands_missing_template[@]} commands missing template)"
+echo "opencode.jsonc structural check OK (${#actual_keys[@]} top-level keys, ${command_count} command entr$([[ $command_count -eq 1 ]] && echo y || echo ies) validated)"
 
 if [[ $OFFLINE -eq 1 ]]; then
   exit 0
