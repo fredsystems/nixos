@@ -164,6 +164,14 @@ let
     "https://search.int.fredsystems.org/" # -> 127.0.0.1:4444
     "https://jellyfin.int.fredsystems.org/" # -> fredhub 192.168.31.14:8096
     "https://karma.int.fredsystems.org/" # -> 127.0.0.1 (karma.nix)
+
+    # /api/health rather than /, deliberately. Grafana answers 302 -> /login on
+    # `/`, which the module's follow_redirects would turn into a 200 that only
+    # proves the login page renders. /api/health is unauthenticated by design
+    # and returns 200 only when Grafana can also reach its database, so the
+    # probe fails for a broken Grafana rather than a merely reachable one.
+    # Verified 200 from sdrhub.
+    "https://grafana.int.fredsystems.org/api/health" # -> 127.0.0.1:3333
   ];
 
   # The legacy `.lan` / `.local` names. They no longer proxy anything -- each

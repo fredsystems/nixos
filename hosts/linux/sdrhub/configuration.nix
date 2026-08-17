@@ -90,7 +90,9 @@ let
   #
   # Fields:
   #   legacy         plaintext names that must keep working. Head becomes the
-  #                  server block's name, tail its serverAliases.
+  #                  server block's name, tail its serverAliases. An EMPTY list
+  #                  means no plaintext block is generated at all -- for a
+  #                  service that never had a `.lan` name to be compatible with.
   #   legacyDefault  make the plaintext block port 80's default_server.
   #   vhost          the serving configuration; gains forceSSL + useACMEHost.
   migratedVhosts = {
@@ -257,6 +259,36 @@ let
       };
     };
 
+    # Grafana. Bound to loopback by modules/monitoring/master/grafana.nix, which
+    # also drops the firewall opening it used to need, so this vhost is now the
+    # only way in.
+    #
+    # No `legacy` names, unlike every other entry here. Grafana was never
+    # reached by hostname -- it was http://sdrhub.lan:3333/, a port rather than
+    # a name -- so there is no `.lan` vhost to preserve and inventing one would
+    # mean creating a fresh plaintext entry point for the one service on this
+    # host that carries admin credentials. The old URL stops working, which is
+    # the point; the landing page link is updated to match.
+    #
+    # The port is read from the service definition rather than hardcoded, the
+    # same way the karma vhost does it, so the proxy target cannot drift out of
+    # sync with the server it proxies to.
+    #
+    # Grafana Live pushes dashboard updates over a websocket on /api/live/ws,
+    # hence the upgrade headers (the $connection_upgrade map is defined in
+    # appendHttpConfig).
+    grafana = {
+      legacy = [ ];
+      vhost.locations."/" = {
+        proxyPass = "http://127.0.0.1:${toString config.services.grafana.settings.server.http_port}";
+        extraConfig = ''
+          proxy_http_version 1.1;
+          proxy_set_header Upgrade $http_upgrade;
+          proxy_set_header Connection $connection_upgrade;
+        '';
+      };
+    };
+
     # Clipboard payloads are whatever happened to be on a clipboard, so the
     # default 1m body limit is far too small once images are in play. The
     # upstream is loopback-only, so this vhost is the only way in.
@@ -319,7 +351,11 @@ let
       }
       // lib.optionalAttrs (def.legacyDefault or false) { default = true; }
     )
-  ) migratedVhosts;
+    # Services with no legacy names get no plaintext server block. Filtered
+    # rather than handled inside the mapper because `lib.head []` is an error,
+    # and because "there is nothing to be backward-compatible with" is a
+    # meaningfully different statement from "the redirect is empty".
+  ) (lib.filterAttrs (_: def: def.legacy != [ ]) migratedVhosts);
 
   # AdGuard rewrites for the TLS names. Every migrated vhost answers on this
   # host, so they all resolve to it.
@@ -1223,6 +1259,25 @@ in
   # record. Its absence therefore means exactly one thing: the two files have
   # drifted apart.
   assertions = [
+    # Grafana builds absolute URLs -- login redirects, alert links, share URLs --
+    # from its own root_url, which is set in
+    # modules/monitoring/master/grafana.nix and has no way to know what name
+    # nginx actually serves it under. If the two drift, Grafana keeps working
+    # while handing browsers links to a name that does not resolve, which is the
+    # sort of fault that gets blamed on the browser for a while.
+    {
+      assertion =
+        config.services.grafana.settings.server.root_url == "https://grafana.${internalDomain}/";
+      message = ''
+        sdrhub: services.grafana.settings.server.root_url is
+        "${config.services.grafana.settings.server.root_url}", but nginx serves
+        Grafana at "https://grafana.${internalDomain}/".
+
+        Set root_url (and `domain`) in modules/monitoring/master/grafana.nix to
+        match, or rename the `grafana` entry in migratedVhosts.
+      '';
+    }
+
     {
       assertion = config.security.acme.certs.${internalDomain}.dnsProvider != null;
       message = ''
