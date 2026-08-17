@@ -2,9 +2,23 @@
   config,
   stateVersion,
   lib,
+  pkgs,
   ...
 }:
 let
+  # Throwaway certificate for the catch-all 443 server block below. There is
+  # no real name to get an ACME certificate for unmatched SNI, and the point
+  # is only to avoid handing a *real* vhost's certificate to a client that
+  # asked for a name we do not serve.
+  snakeoilCert =
+    pkgs.runCommand "nginx-default-snakeoil-cert" { nativeBuildInputs = [ pkgs.openssl ]; }
+      ''
+        mkdir -p "$out"
+        openssl req -x509 -nodes -newkey rsa:2048 -days 36500 \
+          -keyout "$out/key.pem" -out "$out/cert.pem" \
+          -subj "/CN=invalid"
+      '';
+
   # Restart the consuming container when its --env-file secret changes.
   # See modules/services/mk-container-secret.nix for why this is declared
   # here rather than derived inside adsb-docker-units.nix.
@@ -1000,6 +1014,34 @@ in
               proxy_set_header Connection $connection_upgrade;
             '';
           };
+        };
+
+        # Explicit catch-all for unmatched SNI on 443.
+        #
+        # Without it nginx promotes whichever TLS server block sorts first to
+        # be the implicit default_server, and hands that vhost's certificate
+        # to clients asking for names we do not serve. That is exactly the bug
+        # documented at length in hosts/linux/fredvps/nginx.nix, where a
+        # typo'd domain ended up being served acarshub.app's certificate.
+        #
+        # It matters here as soon as there is more than one TLS vhost: with
+        # only clipboard listening, unmatched SNI got the certificate a client
+        # would have been handed anyway, so nothing leaked. With the rest of
+        # the vhosts migrating, that stops being true.
+        #
+        # onlySSL rather than addSSL, unlike fredvps: `sdrhub.lan` already
+        # claims default_server on port 80 and nginx rejects a duplicate. This
+        # block therefore takes the 443 default only, and leaves the plaintext
+        # default where it is.
+        "_" = {
+          default = true;
+          serverName = "_";
+          onlySSL = true;
+          sslCertificate = "${snakeoilCert}/cert.pem";
+          sslCertificateKey = "${snakeoilCert}/key.pem";
+          extraConfig = ''
+            return 444;
+          '';
         };
       };
     };
