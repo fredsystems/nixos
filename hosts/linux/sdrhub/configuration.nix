@@ -81,6 +81,37 @@ let
   #                  service that never had a `.lan` name to be compatible with.
   #   legacyDefault  make the plaintext block port 80's default_server.
   #   vhost          the serving configuration; gains forceSSL + useACMEHost.
+  #
+  # REACHING adguard AND grafana WHEN DNS IS BROKEN
+  #
+  # Those two entries have `legacy = [ ]`, bind loopback, and have had their
+  # firewall openings removed, so a name under internalDomain is their only
+  # entry point -- and that name is answered by an AdGuard rewrite. During the
+  # DNS fault this host's monitoring exists to catch, the AdGuard admin UI is
+  # therefore unreachable by the very mechanism that is broken, and Grafana with
+  # it. That is a real circularity, so the escape hatch is written down here
+  # rather than rediscovered under pressure.
+  #
+  # SSH still works: it needs no name resolution and no nginx. Forward the
+  # loopback ports and use 127.0.0.1 in the browser.
+  #
+  #   ssh -N -L 3003:127.0.0.1:3003 -L 3333:127.0.0.1:3333 192.168.31.20
+  #
+  # then http://127.0.0.1:3003/ for AdGuard and http://127.0.0.1:3333/ for
+  # Grafana. Plaintext is fine: the only wire is the SSH tunnel. Both ports are
+  # the ones the vhosts below read out of the service definitions, so if either
+  # is retuned this command needs the same edit.
+  #
+  # Note Grafana's `root_url` is the TLS name, so it will emit absolute links
+  # back to grafana.int.fredsystems.org that do not resolve. Log in and use the
+  # UI; do not follow redirects out of it. AdGuard has no such problem.
+  #
+  # Tailscale is the other route in, and is the one to use from off the LAN. Use
+  # the tailnet IP (`ssh 100.x.y.z`) rather than the MagicDNS name unless the
+  # client is running tailscaled itself: the `tailc21fc7.ts.net` forward-zone in
+  # unbound below is only reached THROUGH AdGuard, so it is broken by the same
+  # fault. A Tailscale client resolves MagicDNS against its own local
+  # 100.100.100.100 and is unaffected; anything else is not.
   migratedVhosts = {
     # Landing page. Also the plaintext default, so an unknown Host (a raw IP,
     # say) still lands here rather than on whichever vhost sorts first.
@@ -325,6 +356,41 @@ let
   # yields `http://<new name>`, which the TLS vhost then has to bounce a
   # second time -- two round trips, the first still in the clear, which is
   # most of what this change exists to stop.
+  #
+  # WHAT THE REDIRECT DOES NOT FIX, FOR clipboard SPECIFICALLY
+  #
+  # A 308 only protects a client that has not sent anything yet. SyncClipboard
+  # sends its HTTP Basic header preemptively rather than waiting for a 401, so a
+  # client still configured with http://clipboard.sdrhub.lan puts the credential
+  # on the wire in cleartext and only then reads the redirect. For that client
+  # this compatibility layer removes nothing; it just makes the second attempt
+  # encrypted.
+  #
+  # Two consequences, and neither is fixed by code in this file:
+  #
+  #   1. The SyncClipboard password must be treated as exposed and rotated once
+  #      every client uses the HTTPS name and the `clipboard` entry's `legacy`
+  #      list is emptied. Rotating before then re-exposes the new password by the
+  #      same route. The value lives in the `docker/sdrhub/syncclipboard.env`
+  #      sops secret and in each client's config.
+  #   2. Deleting the legacy clipboard vhost is the actual fix, and is
+  #      deliberately not done here: the mobile SyncClipboard clients are
+  #      configured out-of-band and are not in this repository, so this would
+  #      break them silently. Emptying `legacy` on the `clipboard` entry is the
+  #      one-line change once they are migrated -- and the matching
+  #      http://clipboard.sdrhub.local/ entry in
+  #      modules/monitoring/master/blackbox.nix must go with it.
+  #
+  # HSTS is deliberately NOT the mitigation, despite being the obvious
+  # suggestion. It is scoped to the host that sends it, so a header on
+  # clipboard.int.fredsystems.org has no effect whatsoever on requests to
+  # clipboard.sdrhub.lan -- a different name in a different, non-public zone.
+  # It also cannot help here even in principle: the clients are native
+  # SyncClipboard apps, not browsers, and do not implement HSTS. Meanwhile it
+  # has a real cost on this host -- a failed renewal of the wildcard would leave
+  # browsers unable to click through to adguard and grafana, which is exactly
+  # when reaching the DNS control plane matters most. See the recovery note on
+  # migratedVhosts above.
   legacyRedirectVirtualHosts = lib.mapAttrs' (
     name: def:
     lib.nameValuePair (lib.head def.legacy) (
@@ -475,6 +541,28 @@ in
         # runs on this host, and traffic to sdrhub's own address arrives over
         # `lo`, which is in trustedInterfaces -- so a probe would pass whether or
         # not this rule existed, asserting something weaker than it appears to.
+        #
+        # Global rather than scoped to the LAN interface via
+        # `networking.firewall.interfaces.<name>`, and that is a considered
+        # choice rather than laziness. This host declares no interface names at
+        # all -- `networking.useDHCP = true` in hardware-configuration.nix and
+        # `networking.interfaces` evaluates to `{}` -- so scoping means
+        # hardcoding a kernel-assigned name (`enp89s0`) that appears nowhere
+        # else in the configuration. Get it wrong, or have it renamed by a NIC
+        # or kernel change, and there is no rule at all: the default policy
+        # drops, and the entire LAN loses DNS with a config that still builds
+        # and deploys cleanly. That is the same class of silent, invisible-from-
+        # reading-the-config fault as the AdGuard bind bug below.
+        #
+        # It would also narrow more than intended. `trustedInterfaces` on this
+        # host is `[ "lo" ]` and nothing more -- verified, not assumed:
+        #
+        #   nix eval '.#nixosConfigurations.sdrhub.config.networking.firewall.trustedInterfaces'
+        #
+        # so `tailscale0` is NOT trusted and DNS reachable over the tailnet
+        # depends on this global rule. Scoping to the LAN interface would
+        # silently remove that while leaving the LAN exposure -- which is the
+        # exposure -- exactly as it was.
         53
         80
         # nginx TLS, for the vhosts that have been migrated to the
