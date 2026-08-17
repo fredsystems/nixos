@@ -147,11 +147,14 @@ let
   # The rest of the TLS vhosts on this host, all sharing the one wildcard
   # certificate. See hosts/linux/sdrhub/configuration.nix.
   #
-  # jellyfin and karma are absent deliberately, as they were before the
-  # migration: neither was ever verified to answer 2xx unauthenticated from
-  # this host, and adding an unverified target is how a permanently-red probe
-  # gets created. They are still covered for reachability by the redirect
-  # probes below.
+  # This is now every vhost that answers 2xx, rather than the six that
+  # happened to be probed before. jellyfin and karma had been omitted only
+  # because neither had ever been verified to answer 2xx unauthenticated --
+  # adding an unverified target is how a permanently-red probe gets made --
+  # and both were confirmed 200 during the TLS migration.
+  #
+  # jellyfin needs the module's follow_redirects: it answers 302 on / and
+  # serves the app from /web/. Same reason dump978 needs it.
   internalEndpoints = [
     "https://sdrhub.int.fredsystems.org/" # landing page
     "https://tar1090.int.fredsystems.org/" # -> 192.168.31.20:8080
@@ -159,6 +162,8 @@ let
     "https://piaware.int.fredsystems.org/" # -> 192.168.31.20:8084
     "https://ai.int.fredsystems.org/" # -> fredhub 192.168.31.14:8889
     "https://search.int.fredsystems.org/" # -> 127.0.0.1:4444
+    "https://jellyfin.int.fredsystems.org/" # -> fredhub 192.168.31.14:8096
+    "https://karma.int.fredsystems.org/" # -> 127.0.0.1 (karma.nix)
   ];
 
   # The legacy `.lan` / `.local` names. They no longer proxy anything -- each
