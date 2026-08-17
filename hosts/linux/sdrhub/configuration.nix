@@ -863,6 +863,15 @@ in
             proxyPass = "http://127.0.0.1:5033";
             extraConfig = ''
               client_max_body_size 512m;
+
+              # Stream to the upstream instead of buffering. Auth happens in
+              # SyncClipboard, not nginx, so with the default
+              # proxy_request_buffering on any LAN client could push 512m of
+              # body to disk before ever being told 401. Streaming lets the
+              # upstream reject it immediately, and client_body_timeout bounds
+              # a slow trickle (proxy_read_timeout only covers the response).
+              proxy_request_buffering off;
+              client_body_timeout 60s;
               proxy_read_timeout 300s;
             '';
           };
@@ -921,7 +930,12 @@ in
       # Ensure directory exists (does not touch contents if already there)
       install -d -m0755 -o fred -g users /opt/adsb
       install -d -m0755 -o fred -g users /opt/adsb/degoog
-      install -d -m0755 -o fred -g users /opt/adsb/syncclipboard
+      # 0700, unlike its siblings: this one holds clipboard history, which
+      # is whatever happened to be copied, passwords included. The image sets
+      # no USER so the container runs as root and writes root-owned,
+      # world-readable files; 0755 left them traversable by any local user.
+      # Root ignores DAC, so tightening the directory does not affect it.
+      install -d -m0700 -o fred -g users /opt/adsb/syncclipboard
     '';
     deps = [ ];
   };

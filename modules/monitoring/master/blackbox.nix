@@ -218,7 +218,10 @@ let
           method = "GET";
           valid_status_codes = [ 401 ];
           follow_redirects = true;
-          fail_if_not_ssl = false;
+          # Matches http_2xx: these vhosts are plain HTTP by design, so TLS
+          # appearing here means something was reconfigured and the probe
+          # should say so rather than quietly passing.
+          fail_if_ssl = true;
           preferred_ip_protocol = "ip4";
         };
       };
