@@ -26,6 +26,7 @@ let
     "dump978.sdrhub" = "192.168.31.20";
     "piaware.sdrhub" = "192.168.31.20";
     "jellyfin.sdrhub" = "192.168.31.20";
+    "clipboard.sdrhub" = "192.168.31.20";
     "acarshub" = "192.168.31.24";
     "fredhub" = "192.168.31.14";
     "fredvps" = "5.161.253.151";
@@ -686,6 +687,35 @@ in
       }
 
       ###############################################################
+      # SYNCCLIPBOARD (clipboard sync + server-side history)
+      ###############################################################
+      {
+        name = "syncclipboard";
+        image = "jericx/syncclipboard-server:v3.2.0@sha256:3f2d9c6ce4fbefca769e40d79ed2cac2ad8fc3adf962c0599ba9176b502a3b6d";
+
+        restart = "always";
+
+        # Credentials only; the image's own appsettings.json supplies the
+        # rest, including MaxSavedHistoryCount. The env vars take priority
+        # over that file when both are non-empty, which is why the password
+        # never has to appear in the Nix store.
+        environmentFiles = [
+          config.sops.secrets."docker/sdrhub/syncclipboard.env".path
+        ];
+
+        # Loopback-only. The server speaks plain HTTP and carries a password,
+        # so it is reached exclusively through the nginx vhost below rather
+        # than being published to the LAN. Same reasoning as karma/blackbox.
+        ports = [
+          "127.0.0.1:5033:5033"
+        ];
+
+        volumes = [
+          "/opt/adsb/syncclipboard:/app/data"
+        ];
+      }
+
+      ###############################################################
       # ACARS ROUTER (ACARS + VDLM2 + HFDL consolidation)
       ###############################################################
       {
@@ -824,6 +854,20 @@ in
           locations."/".proxyPass = "http://192.168.31.20:8083";
         };
 
+        # Clipboard payloads are whatever happened to be on a clipboard, so
+        # the default 1m body limit is far too small once images are in play.
+        # The upstream is loopback-only, so this vhost is the only way in.
+        "clipboard.sdrhub.lan" = {
+          serverAliases = [ "clipboard.sdrhub.local" ];
+          locations."/" = {
+            proxyPass = "http://127.0.0.1:5033";
+            extraConfig = ''
+              client_max_body_size 512m;
+              proxy_read_timeout 300s;
+            '';
+          };
+        };
+
         "piaware.sdrhub.lan" = {
           serverAliases = [ "piaware.sdrhub.local" ];
           locations."/".proxyPass = "http://192.168.31.20:8084";
@@ -877,12 +921,14 @@ in
       # Ensure directory exists (does not touch contents if already there)
       install -d -m0755 -o fred -g users /opt/adsb
       install -d -m0755 -o fred -g users /opt/adsb/degoog
+      install -d -m0755 -o fred -g users /opt/adsb/syncclipboard
     '';
     deps = [ ];
   };
 
   sops.secrets = {
     "docker/sdrhub/dozzle.env" = mkContainerSecret "dozzle";
+    "docker/sdrhub/syncclipboard.env" = mkContainerSecret "syncclipboard";
 
     # Deliberately NOT mkContainerSecret. Both are declared but unconsumed:
     # the dozzle-agent container takes no environmentFiles (its secret is

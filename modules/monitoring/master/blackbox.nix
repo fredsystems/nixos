@@ -129,6 +129,14 @@ let
   # Each was verified 200 from sdrhub itself (dump978 after following its
   # single redirect to /skyaware978/, which is why the internal module follows
   # redirects and the public ones do not).
+  # Endpoints that legitimately answer 401 unauthenticated. Probing these with
+  # http_2xx would fire permanently; the point of the probe is to prove nginx
+  # still reaches a live upstream, and a 401 proves exactly that without
+  # putting a credential in the exporter.
+  internalAuthedEndpoints = [
+    "http://clipboard.sdrhub.local/" # -> 127.0.0.1:5033 (syncclipboard)
+  ];
+
   internalEndpoints = [
     "http://sdrhub.local/" # landing page
     "http://tar1090.sdrhub.local/" # -> 192.168.31.20:8080
@@ -201,6 +209,20 @@ let
       # so following redirects on acarshub.com would silently report
       # acarshub.app's expiry, and sdr-e.org would report github.com's. The
       # cert-expiry alerts would then be watching the wrong certificates.
+      # Accepts only 401. A 2xx here would mean the server stopped requiring
+      # authentication, which is itself worth catching.
+      http_401 = {
+        prober = "http";
+        timeout = "10s";
+        http = {
+          method = "GET";
+          valid_status_codes = [ 401 ];
+          follow_redirects = true;
+          fail_if_not_ssl = false;
+          preferred_ip_protocol = "ip4";
+        };
+      };
+
       https_2xx = {
         prober = "http";
         timeout = "10s";
@@ -286,6 +308,7 @@ in
       (mkProbeJob "blackbox-https-redirect-secondary" "https_redirect" publicRedirectSecondaryEndpoints)
 
       (mkProbeJob "blackbox-http-internal" "http_2xx" internalEndpoints)
+      (mkProbeJob "blackbox-http-internal-authed" "http_401" internalAuthedEndpoints)
 
       # The exporter's own operational metrics -- not a probe, a normal scrape.
       # Without this, a dead exporter yields no probe_success series at all,
