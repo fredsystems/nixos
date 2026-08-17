@@ -418,6 +418,27 @@ in
           tls-system-cert = true;
           tls-use-sni = true;
 
+          # Both of these exist for the exporter in
+          # modules/monitoring/master/unbound-exporter.nix, which asserts they
+          # are on rather than silently producing a useless scrape.
+          #
+          # extended-statistics is what produces the rcode counters, including
+          # num.answer.rcode.SERVFAIL. Without it unbound exposes NONE of them
+          # -- verified by `unbound-control stats | grep -c rcode` returning 0 --
+          # which meant the single number that would have quantified the
+          # 2026-08-15 and 2026-08-16 outages was never collected. Upstream
+          # notes it costs some time to track; on a home LAN's query volume that
+          # is not measurable.
+          #
+          # statistics-cumulative makes the counters monotonic instead of being
+          # cleared on read. Without it `unbound-control stats` RESETS every
+          # counter, so the exporter and a human debugging by hand silently
+          # destroy each other's numbers -- observed while investigating: a read
+          # returned 91 queries and the next read, seconds later, returned 0.
+          # Prometheus also wants counters that only go up.
+          extended-statistics = true;
+          statistics-cumulative = true;
+
           hide-identity = true;
           hide-version = true;
         };
