@@ -1,0 +1,124 @@
+---
+name: update-syncclipboard
+
+# Keeps the SyncClipboard server image and the Linux client AppImage pinned to
+# the same upstream release.
+#
+# Both artifacts ship from a single upstream tag, but they live in two places
+# here, and only one of them is visible to Renovate:
+#
+#   hosts/linux/sdrhub/configuration.nix   server image  -- Renovate DOES match
+#   overlays/syncclipboard.nix             client AppImage -- nothing watches it
+#
+# Renovate's docker updates automerge, so left alone it would walk the server
+# forward on its own. That is usually the safe direction (upstream states
+# compatibility as `server >= client`), but v3.1.1 was a hard break in both
+# directions and such breaks are announced only in prose. This workflow owns
+# both pins so they move together; renovate.json5 disables the image so the two
+# cannot race. scripts/sync-syncclipboard.sh carries the full reasoning.
+#
+# Runs at :40 rather than on the hour. GitHub documents the top of the hour as
+# its highest-contention slot for scheduled workflows and drops queued jobs
+# under load.
+
+on:
+  schedule:
+    - cron: "40 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-syncclipboard:
+    name: Update SyncClipboard pins
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # PAT (not GITHUB_TOKEN) so the pushed branch triggers CI on the
+          # resulting PR -- see the same note in renovate-relock.yaml.
+          token: ${{ secrets.PAT }}
+          persist-credentials: true
+
+      - uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
+        with:
+          extra-conf: accept-flake-config = true
+
+      - name: Configure Git identity
+        run: |
+          git config --global user.email "noreply@github.com"
+          git config --global user.name "github[bot]"
+
+      - name: Sync both pins to the latest upstream release
+        id: sync
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -uo pipefail
+
+          nix shell nixpkgs#skopeo nixpkgs#jq -c ./scripts/sync-syncclipboard.sh
+          rc=$?
+
+          # 0 = already correct, 2 = pins were updated, anything else = error.
+          case "$rc" in
+            0) echo "changed=false" >> "$GITHUB_OUTPUT" ;;
+            2) echo "changed=true"  >> "$GITHUB_OUTPUT" ;;
+            *) echo "sync failed with exit $rc" >&2; exit "$rc" ;;
+          esac
+
+          version=$(sed -n 's/^\s*version = "\(.*\)";/\1/p' overlays/syncclipboard.nix | head -1)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Verify the client package builds
+        if: steps.sync.outputs.changed == 'true'
+        # The image digest came straight from the registry and needs no
+        # verification, but the AppImage hash is only proven correct by a build
+        # that actually fetches and checks it.
+        run: nix build '.#nixosConfigurations.Daytona.pkgs.syncclipboard' --no-link
+
+      - name: Verify sdrhub still evaluates
+        if: steps.sync.outputs.changed == 'true'
+        run: nix eval '.#nixosConfigurations.sdrhub.config.system.build.toplevel.drvPath'
+
+      - name: Commit, push, and open a PR
+        if: steps.sync.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.PAT }}
+          NEW_VERSION: ${{ steps.sync.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          branch="update-syncclipboard-${NEW_VERSION}"
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
+            echo "branch $branch already exists upstream; nothing to do"
+            exit 0
+          fi
+
+          git checkout -b "$branch"
+          git add overlays/syncclipboard.nix hosts/linux/sdrhub/configuration.nix
+          git commit -m "chore(syncclipboard): update server and client to v${NEW_VERSION}"
+          git push -u origin "$branch"
+
+          gh pr create \
+            --title "chore(syncclipboard): update server and client to v${NEW_VERSION}" \
+            --body "$(cat <<BODY
+          Automated bump of both SyncClipboard pins to upstream v${NEW_VERSION}.
+
+          Server image (\`hosts/linux/sdrhub/configuration.nix\`) and Linux
+          client AppImage (\`overlays/syncclipboard.nix\`) move together, because
+          both ship from the same upstream tag and nothing machine-readable
+          distinguishes an additive server release from a wire-protocol change.
+
+          The image digest came from the registry. The AppImage hash was proven
+          by \`nix build .#nixosConfigurations.Daytona.pkgs.syncclipboard\`, and
+          sdrhub still evaluates.
+
+          Check upstream's Changes.md for an "upgrade notice" section before
+          merging: v3.1.1 required wiping client-local data, and a future break
+          could do the same.
+          BODY
+          )" \
+            --label dependencies \
+            --label automated

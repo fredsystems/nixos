@@ -80,6 +80,15 @@
       automerge: true,
     },
     {
+      // Owned by update-syncclipboard.yaml, which bumps this image and the
+      // client AppImage in overlays/syncclipboard.nix together. Both ship from
+      // one upstream tag, and Renovate cannot see the overlay, so letting it
+      // automerge the image alone would silently split the pair. The parity
+      // check in lint.yaml is the backstop if this rule is ever removed.
+      matchPackageNames: ["jericx/syncclipboard-server"],
+      enabled: false,
+    },
+    {
       matchDatasources: ["docker"],
       versioning: "regex:^(telegraf|v\\d+-latest|latest)-build-(?<major>\\d+)$",
       matchPackageNames: ["/^ghcr\\.io/sdr-enthusiasts/.+$/"],
