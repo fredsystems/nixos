@@ -112,7 +112,7 @@ their own modules rather than here: `scrapeConfigs` and `ruleFiles` are both
 | blackbox-exporter       | 127.0.0.1:9115 (the exporter itself)    | none                     |
 | blackbox-https          | 3 public HTTPS endpoints, must be 2xx   | instance, job            |
 | blackbox-https-redirect | 11 apex domains, must be 3xx            | instance, job            |
-| blackbox-https-internal-secondary | 8 internal TLS vhosts via nginx | instance, job         |
+| blackbox-https-internal-secondary | 10 internal TLS vhosts via nginx | instance, job        |
 | blackbox-https-internal-authed | 1 internal TLS vhost, must be 401 | instance, job         |
 | blackbox-http-internal-redirect | 9 legacy .lan names, must be 308 | instance, job         |
 | blackbox-dns-chain      | external name via AdGuard :53           | instance, job            |

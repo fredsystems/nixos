@@ -3,7 +3,7 @@
 #
 # SCOPE
 #
-# Seven probe jobs feed these rules:
+# Ten probe jobs feed these rules. Seven are HTTP(S):
 #
 #   blackbox-https                     public HTTPS vhosts on fredvps that
 #                                      must answer 2xx -- one per certificate
@@ -19,6 +19,13 @@
 #                                      unauthenticated, on that same wildcard
 #   blackbox-http-internal-redirect    the legacy .lan / .local names, which
 #                                      now only 308 to their TLS counterpart
+#
+# and three are DNS, handled by their own `blackbox-dns` group below rather
+# than by the availability rules above, which exclude them:
+#
+#   blackbox-dns-chain                 an external name via AdGuard on :53
+#   blackbox-dns-upstream              the same name via unbound on :5335
+#   blackbox-dns-rewrite               a local rewrite via AdGuard on :53
 #
 # blackbox-https-internal-authed is the only non-`-secondary` probe of
 # sdrhub's own wildcard, so the TLS rules below are what watches its renewal.

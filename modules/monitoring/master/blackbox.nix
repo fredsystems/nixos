@@ -507,8 +507,8 @@ in
 
       # `-secondary`, because every one of these shares the single
       # int.fredsystems.org wildcard with the authed job below. Without the
-      # suffix, one failed renewal of that wildcard would be reported seven
-      # times on seven instance labels.
+      # suffix, one failed renewal of that wildcard would be reported ten
+      # times on ten instance labels.
       (mkProbeJob "blackbox-https-internal-secondary" "https_2xx_internal" internalEndpoints)
 
       # No `-secondary` suffix, deliberately. The cert-expiry rules select
