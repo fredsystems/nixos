@@ -95,7 +95,23 @@ in
 
     serverUrl = lib.mkOption {
       type = lib.types.str;
-      default = "http://clipboard.sdrhub.lan";
+      # HTTPS, on a name a public CA can issue for.
+      #
+      # This client sends HTTP Basic credentials on every request, and the
+      # payload is whatever was on a clipboard -- so both the password below
+      # and the clipboard contents used to cross the LAN in plaintext. That
+      # is a much worse trade than it looks next to the other sdrhub vhosts,
+      # none of which carry either.
+      #
+      # Nothing has to be installed on the client for this to work. The
+      # certificate is a genuine Let's Encrypt wildcard obtained over DNS-01
+      # (see hosts/linux/sdrhub/acme.nix), so it validates against the trust
+      # store every machine already has -- which is precisely why this was
+      # not done with a private CA.
+      #
+      # http://clipboard.sdrhub.lan is still served in parallel, so reverting
+      # this one line remains a working rollback until that vhost is retired.
+      default = "https://clipboard.int.fredsystems.org";
       description = "Base URL of the SyncClipboard server.";
     };
   };
