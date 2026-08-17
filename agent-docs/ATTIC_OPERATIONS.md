@@ -125,11 +125,46 @@ sops modules/secrets/secrets.yaml
 #   ATTIC_SERVER_TOKEN_RS256_SECRET_BASE64="<paste>"
 ```
 
+Before deploying, check the paste survived. A corrupted key does not fail here
+— it fails when atticd restarts, by which point every token is already dead:
+
+```sh
+sops -d --extract '["atticd_env"]' modules/secrets/secrets.yaml \
+  | sed -n 's/^ATTIC_SERVER_TOKEN_RS256_SECRET_BASE64="\(.*\)"$/\1/p' \
+  | base64 -d | openssl rsa -check -noout; echo "exit=$?"
+```
+
+Want `RSA key ok` and `exit=0`. A 4096-bit key base64s to roughly 4324 bytes
+and, because `base64 -w0` emits no trailing newline, zsh will show an inverse
+`%` at the end of the generating command's output. That marker is not part of
+the key — do not copy it.
+
 Deploy fredhub. Every existing token dies at this moment:
 
 ```sh
 colmena apply --on fredhub
 ```
+
+Confirm atticd actually restarted, because this is the step that silently did
+not work once:
+
+```sh
+ssh fredhub 'systemctl show atticd -p ActiveEnterTimestamp'
+```
+
+The timestamp must be from this deploy. If it is older, atticd is still holding
+the previous key in memory and every token you mint next will be rejected — see
+the `restartUnits` comment in `modules/services/attic/attic_server.nix`. The
+failure looks like a permissions problem rather than a key problem, because a
+signature the server cannot verify makes the request anonymous instead of
+raising an authentication error:
+
+```text
+attic push -> 403 AccessError, identical with and without a token
+```
+
+`restartUnits` on the secret now handles this automatically, so the check is
+belt and braces rather than a routine manual step.
 
 Now run **Procedure A** to mint and distribute the replacements. That is the
 whole of the rest of this procedure.

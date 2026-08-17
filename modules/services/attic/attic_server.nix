@@ -25,7 +25,36 @@
   # over this file.
 
   sops.secrets = {
-    "atticd_env" = { };
+    # restartUnits is load-bearing, not decoration.
+    #
+    # This file is passed to atticd as `environmentFile`, which systemd reads
+    # once at process start. The unit references it by a path that never
+    # changes, so editing the secret's VALUE produces a byte-identical unit:
+    # switch-to-configuration sees no change, restarts nothing, and atticd goes
+    # on serving with the old key held in memory.
+    #
+    # That is not hypothetical. It happened during the 2026-08-17 key rotation.
+    # The new signing key deployed to /run/secrets correctly, and
+    # `atticd-atticadm` -- which reads that file directly -- duly minted tokens
+    # against it. But the running daemon had not restarted since 2026-08-08, so
+    # it still validated against the OLD key and rejected every new token.
+    #
+    # The symptom was maximally confusing: attic push failed with a 403
+    # AccessError, identical with and without a token, because a signature it
+    # cannot verify makes the request anonymous rather than producing an
+    # authentication error. It looked like a permissions problem on a token
+    # whose permissions were correct.
+    #
+    # Worse, the rotation had silently not taken effect at all -- the leaked
+    # token stayed valid the entire time it appeared to have been revoked.
+    #
+    # sops-install-secrets resolves restartUnits at activation by comparing the
+    # decrypted bytes, so this restarts atticd only when the key actually
+    # changes. Same mechanism, and the same reasoning, as
+    # modules/services/mk-container-secret.nix.
+    "atticd_env" = {
+      restartUnits = [ "atticd.service" ];
+    };
   };
 
   services.atticd = {
