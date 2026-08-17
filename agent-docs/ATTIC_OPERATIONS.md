@@ -217,8 +217,10 @@ curl -s -o /dev/null -w '%{http_code}\n' \
 # push works from a desktop
 attic push fred /run/current-system
 
-# no token in tracked content
-grep -rn "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9" --exclude-dir=.git .
+# no token in tracked content. The --exclude matters: this file contains the
+# search pattern itself, so without it the check always reports a hit.
+grep -rn "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9" \
+  --exclude-dir=.git --exclude=ATTIC_OPERATIONS.md .
 ```
 
 Then trigger any workflow with a push step and confirm it succeeds.
