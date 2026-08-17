@@ -809,8 +809,34 @@ in
 
     "docker/fredvps/fredsite.env" = mkContainerSecret "fredsite";
 
-    "github_api" = {
-      mode = "0444";
+    # Consumed by the imageapi container (ghcr.io/sdr-enthusiasts/
+    # sdre-image-api), bind-mounted read-only at
+    # /opt/api/sdre-e-updater.2024-02-05.private-key.pem (see the
+    # `imageapi` entry in `services.adsb.containers` below). That image's
+    # Config.User is "node" -- confirmed via `docker inspect` -- which
+    # resolves to uid/gid 1000 inside the container, and this host does
+    # not enable Docker userns-remap, so the container sees the file's
+    # host-side uid/gid directly. uid/gid are set explicitly (rather than
+    # `owner`/`group`) because fred/nik get their uids assigned dynamically
+    # by NixOS (no static `uid =` in modules/base/user.nix), so there is no
+    # stable *username* to pin `owner` to -- sops-nix's numeric uid/gid
+    # apply regardless of whether a matching user exists.
+    # mkContainerSecret wires `restartUnits` to docker-imageapi.service so
+    # a rotated key is not silently left stale in a running container --
+    # this host runs it as a genuine Docker container (see
+    # adsb-docker-units.nix), unlike nvrhub's frigate.nix.
+    #
+    # Residual worth knowing: NixOS allocates normal users from 1000 up, so
+    # host uid 1000 is in practice the first-created human user (fred). This
+    # is 0400 rather than the previous world-readable 0444, but it is not
+    # isolation from the admins -- the container's uid is what forces 1000,
+    # and the collision is inherent to running it without userns-remap.
+    # Fixing that properly means userns-remap or a dedicated uid, not a mode
+    # change.
+    "github_api" = mkContainerSecret "imageapi" // {
+      mode = "0400";
+      uid = 1000;
+      gid = 1000;
     };
   };
 
