@@ -511,6 +511,50 @@ in
           enable_dnssec = true;
           rate_limit = 0;
 
+          # Fallback upstreams, used when the primary is NOT RESPONDING -- a
+          # timeout or a network error, not an rcode.
+          #
+          # Read that limitation before assuming what this protects against,
+          # because it is narrower than it looks. During the 2026-08-16 outage
+          # unbound was responding perfectly well; it was returning SERVFAIL
+          # because its own upstreams had gone away. AdGuard counts a SERVFAIL
+          # as a successful exchange, so these fallbacks would NOT have engaged
+          # and this would have changed nothing. The fix for that failure is the
+          # second provider in unbound's forward-zone above, not this block.
+          #
+          # What this does cover is unbound being unavailable rather than
+          # unhappy: crashed, restarting mid-deploy, or not yet listening on
+          # 5335. That is currently an unmitigated single point of failure,
+          # because upstream_dns has exactly one entry and it points at unbound.
+          #
+          # DoT rather than plain DNS, so the fallback path is no less private
+          # than the primary. Hostnames rather than bare IPs so the certificate
+          # can be verified by name -- that costs a bootstrap lookup, which is
+          # why bootstrap_dns below is no longer single-provider either.
+          fallback_dns = [
+            "tls://dns11.quad9.net"
+            "tls://security.cloudflare-dns.com"
+          ];
+
+          # Used only to resolve the hostnames in fallback_dns. Plain DNS by
+          # necessity -- it is the chicken-and-egg step before an encrypted
+          # upstream can be dialled -- so these are the providers' unfiltered
+          # addresses and nothing sensitive rides on them.
+          #
+          # Declared here rather than left to AdGuard's default for two reasons.
+          # The default was Quad9-only, which would have made the fallback
+          # unable to bootstrap during exactly the outage it exists for. And the
+          # default includes IPv6 addresses (2620:fe::10 and friends) on a
+          # network that has no IPv6 route at all -- see the note in
+          # modules/monitoring/master/blackbox.nix -- so those can only ever
+          # contribute a timeout before the v4 addresses are tried.
+          bootstrap_dns = [
+            "9.9.9.10"
+            "149.112.112.10"
+            "1.1.1.1"
+            "1.0.0.1"
+          ];
+
           edns_client_subnet = {
             enabled = true;
           };
