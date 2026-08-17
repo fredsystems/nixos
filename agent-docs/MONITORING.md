@@ -305,14 +305,16 @@ This is orthogonal to log shipping, which works correctly on every host includin
 | prometheus.nix:327          | Inhibit list references `SDRServiceFailure` and `FeederUpstreamFailure`, both being removed             |
 | adsb-docker-units.nix:31-82 | `mkUnit` silently ignores the `hostname`, `requires`, and `depends_on` keys set by several hosts        |
 | hardware/rtl-sdr.nix:17     | `lib.mkDefault` on a list option -- see [Kernel parameter merge hazard](#kernel-parameter-merge-hazard) |
-| grafana.nix:74              | `secret_key` hardcoded in plaintext; the admin password is correctly sops-managed                       |
+| ~~grafana.nix:74~~          | ~~`secret_key` hardcoded in plaintext~~ -- fixed; now sops-managed at `grafana.nix:56-59,163`            |
 
 - [x] Fix the `Daytona` regex case sensitivity
 - [x] Add `hostname` and `role` labels to the unlabelled scrape jobs
 - [x] Update the Alertmanager inhibit list when the dead rules are removed
 - [ ] Either honour or remove the ignored keys in `mkUnit`
 - [x] Remove `lib.mkDefault` from `boot.kernelParams` in `rtl-sdr.nix`
-- [ ] Move the Grafana `secret_key` into sops
+- [x] Move the Grafana `secret_key` into sops. The value was **regenerated**,
+      not relocated -- the old one is unchangeably public in git history, so
+      moving it as-is would have been theatre. See `grafana.nix:26-55`.
 - [ ] Decide on TLS and access control for the LAN monitoring endpoints.
       Prometheus (9090), Alertmanager (9093), Loki (5678) and Grafana (3333) are
       reachable on the LAN without auth or TLS, and Alertmanager in particular

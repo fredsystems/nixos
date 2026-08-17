@@ -83,7 +83,7 @@ and HFDL decoders.
     ├── workflows/
     │   ├── ci-linux.yaml        # Linux CI
     │   ├── ci-darwin.yaml       # macOS CI
-    │   ├── ci-lint.yaml         # Pre-commit / linting
+    │   ├── lint.yaml            # Pre-commit / linting
     │   ├── fleet-manifest.yaml  # Publishes per-host expected closure paths
     │   └── update-flakes.yaml   # Per-input flake update (1 PR per input)
     ├── merge-queue-ci-skipper/  # Composite action: skip redundant merge-queue builds
