@@ -31,6 +31,39 @@
         Type = "oneshot";
         User = "nik";
         Group = "users";
+
+        # Hardening, kept deliberately conservative. This is the fleet's
+        # only backup of the live Discord bot DB, it runs as a normal user
+        # (not root), and it touches paths outside the Nix store and
+        # outside /home (/mnt/discord, /mnt/discord-storage) -- a broken
+        # nightly backup is worse than an unhardened one, so anything not
+        # clearly safe is left out rather than guessed at.
+        #
+        # These six are pure kernel/system-namespace restrictions with no
+        # dependency on which paths the script touches, so they cannot
+        # interact with the sqlite3 .backup / mv / find calls above:
+        NoNewPrivileges = true;
+        PrivateTmp = true;
+        ProtectKernelTunables = true;
+        ProtectKernelModules = true;
+        ProtectControlGroups = true;
+        RestrictSUIDSGID = true;
+        LockPersonality = true;
+
+        # Deliberately NOT set: ProtectSystem / ProtectHome.
+        #
+        # ProtectSystem=strict would make the filesystem read-only outside
+        # an explicit ReadWritePaths allowlist, and this script needs write
+        # access to *two* directories, not one: /mnt/discord-storage/backups
+        # (the obvious one -- .part files, the atomic rename, the retention
+        # sweep) AND, per the header comment above, potentially
+        # /mnt/discord itself. The .backup API opens the live WAL-mode
+        # database close to how a normal connection would, and this file's
+        # own comment on the test-site config notes a WAL reader can need
+        # directory write access to create -wal/-shm siblings. Getting that
+        # second path wrong silently breaks the backup (or the live bot) in
+        # a way that would not surface until the next restore is needed, so
+        # it's left out rather than guessed at.
       };
 
       # WHY sqlite3 .backup AND NOT cp
@@ -92,6 +125,13 @@
         # Equivalent to cron's "0 1 * * *"
         OnCalendar = "*-*-* 01:00:00";
         Persistent = true;
+
+        # Was the fleet's only unjittered timer. 15 minutes smooths out the
+        # exact-second alignment with other fixed-time daily jobs on this
+        # host (e.g. docker's autoPrune) without meaningfully delaying the
+        # backup relative to the NAS's nightly pull, which has hours of
+        # slack after 01:00 to work with.
+        RandomizedDelaySec = "15m";
       };
     };
   };

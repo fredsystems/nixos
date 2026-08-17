@@ -70,6 +70,33 @@ let
         Restart = restartPolicy;
         TimeoutStartSec = 0;
 
+        # This hardens the WRAPPER unit, not the container it runs. The
+        # unit's own process only ever shells out to
+        # `docker run|pull|rm|stop` against the Docker socket -- the
+        # container's isolation is Docker's own job and is untouched by
+        # these settings. Because the wrapper does so little, it needs
+        # almost no privilege of its own, which is the same reasoning
+        # modules/services/python-venv-app.nix applies to its sandboxed
+        # services.
+        #
+        # ProtectSystem=strict makes the filesystem read-only outside an
+        # explicit allowlist. Connecting to an already-existing UNIX socket
+        # does not itself require a writable mount, but ReadWritePaths is
+        # listed anyway to be explicit and safe against any client-side
+        # bind/reconnect behaviour. Path confirmed against this repo's own
+        # rendered config (docker.socket's ListenStream), not assumed --
+        # the daemon config here sets no `-H` override.
+        ProtectSystem = "strict";
+        ReadWritePaths = [ "/run/docker.sock" ];
+
+        NoNewPrivileges = true;
+        PrivateTmp = true;
+
+        # Deliberately NOT set: PrivateNetwork (these units manage
+        # networked containers) and User/Group (the wrapper needs whatever
+        # ambient permissions grant access to the Docker socket, which is
+        # root-only by default).
+
         ExecStartPre = [
           "-${pkgs.docker}/bin/docker rm -f ${c.name}"
           "${pkgs.docker}/bin/docker pull ${c.image}"
