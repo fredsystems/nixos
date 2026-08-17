@@ -259,6 +259,28 @@ let
       };
     };
 
+    # AdGuard Home's admin UI. Bound to loopback by the services.adguardhome
+    # block above, which also drops the firewall opening it used to have.
+    #
+    # No `legacy` names, same reasoning as grafana: it was only ever reached as
+    # http://192.168.31.20:3000/, an address and port rather than a name, so
+    # there is no `.lan` vhost to preserve and inventing one would mean creating
+    # a plaintext entry point for the LAN's DNS control plane.
+    #
+    # The port is read from the service definition rather than hardcoded, so the
+    # proxy target cannot drift away from the bind.
+    adguard = {
+      legacy = [ ];
+      vhost.locations."/" = {
+        proxyPass = "http://127.0.0.1:${toString config.services.adguardhome.port}";
+        extraConfig = ''
+          proxy_http_version 1.1;
+          proxy_set_header Upgrade $http_upgrade;
+          proxy_set_header Connection $connection_upgrade;
+        '';
+      };
+    };
+
     # Grafana. Bound to loopback by modules/monitoring/master/grafana.nix, which
     # also drops the firewall opening it used to need, so this vhost is now the
     # only way in.
@@ -558,11 +580,44 @@ in
     ###########################################
     adguardhome = {
       enable = true;
-      openFirewall = true;
+
+      # The admin UI binds loopback and is reached only through the nginx vhost,
+      # like grafana and karma. It is a control plane for the LAN's DNS -- it can
+      # rewrite any name, disable filtering, or read the full query log -- and it
+      # was previously on 0.0.0.0:3000 with that port opened in the firewall and
+      # no TLS, so its login crossed the LAN in cleartext.
+      #
+      # These are `host`/`port` rather than `settings.http.address`, and that
+      # distinction is the whole bug. This config used to say
+      # `settings.http.address = "127.0.0.1:3003"`, which reads as if it bound
+      # loopback and never did: the nixpkgs module builds its config as
+      #
+      #     cfg.settings // { http.address = "${cfg.host}:${toString cfg.port}"; }
+      #
+      # so the module's own defaults (0.0.0.0 and 3000) overwrite whatever
+      # `settings.http` contains, every time. Verified by reading the generated
+      # config out of the deployed closure, which contained `address:
+      # 0.0.0.0:3000` despite the source asking for 127.0.0.1:3003. Setting it
+      # under `settings` is not merely ineffective, it is actively misleading.
+      #
+      # Note `//` is a shallow merge, so it replaces the entire `http` attribute
+      # set. Anything else that needs to live under `http` has to go through
+      # module options too, or it will be silently dropped.
+      #
+      # Neither option touches DNS. `host` and `port` are used in exactly two
+      # places in that module -- the web address above and the openFirewall line
+      # -- and the DNS listener comes from `settings.dns` and the explicit
+      # `allowedUDPPorts = [ 53 ]` in the firewall block near the top of this
+      # file.
+      host = "127.0.0.1";
+      port = 3003;
+
+      # Was true, which opened `port` to the LAN. That is the opening that made
+      # the admin UI reachable at http://192.168.31.20:3000/. nginx reaches it
+      # over loopback, so nothing needs it open.
+      openFirewall = false;
 
       settings = {
-        http.address = "127.0.0.1:3003";
-
         dns = {
           upstream_dns = [ "127.0.0.1:5335" ];
           enable_dnssec = true;

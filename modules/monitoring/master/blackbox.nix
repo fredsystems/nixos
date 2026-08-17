@@ -165,6 +165,12 @@ let
     "https://jellyfin.int.fredsystems.org/" # -> fredhub 192.168.31.14:8096
     "https://karma.int.fredsystems.org/" # -> 127.0.0.1 (karma.nix)
 
+    # AdGuard Home's admin UI, which answers 200 on / directly (verified from
+    # sdrhub). Worth probing beyond the DNS probes above: those prove resolution
+    # works, this proves the control plane is still reachable to fix it when it
+    # does not.
+    "https://adguard.int.fredsystems.org/" # -> 127.0.0.1:3003
+
     # /api/health rather than /, deliberately. Grafana answers 302 -> /login on
     # `/`, which the module's follow_redirects would turn into a 200 that only
     # proves the login page renders. /api/health is unauthenticated by design
