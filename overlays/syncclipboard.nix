@@ -17,6 +17,8 @@
   appimageTools,
   fetchurl,
   icu,
+  wl-clipboard,
+  xclip,
   ...
 }:
 let
@@ -33,16 +35,34 @@ in
 appimageTools.wrapType2 {
   inherit pname version src;
 
-  # .NET aborts at startup without ICU:
+  # icu: .NET aborts at startup without it, printing
   #
   #   Couldn't find a valid ICU package installed on the system. Please
   #   install libicu ... Alternatively you can set the configuration flag
   #   System.Globalization.Invariant to true
   #
-  # Confirmed by running the bare AppImage through appimage-run. Providing
-  # the real library is preferable to switching on invariant globalization,
+  # Providing the real library is preferable to invariant globalization,
   # which would silently change string comparison and formatting behaviour.
-  extraPkgs = _: [ icu ];
+  #
+  # wl-clipboard and xclip are how the client actually reads the clipboard --
+  # it shells out to them rather than doing it in-process. Upstream's own AUR
+  # package lists both as runtime `depends`, but an AppImage declares nothing,
+  # so inside this FHS sandbox they were simply absent.
+  #
+  # That absence did not fail loudly. The client silently fell back to
+  # Avalonia's in-process X11 path, which reaches the Wayland selection only
+  # through XWayland: it caught some copies and returned empty for others,
+  # which then classified as `Unkown` and skipped the upload with no error.
+  # The result looked like flaky syncing rather than a missing dependency.
+  #
+  # Installing these is necessary but not sufficient -- the client still has
+  # to be told to prefer them over the X11 path. See the ProhibitSources
+  # setting in features/desktop/clipboard.
+  extraPkgs = _: [
+    icu
+    wl-clipboard
+    xclip
+  ];
 
   extraInstallCommands = ''
     install -m 444 -D ${appimageContents}/xyz.jericx.desktop.syncclipboard.desktop \

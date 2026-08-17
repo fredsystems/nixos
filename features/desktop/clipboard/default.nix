@@ -60,7 +60,28 @@ let
             CustomName: "sdrhub"
           }
           | .Account = { AccountId: "sdrhub", AccountType: "SyncClipboard" }
-          | .SyncService.SyncSwitchOn = true' \
+          | .SyncService.SyncSwitchOn = true
+
+          # Force the client onto wl-clipboard by forbidding the other two
+          # sources. This is half of a two-part fix and is useless on its own:
+          # the overlay has to supply the wl-clipboard binary as well, or
+          # prohibiting the alternatives leaves the client with nothing.
+          #
+          # Left to itself the client prefers Avalonia its own in-process X11
+          # path, which only sees the Wayland selection via XWayland. That
+          # returns content for some copies and nothing for others, and an
+          # empty read is classified as `Unkown` and dropped without an error.
+          # Symptom is intermittent syncing, not an obvious failure.
+          | .ClipboardFactory.ProhibitSources = ["xclip", "Avalonia"]
+
+          # Server-side history is the reason this service exists at all, and
+          # it is off by default -- local history alone would leave the panel
+          # disagreeing with what the server holds.
+          | .History.EnableHistory = true
+          | .History.EnableSyncHistory = true
+
+          | .Program.Language = "en-US"
+          | .Program.HideWindowOnStartup = true' \
         "$target" > "$tmp"
 
       mv "$tmp" "$target"
