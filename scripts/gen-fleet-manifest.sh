@@ -112,7 +112,7 @@ NOW="$(date +%s)"
 # mismatch aborts this script too, before anything is published.
 echo "Evaluating system.build.toplevel for every host and verifying colmena parity (rev ${REV})..." >&2
 
-if ! PATHS_JSON="$("$REPO_ROOT/scripts/check-colmena-parity.sh")"; then
+if ! PATHS_JSON="$("$REPO_ROOT/scripts/check-colmena-parity.sh" --emit-paths)"; then
     echo "error: colmena/nixosConfigurations parity check failed (see above) -- refusing to publish" >&2
     exit 1
 fi

@@ -27,15 +27,31 @@
 #
 # OUTPUT CONTRACT
 #
-# All diagnostics go to stderr. On success, the nixosConfigurations ->
-# toplevel-outPath JSON object (the same shape gen-fleet-manifest.sh needs for
-# its own manifest work) is printed to stdout, and the script exits 0. On any
-# failure -- including a genuine parity mismatch -- nothing is printed to
-# stdout and the script exits non-zero.
+# All diagnostics go to stderr. Exit 0 means parity holds; any non-zero exit
+# -- including a genuine mismatch -- means it does not.
+#
+# stdout is EMPTY by default. With --emit-paths, the nixosConfigurations ->
+# toplevel-outPath JSON object is printed to stdout on success (and nothing on
+# failure). That exists solely so gen-fleet-manifest.sh can reuse this eval
+# instead of paying for a second one; it is opt-in because the standalone CI
+# job has no consumer for it, and defaulting to on dumped ten store paths as a
+# single unreadable line into every CI log.
 #
 # Usage:
-#   scripts/check-colmena-parity.sh
+#   scripts/check-colmena-parity.sh                # check only, quiet stdout
+#   scripts/check-colmena-parity.sh --emit-paths   # also print the paths JSON
 set -euo pipefail
+
+EMIT_PATHS=0
+case "${1:-}" in
+    --emit-paths) EMIT_PATHS=1 ;;
+    '') ;;
+    *)
+        echo "error: unknown argument: $1" >&2
+        echo "usage: $(basename "$0") [--emit-paths]" >&2
+        exit 2
+        ;;
+esac
 
 # Located via BASH_SOURCE rather than `git rev-parse`, for two reasons: it
 # does not require git merely to find the repo root (the tool check below
@@ -163,4 +179,6 @@ fi
 
 echo "colmena and nixosConfigurations agree for $(jq -r 'length' <<<"$COLMENA_JSON") server(s)." >&2
 
-printf '%s\n' "$PATHS_JSON"
+if [[ $EMIT_PATHS -eq 1 ]]; then
+    printf '%s\n' "$PATHS_JSON"
+fi
