@@ -47,6 +47,19 @@ SOPS_YAML="modules/secrets/.sops.yaml"
 SECRETS_YAML="modules/secrets/secrets.yaml"
 RULE_PATH_REGEX="secrets.yaml\$"
 
+# Fail on a missing tool with an actionable message rather than letting the
+# first pipeline die on `yq: command not found`. Matches the preamble in
+# gen-fleet-manifest.sh and check-colmena-parity.sh. The flake check and the
+# pre-commit hook both supply these via runtimeInputs; a human running this
+# bare needs `nix develop`.
+for tool in yq jq; do
+  command -v "$tool" >/dev/null 2>&1 || {
+    echo "error: required tool not on PATH: $tool" >&2
+    echo "hint: run inside 'nix develop', or via 'nix build .#checks.\${system}.sops-recipients'" >&2
+    exit 1
+  }
+done
+
 for f in "$SOPS_YAML" "$SECRETS_YAML"; do
   if [[ ! -f $f ]]; then
     echo "error: $f not found (run from the repository root)" >&2

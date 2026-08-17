@@ -62,6 +62,25 @@ MODULES_MD="MODULES.md"
 CI_LINUX=".github/workflows/ci-linux.yaml"
 SERVERS_NIX="flake/hosts/servers.nix"
 
+# Actionable message on a missing tool, matching gen-fleet-manifest.sh and
+# check-colmena-parity.sh. `nix` is only needed on the bare-invocation path;
+# the hook and flake check bake the expected values in at Nix eval time
+# (see ACTUAL_MODULES_JSON below) precisely because git-hooks.nix runs the
+# whole suite in a sandbox with nix-command disabled.
+for tool in jq grep; do
+  command -v "$tool" >/dev/null 2>&1 || {
+    echo "error: required tool not on PATH: $tool" >&2
+    echo "hint: run inside 'nix develop', or via 'nix build .#checks.\${system}.doc-drift'" >&2
+    exit 1
+  }
+done
+
+if [[ -z ${ACTUAL_MODULES_JSON:-} ]] && ! command -v nix >/dev/null 2>&1; then
+  echo "error: nix is not on PATH and ACTUAL_MODULES_JSON was not supplied" >&2
+  echo "hint: run inside 'nix develop', or via 'nix build .#checks.\${system}.doc-drift'" >&2
+  exit 1
+fi
+
 for f in "$MODULES_MD" "$CI_LINUX" "$SERVERS_NIX"; do
   if [[ ! -f $f ]]; then
     echo "error: $f not found (run from the repository root)" >&2

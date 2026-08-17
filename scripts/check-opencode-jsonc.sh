@@ -102,6 +102,25 @@ KNOWN_TOP_LEVEL_KEYS=(
   snapshot subagent_depth tool_output tools username watcher
 )
 
+# Fail on a missing dependency with an actionable message. This is separate
+# from the parse check below and MUST stay separate: conflating "the parser
+# is unavailable" with "the file is invalid" reports a config bug that does
+# not exist, which is the exact false-signal class this check was added to
+# prevent. The flake check and pre-commit hook supply these via
+# runtimeInputs; a human running this bare needs `nix develop`.
+command -v python3 >/dev/null 2>&1 || {
+  echo "error: required tool not on PATH: python3" >&2
+  echo "hint: run inside 'nix develop', or via 'nix build .#checks.\${system}.opencode-jsonc-schema'" >&2
+  exit 1
+}
+
+if ! python3 -c 'import json5' 2>/dev/null; then
+  echo "error: the python 'json5' module is not available" >&2
+  echo "note: this is a MISSING DEPENDENCY, not a problem with $CONFIG_FILE" >&2
+  echo "hint: run inside 'nix develop', or via 'nix build .#checks.\${system}.opencode-jsonc-schema'" >&2
+  exit 1
+fi
+
 workdir="$(mktemp -d)"
 trap 'rm -rf "$workdir"' EXIT
 
