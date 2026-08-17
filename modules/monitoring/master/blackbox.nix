@@ -137,6 +137,25 @@ let
     "http://clipboard.sdrhub.local/" # -> 127.0.0.1:5033 (syncclipboard)
   ];
 
+  # The same backend, reached over TLS on the name the wildcard certificate
+  # covers. See hosts/linux/sdrhub/acme.nix.
+  #
+  # Probed IN ADDITION to the plaintext entry above rather than replacing it,
+  # because both vhosts are live during the migration and each can fail
+  # independently. When clipboard.sdrhub.lan is retired, delete it from the
+  # list above -- do not just leave it, because the probe would then pass
+  # against a vhost nobody uses.
+  #
+  # This one is probed with https_401, whose `fail_if_not_ssl` is the exact
+  # inverse of the `fail_if_ssl` that http_401 asserts. Reusing http_401 here
+  # would fail immediately (which is at least loud); the more dangerous
+  # mistake is the reverse -- migrating a target to https and leaving it on a
+  # module that asserts plaintext, where the probe keeps passing while
+  # asserting something that is no longer true.
+  internalTlsAuthedEndpoints = [
+    "https://clipboard.int.fredsystems.org/" # -> 127.0.0.1:5033 (syncclipboard)
+  ];
+
   internalEndpoints = [
     "http://sdrhub.local/" # landing page
     "http://tar1090.sdrhub.local/" # -> 192.168.31.20:8080
@@ -222,6 +241,25 @@ let
           # appearing here means something was reconfigured and the probe
           # should say so rather than quietly passing.
           fail_if_ssl = true;
+          preferred_ip_protocol = "ip4";
+        };
+      };
+
+      # As http_401, but for an internal vhost that terminates TLS.
+      #
+      # follow_redirects = false, unlike http_401. This target's certificate
+      # is watched by the cert-expiry rules, and the exporter reads TLS state
+      # off the FINAL response in the chain, so following a redirect would
+      # attribute some other host's expiry to this instance. syncclipboard
+      # answers 401 directly, so there is no redirect to follow anyway.
+      https_401 = {
+        prober = "http";
+        timeout = "10s";
+        http = {
+          method = "GET";
+          valid_status_codes = [ 401 ];
+          follow_redirects = false;
+          fail_if_not_ssl = true;
           preferred_ip_protocol = "ip4";
         };
       };
@@ -312,6 +350,13 @@ in
 
       (mkProbeJob "blackbox-http-internal" "http_2xx" internalEndpoints)
       (mkProbeJob "blackbox-http-internal-authed" "http_401" internalAuthedEndpoints)
+
+      # No `-secondary` suffix, deliberately. The cert-expiry rules select
+      # `job!~".*-secondary"`, and this job is the only probe of the
+      # int.fredsystems.org wildcard -- so it is exactly the one target that
+      # should carry that certificate's expiry alerting. It is also
+      # one-target-per-certificate, which is the invariant those rules need.
+      (mkProbeJob "blackbox-https-internal-authed" "https_401" internalTlsAuthedEndpoints)
 
       # The exporter's own operational metrics -- not a probe, a normal scrape.
       # Without this, a dead exporter yields no probe_success series at all,
