@@ -89,6 +89,14 @@ in
                 "systemctl"
                 "--user"
                 "restart"
+                "syncclipboard"
+              ];
+            }
+            {
+              command = [
+                "systemctl"
+                "--user"
+                "restart"
                 "hypridle"
               ];
             }

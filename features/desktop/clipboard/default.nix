@@ -1,0 +1,106 @@
+# SyncClipboard desktop client, pointed at the sdrhub clipboard server.
+#
+# The client keeps its own state in ~/.config/SyncClipboard/SyncClipboard.json
+# and rewrites that file whenever a setting changes in the UI, so the file
+# cannot be a read-only symlink into the store. Instead a pre-start step merges
+# the connection settings into whatever is already there, which keeps the
+# server details declarative while leaving every other key under the app's
+# control.
+#
+# The password necessarily ends up in that JSON in plaintext, because that is
+# where the client reads it from. It arrives from sops rather than the Nix
+# store (which is world-readable), and the file is left mode 0600.
+{
+  lib,
+  pkgs,
+  config,
+  user,
+  ...
+}:
+let
+  cfg = config.desktop.clipboard;
+
+  # Same secret the server container consumes, referenced rather than copied so
+  # the two cannot drift apart. It is an env-format file:
+  #   SYNCCLIPBOARD_USERNAME=...
+  #   SYNCCLIPBOARD_PASSWORD=...
+  secretKey = "docker/sdrhub/syncclipboard.env";
+
+  configure = pkgs.writeShellApplication {
+    name = "syncclipboard-configure";
+    runtimeInputs = [ pkgs.jq ];
+    text = ''
+      secret="${config.sops.secrets.${secretKey}.path}"
+      target="$HOME/.config/SyncClipboard/SyncClipboard.json"
+
+      mkdir -p "$(dirname "$target")"
+      [ -f "$target" ] || echo '{}' > "$target"
+
+      username="$(sed -n 's/^SYNCCLIPBOARD_USERNAME=//p' "$secret")"
+      password="$(sed -n 's/^SYNCCLIPBOARD_PASSWORD=//p' "$secret")"
+
+      if [ -z "$username" ] || [ -z "$password" ]; then
+        echo "syncclipboard: credentials missing from $secret" >&2
+        exit 1
+      fi
+
+      # A stable account id rather than the GUID the UI would generate, so that
+      # re-running this updates the same account instead of accumulating one
+      # per activation. The id is only ever a dictionary key.
+      tmp="$(mktemp)"
+      jq \
+        --arg url ${lib.escapeShellArg cfg.serverUrl} \
+        --arg user "$username" \
+        --arg pass "$password" \
+        '.SavedAccounts.SyncClipboard.sdrhub = {
+            RemoteURL: $url,
+            UserName: $user,
+            Password: $pass,
+            DeletePreviousFilesOnPush: true,
+            CustomName: "sdrhub"
+          }
+          | .Account = { AccountId: "sdrhub", AccountType: "SyncClipboard" }
+          | .SyncService.SyncSwitchOn = true' \
+        "$target" > "$tmp"
+
+      mv "$tmp" "$target"
+      chmod 600 "$target"
+    '';
+  };
+in
+{
+  options.desktop.clipboard = {
+    enable = lib.mkEnableOption "SyncClipboard client";
+
+    serverUrl = lib.mkOption {
+      type = lib.types.str;
+      default = "http://clipboard.sdrhub.lan";
+      description = "Base URL of the SyncClipboard server.";
+    };
+  };
+
+  config = lib.mkIf cfg.enable {
+    users.users.${user}.packages = [ pkgs.syncclipboard ];
+
+    sops.secrets.${secretKey} = {
+      owner = user;
+      mode = "0400";
+    };
+
+    # Tray-only application, so it needs a running graphical session with an
+    # SNI host (wayle provides the StatusNotifierWatcher on this fleet).
+    systemd.user.services.syncclipboard = {
+      description = "SyncClipboard client";
+      partOf = [ "graphical-session.target" ];
+      after = [ "graphical-session.target" ];
+      wantedBy = [ "graphical-session.target" ];
+      serviceConfig = {
+        Type = "simple";
+        ExecStartPre = lib.getExe configure;
+        ExecStart = lib.getExe pkgs.syncclipboard;
+        Restart = "always";
+        RestartSec = "5s";
+      };
+    };
+  };
+}

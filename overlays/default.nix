@@ -30,6 +30,10 @@ final: prev: {
 
   cider3 = final.callPackage ./cider.nix { };
 
+  # SyncClipboard desktop client. Upstream ships an AppImage only and it is
+  # not in nixpkgs; see overlays/syncclipboard.nix for the ICU caveat.
+  syncclipboard = final.callPackage ./syncclipboard.nix { };
+
   # Pin opencode to the latest upstream release rather than nixpkgs'
   # (frequently stale) pin. See overlays/opencode.nix for the bump
   # procedure.

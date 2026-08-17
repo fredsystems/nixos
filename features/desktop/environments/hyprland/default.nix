@@ -237,6 +237,7 @@ in
             hl.exec_cmd("gsettings set org.gnome.desktop.interface gtk-theme '${gtkThemeName}'")
             hl.exec_cmd("systemctl restart --user wayle")
             hl.exec_cmd("systemctl restart --user sway-audio-idle-inhibit")
+            hl.exec_cmd("systemctl restart --user syncclipboard")
             hl.exec_cmd("systemctl restart --user hypridle")
             hl.exec_cmd("systemctl restart --user network-manager-applet")
             hl.exec_cmd("systemctl restart --user udiskie-agent")
