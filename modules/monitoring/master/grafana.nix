@@ -2,9 +2,25 @@
   #######################################
   # SOPS Secrets
   #######################################
+  # restartUnits on both secrets below, for the same reason it is on atticd_env
+  # in modules/services/attic/attic_server.nix.
+  #
+  # Grafana reads both through `$__file{...}`, which it resolves once while
+  # parsing grafana.ini at process start. The referenced path never changes, so
+  # editing a secret's VALUE produces a byte-identical unit and a byte-identical
+  # config file: switch-to-configuration sees no change, restarts nothing, and
+  # Grafana keeps using the value it loaded at its last start. A rotation would
+  # therefore appear to have been applied while the old key or password was
+  # still live -- exactly the failure that made the attic key rotation silently
+  # not happen.
+  #
+  # sops-install-secrets resolves restartUnits at activation by comparing the
+  # decrypted bytes, so this restarts Grafana only when a value actually
+  # changes, not on every deploy.
   sops.secrets = {
     "monitoring/grafana_pw" = {
       owner = "grafana";
+      restartUnits = [ "grafana.service" ];
     };
 
     # Grafana's envelope-encryption root key.
@@ -39,6 +55,7 @@
     # decryption errors for them once and then move on.
     "monitoring/grafana_secret_key" = {
       owner = "grafana";
+      restartUnits = [ "grafana.service" ];
     };
   };
 
