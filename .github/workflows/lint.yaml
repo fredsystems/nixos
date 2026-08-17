@@ -81,6 +81,40 @@ jobs:
         # occurred when acarsdec-3 was replaced by xng on acarshub.
         run: nix build --no-link --print-build-logs .#checks.x86_64-linux.decoder-units-sync
 
+      - name: Check SyncClipboard server/client version parity
+        # The server image and the Linux client AppImage ship from a single
+        # upstream tag but are pinned in two files, and only the image is
+        # visible to Renovate. update-syncclipboard.yaml moves both together;
+        # this is the backstop that catches any path which moves only one --
+        # including a hand edit, or Renovate if its exclusion is ever removed.
+        #
+        # Deliberately stricter than upstream's contract, which is
+        # `server >= client` rather than equality. Equality costs nothing since
+        # both come from the same tag, and it means nobody has to read
+        # Changes.md to decide whether a given bump is safe.
+        run: |
+          set -euo pipefail
+
+          overlay_version=$(sed -n 's/^\s*version = "\(.*\)";/\1/p' overlays/syncclipboard.nix | head -1)
+          image_tag=$(sed -n 's|.*image = "jericx/syncclipboard-server:\([^"@]*\).*|\1|p' hosts/linux/sdrhub/configuration.nix | head -1)
+
+          if [ -z "$overlay_version" ] || [ -z "$image_tag" ]; then
+            echo "could not read one of the pins (overlay='$overlay_version' image='$image_tag')" >&2
+            exit 1
+          fi
+
+          # The overlay stores a bare version, the image tag carries a leading v.
+          if [ "$overlay_version" != "${image_tag#v}" ]; then
+            echo "SyncClipboard pins disagree:" >&2
+            echo "  overlays/syncclipboard.nix        version = $overlay_version" >&2
+            echo "  hosts/linux/sdrhub/configuration  image   = $image_tag" >&2
+            echo "Both ship from one upstream tag and must move together." >&2
+            echo "Run ./scripts/sync-syncclipboard.sh to reconcile them." >&2
+            exit 1
+          fi
+
+          echo "SyncClipboard pins agree: $overlay_version"
+
   # =====================================================================
   # Required Check Summary
   # =====================================================================

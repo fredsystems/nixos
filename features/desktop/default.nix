@@ -28,6 +28,7 @@ in
     ./appimage
     ./audio
     ./brave
+    ./clipboard
     ./discord
     ./firefox
     ./flatpak
@@ -66,6 +67,7 @@ in
       appimage.enable = cfg.enable_extra;
       audio.enable = true;
       brave.enable = true;
+      clipboard.enable = true;
       discord.enable = cfg.enable_extra;
       environments.enable = true;
       firefox.enable = true;
