@@ -82,6 +82,80 @@
           python3 "$script"
         '';
       };
+
+      # Verifies the sops age-recipient set is consistent across
+      # modules/secrets/.sops.yaml's `keys:` anchors, its creation_rules
+      # entry for secrets.yaml, and the recipients actually embedded in
+      # secrets.yaml's own (unencrypted) sops metadata.
+      #
+      # Adding a recipient (new host, key rotation) requires a manual
+      # follow-up step -- `sops updatekeys secrets.yaml` -- documented only
+      # as a comment in modules/secrets/sops.nix. Nothing enforced it. Miss
+      # it and the new/rotated host fails to decrypt at deploy time, on
+      # real hardware, instead of at review time. No decryption key is
+      # needed: sops embeds who it encrypted for in the clear, so this
+      # check runs anywhere, including CI runners with none of the 12
+      # private keys.
+      sopsRecipientsCheck = pkgs.writeShellApplication {
+        name = "check-sops-recipients";
+        runtimeInputs = [
+          pkgs.yq-go
+          pkgs.jq
+        ];
+        text = ''
+          bash scripts/check-sops-recipients.sh
+        '';
+      };
+
+      # Verifies two doc/config invariants that were previously in sync
+      # only by luck: MODULES.md documents exactly the modules exported by
+      # `nixosModules`, and the desktop/server host split (`desktop_names`
+      # in ci-linux.yaml vs. flake/hosts/servers.nix) is self-consistent.
+      #
+      # ACTUAL_MODULES_JSON / ALL_SYSTEMS_JSON / SERVERS_NIX_KEYS_JSON are
+      # baked in at build time from already-evaluated Nix values
+      # (`self.nixosModules`, `self.nixosConfigurations`,
+      # flake/hosts/servers.nix) rather than left for the script to fetch
+      # via `nix eval` at runtime. That matters here specifically because
+      # this SAME derivation is used both as the pre-commit hook entry
+      # below and as the standalone `checks.doc-drift` -- and git-hooks'
+      # own `run` derivation (what `nix build .#checks.pre-commit-check`
+      # and CI's lint job exercise) runs the WHOLE hook suite inside a
+      # sandboxed Nix build with the nix-command feature disabled and no
+      # daemon-socket access, so a runtime `nix eval` call from inside a
+      # hook fails there unconditionally, commit-time invocation or not.
+      # (See scripts/check-doc-drift.sh's header: the script itself still
+      # falls back to a live `nix eval` when these env vars are unset, for
+      # convenience when a human runs it directly.)
+      docDriftCheck = pkgs.writeShellApplication {
+        name = "check-doc-drift";
+        runtimeInputs = [ pkgs.jq ];
+        text = ''
+          export ACTUAL_MODULES_JSON=${lib.escapeShellArg (builtins.toJSON (lib.attrNames self.nixosModules))}
+          export ALL_SYSTEMS_JSON=${lib.escapeShellArg (builtins.toJSON (lib.attrNames self.nixosConfigurations))}
+          export SERVERS_NIX_KEYS_JSON=${lib.escapeShellArg (builtins.toJSON (lib.attrNames (import ../hosts/servers.nix)))}
+          bash scripts/check-doc-drift.sh
+        '';
+      };
+
+      # Validates opencode.jsonc: a structural check (offline, default --
+      # unknown top-level keys and command entries missing `template`,
+      # wired into both the hook and the standalone check below via
+      # `--offline`) plus, when run by hand with no flag, full validation
+      # against opencode's live JSON Schema over the network. See
+      # scripts/check-opencode-jsonc.sh's header for why the live-schema
+      # mode cannot be wired into either the hook or the flake check.
+      opencodeJsoncCheck = pkgs.writeShellApplication {
+        name = "check-opencode-jsonc";
+        runtimeInputs = [
+          (pkgs.python3.withPackages (ps: [ ps.json5 ]))
+          pkgs.jq
+          pkgs.check-jsonschema
+        ];
+        text = ''
+          bash scripts/check-opencode-jsonc.sh "$@"
+        '';
+      };
     in
     {
       # precommit-base exposes composable modules (`{ hooks, excludes,
@@ -133,6 +207,49 @@
                 # off because the checker always cross-references the full
                 # set; a single-file view cannot detect disagreement.
                 files = "^(flake\\.nix|flake\\.lock|\\.github/workflows/ci-(linux|darwin)\\.yaml|\\.opencode/skills/projects/nixos-(eval-impacted-hosts/scripts/impacted-hosts\\.sh|input-category-sync/scripts/check-input-category-sync\\.py))$";
+                pass_filenames = false;
+              };
+
+              sops-recipients = {
+                enable = true;
+                name = "sops age-recipient consistency (keys / creation_rules / secrets.yaml)";
+                entry = "${pkgs.lib.getExe sopsRecipientsCheck}";
+
+                # Fires when either the recipient/anchor declarations or the
+                # ciphertext's own embedded recipient metadata change --
+                # either side of the invariant can drift independently.
+                files = "^modules/secrets/(\\.sops\\.yaml|secrets\\.yaml)$";
+                pass_filenames = false;
+              };
+
+              doc-drift = {
+                enable = true;
+                name = "MODULES.md / desktop-server host-split drift";
+                entry = "${pkgs.lib.getExe docDriftCheck}";
+
+                # flake.nix is where the `nixosModules` attrset itself is
+                # declared (module add/rename/removal), so it is the actual
+                # trigger for MODULES.md drift, not modules/*.nix directly.
+                files = "^(MODULES\\.md|flake\\.nix|flake/hosts/servers\\.nix|\\.github/workflows/ci-linux\\.yaml)$";
+                pass_filenames = false;
+              };
+
+              opencode-jsonc-schema = {
+                enable = true;
+                name = "opencode.jsonc schema validation (structural, offline)";
+                entry = "${pkgs.lib.getExe opencodeJsoncCheck} --offline";
+
+                # `--offline`, not the default network mode: git-hooks'
+                # own `run` derivation (this is also what `nix build
+                # .#checks.pre-commit-check` and CI's lint job exercise)
+                # executes the WHOLE hook suite inside a sandboxed Nix
+                # build with no network, regardless of whether a human
+                # triggered it via `git commit` or via `nix flake check`.
+                # A hook that needs network here doesn't just skip
+                # gracefully -- it hard-fails the build for everyone. See
+                # scripts/check-opencode-jsonc.sh's header for the full
+                # reasoning and how to run the live-schema check manually.
+                files = "^opencode\\.jsonc$";
                 pass_filenames = false;
               };
             };
@@ -260,6 +377,49 @@
           ''
             cd ${self}
             check-input-category-sync
+            touch "$out"
+          '';
+
+      sops-recipients =
+        pkgs.runCommand "sops-recipients-check"
+          {
+            nativeBuildInputs = [ sopsRecipientsCheck ];
+          }
+          ''
+            cd ${self}
+            check-sops-recipients
+            touch "$out"
+          '';
+
+      # docDriftCheck already has ACTUAL_MODULES_JSON / ALL_SYSTEMS_JSON /
+      # SERVERS_NIX_KEYS_JSON baked in at build time (see its definition
+      # above), so this needs no extra wiring -- same derivation, same
+      # hermetic values, as the pre-commit hook entry.
+      doc-drift =
+        pkgs.runCommand "doc-drift-check"
+          {
+            nativeBuildInputs = [ docDriftCheck ];
+          }
+          ''
+            cd ${self}
+            check-doc-drift
+            touch "$out"
+          '';
+
+      # `--offline` skips the live-schema fetch: a sandboxed Nix build has
+      # no network, so only the structural check (unknown top-level keys,
+      # command entries missing `template`) runs here. Same reason the
+      # pre-commit hook above passes `--offline` too -- see its comment.
+      # Full schema validation is available by running
+      # `scripts/check-opencode-jsonc.sh` (no flag) directly, by hand.
+      opencode-jsonc-schema =
+        pkgs.runCommand "opencode-jsonc-schema-check"
+          {
+            nativeBuildInputs = [ opencodeJsoncCheck ];
+          }
+          ''
+            cd ${self}
+            check-opencode-jsonc --offline
             touch "$out"
           '';
 
