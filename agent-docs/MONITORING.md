@@ -115,6 +115,20 @@ their own modules rather than here: `scrapeConfigs` and `ruleFiles` are both
 | blackbox-https-internal-secondary | 8 internal TLS vhosts via nginx | instance, job         |
 | blackbox-https-internal-authed | 1 internal TLS vhost, must be 401 | instance, job         |
 | blackbox-http-internal-redirect | 9 legacy .lan names, must be 308 | instance, job         |
+| blackbox-dns-chain      | external name via AdGuard :53           | instance, job            |
+| blackbox-dns-upstream   | external name via unbound :5335         | instance, job            |
+| blackbox-dns-rewrite    | local rewrite via AdGuard :53           | instance, job            |
+
+The three `blackbox-dns-*` jobs are read together, not individually. They exist
+to localise a DNS fault rather than just report one: chain and upstream failing
+while rewrite passes means the forwarders are broken and AdGuard is healthy,
+which is the signature of the 2026-08-15 and 2026-08-16 outages. See the header
+comment in `modules/monitoring/master/blackbox.nix` for the full matrix, and
+`DnsResolutionFailing` in `alert-rules/blackbox-alerts.yaml` for the alert.
+
+Note that during a real external-DNS outage the alert fires but Pushover cannot
+be delivered, because `api.pushover.net` is unresolvable too. The signal that
+escapes is the healthchecks.io deadman going quiet.
 
 `dump978` is scraped on 9275, but only because the container now runs the
 `telegraf-*` image variant -- see below. It carries `metric_relabel_configs`,

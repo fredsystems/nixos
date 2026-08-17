@@ -315,3 +315,66 @@ tests:
             exp_annotations:
               summary: "Endpoint https://fredclausen.com/tar1090/ is failing its probe"
               description: "Blackbox job blackbox-https-secondary has been unable to get a valid response from https://fredclausen.com/tar1090/ for 5 minutes."
+
+  #############################################################
+  # DnsResolutionFailing
+  #############################################################
+
+  # The 2026-08-16 signature: the whole chain and the upstream are down while
+  # AdGuard is demonstrably alive. This is the case the three-probe split exists
+  # to distinguish, so it is the case that must be pinned.
+  - interval: 1m
+    name: DnsResolutionFailing fires for an upstream fault with AdGuard healthy
+    input_series:
+      - series: 'probe_success{job="blackbox-dns-chain", instance="127.0.0.1:53"}'
+        values: "0+0x15"
+      - series: 'probe_success{job="blackbox-dns-upstream", instance="127.0.0.1:5335"}'
+        values: "0+0x15"
+      - series: 'probe_success{job="blackbox-dns-rewrite", instance="127.0.0.1:53"}'
+        values: "1+0x15"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: DnsResolutionFailing
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: blackbox-dns-chain
+              instance: 127.0.0.1:53
+            exp_annotations:
+              summary: "DNS probe blackbox-dns-chain failing against 127.0.0.1:53"
+              description: "DNS probe blackbox-dns-chain has failed for 2 minutes against 127.0.0.1:53. Read all three together: blackbox-dns-chain is an external name via AdGuard on :53, blackbox-dns-upstream is the same name via unbound on :5335, blackbox-dns-rewrite is a local rewrite via AdGuard. chain+upstream down with rewrite up means the forwarders or the path to them are broken and AdGuard is healthy -- check `journalctl -u unbound` and whether the DoT upstreams on port 853 are reachable. rewrite down with upstream up points at AdGuard itself. All three down points at the host or its network."
+          - exp_labels:
+              severity: critical
+              job: blackbox-dns-upstream
+              instance: 127.0.0.1:5335
+            exp_annotations:
+              summary: "DNS probe blackbox-dns-upstream failing against 127.0.0.1:5335"
+              description: "DNS probe blackbox-dns-upstream has failed for 2 minutes against 127.0.0.1:5335. Read all three together: blackbox-dns-chain is an external name via AdGuard on :53, blackbox-dns-upstream is the same name via unbound on :5335, blackbox-dns-rewrite is a local rewrite via AdGuard. chain+upstream down with rewrite up means the forwarders or the path to them are broken and AdGuard is healthy -- check `journalctl -u unbound` and whether the DoT upstreams on port 853 are reachable. rewrite down with upstream up points at AdGuard itself. All three down points at the host or its network."
+
+  # Pages at 2m, not 5m. If someone raises the `for` to match the HTTP rules,
+  # this breaks instead of the LAN quietly going unmonitored for three extra
+  # minutes.
+  - interval: 1m
+    name: DnsResolutionFailing does not fire before 2m
+    input_series:
+      - series: 'probe_success{job="blackbox-dns-chain", instance="127.0.0.1:53"}'
+        values: "0 0 1 1 1 1 1 1 1 1 1 1"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: DnsResolutionFailing
+        exp_alerts: []
+
+  # The exclusion in BlackboxProbeFailed. Without it a DNS fault delivers twice,
+  # once with the interpretation guide above and once as a generic endpoint
+  # failure. Deleting `job!~"blackbox-dns-.*"` breaks this test.
+  - interval: 1m
+    name: BlackboxProbeFailed ignores the DNS jobs
+    input_series:
+      - series: 'probe_success{job="blackbox-dns-chain", instance="127.0.0.1:53"}'
+        values: "0+0x15"
+      - series: 'probe_success{job="blackbox-dns-rewrite", instance="127.0.0.1:53"}'
+        values: "0+0x15"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: BlackboxProbeFailed
+        exp_alerts: []

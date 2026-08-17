@@ -195,6 +195,39 @@ let
     "http://tar1090.sdrhub.local/"
   ];
 
+  # DNS resolution probes.
+  #
+  # These exist because of a 29-minute LAN-wide external-DNS outage on
+  # 2026-08-16, and an identical 8-minute one on 2026-08-15 that nobody noticed
+  # at all. Neither was detected directly. The first was found by observing that
+  # the healthchecks.io deadman had gone quiet and then reading journals for an
+  # hour; the proximate suspect was an unrelated deploy that happened to land
+  # 106 seconds before the first symptom.
+  #
+  # No unit-level alert could ever have caught it: AdGuard, unbound and nscd all
+  # stayed `active (running)` throughout, with NRestarts=0, while the LAN had no
+  # external DNS.
+  #
+  # WHY THREE TARGETS AND NOT ONE
+  #
+  # One probe tells you DNS is broken. These three tell you which layer:
+  #
+  #   blackbox-dns-chain     external name via AdGuard on :53   -- what clients see
+  #   blackbox-dns-upstream  external name via unbound on :5335 -- excludes AdGuard
+  #   blackbox-dns-rewrite   an internal rewrite via AdGuard    -- AdGuard liveness
+  #
+  #   chain 0, upstream 0, rewrite 1  ->  forwarders/upstream. The exact
+  #                                       signature of both outages above.
+  #   chain 0, upstream 1, rewrite 0  ->  AdGuard itself.
+  #   chain 0, upstream 1, rewrite 1  ->  AdGuard's path to unbound.
+  #   all three 0                     ->  the host, or its network.
+  #
+  # Probed over loopback, so these measure resolution and not reachability of
+  # the box.
+  dnsChainEndpoints = [ "127.0.0.1:53" ]; # AdGuard, the LAN's actual resolver
+  dnsUpstreamEndpoints = [ "127.0.0.1:5335" ]; # unbound, behind AdGuard
+  dnsRewriteEndpoints = [ "127.0.0.1:53" ]; # AdGuard again, local answer only
+
   # The relabel dance is the entire trick of a blackbox scrape job, and it is
   # silently wrong if any step is missing:
   #
@@ -359,6 +392,56 @@ let
           preferred_ip_protocol = "ip4";
         };
       };
+
+      # Resolution of a name that can only be answered from the internet.
+      #
+      # example.com is chosen deliberately. It is IANA-operated, about as stable
+      # as a DNS record gets, and -- the part that matters -- owned by neither
+      # Quad9 nor Cloudflare. Probing a name belonging to one of the configured
+      # upstreams could pass because that provider was serving its own zone,
+      # while resolution of everything else was broken.
+      #
+      # 5s rather than the 10s used by the HTTP modules: a resolver that takes
+      # longer than 5s has already failed as far as any client is concerned, and
+      # a tight timeout keeps this inside the job's scrape_timeout with room to
+      # spare.
+      dns_external = {
+        prober = "dns";
+        timeout = "5s";
+        dns = {
+          query_name = "example.com";
+          query_type = "A";
+          valid_rcodes = [ "NOERROR" ];
+          transport_protocol = "udp";
+          preferred_ip_protocol = "ip4";
+        };
+      };
+
+      # Resolution of an AdGuard rewrite, answered locally and never forwarded.
+      #
+      # This is the control in the experiment: it stays green when the upstream
+      # path is broken, which is what distinguishes "the internet is
+      # unreachable" from "AdGuard is dead". Without it, a failing chain probe
+      # cannot tell you which.
+      #
+      # The answer is asserted, not just the rcode. A rewrite that silently
+      # stopped resolving to the right host would otherwise still return NOERROR
+      # from the upstream and look fine -- and the whole `.lan` -> TLS migration
+      # depends on these rewrites pointing where they claim to.
+      dns_internal = {
+        prober = "dns";
+        timeout = "5s";
+        dns = {
+          query_name = "sdrhub.lan";
+          query_type = "A";
+          valid_rcodes = [ "NOERROR" ];
+          transport_protocol = "udp";
+          preferred_ip_protocol = "ip4";
+          validate_answer_rrs = {
+            fail_if_not_matches_regexp = [ ".*192\\.168\\.31\\.20" ];
+          };
+        };
+      };
     };
   };
 
@@ -417,6 +500,14 @@ in
       # the `-secondary` question does not arise; probe_ssl_earliest_cert_expiry
       # is simply absent for these.
       (mkProbeJob "blackbox-http-internal-redirect" "http_308" internalRedirectEndpoints)
+
+      # The three DNS probes. Job names are load-bearing: the DnsResolutionFailing
+      # rule in alert-rules/blackbox-alerts.yaml selects on `blackbox-dns-.*`,
+      # and BlackboxProbeFailed excludes that same pattern so a DNS fault pages
+      # once with a useful description rather than twice with a generic one.
+      (mkProbeJob "blackbox-dns-chain" "dns_external" dnsChainEndpoints)
+      (mkProbeJob "blackbox-dns-upstream" "dns_external" dnsUpstreamEndpoints)
+      (mkProbeJob "blackbox-dns-rewrite" "dns_internal" dnsRewriteEndpoints)
 
       # The exporter's own operational metrics -- not a probe, a normal scrape.
       # Without this, a dead exporter yields no probe_success series at all,

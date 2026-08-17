@@ -77,7 +77,13 @@ groups:
         # 5m at a 60s scrape_interval is five consecutive failed probes.
         # Enough to ride out a single nginx reload or an ACME renewal
         # restart; short enough to be actionable.
-        expr: probe_success == 0
+        #
+        # The `blackbox-dns-*` jobs are excluded because DnsResolutionFailing
+        # below owns them: it pages faster (2m) and its description explains how
+        # to read the three probes together. Without the exclusion a DNS fault
+        # would deliver twice, once usefully and once as "an endpoint is
+        # failing", on two different severities.
+        expr: probe_success{job!~"blackbox-dns-.*"} == 0
         for: 5m
         labels:
           severity: critical
@@ -126,6 +132,41 @@ groups:
         annotations:
           summary: "Endpoint {{ $labels.instance }} is responding slowly"
           description: "Blackbox job {{ $labels.job }} has taken more than 5s to probe {{ $labels.instance }} for 15 minutes. Measured baseline is 0.007s-0.03s for LAN vhosts and 0.20s-0.62s for the public HTTPS vhosts."
+
+  - name: blackbox-dns
+    rules:
+      - alert: DnsResolutionFailing
+        # 2m, not the 5m used for HTTP endpoints. sdrhub is the LAN's only
+        # resolver, so this is not one service being unreachable -- it is every
+        # device on the network losing the ability to reach anything by name.
+        # Two consecutive failed probes at a 60s interval.
+        expr: probe_success{job=~"blackbox-dns-.*"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "DNS probe {{ $labels.job }} failing against {{ $labels.instance }}"
+          # The three jobs localise the fault; read them together rather than
+          # acting on whichever one paged. See the header comment in
+          # modules/monitoring/master/blackbox.nix for the full matrix.
+          description: >-
+            DNS probe {{ $labels.job }} has failed for 2 minutes against {{ $labels.instance }}.
+            Read all three together:
+            blackbox-dns-chain is an external name via AdGuard on :53,
+            blackbox-dns-upstream is the same name via unbound on :5335,
+            blackbox-dns-rewrite is a local rewrite via AdGuard.
+            chain+upstream down with rewrite up means the forwarders or the path
+            to them are broken and AdGuard is healthy -- check
+            `journalctl -u unbound` and whether the DoT upstreams on port 853 are
+            reachable. rewrite down with upstream up points at AdGuard itself.
+            All three down points at the host or its network.
+          # NOTE ON DELIVERY: during a real external-DNS outage this alert will
+          # fire but Pushover will NOT arrive -- api.pushover.net cannot be
+          # resolved either. The signal that escapes is the healthchecks.io
+          # deadman going quiet, because that works by absence rather than by
+          # delivery. That is not a defect in this rule; it is why the deadman
+          # exists, and it is worth knowing before wondering why the phone
+          # stayed silent.
 
   - name: blackbox-tls
     rules:
