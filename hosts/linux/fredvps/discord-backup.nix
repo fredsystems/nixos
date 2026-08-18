@@ -135,4 +135,47 @@
       };
     };
   };
+
+  # Verification for the backup above.
+  #
+  # Declared here, in the file that owns the backup, rather than centrally:
+  # the metric and the thing it watches cannot then be added, moved or removed
+  # separately. Same reasoning as the ruleFiles placement in blackbox.nix and
+  # smartctl.nix.
+  #
+  # This closes a real gap rather than a theoretical one. Until now the only
+  # evidence this job worked was the presence of files nobody looked at. A
+  # failed `.backup` aborts the unit under `set -e` and systemd records it, but
+  # nothing alerted on that, so a silently broken nightly backup would have
+  # been discovered at restore time.
+  #
+  # NOTE the scope limit: this watches the dumps ON THIS HOST. It says nothing
+  # about whether the NAS pulled them. See BACKUP-DESIGN.md.
+  services.backupFreshness = {
+    enable = true;
+    artifacts.discord-db = {
+      path = "/mnt/discord-storage/backups";
+
+      # Excludes the `.part` files the script writes and then renames. Counting
+      # those as backups would defeat the atomic-rename discipline the script
+      # documents at length: a half-written dump would satisfy the freshness
+      # alert precisely when it is least deserved.
+      pattern = "discord_db-*.sqlite";
+
+      # 30 hours. The timer is 01:00 plus up to 15 minutes of jitter, so a
+      # healthy newest-dump age peaks a little over 24h just before each run.
+      # 30h leaves real slack for a long .backup on a ~1 GB WAL-mode database
+      # without waiting so long that two consecutive misses go unnoticed.
+      maxAgeSeconds = 108000;
+
+      # 14-day retention, so 14-15 dumps is the healthy range. 20 catches a
+      # retention sweep that has stopped working -- which matters more here
+      # than elsewhere, because BACKUP-DESIGN.md Part 2 proposes moving that
+      # sweep to the NAS. If that lands, this bound is what would catch the
+      # VPS-side cull silently not happening.
+      maxCount = 20;
+
+      description = "Discord bot SQLite database dumps";
+    };
+  };
 }
