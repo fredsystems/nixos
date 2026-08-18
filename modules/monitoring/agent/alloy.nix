@@ -5,8 +5,11 @@
 #
 #   * Tails the systemd journal at /var/log/journal.
 #   * Forwards to the Loki master at 192.168.31.20:5678 (tenant: default).
-#   * Relabels journal `_SYSTEMD_UNIT` → `unit`,
-#     `_CONTAINER_NAME` → `container`, `_CONTAINER_ID` → `container_id`.
+#   * Relabels journal `_SYSTEMD_UNIT` → `unit`. Two further rules map
+#     `_CONTAINER_NAME` / `_CONTAINER_ID`, but both are inert -- those fields
+#     came from dockerd's journald log driver, which this fleet no longer uses.
+#     Container logs arrive as `unit="docker-<name>.service"` instead. See the
+#     note on those rules below before relying on a `container` label.
 #
 # Alloy is deliberately a dumb shipper: it extracts no metrics and exposes
 # nothing for Prometheus to scrape.  Log-derived alerting is evaluated
@@ -83,6 +86,30 @@ let
         source_labels = ["__journal__systemd_unit"]
         target_label  = "unit"
       }
+      // These two are INERT, and were already inert before the log-driver
+      // change described below. Recorded rather than deleted because the
+      // reasoning is worth keeping.
+      //
+      // _CONTAINER_NAME and _CONTAINER_ID are attached by dockerd's journald
+      // log driver, not by systemd, so they only ever appeared on the
+      // duplicate copy of each container's output that dockerd wrote directly
+      // (see the long comment in modules/services/adsb-docker-units.nix).
+      // Verified against the live Loki instance on 2026-08-18: its /labels
+      // endpoint lists only filename, host, hostname, job, service_name and
+      // unit -- no `container` label has ever existed there, so nothing has
+      // ever queried one.
+      //
+      // As of the switch to `log-driver = "local"`, dockerd no longer writes
+      // to the journal at all, so these fields cannot appear even in
+      // principle. Container output still reaches Loki via each container's
+      // wrapper unit as unit="docker-<name>.service", which is what the nine
+      // Loki alert rules and the Container Logs dashboard panel select on.
+      //
+      // Left in place deliberately: a relabel rule whose source label is
+      // absent is a no-op, so these cost nothing, and keeping them means the
+      // config still does the right thing if a host is ever moved back to the
+      // journald driver. Do not "fix" them by adding a container label to
+      // queries -- there is nothing to query.
       rule {
         source_labels = ["__journal__container_name"]
         target_label  = "container"

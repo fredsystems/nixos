@@ -132,6 +132,42 @@ let
         Restart = restartPolicy;
         TimeoutStartSec = 0;
 
+        # Per-container journal filtering, opt-in via `logFilterPatterns`.
+        #
+        # This exists for containers whose upstream image has no log-level
+        # control of its own. Piping ExecStart through grep was the obvious
+        # alternative and was rejected: it would mean the wrapper unit no
+        # longer execs docker directly.
+        #
+        # SCOPE, AND IT IS NARROWER THAN IT LOOKS.
+        #
+        # LogFilterPatterns is a journald directive. It governs what systemd
+        # ingests from the unit's stdout, and nothing else. It therefore
+        # affects:
+        #
+        #   * the journal, and so Loki, the alert rules and the Grafana
+        #     dashboards, which all read `unit="docker-<name>.service"`.
+        #
+        # It does NOT affect:
+        #
+        #   * `docker logs <name>`, or anything reading it -- Dozzle, most
+        #     notably. dockerd writes its own copy through its configured log
+        #     driver, independently of the journal, and journald cannot filter
+        #     a stream it never sees.
+        #
+        # So a filtered container still shows its full output in Dozzle. That
+        # was verified the hard way after this landed: the dict lines were gone
+        # from the journal (0 in a 2-minute window) while still visible in
+        # Dozzle, because the two streams are genuinely separate. Do not
+        # describe this as dropping lines "before they are written" -- it drops
+        # them before *journald* writes them, which is where the write
+        # amplification this is aimed at actually occurs.
+        #
+        # One further documented limitation: filtering applies to the unit's
+        # own log stream, not to messages systemd emits *about* the unit, so
+        # start/stop/failure records are always preserved.
+        LogFilterPatterns = c.logFilterPatterns or [ ];
+
         # This hardens the WRAPPER unit, not the container it runs. The
         # unit's own process only ever shells out to
         # `docker run|pull|rm|stop` against the Docker socket -- the
@@ -254,6 +290,19 @@ in
       - `volumes`, `tmpfs`, `ports` (lists)
       - `devices`, `deviceCgroupRules` (lists)
       - `restart` (default "always"), `exec`, `tty`, `extraDockerArgs`
+      - `logFilterPatterns` -- list of systemd `LogFilterPatterns=` entries,
+        applied to this container's journal stream. A pattern prefixed with
+        `~` is a deny pattern.
+
+        Affects the journal only, and therefore Loki, the alert rules and the
+        dashboards. It does NOT affect `docker logs` or Dozzle, which read
+        dockerd's own separate copy -- see the longer note in `mkUnit`. A
+        filtered container still shows everything in Dozzle.
+
+        Use this only for images with no log-level control of their own, and
+        prefer fixing the application when that is an option: a filter here
+        treats the symptom on one host, while the upstream image keeps
+        emitting the same volume everywhere else it runs.
 
       Anything else is a no-op. Add it here and to `mkUnit` if it is needed.
     '';
@@ -262,6 +311,103 @@ in
   config = lib.mkIf (cfg.containers != [ ]) {
     virtualisation.docker = {
       enable = true;
+
+      # Every container's output was being written to the journal TWICE.
+      #
+      # Measured on sdrhub 2026-08-18. All entries at a single timestamp, for
+      # one 80-line burst from acars2pos:
+      #
+      #   81 lines  from  docker          <- this unit's stdout
+      #   81 lines  from  7acfceb5aa97    <- same content, dockerd's log driver
+      #
+      # 162 journal entries for 81 lines of application output.
+      #
+      # The cause is structural, not per-container: mkUnit runs `docker run`
+      # WITHOUT -d, so the wrapper unit stays attached to the container's
+      # stdout for its whole lifetime and systemd captures it as
+      # docker-<name>.service output. Meanwhile dockerd's own logDriver
+      # (journald, the NixOS default -- see the correction in
+      # AUDIT-2026-08-04.md Part 3) independently wrote the identical lines a
+      # second time. Two writers, same bytes.
+      #
+      # That doubled journald write amplification, Loki ingestion, and 30 days
+      # of Loki storage, on all six container hosts.
+      #
+      # WHY THE DOCKERD COPY IS THE ONE THAT GOES
+      #
+      # This direction is load-bearing and was verified before changing it,
+      # because the intuitive choice is wrong. The two copies are NOT
+      # interchangeable:
+      #
+      #   * The wrapper copy lands as unit="docker-<name>.service". NINE Loki
+      #     alert rules select on `unit=~"docker-.*"`
+      #     (modules/monitoring/master/loki-ruler.nix) -- DecoderS6Caution,
+      #     UsbClaimInterface, SdrPlayServiceNotResponding, the decoder
+      #     message-rate rules -- and the "Container Logs" panel in
+      #     dashboards/system-logs.json queries the same selector.
+      #   * The dockerd copy lands as unit="docker.service", with nothing
+      #     selecting on it anywhere in this repo.
+      #
+      # Suppressing the wrapper copy instead would therefore have silently
+      # disabled nine alerts. Nothing would have caught it either:
+      # scripts/check-alert-metrics.sh validates Prometheus metrics, and these
+      # are Loki rules.
+      #
+      # Note also that alloy's `_CONTAINER_NAME` -> `container` relabel
+      # (modules/monitoring/agent/alloy.nix) yields nothing in practice --
+      # Loki's own /labels endpoint lists no `container` label at all -- so the
+      # dockerd copy's supposed advantage of carrying container metadata does
+      # not actually materialise. Verified against the live instance.
+      #
+      # Confirmed before landing that every container has a wrapper stream in
+      # Loki (all 31 docker-*.service units present), including xng and
+      # radarvirtuel, which had appeared only under docker.service in a
+      # narrower sample.
+      #
+      # `local` rather than `none`: it keeps `docker logs <name>` working for
+      # interactive debugging, which `none` would break. It is capped, unlike
+      # the json-file default, so it cannot become the disk filler that the
+      # audit rejected log-opts for. Container output still reaches the
+      # journal, and therefore Loki, via the wrapper unit.
+      # Set via the module's own logDriver option rather than
+      # daemon.settings.log-driver. Both work -- the module renders
+      # `log-driver = mkDefault cfg.logDriver`, so an explicit
+      # daemon.settings entry would override it -- but having the two disagree
+      # makes `config.virtualisation.docker.logDriver` report "journald" on a
+      # host that is not using it, which is exactly the kind of
+      # stated-versus-actual gap this repo keeps getting bitten by.
+      logDriver = "local";
+
+      # log-opts is only honoured by the json-file and local drivers, which is
+      # why the audit rejected it while the driver was journald
+      # (AUDIT-2026-08-04.md, "Items to not re-propose"). That rejection was
+      # correct then and is now superseded: under `local` these are live, and
+      # they are what keeps this from becoming the disk filler the audit was
+      # right to worry about.
+      #
+      # 30 MB retained per container (10m x 3), and note this is a per-container
+      # budget rather than the host-wide one journald imposes. That is a
+      # meaningful improvement on its own: under the journald driver every
+      # container competed for the single 1 GB SystemMaxUse pool, so one chatty
+      # container shortened everyone else's retention -- the residual recorded
+      # as item 6.11 in AUDIT-2026-08-04.md. It cannot now.
+      #
+      # On scrollback depth: rotated files are gzipped by the local driver, so
+      # only the active container.log is uncompressed and effective retention
+      # is longer than dividing 30 MB by an observed byte rate suggests. Any
+      # such estimate is also biased low if measured shortly after a deploy --
+      # these images dump a burst of startup output and then go comparatively
+      # quiet, so a sample taken in the first minutes overstates the steady-state
+      # rate considerably.
+      #
+      # Loki remains the archive at 30 days, queryable by
+      # unit="docker-<name>.service". `docker logs` / Dozzle is the live-tail
+      # view. Raise max-size here if deeper interactive scrollback is wanted;
+      # there is no space pressure on any of these hosts.
+      daemon.settings.log-opts = {
+        max-size = "10m";
+        max-file = "3";
+      };
     };
 
     systemd.services = lib.foldl' (

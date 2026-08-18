@@ -154,6 +154,38 @@ in
     # Force rotation by age so a low-traffic host still produces file
     # boundaries, keeping MaxRetentionSec able to expire whole files.
     MaxFileSec=1day
+
+    # Write amplification control. This is about SSD wear, not disk space --
+    # the settings above already bound the latter.
+    #
+    # Measured on sdrhub 2026-08-18: journald was issuing 56.8 GB/day to the
+    # block layer while the journal files themselves only rotated 0.8 GB/day
+    # and the actual log content was 2.1 GB/day. Its /proc/<pid>/io showed
+    # wchar=2.18 MiB against write_bytes=236 GiB -- five orders of magnitude
+    # apart.
+    #
+    # That gap is not log volume, it is mmap page dirtying. journald mmaps the
+    # journal and writes records into mapped pages, so the bytes never pass
+    # through write() and never appear in wchar; but every page the kernel
+    # flushes counts in write_bytes. A journal file's hash tables and indices
+    # live in a small number of pages that get re-dirtied by almost every
+    # record, so each sync rewrites the same pages again. At the default
+    # 5-minute interval that is 288 flush cycles a day, each one re-writing
+    # metadata pages that mostly did not need to move.
+    #
+    # 15 minutes cuts those cycles to 96. The cost is the window of entries
+    # that would be lost on an unclean shutdown, and it is smaller than it
+    # sounds: journald syncs unconditionally and immediately on CRIT, ALERT and
+    # EMERG regardless of this value, so the messages that matter during a
+    # crash are already durable. What is at risk is up to 15 minutes of INFO
+    # and WARNING on a host that lost power without flushing -- and on this
+    # fleet those are already shipped off-box to Loki by alloy, which is the
+    # copy used for incident correlation anyway.
+    #
+    # Note this does NOT fix a chatty service, it only makes each flush cycle
+    # cheaper. Log line rate is the other half and is dealt with per-service
+    # (see the acars2pos and Loki log-level changes on sdrhub).
+    SyncIntervalSec=15min
   '';
 
   # The goModules fixed-output derivation in nixpkgs includes "GOPROXY" in

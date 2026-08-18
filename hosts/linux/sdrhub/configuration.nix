@@ -565,6 +565,7 @@ in
     ./acme.nix
     ../../../modules/secrets/sops.nix
     ../../../modules/services/adsb-docker-units.nix
+    ../../../modules/services/sqlite-backup.nix
     ../../../modules/monitoring/master
     ../../../modules/monitoring/agent
     ../../../modules/services/tailscale
@@ -1357,6 +1358,33 @@ in
         restart = "always";
         tty = true;
 
+        # Drop the periodic per-airline statistics dump.
+        #
+        # Measured 2026-08-18: this container emitted 15,510 journal
+        # lines/hour, of which 13,731 -- 88.5% -- were one pretty-printed
+        # Python dict re-emitted roughly every 20 seconds, 80 lines per burst,
+        # one line per airline code. Every line looks like
+        #
+        #   {'81': {'airframes': 0, 'python': 0, 'total': 1},
+        #    'AA': {'airframes': 0, 'python': 0, 'total': 1},
+        #
+        # It was also double-counted: docker.service relays container stdout,
+        # so the same 14k lines/hour appeared a second time under that unit,
+        # making the pair the top two journal producers on this host after
+        # Loki itself.
+        #
+        # The image has no verbosity control, so this is filtered here instead.
+        # The pattern anchors on the `'XX': {'airframes'` shape rather than the
+        # bare word, so it catches both the opening line and the
+        # leading-whitespace continuations while leaving anything else that
+        # merely mentions airframes alone. Verified against real burst output
+        # with systemd-run before landing: all three dict line shapes dropped,
+        # "matched message type" and "acars NN" preserved.
+        #
+        # Position data itself is untouched -- this drops only the aggregate
+        # counters, which are visible in Prometheus anyway.
+        logFilterPatterns = [ "~'[^']*': \\{'airframes'" ];
+
         environmentFiles = [
           config.sops.secrets."docker/sdrhub/acars2pos.env".path
         ];
@@ -1521,6 +1549,80 @@ in
             }) config.services.nginx.defaultListenAddresses;
           };
         };
+    };
+
+    # Consistent dumps of the two ACARS message databases.
+    #
+    # These are the only data under /opt/adsb that genuinely needs backing up,
+    # and until now they were the part being backed up WORST: the NAS's nightly
+    # rsync of /opt/adsb copied both live, WAL-mode, mid-write, which is the
+    # exact defect the audit found and fixed in discord-backup.nix. Everything
+    # else in that tree -- influxdb_data, tar1090_heatmap, vrs, pihole,
+    # fam_webapp -- is cache or regenerable state, and accounts for 9.17 of the
+    # 11.99 GiB the pull currently transfers. Measured 2026-08-18:
+    #
+    #   acarshub   messages.db  1.41 GiB   \ 2.82 GiB, i.e. 24% of the tree
+    #   acarshubv4 messages.db  1.41 GiB   /
+    #
+    # Written into /opt/adsb/backups so the existing NAS job collects them with
+    # no change at the NAS end. That placement is deliberate but has a
+    # consequence worth knowing: the NAS pull passes --delete, so local retention
+    # is mirrored rather than accumulated off-host. See BACKUP-DESIGN.md Part 3.
+    #
+    # Verified on this host before landing: `.backup` against the live database
+    # takes ~5s per 1.4 GB, and the resulting dump passes integrity_check with
+    # 3,448,426 rows and all five messages_fts* shadow tables present.
+    sqliteBackup = {
+      enable = true;
+
+      databases = {
+        acarshub = {
+          source = "/opt/adsb/data/acarshub/messages.db";
+          destination = "/opt/adsb/backups";
+          name = "acarshub-messages";
+        };
+
+        acarshubv4 = {
+          source = "/opt/adsb/data/acarshubv4/messages.db";
+          destination = "/opt/adsb/backups";
+          name = "acarshubv4-messages";
+        };
+      };
+    };
+
+    # Watch the dumps above, same as the Prometheus snapshots and the Discord
+    # database. Without this they would be exactly what the rest of this fleet's
+    # backups were before the freshness work: files nobody looks at, whose
+    # absence is indistinguishable from health.
+    #
+    # `services.backupFreshness.enable` is already set by
+    # modules/monitoring/master/prometheus.nix on this host; artifacts is an
+    # attrset so these merge with the prometheus-tsdb entry declared there.
+    backupFreshness.artifacts = {
+      acarshub-db = {
+        path = "/opt/adsb/backups";
+        pattern = "acarshub-messages-*.sqlite";
+
+        # 30 hours, matching the other nightly artifacts: the timer is 00:30 plus
+        # up to 10 minutes of jitter, so a healthy newest-dump age peaks a little
+        # over 24h just before each run.
+        maxAgeSeconds = 108000;
+
+        # keep = 3 in the sqliteBackup declaration above, so 3 is the steady
+        # state. 5 catches the retention prune having stopped before three 1.4 GB
+        # dumps become ten.
+        maxCount = 5;
+
+        description = "ACARSHub message database (acarshub)";
+      };
+
+      acarshubv4-db = {
+        path = "/opt/adsb/backups";
+        pattern = "acarshubv4-messages-*.sqlite";
+        maxAgeSeconds = 108000;
+        maxCount = 5;
+        description = "ACARSHub message database (acarshubv4)";
+      };
     };
   };
 

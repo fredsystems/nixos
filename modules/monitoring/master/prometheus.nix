@@ -123,22 +123,99 @@ in
         serviceConfig = {
           Type = "oneshot";
 
+          # -f, and the response check, are both load-bearing.
+          #
+          # Without -f, curl exits 0 on an HTTP error. This endpoint is only
+          # available while --web.enable-admin-api is set, so if that flag were
+          # ever dropped -- as AUDIT-2026-08-04.md item 1.5 proposed before the
+          # premise was corrected -- Prometheus would answer 404/403, curl would
+          # exit 0, `set -e` would not trigger, and this unit would report
+          # success while producing no snapshot at all. The backup would then be
+          # silently frozen at whatever the last real snapshot was, and the NAS
+          # would keep dutifully mirroring it.
+          #
+          # That is the precise failure this whole change exists to remove, and
+          # it was live in the one job the fleet already had.
+          #
+          # The grep is a second, independent assertion: a 200 whose body does
+          # not contain a snapshot name means the API changed shape or returned
+          # a JSON error with a success status, which -f alone would accept.
+          #
+          # WHY THE READINESS WAIT
+          #
+          # `after`/`wants` above order this unit against prometheus.service
+          # STARTING, not against it listening on 9090. Prometheus replays its
+          # WAL on startup and only binds once that finishes, which on this host
+          # takes appreciably longer than the 90-day TSDB makes obvious.
+          #
+          # That gap is reachable in practice, not in theory. This timer is
+          # Persistent=true, so any activation that has passed the day's
+          # OnCalendar triggers an immediate catch-up run -- and any change to
+          # Prometheus' own config (adding a rule file, for instance) restarts
+          # prometheus.service in the same activation. The two then race, curl
+          # gets ECONNREFUSED, and the unit fails: exactly what happened when
+          # this backup work was first deployed.
+          #
+          # Waiting on /-/ready rather than sleeping is what makes this
+          # deterministic. /-/ready is Prometheus' own readiness endpoint and
+          # returns 503 until the WAL replay completes, so this polls the actual
+          # precondition instead of guessing at a duration. 60 attempts at 2s
+          # bounds it at two minutes, after which failing is correct: at that
+          # point Prometheus really is broken and a silent skip would be the
+          # false signal this job exists to avoid.
           ExecStart = "${pkgs.writeShellScript "create-prometheus-snapshot" ''
-            set -eu
+            set -euo pipefail
 
-            ${pkgs.curl}/bin/curl -XPOST http://localhost:9090/api/v1/admin/tsdb/snapshot
+            CURL=${pkgs.curl}/bin/curl
+
+            for _ in $(${pkgs.coreutils}/bin/seq 1 60); do
+              if $CURL -sf --max-time 5 http://localhost:9090/-/ready >/dev/null; then
+                break
+              fi
+              ${pkgs.coreutils}/bin/sleep 2
+            done
+
+            # Deliberately re-checked rather than tracking the loop's exit: if
+            # readiness never arrived, say so in the journal instead of letting
+            # the snapshot call fail with a bare connection error that looks
+            # like a networking fault.
+            if ! $CURL -sf --max-time 5 http://localhost:9090/-/ready >/dev/null; then
+              echo "prometheus did not become ready within 120s; not snapshotting" >&2
+              exit 1
+            fi
+
+            response=$($CURL -sf --max-time 300 \
+              -XPOST http://localhost:9090/api/v1/admin/tsdb/snapshot)
+
+            if ! printf '%s' "$response" | ${pkgs.gnugrep}/bin/grep -q '"name"'; then
+              echo "snapshot API answered without a snapshot name: $response" >&2
+              exit 1
+            fi
+
+            printf 'created snapshot: %s\n' "$response"
           ''}";
         };
       };
     };
 
     timers = {
+      # These two both fired at exactly 00:00 with no jitter, so the prune and
+      # the snapshot raced every night. The practical risk was low -- the prune
+      # only deletes directories older than 30 days, so it was never going to
+      # delete the snapshot being created -- but the ordering was undefined and
+      # the fleet's convention is to jitter fixed-time daily jobs (see
+      # discord-backup.nix and the audit's item 3.4).
+      #
+      # The offsets also give them a deliberate order: prune first to free
+      # space, then snapshot into it. That matters on sdrhub, whose NVMe is at
+      # 54% of rated write endurance (alert-rules/smart-alerts.yaml:9-17).
       prunePrometheusSnapshots = {
         description = "Daily prune of Prometheus snapshots older than 30 days";
         wantedBy = [ "timers.target" ];
         timerConfig = {
           OnCalendar = "daily"; # runs at 00:00 by default
           Persistent = true; # catch-up if system was down
+          RandomizedDelaySec = "5m";
         };
       };
 
@@ -146,10 +223,57 @@ in
         description = "Scheduled Prometheus TSDB snapshot generation";
         wantedBy = [ "timers.target" ];
         timerConfig = {
-          OnCalendar = "daily";
+          # 00:10 rather than 00:00, so the snapshot starts after the prune's
+          # jitter window (00:00-00:05) has closed and the two no longer
+          # overlap. Ordering is then prune-then-snapshot: free the space
+          # before writing into it.
+          #
+          # Still ~3h45m of slack before the NAS pulls at 04:00 wall-clock
+          # (0300 on the NAS, which is not DST-corrected -- see
+          # BACKUP-DESIGN.md Part 0).
+          OnCalendar = "*-*-* 00:10:00";
           Persistent = true; # catch up after reboot
+          RandomizedDelaySec = "5m";
         };
       };
+    };
+  };
+
+  # Verification for the snapshot job above.
+  #
+  # Declared alongside the job it watches, so the two cannot drift apart. See
+  # modules/monitoring/agent/backup-freshness.nix for what this does and does
+  # not prove -- in particular, it says nothing about whether the NAS pulled
+  # these snapshots, only that they exist and are fresh on this host.
+  #
+  # This is also the closest thing the fleet had to a working backup, and it
+  # was entirely unwatched: AUDIT-2026-08-04.md notes the snapshots live on the
+  # same disk as the TSDB they snapshot, which makes them corruption insurance
+  # rather than loss insurance. Knowing they are being produced is the
+  # precondition for making them anything better.
+  services.backupFreshness = {
+    enable = true;
+    artifacts.prometheus-tsdb = {
+      path = "/var/lib/prometheus2/data/snapshots";
+
+      # Snapshots are directories, not files. Prometheus names them
+      # <unix>-<hex>, so there is no stable prefix to match on and `*` is
+      # correct here -- `kind = "directory"` plus -maxdepth 1 is what keeps
+      # this from descending into the block directories inside each snapshot.
+      kind = "directory";
+
+      # 30 hours, same reasoning as the Discord dump: the job is daily with up
+      # to 5 minutes of jitter, so a healthy age peaks just over 24h.
+      maxAgeSeconds = 108000;
+
+      # 30-day retention (prunePrometheusSnapshots), so ~30 is healthy. 40
+      # catches the prune having stopped. This bound matters more than it looks:
+      # each snapshot is a hardlink farm against the live TSDB, so a prune that
+      # stops working pins every block it references and the data directory
+      # grows without any single snapshot looking large.
+      maxCount = 40;
+
+      description = "Prometheus TSDB snapshots";
     };
   };
 
