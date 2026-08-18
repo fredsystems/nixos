@@ -6,6 +6,7 @@
   imports = [
     ./hardware-configuration.nix
     ./frigate.nix
+    ./nvidia.nix
     ../../../profiles/adsb-hub.nix
   ];
 
