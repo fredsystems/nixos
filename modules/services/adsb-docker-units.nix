@@ -135,21 +135,36 @@ let
         # Per-container journal filtering, opt-in via `logFilterPatterns`.
         #
         # This exists for containers whose upstream image has no log-level
-        # control of its own. The alternative approaches are all worse: a
-        # per-container Docker log driver breaks alloy's journal-based
-        # ingestion into Loki (modules/monitoring/agent/alloy.nix relabels
-        # __journal__container_name, so a container logging anywhere other
-        # than the journal simply disappears from Loki), and piping through
-        # grep in ExecStart would mean the wrapper unit no longer execs docker
-        # directly.
+        # control of its own. Piping ExecStart through grep was the obvious
+        # alternative and was rejected: it would mean the wrapper unit no
+        # longer execs docker directly.
         #
-        # LogFilterPatterns is applied by journald at the point of ingestion,
-        # so a dropped line is never written to disk at all -- which is the
-        # entire point, since the cost being avoided is write amplification
-        # rather than disk footprint.
+        # SCOPE, AND IT IS NARROWER THAN IT LOOKS.
         #
-        # Note the documented limitation: filtering applies to the unit's own
-        # log stream, not to messages systemd emits *about* the unit, so
+        # LogFilterPatterns is a journald directive. It governs what systemd
+        # ingests from the unit's stdout, and nothing else. It therefore
+        # affects:
+        #
+        #   * the journal, and so Loki, the alert rules and the Grafana
+        #     dashboards, which all read `unit="docker-<name>.service"`.
+        #
+        # It does NOT affect:
+        #
+        #   * `docker logs <name>`, or anything reading it -- Dozzle, most
+        #     notably. dockerd writes its own copy through its configured log
+        #     driver, independently of the journal, and journald cannot filter
+        #     a stream it never sees.
+        #
+        # So a filtered container still shows its full output in Dozzle. That
+        # was verified the hard way after this landed: the dict lines were gone
+        # from the journal (0 in a 2-minute window) while still visible in
+        # Dozzle, because the two streams are genuinely separate. Do not
+        # describe this as dropping lines "before they are written" -- it drops
+        # them before *journald* writes them, which is where the write
+        # amplification this is aimed at actually occurs.
+        #
+        # One further documented limitation: filtering applies to the unit's
+        # own log stream, not to messages systemd emits *about* the unit, so
         # start/stop/failure records are always preserved.
         LogFilterPatterns = c.logFilterPatterns or [ ];
 
@@ -277,11 +292,17 @@ in
       - `restart` (default "always"), `exec`, `tty`, `extraDockerArgs`
       - `logFilterPatterns` -- list of systemd `LogFilterPatterns=` entries,
         applied to this container's journal stream. A pattern prefixed with
-        `~` is a deny pattern. Use this only for images with no log-level
-        control of their own; prefer configuring the application when it
-        offers the option. Because journald applies it at ingestion, matching
-        lines are never written to disk, so this reduces SSD write
-        amplification and not merely journal size.
+        `~` is a deny pattern.
+
+        Affects the journal only, and therefore Loki, the alert rules and the
+        dashboards. It does NOT affect `docker logs` or Dozzle, which read
+        dockerd's own separate copy -- see the longer note in `mkUnit`. A
+        filtered container still shows everything in Dozzle.
+
+        Use this only for images with no log-level control of their own, and
+        prefer fixing the application when that is an option: a filter here
+        treats the symptom on one host, while the upstream image keeps
+        emitting the same volume everywhere else it runs.
 
       Anything else is a no-op. Add it here and to `mkUnit` if it is needed.
     '';
@@ -363,6 +384,26 @@ in
       # correct then and is now superseded: under `local` these are live, and
       # they are what keeps this from becoming the disk filler the audit was
       # right to worry about.
+      #
+      # 30 MB retained per container (10m x 3), and note this is a per-container
+      # budget rather than the host-wide one journald imposes. That is a
+      # meaningful improvement on its own: under the journald driver every
+      # container competed for the single 1 GB SystemMaxUse pool, so one chatty
+      # container shortened everyone else's retention -- the residual recorded
+      # as item 6.11 in AUDIT-2026-08-04.md. It cannot now.
+      #
+      # On scrollback depth: rotated files are gzipped by the local driver, so
+      # only the active container.log is uncompressed and effective retention
+      # is longer than dividing 30 MB by an observed byte rate suggests. Any
+      # such estimate is also biased low if measured shortly after a deploy --
+      # these images dump a burst of startup output and then go comparatively
+      # quiet, so a sample taken in the first minutes overstates the steady-state
+      # rate considerably.
+      #
+      # Loki remains the archive at 30 days, queryable by
+      # unit="docker-<name>.service". `docker logs` / Dozzle is the live-tail
+      # view. Raise max-size here if deeper interactive scrollback is wanted;
+      # there is no space pressure on any of these hosts.
       daemon.settings.log-opts = {
         max-size = "10m";
         max-file = "3";
