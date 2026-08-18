@@ -651,6 +651,52 @@ in
           "dog"
           "cat"
         ];
+
+        # ── car confidence calibration ──────────────────────────────────────
+        #
+        # NOT a workaround for a weak model. An earlier version of this line
+        # was exactly that, and was removed when the detector moved to YOLOv9
+        # on the assumption that a better model would make it unnecessary. That
+        # assumption was tested and is FALSE, so it is back -- this time with
+        # the measurements behind it.
+        #
+        # WHAT WAS MEASURED. The same doorbell frame, same preprocessing, run
+        # outside Frigate against three detectors:
+        #
+        #   ssdlite_mobiledet 320 (tflite)   car 0.668
+        #   yolov9-s 640 (current)           car 0.753
+        #   yolov9-e 640 (57M params, 8x)    car 0.784
+        #
+        # Eight times the model buys 0.03. The car parked on the street is
+        # ~110x48 px in a 640 input -- small, distant, and simply a ~0.75
+        # object. No detector swap available here reaches 0.9.
+        #
+        # WHY THAT MATTERS. FilterConfig.threshold (0.7 by default) is the
+        # AVERAGE confidence required for an object to be counted, not a
+        # per-frame floor -- that is min_score, left at its 0.5 default. With
+        # per-event scores observed between 0.504 and 0.70, the running average
+        # sits just under 0.7, so the object is counted, dropped and
+        # re-acquired forever. Never holding a stable track means it never
+        # reaches `stationary`, so it never falls back to the cheap 50-frame
+        # re-check and instead draws a fresh detector region every frame. That
+        # churn is what pins the two outdoor camera processes near 280%.
+        #
+        # 0.6 rather than 0.65: the observed floor is 0.504, so 0.65 leaves
+        # almost no margin and would keep flapping on the low samples. 0.6 sits
+        # below the running average with room to spare while staying above
+        # min_score, so the two still compose.
+        #
+        # The cost is real and accepted: a lower average-confidence bar means
+        # more marginal car detections are believed. On outdoor cameras whose
+        # job is noticing vehicles, a false car is far cheaper than a vehicle
+        # that is never tracked because its score hovers under an arbitrary
+        # default.
+        #
+        # Only `car` is calibrated. person scores 0.70-0.82 here and needs no
+        # help; the other tracked classes have no measurements yet, and a
+        # blanket lowering would be guesswork of exactly the kind this comment
+        # exists to replace.
+        filters.car.threshold = 0.6;
       };
 
       snapshots.enabled = true;
