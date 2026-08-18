@@ -15,6 +15,29 @@
         server = {
           http_listen_address = "0.0.0.0";
           http_listen_port = 5678;
+
+          # Loki was the single noisiest unit on this host: 22,080 journal
+          # lines/hour, measured 2026-08-18. All of it routine internal
+          # housekeeping at level=info -- "dynamically updated instance",
+          # "recalculate owned streams job", "uploading tables", "no marks file
+          # found", plus one line per rule evaluation from the ruler.
+          #
+          # That volume is not free. It drives journald's write amplification
+          # (see the SyncIntervalSec note in modules/base/system.nix) on the
+          # host with the fleet's most worn SSD -- 55% of rated endurance
+          # consumed, +1% in the seven days to 2026-08-18.
+          #
+          # It is also self-referential in a way worth noticing: alloy tails
+          # the journal and ships it to Loki, so Loki's own chatter about
+          # ingesting logs becomes logs it then ingests, indexes and retains
+          # for 30 days.
+          #
+          # warn keeps genuine problems -- ingestion failures, rule evaluation
+          # errors, storage errors -- while dropping the running commentary.
+          # Deliberately not `error`: a warn-level message here usually means
+          # data is being dropped, which is exactly what this monitoring stack
+          # exists to notice.
+          log_level = "warn";
         };
 
         auth_enabled = false;

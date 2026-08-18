@@ -1357,6 +1357,33 @@ in
         restart = "always";
         tty = true;
 
+        # Drop the periodic per-airline statistics dump.
+        #
+        # Measured 2026-08-18: this container emitted 15,510 journal
+        # lines/hour, of which 13,731 -- 88.5% -- were one pretty-printed
+        # Python dict re-emitted roughly every 20 seconds, 80 lines per burst,
+        # one line per airline code. Every line looks like
+        #
+        #   {'81': {'airframes': 0, 'python': 0, 'total': 1},
+        #    'AA': {'airframes': 0, 'python': 0, 'total': 1},
+        #
+        # It was also double-counted: docker.service relays container stdout,
+        # so the same 14k lines/hour appeared a second time under that unit,
+        # making the pair the top two journal producers on this host after
+        # Loki itself.
+        #
+        # The image has no verbosity control, so this is filtered here instead.
+        # The pattern anchors on the `'XX': {'airframes'` shape rather than the
+        # bare word, so it catches both the opening line and the
+        # leading-whitespace continuations while leaving anything else that
+        # merely mentions airframes alone. Verified against real burst output
+        # with systemd-run before landing: all three dict line shapes dropped,
+        # "matched message type" and "acars NN" preserved.
+        #
+        # Position data itself is untouched -- this drops only the aggregate
+        # counters, which are visible in Prometheus anyway.
+        logFilterPatterns = [ "~'[^']*': \\{'airframes'" ];
+
         environmentFiles = [
           config.sops.secrets."docker/sdrhub/acars2pos.env".path
         ];
