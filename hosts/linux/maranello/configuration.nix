@@ -15,6 +15,21 @@ in
   imports = [
     ./hardware-configuration.nix
     ../../../profiles/desktop.nix
+
+    # Log shipping to Loki. Imported per-host rather than from the desktop
+    # profile because the two desktops need different shippers: Daytona is a
+    # roaming laptop converted to push-based monitoring (f8081793), so it
+    # carries its own inline alloy config that ALSO does prometheus
+    # remote_write, and pulling this module in there would define
+    # services.alloy twice. maranello is stationary and is scraped normally at
+    # maranello.local:9100, so it needs only the journal half -- which is all
+    # this module is, by design ("deliberately a dumb shipper").
+    #
+    # Without this, maranello was the only host in the fleet whose logs existed
+    # nowhere but its own journal, and that journal is size-bound: measured at
+    # 8 days of retention against a 30-day policy, because SystemMaxUse=1G
+    # binds long before MaxRetentionSec=30day.
+    ../../../modules/monitoring/agent/alloy.nix
   ];
 
   # Hardware profile settings
