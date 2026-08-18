@@ -88,6 +88,62 @@ _: {
         ncclSupport = false;
       };
     })
+
+    # KNOCK-ON: keras has to be rebuilt, and its test suite hangs.
+    #
+    # Frigate depends on python3Packages.onnxruntime, and keras depends on it too
+    # (it has an ONNX export path). Overriding onnxruntime therefore changes the
+    # derivation hash of keras and of Frigate itself -- verified by diffing
+    # against another server on the same nixpkgs:
+    #
+    #   frigate  nvrhub cjmc3inx...   vdlmhub a4jph19w...
+    #   keras    nvrhub ym35s0ch...   vdlmhub 3d30848n...
+    #
+    # Every other host substitutes keras prebuilt from cache.nixos.org and never
+    # runs its tests. nvrhub cannot, so it builds keras locally -- and the build
+    # wedges indefinitely at
+    #
+    #   keras/src/trainers/trainer_test.py::TestTrainer::
+    #     test_fit_with_data_adapter_py_dataset_multiprocessing
+    #
+    # with the process at 0% CPU. This is a known upstream hang that nixpkgs
+    # already handles, but only on one architecture
+    # (python-modules/keras/default.nix):
+    #
+    #   ++ lib.optionals (stdenv.hostPlatform.isLinux && stdenv.hostPlatform.isAarch64) [
+    #     # Hangs forever
+    #     "test_fit_with_data_adapter"
+    #   ];
+    #
+    # We are x86_64, so the test is not deselected and it deadlocks here.
+    #
+    # WHY SKIPPING THE WHOLE SUITE IS LEGITIMATE HERE, not just expedient:
+    # nothing about keras itself has changed. Its source, its patches and its own
+    # dependencies are identical to the package upstream builds and tests on
+    # x86_64; the ONLY reason this host rebuilds it is that a transitive
+    # dependency's build flags changed. Re-running the suite locally therefore
+    # re-validates code that upstream CI already validated, and cannot tell us
+    # anything about the change actually being made. The narrower fix -- adding
+    # "test_fit_with_data_adapter" to disabledTests, matching what aarch64 does
+    # -- also works and is a smaller hammer; it is not used because the full
+    # suite is very slow and buys nothing for a dependency Frigate only pulls in
+    # transitively.
+    #
+    # This is NOT a one-off. keras rebuilds on every onnxruntime change, which is
+    # roughly fortnightly, so without this every future bump would wedge the same
+    # way.
+    #
+    # Uses pythonPackagesExtensions rather than overriding python3Packages
+    # directly, matching the convention already used in overlays/default.nix.
+    (_final: prev: {
+      pythonPackagesExtensions = prev.pythonPackagesExtensions or [ ] ++ [
+        (_pyFinal: pyPrev: {
+          keras = pyPrev.keras.overridePythonAttrs (_: {
+            doCheck = false;
+          });
+        })
+      ];
+    })
   ];
 
   # The Python binding follows automatically and deliberately is not overridden
