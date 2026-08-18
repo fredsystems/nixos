@@ -439,9 +439,11 @@ in
   services.frigate = {
     enable = true;
 
-    # Served over plain HTTP on the LAN. The module only supports nginx, and
-    # wires this vhost itself.
-    hostname = "nvrhub.local";
+    # `hostname` is deliberately NOT set here. The module only supports nginx
+    # and wires the vhost itself, naming it after this option -- which makes the
+    # value a statement about how the UI is published, not about Frigate. It is
+    # therefore set in ./nginx.nix alongside the certificate and the redirect
+    # from the old name, so the FQDN appears exactly once.
 
     # Satisfy the build-time config validator.
     #
@@ -928,8 +930,10 @@ in
     };
   };
 
+  # 80 and 443 are opened by ./nginx.nix, which owns the UI's TLS vhost and the
+  # redirect from the old plaintext name. Only the metrics port belongs to this
+  # file, because the vhost behind it is defined here.
   networking.firewall.allowedTCPPorts = [
-    80 # nginx -> Frigate UI
     9634 # nginx frigate-metrics vhost (/api/metrics only) -> Prometheus
   ];
 }

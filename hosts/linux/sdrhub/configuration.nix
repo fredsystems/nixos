@@ -513,17 +513,23 @@ let
   # cannot come from migratedVhosts above -- that map is specifically the vhosts
   # this host's nginx terminates, and its answer is hardcoded to sdrhub.
   #
-  # All three live on fredhub and terminate TLS there rather than being proxied
-  # through here. For attic that is the point: proxying would leave the push
-  # token in cleartext on the sdrhub -> fredhub hop, which is the whole thing it
-  # exists to prevent. ai and jellyfin had exactly that defect -- the client saw
-  # TLS while their logins crossed the LAN in the clear on the second hop -- and
-  # the fix is to remove the hop rather than encrypt it. See
+  # attic, ai and jellyfin live on fredhub and terminate TLS there rather than
+  # being proxied through here. For attic that is the point: proxying would
+  # leave the push token in cleartext on the sdrhub -> fredhub hop, which is the
+  # whole thing it exists to prevent. ai and jellyfin had exactly that defect --
+  # the client saw TLS while their logins crossed the LAN in the clear on the
+  # second hop -- and the fix is to remove the hop rather than encrypt it. See
   # hosts/linux/fredhub/nginx.nix.
+  #
+  # nvr is the Frigate UI on nvrhub and is here for the same reason: Frigate has
+  # its own login, so proxying it through this host would put those credentials
+  # on the wire in the clear on the second hop. See
+  # hosts/linux/nvrhub/nginx.nix.
   externalTlsHosts = {
     attic = "192.168.31.14";
     ai = "192.168.31.14";
     jellyfin = "192.168.31.14";
+    nvr = "192.168.31.179";
   };
 
   externalTlsRewrites = lib.mapAttrsToList (name: ip: {
