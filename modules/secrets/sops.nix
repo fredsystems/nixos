@@ -8,17 +8,16 @@
   sopsNixInput ? inputs.sops-nix,
   ...
 }:
-with lib;
 let
   cfg = config.sops_secrets.enable_secrets;
   username = user;
   isLinux = !isDarwin;
 
-  homeDir = if isDarwin then "/Users/${username}" else "/home/${username}";
+  homeDir = import ../lib/home-dir.nix { inherit username isDarwin; };
 in
 {
   options.sops_secrets.enable_secrets = {
-    enable = mkOption {
+    enable = lib.mkOption {
       description = "Enable SOPS Secrets.";
       default = false;
     };
@@ -28,7 +27,7 @@ in
     lib.optional isLinux sopsNixInput.nixosModules.sops
     ++ lib.optional isDarwin sopsNixInput.darwinModules.sops;
 
-  config = mkIf cfg.enable {
+  config = lib.mkIf cfg.enable {
     environment.systemPackages = [
       pkgs.sops
     ];
