@@ -83,27 +83,10 @@
 let
   isDarwin = pkgsInput.lib.hasSuffix "darwin" system;
 
-  # `stateVersion` has NO default, deliberately. It used to default to "24.11",
-  # which meant nine of twelve hosts inherited it silently and a single edit here
-  # would have retroactively changed the stateVersion of every one of them --
-  # the exact opposite of what the option is for. Every host now states its own,
-  # and omitting it is a hard eval error rather than a silent inheritance.
-  #
-  # Omission is caught by the missing-argument error. This guard catches the
-  # other half: a value that is a well-formed string but not a NixOS release,
-  # e.g. "25.5" instead of "25.05", or "2411". Those pass `types.str` and would
-  # otherwise reach the host as a real (wrong) stateVersion.
-  checkedStateVersion =
-    if builtins.match "[0-9][0-9]\\.[0-9][0-9]" stateVersion != null then
-      stateVersion
-    else
-      throw (
-        "mkSystem: host '${hostName}' has stateVersion '${toString stateVersion}', "
-        + "which is not a NixOS release of the form YY.MM (e.g. \"24.11\"). "
-        + "Fix it in flake/hosts/servers.nix or flake/hosts/nixos.nix. "
-        + "Do NOT change a host's stateVersion to make this pass -- it must keep "
-        + "the value the machine was originally installed with."
-      );
+  # stateVersion is required and format-checked. The validator is shared with
+  # mkDarwinSystem and colmena so the three construction paths cannot drift
+  # into enforcing different contracts. See flake/lib/check-state-version.nix.
+  checkedStateVersion = import ./check-state-version.nix "mkSystem: host '${hostName}'" stateVersion;
 
   _specialArgs = {
     inherit

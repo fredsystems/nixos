@@ -165,7 +165,13 @@ let
         isDarwin = false;
         isDesktop = false;
         # Conservative defaults; overridden per-node in nodeSpecialArgs.
-        stateVersion = "24.11";
+        #
+        # stateVersion is deliberately NOT defaulted here. Colmena builds its
+        # node arguments independently of mkSystem, so a default here would let
+        # a server entry that omits stateVersion deploy with an implicit value
+        # while `nix eval .#nixosConfigurations.<host>` refuses to evaluate it
+        # at all -- one contract enforced on one of two entry points, and the
+        # deploy path being the lax one. Raised in review on PR #2243.
         extraUsers = [ ];
         catppuccinInput = catppuccin-stable;
         sopsNixInput = sops-nix-stable;
@@ -178,8 +184,10 @@ let
       # Channel-sensitive args (catppuccinInput, sopsNixInput,
       # nixYaziPluginsInput) are read from the node entry so they stay in
       # sync with the nixosConfigurations channel selection automatically.
-      nodeSpecialArgs = builtins.mapAttrs (_: node: {
-        stateVersion = node.stateVersion or "24.11";
+      nodeSpecialArgs = builtins.mapAttrs (name: node: {
+        # No `or` fallback: required, and format-checked by the same validator
+        # mkSystem and mkDarwinSystem use.
+        stateVersion = import ../lib/check-state-version.nix "colmena: node '${name}'" node.stateVersion;
         extraUsers = node.extraUsers or [ ];
         catppuccinInput = node.catppuccinInput or catppuccin-stable;
         sopsNixInput = node.sopsNixInput or sops-nix-stable;
