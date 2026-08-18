@@ -22,6 +22,7 @@ in
     mounts = mkOption {
       type = types.listOf nasMountType;
       default = [ ];
+      description = "NAS shares to create GNOME/gvfs bookmarks for, mirroring the system-level mounts declared in nas-system.nix.";
     };
 
     wifiDetectionCmd = mkOption {
@@ -29,6 +30,7 @@ in
       default = ''
         nmcli -t -f active,ssid dev wifi | ${pkgs.gawk}/bin/awk -F: '$1=="yes"{print $2}'
       '';
+      description = "Shell command that prints the currently-associated WiFi SSID, used to gate WiFi-scoped bookmarks.";
     };
   };
 

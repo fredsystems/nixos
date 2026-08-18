@@ -68,6 +68,76 @@ let
     "smb3"
     "fuse.sshfs"
   ];
+
+  # journald's configured SystemMaxUse, in bytes, for node_journal_max_bytes
+  # below (see the journal-retention producer near the bottom of this file).
+  #
+  # WHY THIS IS READ FROM THE NIXOS OPTION RATHER THAN PARSED AT RUNTIME
+  #
+  # modules/base/system.nix sets this via services.journald.extraConfig,
+  # which NixOS renders into /etc/systemd/journald.conf.d/. Two ways exist to
+  # recover the value: parse the rendered drop-in file at runtime, or read
+  # config.services.journald.extraConfig here at eval time. The rendered
+  # file's exact shape (drop-in filename, comment/whitespace placement,
+  # whether a future NixOS release changes how extraConfig is emitted) is an
+  # implementation detail of the module system, not a stable interface worth
+  # depending on from a shell script. config.services.journald.extraConfig is
+  # the actual value this repo sets, already resolved for whichever host is
+  # being built -- including any per-host mkForce/mkMerge override, though
+  # none exists today: modules/base/system.nix is the only place in this
+  # repo that touches services.journald.extraConfig.
+  #
+  # If the line is missing or its value doesn't parse, this evaluates to
+  # null and the systemd unit below simply omits node_journal_max_bytes
+  # rather than emitting a hardcoded/wrong constant.
+  journaldExtraConfigLines = lib.splitString "\n" config.services.journald.extraConfig;
+
+  systemMaxUseLine = lib.findFirst (
+    line: builtins.match "[[:space:]]*SystemMaxUse=.*" line != null
+  ) null journaldExtraConfigLines;
+
+  systemMaxUseMatch =
+    if systemMaxUseLine == null then
+      null
+    else
+      builtins.match "[[:space:]]*SystemMaxUse=([0-9]+)([KMGT]?)[[:space:]]*" systemMaxUseLine;
+
+  # journald's parse_size() treats these suffixes as IEC (1024-based), same
+  # as SystemMaxFileSize and the other size settings in modules/base/system.nix.
+  sizeSuffixMultiplier = {
+    "" = 1;
+    "K" = 1024;
+    "M" = 1024 * 1024;
+    "G" = 1024 * 1024 * 1024;
+    "T" = 1024 * 1024 * 1024 * 1024;
+  };
+
+  systemMaxUseBytes =
+    if systemMaxUseMatch == null then
+      null
+    else
+      let
+        number = lib.toInt (builtins.elemAt systemMaxUseMatch 0);
+        suffix = builtins.elemAt systemMaxUseMatch 1;
+        multiplier = sizeSuffixMultiplier.${suffix} or null;
+      in
+      if multiplier == null then null else number * multiplier;
+
+  # Emitted only when systemMaxUseBytes was determined above -- see the
+  # comment there. This is a build-time (Nix eval) determination shared by
+  # every host from the same module, not a per-scrape runtime concern, so it
+  # does not participate in the node_journal_metrics_ok liveness flag that
+  # the shell script below computes for its own, genuinely runtime, parse
+  # failures.
+  journalMaxBytesMetricLines =
+    if systemMaxUseBytes == null then
+      ""
+    else
+      ''
+        echo "# HELP node_journal_max_bytes Configured journald SystemMaxUse (the on-disk journal cap), in bytes."
+        echo "# TYPE node_journal_max_bytes gauge"
+        echo "node_journal_max_bytes{host=\"$HOST\"} ${toString systemMaxUseBytes}"
+      '';
 in
 {
   systemd = {
@@ -432,6 +502,141 @@ in
           '';
         };
       };
+
+      # Audit item 6.11 (reshaped): is the journald retention policy in
+      # modules/base/system.nix actually being achieved, or is the 1G
+      # SystemMaxUse cap evicting entries before MaxRetentionSec=30day gets
+      # a chance to? Measured on this host (maranello): 966.2M used, oldest
+      # entry 8 days old -- size is binding ~3.7x before time, so the
+      # 30-day policy is currently fiction here and nothing reported it.
+      # This unit makes that observable instead of asserting a threshold on
+      # it; see node_journal_max_bytes above for why no alert ships yet.
+      node-journal-metrics = {
+        description = "Emit journald disk-usage and oldest-entry metrics for Prometheus";
+        serviceConfig = {
+          Type = "oneshot";
+          ExecStart = pkgs.writeShellScript "node-journal-metrics.sh" ''
+            set -uo pipefail
+
+            # Forced C locale for the whole script, not just the commands
+            # below: the parsing here depends on journalctl emitting the
+            # literal English string "take up" and both journalctl and awk
+            # using "." as the decimal separator. Under any locale that
+            # translates that message or uses "," for decimals, every match
+            # below silently fails -- the collector would then report
+            # OK=0 on EVERY run, forever, rather than only when something
+            # is actually wrong. Raised in review on PR #2251.
+            export LC_ALL=C
+
+            JOURNALCTL=${pkgs.systemd}/bin/journalctl
+            AWK=${pkgs.gawk}/bin/awk
+            HOST="${config.networking.hostName}"
+            TEXTFILE_DIR=/var/lib/node_exporter/textfiles
+            OUT="$TEXTFILE_DIR/node_journal.prom"
+            TMP="$OUT.tmp"
+
+            mkdir -p "$TEXTFILE_DIR"
+
+            # Tracks whether every value below was actually parsed, as
+            # opposed to falling back to 0 because journalctl's human-
+            # readable output didn't match what this script expects. See
+            # node_journal_metrics_ok below for why this has to be its own
+            # exported series rather than a silent fallback.
+            OK=1
+
+            # --- On-disk usage -------------------------------------------
+            #
+            # `journalctl --disk-usage` is the cheap (~2ms), verified route:
+            # it already accounts for archived + active journals across
+            # every file, sparse or not. Output is one line, e.g.
+            # "Archived and active journals take up 966.2M in the file
+            # system." -- parsed carefully because it emits B/K/M/G/T
+            # suffixes depending on size.
+            disk_usage_re='take up ([0-9.]+)([BKMGT]) in'
+            DISK_BYTES=0
+            DISK_LINE=$("$JOURNALCTL" --disk-usage 2>/dev/null) || OK=0
+            if [[ "$DISK_LINE" =~ $disk_usage_re ]]; then
+              disk_num="''${BASH_REMATCH[1]}"
+              disk_unit="''${BASH_REMATCH[2]}"
+              case "$disk_unit" in
+                B) disk_mult=1 ;;
+                K) disk_mult=1024 ;;
+                M) disk_mult=1048576 ;;
+                G) disk_mult=1073741824 ;;
+                T) disk_mult=1099511627776 ;;
+                *) disk_mult=0 ;;
+              esac
+              if [[ "$disk_mult" -gt 0 ]]; then
+                DISK_BYTES=$("$AWK" -v n="$disk_num" -v m="$disk_mult" 'BEGIN { printf "%.0f", n * m }')
+              else
+                OK=0
+              fi
+            else
+              OK=0
+            fi
+
+            # --- Oldest retained entry ------------------------------------
+            #
+            # `journalctl --header` prints one block per journal file
+            # (~25 on this fleet); the minimum "Head realtime timestamp"
+            # across all of them is the oldest entry actually still on
+            # disk. Deliberately NOT `journalctl -o json -n1[--reverse]`:
+            # verified on this host that both forms return the NEWEST
+            # entry, which would silently report retention as "0 days" on
+            # every scrape. The parenthesised value is microseconds since
+            # the epoch, in hex.
+            head_ts_re='Head realtime timestamp:.*\(([0-9a-fA-F]+)\)'
+            OLDEST_US=""
+            HEADER=$("$JOURNALCTL" --header 2>/dev/null) || OK=0
+            while IFS= read -r line; do
+              if [[ "$line" =~ $head_ts_re ]]; then
+                hex="''${BASH_REMATCH[1]}"
+                us=$((16#$hex))
+                if [[ -z "$OLDEST_US" || "$us" -lt "$OLDEST_US" ]]; then
+                  OLDEST_US=$us
+                fi
+              fi
+            done <<< "$HEADER"
+
+            if [[ -z "$OLDEST_US" ]]; then
+              OK=0
+              OLDEST_SEC=0
+            else
+              OLDEST_SEC=$(( OLDEST_US / 1000000 ))
+            fi
+
+            # One invalid sample makes the textfile collector reject the
+            # ENTIRE file (see nixos-deploy-state-metric's comment above for
+            # the demonstrated case), so this is written to a temp file and
+            # renamed into place atomically -- a failure partway through
+            # never leaves a half-written .prom for the collector to trip
+            # over.
+            {
+              echo "# HELP node_journal_disk_bytes Current on-disk size of the systemd journal (journalctl --disk-usage)."
+              echo "# TYPE node_journal_disk_bytes gauge"
+              echo "node_journal_disk_bytes{host=\"$HOST\"} $DISK_BYTES"
+
+              ${journalMaxBytesMetricLines}
+              echo "# HELP node_journal_oldest_entry_timestamp_seconds Unix timestamp of the oldest journal entry still retained (min Head realtime timestamp across all journal files)."
+              echo "# TYPE node_journal_oldest_entry_timestamp_seconds gauge"
+              echo "node_journal_oldest_entry_timestamp_seconds{host=\"$HOST\"} $OLDEST_SEC"
+
+              # journalctl --header's output is human-readable, not a
+              # stable API: if systemd rewords a field, the regexes above
+              # silently match nothing and a naive collector would just
+              # emit no metric, leaving the host looking healthy while
+              # retention drifted unnoticed underneath it. This flag turns
+              # that failure mode into a first-class, alertable series
+              # instead -- 0 means the two metrics above are stale/wrong for
+              # this scrape, not "no data".
+              echo "# HELP node_journal_metrics_ok Whether this collector run successfully parsed journalctl's output (0 = parse failure; node_journal_disk_bytes / node_journal_oldest_entry_timestamp_seconds are unreliable for this scrape)."
+              echo "# TYPE node_journal_metrics_ok gauge"
+              echo "node_journal_metrics_ok{host=\"$HOST\"} $OK"
+            } > "$TMP"
+            mv "$TMP" "$OUT"
+          '';
+        };
+      };
     }
     // lib.optionalAttrs config.services.fwupd.enable {
       fwupd-updates-metric = {
@@ -515,6 +720,17 @@ in
           Persistent = true;
           # Without this the whole fleet fetches on the same wall-clock minute.
           RandomizedDelaySec = "120";
+        };
+      };
+
+      node-journal-metrics = {
+        wantedBy = [ "timers.target" ];
+        timerConfig = {
+          # Every 15 minutes; both journalctl calls run in ~2ms so cost isn't
+          # a reason to go coarser, and retention drift is a slow-moving
+          # signal that doesn't need finer resolution than that.
+          OnCalendar = "*:0/15";
+          Persistent = true;
         };
       };
     }

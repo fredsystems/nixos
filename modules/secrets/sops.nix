@@ -17,10 +17,7 @@ let
 in
 {
   options.sops_secrets.enable_secrets = {
-    enable = lib.mkOption {
-      description = "Enable SOPS Secrets.";
-      default = false;
-    };
+    enable = lib.mkEnableOption "SOPS-encrypted secrets (SSH keys, GPG key, sops-nix module wiring)";
   };
 
   imports =
@@ -141,3 +138,8 @@ in
 # 7. On the new system, pull the latest changes from the repository.
 # 8. On the new system pamu2fcfg -u fred | tee ~/test.txt, copy the key to sops secrets.yaml....this is if you want yubikey
 # 8. Rebuild the NixOS configuration to apply the changes and decrypt the secrets.
+#
+# For the full runbook -- adding a recipient, revoking a compromised one
+# (including why `sops updatekeys` alone does not revoke access and
+# `sops rotate` is also required), and verifying all recipients can still
+# decrypt -- see agent-docs/SOPS_AGE_KEY_ROTATION.md.
