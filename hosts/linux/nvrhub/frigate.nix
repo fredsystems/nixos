@@ -359,32 +359,50 @@ in
         "FRIGATE_CAMERA_PASSWORD:${config.sops.secrets."cameras/password".path}"
       ];
 
-      # Drop stale detect shared-memory segments before starting.
+      # Drop stale per-camera shared-memory segments before starting.
       #
-      # Frigate sizes one /dev/shm segment per camera as
-      # model.width * model.height * 3 and creates it under
-      # `except FileExistsError: pass`. Nothing ever resizes or removes an
-      # existing segment, and /dev/shm survives a service restart
-      # (PrivateTmp= does not cover it, and Frigate uses "untracked" shared
-      # memory deliberately so segments outlive a crash).
+      # Frigate creates every one of its /dev/shm segments under
+      # `except FileExistsError: pass` (util/image.py:842-850) and never
+      # resizes or removes one. /dev/shm also survives a service restart:
+      # PrivateTmp= does not cover it, and Frigate uses "untracked" shared
+      # memory deliberately so segments outlive a crash.
       #
-      # So ANY change to the model geometry leaves every camera pointing at a
-      # wrongly-sized buffer, and each camera processor dies with
+      # So any segment whose SIZE is derived from config outlives the config
+      # change that sized it, and the next start silently attaches to the old
+      # one. There are two independent families, both affected:
+      #
+      #   /dev/shm/<camera>          detector input, sized
+      #                              model.width * model.height * 3
+      #   /dev/shm/out-<camera>      detection output, fixed 20 * 6 * 4
+      #   /dev/shm/<camera>_frameN   frame ring buffers, sized
+      #                              detect.height * 3/2 * detect.width
+      #                              (camera/maintainer.py:156-157)
+      #
+      # The failure is the same either way: a camera process dies with
       #
       #   TypeError: buffer is too small for requested array
       #
       # while the service still reports active and keeps recording. Observed
-      # here switching 320x320 -> 416x416: all eight segments stayed 307200
-      # bytes from the previous generation and every camera process crashed on
-      # startup. It cost a live debugging session to find, and it recurs on
-      # every future model change (including the 416 -> 320 change that came
-      # with the cpu-detector fallback above) unless handled automatically.
+      # here on the MODEL family switching 320x320 -> 416x416: all eight
+      # segments stayed 307200 bytes from the previous generation and every
+      # camera process crashed on startup. It cost a live debugging session.
       #
-      # Only the per-camera detect segments and their `out-` counterparts are
-      # removed. The `<camera>_frameN` segments are the frame ring buffers,
-      # sized from the camera's own detect resolution rather than the model's;
-      # they are left alone so this does not become a blunt "wipe /dev/shm"
-      # that fights Frigate for ownership of its own IPC.
+      # The frameN family used to be left alone here, on the reasoning that it
+      # is sized from the camera's own detect resolution rather than the
+      # model's and so is not disturbed by model changes. That is true and also
+      # beside the point -- it just moves the trigger from "change the detector
+      # model" to "change any camera's detect width/height", which is an
+      # equally ordinary edit to this file. Leaving it out made the detect
+      # geometry in the inventory above quietly load-bearing: correct only for
+      # as long as nobody touched it. Both families are cleared now, so detect
+      # resolution is a freely editable number again.
+      #
+      # Still not a blunt "wipe /dev/shm": every path is derived from a known
+      # camera name, so this cannot touch Frigate's other IPC. In particular
+      # the `birdseye` segment (output/birdseye.py:801, created only when
+      # birdseye.restream is on) is not per-camera and is not matched -- and
+      # `<cam>_frame*` cannot cross-match a camera whose name is a prefix of
+      # another, since the `_frame` infix has to match too.
       #
       # This APPENDS to the three ExecStartPre entries the upstream module
       # already defines (clear-cache, create-writable-config,
@@ -393,10 +411,20 @@ in
       #
       # Safe to run unconditionally: the segments are pure IPC scratch space,
       # recreated on start, and the service is stopped when this executes.
+      #
+      # The trailing glob is unquoted on purpose, and it relies on BASH's
+      # unmatched-glob behaviour: with no match, bash passes the literal
+      # `<cam>_frame*` through and `rm -f` ignores it, so this exits 0 on a
+      # fresh boot where no segment exists yet. That matters because a failing
+      # ExecStartPre aborts the unit start entirely. pkgs.writeShellScript uses
+      # runtimeShell, which is bash here -- do NOT port this loop to a shell
+      # with zsh's nullglob-off semantics, where an unmatched glob is a fatal
+      # error that would abort the command BEFORE the two quoted rm targets are
+      # processed, silently reintroducing the stale-segment bug it fixes.
       ExecStartPre = [
-        (pkgs.writeShellScript "frigate-clear-stale-detect-shm" ''
+        (pkgs.writeShellScript "frigate-clear-stale-shm" ''
           for cam in ${lib.escapeShellArgs (builtins.attrNames cameras)}; do
-            rm -f "/dev/shm/$cam" "/dev/shm/out-$cam"
+            rm -f "/dev/shm/$cam" "/dev/shm/out-$cam" "/dev/shm/$cam"_frame*
           done
         '')
       ];
