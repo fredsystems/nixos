@@ -27,6 +27,20 @@
 #      that instead.
 #   4. Re-check on major version bumps.  A reason tied to how a package
 #      is built today can stop holding tomorrow.
+#   5. Record when the reason was last checked with a `# Reviewed:
+#      YYYY-MM-DD` comment line directly above the entry's
+#      `- vulnerability:` line(s) (one date covers a whole comment block
+#      when it documents several entries, e.g. the gcc/gcc-wrapper pair
+#      below).  For a new entry this is the date you wrote the reason;
+#      when you re-check an existing entry per rule 4 and it still
+#      holds, bump the date to the day you checked it.
+#
+# The `Reviewed:` date is scheduling metadata for humans ONLY.  grype
+# does not read it, it has no effect on matching, and it must never be
+# used to make an entry start or stop suppressing based on how old it
+# is -- that would be exactly the age-based filtering this file rejects
+# below.  It exists so a stale reason is visible to a reviewer instead
+# of looking identical to one checked yesterday.
 #
 # We deliberately do NOT filter by CVSS score, EPSS probability, or age.
 # Those are ranking signals, not applicability signals: a low-EPSS bug in
@@ -82,6 +96,8 @@ ignore:
   # binary, not through an executable or a linked library.
   #
   # Re-evaluate if we ever add an aarch64-linux host.
+  #
+  # Reviewed: 2026-08-10
   - vulnerability: CVE-2023-4039
     package:
       name: gcc
@@ -97,6 +113,8 @@ ignore:
   # induce bit flips in specific memory, which is not a property OpenSSH
   # can fix and not one a package update resolves.  No upstream fix
   # exists to track.
+  #
+  # Reviewed: 2026-08-10
   - vulnerability: CVE-2023-51767
     package:
       name: openssh
@@ -109,6 +127,8 @@ ignore:
   # hosts/ for opie/OTP PAM configuration.
   #
   # Re-evaluate if OTP authentication is ever introduced.
+  #
+  # Reviewed: 2026-08-10
   - vulnerability: CVE-2007-2768
     package:
       name: openssh
@@ -121,6 +141,8 @@ ignore:
   # so it grants nothing an attacker in that position does not already
   # have.  Debian and Red Hat both classify this as not-a-vulnerability
   # for this reason, and no coreutils fix is planned.
+  #
+  # Reviewed: 2026-08-10
   - vulnerability: CVE-2016-2781
     package:
       name: coreutils
@@ -135,6 +157,8 @@ ignore:
   #
   # Re-evaluate if an FTP server or any service taking remote glob
   # patterns is ever deployed.
+  #
+  # Reviewed: 2026-08-10
   - vulnerability: CVE-2010-4756
     package:
       name: glibc

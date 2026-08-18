@@ -53,6 +53,9 @@
     # The 42 rows in `data_keys` are wrapped with the old key and become
     # undecryptable. They protect nothing per the above; expect Grafana to log
     # decryption errors for them once and then move on.
+    #
+    # For the executable rotation procedure (generate, deploy, verify), see
+    # agent-docs/GRAFANA_SECRET_KEY_ROTATION.md.
     "monitoring/grafana_secret_key" = {
       owner = "grafana";
       restartUnits = [ "grafana.service" ];
