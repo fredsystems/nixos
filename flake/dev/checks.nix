@@ -138,6 +138,40 @@
         '';
       };
 
+      # Detects `.nix` files that are never imported anywhere and are not
+      # themselves a recognised entry point (flake.nix, flake/**, a host's
+      # configuration.nix/hardware-configuration.nix/home.nix, or a
+      # profiles/*.nix).
+      #
+      # `firmware.nix` used to sit in this repo imported by nothing, while CI
+      # still treated any change to it as a global rebuild trigger. It has
+      # since been deleted, so this check currently has no subject on the
+      # current tree -- that is fine and is the point: it is preventative,
+      # not remedial. See scripts/check-module-reachability.sh's header for
+      # the full design and its deliberate false-negative bias.
+      moduleReachabilityCheck = pkgs.writeShellApplication {
+        name = "check-module-reachability";
+        text = ''
+          bash scripts/check-module-reachability.sh
+        '';
+      };
+
+      # Asserts that every `mkOption { ... }` call declares both a `type`
+      # (so a bad value is an eval-time error, not a silent no-op) and a
+      # `description` (so the option is discoverable without reading the
+      # defining module). An audit found one option with no type at all and
+      # roughly seventeen with no description; both classes are now fixed,
+      # and this check is what keeps them from coming back. See
+      # scripts/check-option-schema.sh's header for the brace-matching
+      # parse strategy and its documented limitation.
+      optionSchemaCheck = pkgs.writeShellApplication {
+        name = "check-option-schema";
+        runtimeInputs = [ pkgs.python3 ];
+        text = ''
+          bash scripts/check-option-schema.sh
+        '';
+      };
+
       # Validates opencode.jsonc: a structural check (offline, default --
       # unknown top-level keys and command entries missing `template`,
       # wired into both the hook and the standalone check below via
@@ -231,6 +265,34 @@
                 # declared (module add/rename/removal), so it is the actual
                 # trigger for MODULES.md drift, not modules/*.nix directly.
                 files = "^(MODULES\\.md|flake\\.nix|flake/hosts/servers\\.nix|\\.github/workflows/ci-linux\\.yaml)$";
+                pass_filenames = false;
+              };
+
+              module-reachability = {
+                enable = true;
+                name = "no orphaned .nix modules (dead-file reachability)";
+                entry = "${pkgs.lib.getExe moduleReachabilityCheck}";
+
+                # Any .nix file change can create or resolve an orphan --
+                # adding a new file nobody imports yet, or deleting the last
+                # import of an existing one -- so this always re-scans the
+                # whole tree rather than reacting to a specific path.
+                # pass_filenames is off for the same reason: a single-file
+                # view cannot tell whether that file is reachable from
+                # anywhere else.
+                files = "\\.nix$";
+                pass_filenames = false;
+              };
+
+              option-schema = {
+                enable = true;
+                name = "mkOption type + description coverage";
+                entry = "${pkgs.lib.getExe optionSchemaCheck}";
+
+                # Same reasoning as module-reachability: an mkOption call can
+                # appear in any .nix file, so this re-scans the whole tree on
+                # any .nix change rather than reacting to a specific path.
+                files = "\\.nix$";
                 pass_filenames = false;
               };
 
@@ -420,6 +482,33 @@
           ''
             cd ${self}
             check-opencode-jsonc --offline
+            touch "$out"
+          '';
+
+      # Standalone check so `nix flake check` and CI catch an orphaned
+      # module even on a route that never ran pre-commit hooks.
+      module-reachability =
+        pkgs.runCommand "module-reachability-check"
+          {
+            nativeBuildInputs = [ moduleReachabilityCheck ];
+          }
+          ''
+            cd ${self}
+            check-module-reachability
+            touch "$out"
+          '';
+
+      # Standalone check so `nix flake check` and CI catch a schema
+      # regression (a new mkOption with no type/description) even on a
+      # route that never ran pre-commit hooks.
+      option-schema =
+        pkgs.runCommand "option-schema-check"
+          {
+            nativeBuildInputs = [ optionSchemaCheck ];
+          }
+          ''
+            cd ${self}
+            check-option-schema
             touch "$out"
           '';
 

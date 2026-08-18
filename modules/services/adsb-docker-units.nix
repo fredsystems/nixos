@@ -8,6 +8,32 @@
 let
   cfg = config.services.adsb;
 
+  # A `ports` entry with fewer than 3 `:`-separated fields has no explicit
+  # bind address ("HOSTPORT:CONTAINERPORT", or a range like
+  # "9273-9274:9273-9274"), so Docker's `-p` falls back to its own default
+  # of 0.0.0.0 -- reachable from anywhere the host itself is. That is fine
+  # on every LAN-only host in this fleet, where "reachable from anywhere"
+  # means "reachable from the LAN". On an internet-facing host it means
+  # reachable from the internet, which is exactly the failure class
+  # `deployment.internetFacing` exists to close for the exporters (see
+  # modules/base/deployment-meta.nix) -- but that option only rebinds the
+  # exporters it directly owns; a container port mapping written by hand in
+  # a host config is not touched by it at all. fredvps had this exact
+  # incident with dozzle-agent's default 0.0.0.0:7007 (see
+  # modules/services/mk-dozzle-agent.nix's header) and every one of its
+  # container ports is now bound to an explicit address, which is why this
+  # warns rather than asserts: unlike internetFacing/tailscaleAddress, an
+  # unbound port is not necessarily wrong (a deliberately public web UI would
+  # look identical), so a human has to make the call.
+  unboundPortsByContainer = lib.filterAttrs (_: bad: bad != [ ]) (
+    lib.listToAttrs (
+      map (c: {
+        inherit (c) name;
+        value = lib.filter (p: lib.length (lib.splitString ":" p) < 3) (c.ports or [ ]);
+      }) cfg.containers
+    )
+  );
+
   # Convert attrset → "-e KEY=value"
   mkEnvFlags = env: lib.concatStringsSep " " (lib.mapAttrsToList (k: v: ''-e "${k}=${v}"'') env);
 
@@ -241,5 +267,15 @@ in
     systemd.services = lib.foldl' (
       acc: c: acc // { "docker-${c.name}" = mkUnit c; }
     ) { } cfg.containers;
+
+    warnings = lib.optionals config.deployment.internetFacing (
+      lib.mapAttrsToList (
+        name: bad:
+        "services.adsb.containers: '${name}' publishes ${toString bad} with no explicit bind address "
+        + "on an internet-facing host (deployment.internetFacing = true), so Docker binds 0.0.0.0 and "
+        + "the port is reachable from the public internet. Bind it to an explicit address (e.g. "
+        + "\${config.deployment.tailscaleAddress} or 127.0.0.1) unless it is meant to be public."
+      ) unboundPortsByContainer
+    );
   };
 }

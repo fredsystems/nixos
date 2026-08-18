@@ -17,10 +17,7 @@ let
 in
 {
   options.sops_secrets.enable_secrets = {
-    enable = lib.mkOption {
-      description = "Enable SOPS Secrets.";
-      default = false;
-    };
+    enable = lib.mkEnableOption "SOPS-encrypted secrets (SSH keys, GPG key, sops-nix module wiring)";
   };
 
   imports =

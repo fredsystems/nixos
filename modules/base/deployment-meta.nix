@@ -112,6 +112,26 @@ in
             message = "deployment.internetFacing requires deployment.tailscaleAddress to be set.";
           }
         ];
+
+        # Unlike the assertion above, a missing scrapeAddress does not break
+        # eval -- it just means flake.nix's agentScrapeMap/desktopScrapeMap
+        # (see the "Monitoring topology" section of flake.nix) fall back to
+        # "<hostname>.local" for this node. That fallback is the right default
+        # for a LAN host with mDNS, and exactly wrong for one whose exporters
+        # were just rebound off the LAN by internetFacing itself: Prometheus
+        # would keep trying an address the host most likely does not answer
+        # on (a bare VPS in particular has no mDNS responder at all), so
+        # scrapes fail closed and silently rather than pointing at the
+        # Tailscale address this option's own doc comment says to use.
+        warnings = lib.optional (cfg.internetFacing && cfg.scrapeAddress == null) ''
+          deployment.internetFacing is set on this host, but deployment.scrapeAddress is not.
+
+          Prometheus's target for this node falls back to "<hostname>.local", which is unlikely to
+          resolve for an internet-facing node (no LAN mDNS responder), while the exporters themselves
+          are now bound to deployment.tailscaleAddress instead of 0.0.0.0. Scraping this host will
+          most likely fail. Set deployment.scrapeAddress to this node's Tailscale MagicDNS name (see
+          fredvps's configuration.nix for the pattern).
+        '';
       }
     ]
     ++
