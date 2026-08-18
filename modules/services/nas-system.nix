@@ -22,6 +22,7 @@ in
     mounts = mkOption {
       type = types.listOf nasMountType;
       default = [ ];
+      description = "NAS shares to mount as systemd automounts, optionally gated to a specific WiFi SSID.";
     };
 
     wifiDetectionCmd = mkOption {
@@ -29,6 +30,7 @@ in
       default = ''
         nmcli -t -f active,ssid dev wifi | ${pkgs.gawk}/bin/awk -F: '$1=="yes"{print $2}'
       '';
+      description = "Shell command that prints the currently-associated WiFi SSID, used to gate WiFi-scoped mounts.";
     };
   };
 

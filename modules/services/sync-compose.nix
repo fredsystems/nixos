@@ -40,15 +40,18 @@ in
             port = lib.mkOption {
               type = lib.types.str;
               default = "22";
+              description = "SSH port to connect to on the remote host.";
             };
             legacyScp = lib.mkOption {
               type = lib.types.bool;
               default = false;
+              description = "Use the legacy SCP protocol (-O) instead of the SFTP-based default, for hosts running an OpenSSH version too old to speak SFTP-based scp.";
             };
           };
         }
       );
       default = [ ];
+      description = "Remote hosts to sync docker-compose.yaml and .env with, keyed by name for use as sync-compose's target argument.";
     };
   };
 
