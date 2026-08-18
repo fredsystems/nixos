@@ -887,7 +887,10 @@ jobs:
 
           # shellcheck disable=SC2016 # $servers/$desktops are jq --argjson
           # bindings, not shell variables -- they must stay single-quoted.
-          hosts_json=$(nix shell --inputs-from . nixpkgs#jq --command jq -cn \
+          #
+          # --max-jobs 0: jq must only ever be substituted here, never
+          # built locally -- see the cost-model note on this job above.
+          hosts_json=$(nix shell --max-jobs 0 --inputs-from . nixpkgs#jq --command jq -cn \
             --argjson servers "$SERVERS" --argjson desktops "$DESKTOPS" \
             '($servers + $desktops) | unique')
 
@@ -912,7 +915,9 @@ jobs:
         run: |
           set -uo pipefail
 
-          status="$(nix shell --inputs-from . nixpkgs#jq --command ./scripts/diff-closures-comment.sh)"
+          # --max-jobs 0: jq must only ever be substituted here, never
+          # built locally -- see the cost-model note on this job above.
+          status="$(nix shell --max-jobs 0 --inputs-from . nixpkgs#jq --command ./scripts/diff-closures-comment.sh)"
           rc=$?
 
           if [ "$rc" -ne 0 ] || [ -z "$status" ]; then
@@ -951,7 +956,14 @@ jobs:
         run: |
           set -uo pipefail
 
-          bin_paths=$(nix build --no-link --print-out-paths --inputs-from . nixpkgs#gh nixpkgs#jq)
+          # --max-jobs 0: gh/jq must only ever be substituted here, never
+          # built locally -- see the cost-model note on this job above. A
+          # cache miss now fails this provisioning step cleanly instead
+          # of silently paying for a local build of either package.
+          if ! bin_paths=$(nix build --max-jobs 0 --no-link --print-out-paths --inputs-from . nixpkgs#gh nixpkgs#jq); then
+            echo "could not provision gh/jq (not in cache?) -- skipping PR comment" >&2
+            exit 0
+          fi
           while IFS= read -r p; do
             [ -n "$p" ] && PATH="$p/bin:$PATH"
           done <<<"$bin_paths"
@@ -959,9 +971,22 @@ jobs:
 
           marker='<!-- diff-closures-report -->'
 
-          existing_id=$(gh api "repos/${REPO}/issues/${PR_NUMBER}/comments" --paginate \
+          # A failed lookup (not "found no match", but the `gh api` call
+          # itself erroring -- rate limit, transient API failure) must
+          # not fall through to the changed-status path below: with
+          # existing_id left empty, that path would then CREATE a new
+          # comment even though one may already exist, duplicating the
+          # report every time this step's API call happens to fail.
+          existing_id_err=$(mktemp)
+          if ! existing_id=$(gh api "repos/${REPO}/issues/${PR_NUMBER}/comments" --paginate \
             --jq '[.[] | select(.body | startswith("'"$marker"'"))] | (first.id // empty)' \
-            2>/dev/null)
+            2>"$existing_id_err"); then
+            echo "could not look up existing PR comment -- skipping to avoid posting a duplicate:" >&2
+            sed 's/^/  /' "$existing_id_err" >&2
+            rm -f "$existing_id_err"
+            exit 0
+          fi
+          rm -f "$existing_id_err"
 
           if [ "$STATUS" = "unchanged" ]; then
             if [ -n "$existing_id" ]; then

@@ -142,8 +142,30 @@ def mask(text):
             i = end
             continue
         if text[i : i + 2] == "''":
-            j = text.find("''", i + 2)
-            end = j + 2 if j != -1 else n
+            # Indented strings have three escape forms that each contain
+            # a literal "''" but do NOT close the string: "''$" (escaped
+            # antiquotation, as in "''${...}" for a literal "${"), "'''"
+            # (an escaped literal "''"), and "''\\X" (an escaped char,
+            # e.g. "''\\n"). A naive `text.find("''", i + 2)` treats any
+            # of these as the closing delimiter, ending the mask early
+            # and exposing real string content -- including a `type`- or
+            # `description`-shaped key -- as if it were code.
+            j = i + 2
+            while j < n:
+                if text[j : j + 2] == "''":
+                    nxt = text[j + 2 : j + 3]
+                    if nxt == "$":
+                        j += 3
+                        continue
+                    if nxt == "'":
+                        j += 3
+                        continue
+                    if nxt == "\\":
+                        j += 4
+                        continue
+                    break
+                j += 1
+            end = j + 2 if j < n else n
             for k in range(i, end):
                 if out[k] != "\n":
                     out[k] = " "
