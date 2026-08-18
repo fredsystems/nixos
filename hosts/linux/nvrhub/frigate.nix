@@ -576,10 +576,78 @@ in
       # person and car only. Adding pets roughly multiplies indoor events on
       # the kitchen/living-room cameras, and every extra event is retained
       # footage.
-      objects.track = [
-        "person"
-        "car"
-      ];
+      objects = {
+        track = [
+          "person"
+          "car"
+        ];
+
+        # ── EXPERIMENT 2026-08-18: car detection-confidence floor ──────────
+        #
+        # TEMPORARY. Revert this filter (delete the whole `filters` block) once
+        # the detector question below is settled either way.
+        #
+        # THE PROBLEM THIS TESTS
+        #
+        # The two outdoor Reolinks burn ~200% CPU EACH in their camera tracker
+        # processes, against 0-24% for every indoor Hikvision. Measured from
+        # /api/stats:
+        #
+        #   doorbell    cam_proc 194%   detection_fps 21.3
+        #   front_door  cam_proc 208%   detection_fps 22.6
+        #   (every Hikvision)           detection_fps 0.0 - 5.0
+        #
+        # At camera_fps 5 that is ~4.4 detector regions per frame, sustained
+        # forever, and it is what triggers Frigate's "has high detect CPU usage"
+        # banner (web/src/hooks/use-stats.ts:112, threshold 40%).
+        #
+        # ROOT CAUSE
+        #
+        # A car parked on the street. It produced 101 SEPARATE car events on
+        # doorbell (durations 1s..731s) when one parked car should produce one.
+        # Scores across those events:
+        #
+        #   min 0.512   max 0.770   mean 0.668
+        #
+        # FilterConfig.threshold (config/camera/objects.py:30) defaults to 0.7
+        # and is the AVERAGE detection confidence required for an object to be
+        # counted -- not the per-frame minimum, which is min_score (0.5). The
+        # car's average of 0.668 sits just under 0.7, so it is repeatedly
+        # counted, dropped, and re-acquired. Because it never holds a stable
+        # track it never reaches the `stationary` state, so it never drops to
+        # the cheap re-check path (detect.stationary.interval, 50 frames) and
+        # instead gets a fresh region EVERY frame.
+        #
+        # 0.6 is chosen to sit below the measured 0.668 mean but comfortably
+        # above the 0.512 floor, and above min_score so the two still compose.
+        # Set globally rather than per-camera because the indoor cameras see
+        # essentially no cars, so the blast radius is the two that matter.
+        #
+        # HOW TO READ THE RESULT
+        #
+        # If the theory holds, after deploying THIS COMMIT ALONE:
+        #
+        #   frigate_detection_fps{camera_name="doorbell"}   22 -> near 0
+        #   frigate_detection_fps{camera_name="front_door"} 23 -> near 0
+        #   the two cam_proc figures fall well under 40%
+        #   the UI banner stops
+        #
+        # That would confirm the churn mechanism and prove a better detection
+        # model is the real fix (a stronger model scores this car ~0.9 and it
+        # latches without needing a lowered threshold). If detection_fps does
+        # NOT fall, the model theory is wrong and the GPU work should not be
+        # started on this reasoning.
+        #
+        # Do NOT deploy this together with the objects.track expansion --
+        # tracking more classes creates more tracked objects, hence more
+        # regions per frame, which moves detection_fps in the OPPOSITE
+        # direction and would make this measurement unreadable.
+        #
+        # This is a diagnostic, not the fix. Lowering a confidence threshold to
+        # quiet a weak model trades false negatives for stability, so it should
+        # not outlive the experiment.
+        filters.car.threshold = 0.6;
+      };
 
       snapshots.enabled = true;
 
