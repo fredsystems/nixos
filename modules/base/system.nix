@@ -12,14 +12,16 @@ let
   isLinux = !isDarwin;
 in
 {
-  imports =
-    lib.optional isDarwin inputs.home-manager.darwinModules.default
-    ++ lib.optional isDarwin ../services/homebrew.nix
-    ++ lib.optional isLinux catppuccinInput.nixosModules.catppuccin
-    ++ lib.optional isLinux ../../features
-    ++ lib.optional isLinux ../../modules/base/user.nix
-    ++ lib.optional isLinux ../../modules/system/kernel-pin.nix
-    ++ lib.optional isLinux ./catppuccin.nix;
+  imports = [
+    ./nixpkgs-unfree.nix
+  ]
+  ++ lib.optional isDarwin inputs.home-manager.darwinModules.default
+  ++ lib.optional isDarwin ../services/homebrew.nix
+  ++ lib.optional isLinux catppuccinInput.nixosModules.catppuccin
+  ++ lib.optional isLinux ../../features
+  ++ lib.optional isLinux ../../modules/base/user.nix
+  ++ lib.optional isLinux ../../modules/system/kernel-pin.nix
+  ++ lib.optional isLinux ./catppuccin.nix;
 
   nix = {
     extraOptions = lib.mkIf isLinux ''

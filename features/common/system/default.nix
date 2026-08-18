@@ -67,10 +67,6 @@
       };
     };
 
-    nixpkgs.config = {
-      allowUnfree = true;
-    };
-
     security.polkit.enable = true;
     security.polkit.extraConfig = ''
       polkit.addRule(function(action, subject) {

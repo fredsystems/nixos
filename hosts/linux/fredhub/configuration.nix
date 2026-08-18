@@ -24,11 +24,12 @@ in
     ./nginx.nix
   ];
 
-  nixpkgs.config.allowUnfreePredicate =
-    pkg:
-    builtins.elem (lib.getName pkg) [
-      "open-webui"
-    ];
+  # open-webui arrives via features/ai/lammacpp's systemd unit, not
+  # environment.systemPackages. The near-identical predicate in the `let`
+  # above is NOT a duplicate of this: that one configures a separate
+  # `import nixpkgs { }` instance for unstable packages, which the NixOS
+  # module system does not reach.
+  nixpkgsUnfree.allowed = [ "open-webui" ];
 
   ai = {
     local-llm = {

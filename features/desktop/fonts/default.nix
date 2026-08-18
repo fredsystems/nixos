@@ -22,15 +22,13 @@ in
     # Apple's font licence permits use but not redistribution, so the
     # vendored SF / New York packages (overlays/apple-fonts.nix) are marked
     # unfree and have to be named here explicitly.
-    nixpkgs.config.allowUnfreePredicate =
-      pkg:
-      builtins.elem (lib.getName pkg) [
-        "joypixels"
-        "ny-nerd"
-        "sf-compact-nerd"
-        "sf-mono-nerd"
-        "sf-pro-nerd"
-      ];
+    nixpkgsUnfree.allowed = [
+      "joypixels"
+      "ny-nerd"
+      "sf-compact-nerd"
+      "sf-mono-nerd"
+      "sf-pro-nerd"
+    ];
     nixpkgs.config.joypixels.acceptLicense = true;
 
     fonts = {
