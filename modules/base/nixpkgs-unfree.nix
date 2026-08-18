@@ -64,35 +64,15 @@
     # Everything here is software already installed and in use; none of it was
     # added to make an error go away. See AUDIT-2026-08-04.md item 5.1.
     #
-    # TODO(scoping): these are fleet-wide, so a bare ADS-B server currently
-    # permits `steam`. Harmless but untidy. The right home for each is the
-    # module that pulls it in -- features/desktop/steam for steam*,
-    # features/ai/lammacpp for open-webui, the desktop app modules for the
-    # rest, Daytona for the fingerprint driver. Left fleet-wide pending that
-    # refactor so this commit changes enforcement only, not layout.
+    # Only zellij.nvim is genuinely fleet-wide (it lives inside the neovim
+    # wrapper and reaches every host, bare servers included). Every other
+    # approved package is contributed by the module that actually pulls it
+    # in -- features/desktop/steam for steam*, features/ai/lammacpp for
+    # open-webui, the desktop app modules for the rest, modules/hardware/
+    # fingerprint.nix for the fingerprint driver.
     nixpkgsUnfree.allowed = [
       # neovim config, every host including bare servers
       "zellij.nvim"
-
-      # desktop applications (Daytona + maranello)
-      "1password"
-      "1password-cli"
-      "discord"
-      "discord-unwrapped"
-      "multiviewer-for-f1"
-      "tradingview"
-      "trezor-suite"
-      "vscode"
-
-      # maranello only, via desktop.enable_games
-      "steam"
-      "steam-unwrapped"
-
-      # maranello + fredhub, via features/ai/lammacpp's systemd unit
-      "open-webui"
-
-      # Daytona only -- Goodix fingerprint sensor driver (laptop)
-      "libfprint-2-tod1-goodix"
     ];
 
     # The single place the merged allowlist becomes nixpkgs' predicate.

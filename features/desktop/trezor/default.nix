@@ -13,6 +13,8 @@ in
   };
 
   config = lib.mkIf cfg.enable {
+    nixpkgsUnfree.allowed = [ "trezor-suite" ];
+
     services = {
       trezord = {
         enable = true;

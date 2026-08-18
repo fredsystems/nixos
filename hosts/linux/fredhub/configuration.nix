@@ -24,12 +24,12 @@ in
     ./nginx.nix
   ];
 
-  # open-webui arrives via features/ai/lammacpp's systemd unit, not
-  # environment.systemPackages. The near-identical predicate in the `let`
-  # above is NOT a duplicate of this: that one configures a separate
+  # open-webui's nixpkgsUnfree.allowed entry is contributed by
+  # features/ai/lammacpp/default.nix itself (mkIf ai.local-llm.enable), so no
+  # entry is needed here. The near-identical predicate in the `let` above is
+  # NOT a duplicate of that: this one configures a separate
   # `import nixpkgs { }` instance for unstable packages, which the NixOS
-  # module system does not reach.
-  nixpkgsUnfree.allowed = [ "open-webui" ];
+  # module system never reaches.
 
   ai = {
     local-llm = {
