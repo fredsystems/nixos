@@ -1,4 +1,4 @@
-# Frigate NVR — 8 cameras: 7 Hikvision + 1 Reolink doorbell.
+# Frigate NVR — 7 cameras: 5 Hikvision + 2 Reolink.
 #
 # WHY FRIGATE AND NOT SHINOBI
 #
@@ -38,13 +38,17 @@
 let
   # ── Camera inventory ──────────────────────────────────────────────────────
   #
-  # Seven Hikvision, verified 2026-08-10 by querying /ISAPI/System/deviceInfo
+  # Five Hikvision, verified 2026-08-10 by querying /ISAPI/System/deviceInfo
   # and /ISAPI/Streaming/channels on each, and by ffprobing both RTSP channels
   # of each over TCP.
   #
-  #   7x DS-2CD2342WD-I (firmware V5.5.0)
+  #   5x DS-2CD2342WD-I (firmware V5.5.0)
   #     channel 101: 2688x1520 H.264 @20fps  (record)
   #     channel 102:  640x360  H.264 @15fps  (detect)
+  #
+  # A sixth DS-2CD2342WD-I covered the garage door at 192.168.31.35 and is
+  # TEMPORARILY REMOVED (2026-08-18) while the camera is offline — see the
+  # note where its block used to be, below.
   #
   # One Reolink doorbell, which REPLACED the Hikvision DB1 that used to sit at
   # 192.168.31.122. Verified 2026-08-17 against the device itself via its
@@ -74,17 +78,52 @@ let
   # rather than the mangled BlueIris identifiers (`insidegaragemoti`) that the
   # previous NVR left on the disk.
   cameras = {
+    # Reolink E1 Outdoor SE PoE, which REPLACED the Hikvision DS-2CD2342WD-I
+    # that used to sit at 192.168.31.237. Verified 2026-08-18 against the device
+    # via /cgi-bin/api.cgi GetDevInfo + GetEnc and by ffprobing its RTSP paths
+    # over TCP:
+    #
+    #   192.168.31.38, hardVer IPC_NT2NA48MPSD8V3
+    #   firmware v3.1.0.5223_2510172104
+    #   h265Preview_01_main: 3840x2160 HEVC Main @25fps + AAC LC 16 kHz mono
+    #   h264Preview_01_sub:   640x360  H.264 High @10fps + AAC LC 16 kHz mono
+    #
+    # This is the only H.265 camera in the fleet, hence `codec = "h265"` — see
+    # the streamPaths comment for why that is a separate dimension from `brand`.
+    #
+    # Its substream is a conventional 640x360, so unlike the 4:3 doorbell it
+    # uses the same detect geometry as the Hikvisions. detect.fps stays at the
+    # fleet's 5 even though the substream delivers 10, for the same
+    # shared-CPU-detector reason documented on the doorbell.
     front_door = {
-      brand = "hikvision";
-      host = "192.168.31.237";
+      brand = "reolink";
+      codec = "h265";
+      host = "192.168.31.38";
       detect = {
         width = 640;
         height = 360;
         fps = 5;
       };
+
+      # Second camera with audio. It publishes AAC LC directly, exactly like the
+      # doorbell, so both streams are stream-copied and recording costs
+      # essentially no CPU despite being 4K. Verified rather than assumed: 10s of
+      # the mainstream muxed with `ffmpeg -c copy -f mp4` produced hev1 + mp4a
+      # with no header error.
+      #
+      # NOTE: 4K HEVC records correctly but may not PLAY BACK in a browser —
+      # Firefox and Chrome have no software HEVC decoder. If the Frigate UI shows
+      # black for this camera's recordings, that is why, and the fix is to switch
+      # the camera's mainStream vType to h264 (GetEnc action=1 reports both
+      # "h264" and "h265" are supported) and drop the `codec` line above.
+      recordPreset = "preset-record-generic-audio-copy";
     };
     doorbell = {
       brand = "reolink";
+
+      # Genuinely H.264, unlike the front door's HEVC — ffprobe-verified against
+      # h264Preview_01_main (avc1 in the muxed MP4).
+      codec = "h264";
       host = "192.168.31.27";
 
       # 4:3 substream, so not the shared 640x360 block.
@@ -102,8 +141,8 @@ let
       # detect role at the 2560x1920 mainstream, which is the exact cost the
       # substream split exists to avoid.
       #
-      # fps is 5 rather than the 10 the substream actually delivers: the other
-      # seven cameras detect at 5, the detector is a single shared CPU
+      # fps is 5 rather than the 10 the substream actually delivers: every other
+      # camera detects at 5, the detector is a single shared CPU
       # detector, and Frigate downsamples the decode to detect.fps anyway.
       # Frigate itself warns above 10 and recommends 5 (config.py:559). The
       # DB1's 3 was a hardware ceiling; this 5 is a choice, so it can be raised
@@ -114,7 +153,8 @@ let
         fps = 5;
       };
 
-      # Still the only camera with audio, but it no longer needs transcoding.
+      # No longer needs transcoding (and no longer the only camera with audio —
+      # the Reolink front door has it too).
       #
       # The DB1 published pcm_mulaw (G.711 µ-law), which MP4 has no tag for, so
       # copying it failed the container header outright:
@@ -123,15 +163,16 @@ let
       #   [out#0/segment] Could not write header (incorrect codec parameters ?)
       #
       # Every doorbell segment was then discarded ("Invalid or missing video
-      # stream in segment ... Discarding") while the other seven recorded fine
-      # — 54 errors on first deploy, all of them that camera. Hence the old
+      # stream in segment ... Discarding") while every other camera recorded
+      # fine — 54 errors on first deploy, all of them that camera. Hence the old
       # `preset-record-generic-audio-aac`, which re-encoded to AAC.
       #
       # The D340W publishes AAC LC directly, so the transcode is pure waste.
       # `-audio-copy` is `-c copy` with no `-an`, i.e. BOTH streams are
       # stream-copied and this camera now costs the same CPU to record as the
-      # other seven. Verified rather than assumed: 20s of the mainstream muxed
-      # with `ffmpeg -c copy -f mp4` produced avc1 + mp4a with no header error.
+      # video-only ones. Verified rather than assumed: 20s of the mainstream
+      # muxed with `ffmpeg -c copy -f mp4` produced avc1 + mp4a with no header
+      # error.
       recordPreset = "preset-record-generic-audio-copy";
     };
     # ── garage_door: TEMPORARILY REMOVED 2026-08-18 ───────────────────────
@@ -230,14 +271,36 @@ let
   # time. Defaulting to hikvision would let the next Reolink silently inherit
   # /Streaming/Channels/10x paths and fail only once deployed, as a stream that
   # never connects.
+  #
+  # WHY REOLINK'S RECORD PATH IS BUILT FROM `codec`
+  #
+  # Reolink names its mainstream after a codec, and the fleet now contains one
+  # of each: the doorbell's mainstream is genuinely H.264 while the front door's
+  # is HEVC. So the path cannot be a constant.
+  #
+  # Do NOT assume the name in the path selects the codec — it does not. On the
+  # E1 Outdoor SE, `h264Preview_01_main` and `h265Preview_01_main` BOTH return
+  # the same 4K HEVC stream (ffprobe-verified on all four combinations); the
+  # camera serves whatever its mainStream vType is set to and ignores the name.
+  # The name is therefore documentation, and `codec` exists to keep that
+  # documentation honest rather than to change what the camera sends. Getting it
+  # wrong yields a working stream that lies about its codec, which is exactly
+  # how the 4K HEVC front door would otherwise have been mistaken for H.264.
+  #
+  # `cam.codec` is indexed with no default for the same reason `brand` is: a
+  # Reolink added without one is an eval error, not a silent wrong guess.
+  #
+  # Substreams are H.264 on both Reolinks regardless of the mainstream setting
+  # (the E1's GetEnc reports subStream vType h264 while mainStream is h265), so
+  # the detect path is constant.
   streamPaths = {
-    hikvision = {
+    hikvision = _cam: {
       detect = "Streaming/Channels/102";
       record = "Streaming/Channels/101";
     };
-    reolink = {
+    reolink = cam: {
       detect = "h264Preview_01_sub";
-      record = "h264Preview_01_main";
+      record = "${cam.codec}Preview_01_main";
     };
   };
 
@@ -245,13 +308,13 @@ let
   # placeholders below are substituted at runtime from the sops-provided
   # credential files, so no secret is rendered into the store.
   #
-  # All eight cameras share one credential pair, including the Reolink — its
-  # admin account was set to the same username/password as the Hikvisions
+  # All seven cameras share one credential pair, including both Reolinks — their
+  # admin accounts were set to the same username/password as the Hikvisions
   # rather than adding a second sops secret and a second LoadCredential entry.
   mkStream =
     cam: role:
     "rtsp://{FRIGATE_CAMERA_USER}:{FRIGATE_CAMERA_PASSWORD}@${cam.host}:554/${
-      streamPaths.${cam.brand}.${role}
+      (streamPaths.${cam.brand} cam).${role}
     }";
 
   mkCamera = _name: cam: {
@@ -273,9 +336,9 @@ let
         }
       ];
 
-      # `preset-record-generic` (-an, no audio) is the default because seven of
-      # the eight cameras publish no audio stream at all. Cameras that do carry
-      # audio override this via `recordPreset` -- see the doorbell.
+      # `preset-record-generic` (-an, no audio) is the default because the five
+      # Hikvisions publish no audio stream at all. Cameras that do carry audio
+      # override this via `recordPreset` -- see the doorbell and front door.
       #
       # Deliberately NOT `preset-record-generic-audio-copy` fleet-wide: that
       # copies whatever audio codec the camera offers, which breaks the MP4
@@ -376,7 +439,7 @@ in
       # `DetectConfig.enabled` defaults to False, so setting only width/height/
       # fps per camera -- which looks like a complete detect block -- yields
       # cameras that decode their substream and then throw every frame away.
-      # Confirmed via /api/stats: all eight reported
+      # Confirmed via /api/stats: every camera reported
       #
       #   "camera_fps": 5.1, "process_fps": 5.1, "detection_fps": 0.0,
       #   "detection_enabled": false
@@ -388,16 +451,23 @@ in
 
       # ── Retention ───────────────────────────────────────────────────────
       #
-      # Sized from a MEASURED bitrate, not a guess: 20s of the front-door
-      # mainstream averaged 7.9 Mbps (VBR, 16 Mbps ceiling). That is ~85 GB per
-      # camera per day, ~683 GB/day for all eight, against 3.5 TB usable.
+      # Sized from MEASURED bitrates, not guesses. Per camera per day, against
+      # 3.5 TB usable:
       #
-      # The Reolink doorbell does not disturb this despite recording 4.9 MP:
-      # Reolink caps its mainstream at 4096 kbps and 20s of it measured
-      # 4.39 Mbps, well under the 7.9 Mbps the estimate assumes per camera. So
-      # the figures below stay conservative.
+      #   5x Hikvision DS-2CD2342WD-I  7.9 Mbps  ~85 GB  = ~425 GB
+      #   1x Reolink D340W doorbell    4.39 Mbps ~47 GB  =  ~47 GB
+      #   1x Reolink E1 front door     6.21 Mbps ~67 GB  =  ~67 GB
+      #                                                  ---------
+      #                                                   ~539 GB/day
       #
-      # So continuous recording of everything is ~5.1 days and nothing else
+      # The Hikvision figure is 20s of mainstream at VBR with a 16 Mbps ceiling.
+      # Neither Reolink disturbs it despite recording more pixels, because both
+      # cap their mainstream bitrate: the doorbell at 4096 kbps (4.39 Mbps
+      # measured) and the front door at 6144 kbps (6.21 Mbps measured over 10s).
+      # The 4K HEVC front door is therefore CHEAPER per day than any Hikvision —
+      # H.265 at a capped bitrate buys resolution, not bytes.
+      #
+      # So continuous recording of everything is ~6.5 days and nothing else
       # fits. Hence the tiered policy:
       #
       #   * continuous 3 days  -- always able to scrub back over a long
@@ -406,10 +476,14 @@ in
       #     keeping.
       #   * detections 14 days -- everything the detector fired on.
       #
-      # Worst case is 3 days of everything (~2.05 TB) plus 30 days of event
+      # Worst case is 3 days of everything (~1.62 TB) plus 30 days of event
       # segments; events are a small fraction of wall-clock time, so this sits
       # comfortably inside 3.5 TB. Frigate expires the oldest segments itself
       # rather than filling the disk.
+      #
+      # Note this is currently one camera light: garage_door is temporarily
+      # removed, so restoring it adds ~85 GB/day back. The figures above already
+      # exclude it, so it is the 6.5-day headroom that shrinks, not the policy.
       record = {
         enabled = true;
         continuous.days = 3;
@@ -440,7 +514,7 @@ in
     # The /var/lib/frigate mount is `nofail` so a dead disk cannot strand this
     # headless box in an emergency shell. The consequence is that without this
     # guard Frigate would start regardless, StateDirectory= would CREATE
-    # /var/lib/frigate on the root filesystem, and 8 cameras at ~7.9 Mbps would
+    # /var/lib/frigate on the root filesystem, and the fleet's ~539 GB/day would
     # fill the 465 GB root disk in under a day -- then mounting the media disk
     # later would hide that footage without deleting it.
     #
@@ -451,7 +525,7 @@ in
     serviceConfig = {
       # ── Credentials ───────────────────────────────────────────────────────
       #
-      # The camera username/password are shared across all eight cameras and
+      # The camera username/password are shared across every camera and
       # live in sops. LoadCredential= hands the decrypted files to the unit;
       # Frigate reads $CREDENTIALS_DIRECTORY and substitutes the {FRIGATE_*}
       # placeholders.
@@ -488,7 +562,7 @@ in
       #   TypeError: buffer is too small for requested array
       #
       # while the service still reports active and keeps recording. Observed
-      # here on the MODEL family switching 320x320 -> 416x416: all eight
+      # here on the MODEL family switching 320x320 -> 416x416: every one of the
       # segments stayed 307200 bytes from the previous generation and every
       # camera process crashed on startup. It cost a live debugging session.
       #
