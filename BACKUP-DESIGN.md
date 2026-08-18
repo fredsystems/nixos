@@ -12,8 +12,8 @@ collected in the last section and several of them block the remaining work.
 | -------------------------------------- | ------------------------------------------------------------------------------ |
 | 1. Source-side verification            | LANDED + DEPLOYED. Freshness/size/retention metrics plus 8 alert rules. Part 9 |
 | 2. ADSB SQLite dump handling           | LANDED + DEPLOYED. `services.sqliteBackup`, both databases. Part 10            |
-| 3. Discord newest-only + NAS retention | Design only. Must land with the `--delete` removal                             |
-| 4. rsync flag normalisation            | Decided, see Part 10. ADSB job updated; the other two still to do              |
+| 3. Discord newest-only + NAS retention | LANDED + DEPLOYED. Reclaimed 13 GB on fredvps. Part 11                         |
+| 4. rsync flag normalisation            | LANDED. All three NAS jobs updated. Parts 10 and 11                            |
 | 5. Restore test                        | Being handled separately by fred                                               |
 | 6-9                                    | Design only                                                                    |
 
@@ -1123,3 +1123,73 @@ the same setting as the ADSB job, which is coincidence rather than design.
 Worth watching on the first night: both jobs now pull at 02:30 against the same
 slow RS818+, and the ADSB transfer is ~15 GiB. If they contend, move discord to
 0200; they are independent.
+
+---
+
+## Part 12 -- Item 4 closed: all three NAS commands
+
+Recorded here as the single place to look for the current state of the
+NAS-side jobs, since they live outside this repository and are otherwise
+undiscoverable from a checkout.
+
+All three are deployed and the discord pull has been confirmed working
+end-to-end by fred on 2026-08-18.
+
+### The three jobs as they now stand
+
+ADSB, from sdrhub, at NAS `0130` (02:30 wall clock during DST):
+
+```sh
+rsync -aHv --delete --fuzzy --partial \
+  --exclude='.htaccess' \
+  --exclude='data/acarshub/' \
+  --exclude='data/acarshubv4/' \
+  fred@192.168.31.20:/opt/adsb /volume1/docker
+```
+
+Prometheus TSDB snapshots, from sdrhub, at NAS `0300` (04:00 wall clock):
+
+```sh
+rsync -aHv --delete --fuzzy --partial \
+  fred@192.168.31.20:/var/lib/prometheus2/data/snapshots /volume1/Prometheus
+```
+
+Discord, from fredvps, at NAS `0130` (02:30 wall clock):
+
+```sh
+rsync -aHv --fuzzy --partial --no-perms --no-owner --no-group \
+  -e 'ssh -p 2269' \
+  fred@5.161.253.151:/mnt/discord-storage/ /volume1/discord/
+```
+
+Plus NAS-side retention for discord, which is now the only bound on its
+growth:
+
+```sh
+find /volume1/discord/backups -name 'discord_db-*.sqlite' -mtime +30 -delete
+```
+
+### The differences between them are deliberate
+
+- **`--delete` on two, not three.** The discord job cannot have it: the host
+  keeps one dump, so `--delete` would propagate that to the NAS and leave one
+  copy at both ends. The other two mirror multi-copy sources and should track
+  deletions.
+- **`--no-perms --no-owner --no-group` on discord only.** Correct for a
+  Linux-to-DSM copy where preserving uid/gid is meaningless. The LAN jobs use
+  `-a` legitimately.
+- **`-H` on all three, and it matters most on Prometheus.** Snapshots are
+  hardlink farms against the live TSDB -- 33 of them at the time of writing.
+  Without `-H`, rsync stores each as an independent full copy, so a tree that
+  costs almost nothing on sdrhub becomes tens of gigabytes on the NAS and is
+  re-transferred nightly because each snapshot directory has a new name.
+
+### Watch items on the first few nights
+
+- **`-H` memory on the RS818+.** Building a hardlink map across 33 snapshot
+  trees on a 2 GB non-ECC box is the one place this could struggle. If it does,
+  `--link-dest` against the previous night is the alternative and needs a small
+  wrapper script rather than a one-liner.
+- **Contention at 02:30.** The ADSB and discord jobs now start at the same NAS
+  time, and ADSB moves ~15 GiB. Moving discord to `0200` separates them; they
+  are independent.
