@@ -4,7 +4,7 @@ lib.types.submodule {
   options = {
     path = lib.mkOption {
       type = lib.types.str;
-      description = "Local mount point, as an absolute path with no leading slash (e.g. \"mnt/nas\").";
+      description = "Local mount point, as an absolute path (e.g. \"/mnt/nas/fred\").";
     };
     host = lib.mkOption {
       type = lib.types.str;
