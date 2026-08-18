@@ -573,13 +573,57 @@ in
 
       # ── Objects ─────────────────────────────────────────────────────────
       #
-      # person and car only. Adding pets roughly multiplies indoor events on
-      # the kitchen/living-room cameras, and every extra event is retained
-      # footage.
+      # Every label here must exist in the ACTIVE MODEL'S labelmap, which for
+      # the bundled ssdlite_mobiledet is the 91-class COCO map at
+      # <frigate>/share/frigate/labelmap.txt. Swapping the detector swaps the
+      # labelmap, so this list is coupled to the model -- see the 80-vs-91-class
+      # hazard noted in the alert rules.
+      #
+      # NOTE there is no "truck" in that map. Delivery vans and pickups
+      # therefore classify as "car", which is why adding a truck entry here
+      # would silently never match.
+      #
+      # COST OF EACH ADDITION. Tracking more classes does NOT make an
+      # individual inference more expensive -- the model already emits all 90
+      # classes and this list only filters them. It costs CPU indirectly:
+      # every tracked object gets its own detector region every frame, so more
+      # matched classes means more regions, which is the same mechanism
+      # currently pinning the two Reolinks at ~200%. It also costs disk, since
+      # every extra event is retained footage.
+      #
+      # Pets were deliberately excluded when this was first written, on the
+      # grounds that they multiply indoor events on the kitchen and living-room
+      # cameras. That is still true and is accepted here as the price of
+      # actually recording the dog; if indoor event volume becomes a problem,
+      # dog/cat are the first things to drop.
+      #
+      # DELIBERATELY NOT TRACKED, despite being in the labelmap:
+      #
+      #   bird                  Constant outdoor false triggers, which is the
+      #                         exact failure mode being fought elsewhere in
+      #                         this file.
+      #   umbrella, backpack,   Only ever co-occur with a person who is already
+      #   handbag, suitcase     tracked, so they add regions and events without
+      #                         adding information. `backpack`/`suitcase` are
+      #                         tempting for porch-piracy detection, but the
+      #                         courier logos in DEFAULT_ATTRIBUTE_LABEL_MAP
+      #                         (amazon, fedex, dhl, ups, ...) already attach to
+      #                         the parent person/car as ATTRIBUTES and cannot
+      #                         be tracked as objects here anyway.
+      #
+      # RETENTION INTERACTION: review.alerts.labels is [person, car], so only
+      # those two produce 30-day alerts. Everything added below lands in the
+      # 14-day detections tier instead. That is deliberate -- promoting pets or
+      # bicycles to alerts would inflate the 30-day tier.
       objects = {
         track = [
           "person"
           "car"
+          "motorcycle"
+          "bicycle"
+          "bus"
+          "dog"
+          "cat"
         ];
 
         # ── EXPERIMENT 2026-08-18: car detection-confidence floor ──────────
