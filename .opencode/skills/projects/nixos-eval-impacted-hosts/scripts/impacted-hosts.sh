@@ -166,7 +166,7 @@ declare LOCK_CHANGED=0
 while IFS= read -r path; do
   [[ -z "$path" ]] && continue
   case "$path" in
-    flake.nix|firmware.nix)
+    flake.nix)
       GLOBAL=1
       ;;
     flake.lock)

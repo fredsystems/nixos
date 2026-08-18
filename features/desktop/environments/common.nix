@@ -253,7 +253,7 @@ in
       gvfs.enable = true;
 
       # ── Power state information ───────────────────────────────────────────────
-      upower.enable = lib.mkForce true;
+      upower.enable = true;
     };
 
     # ── dconf ──────────────────────────────────────────────────────────────────
