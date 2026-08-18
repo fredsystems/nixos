@@ -134,15 +134,43 @@ let
       # with `ffmpeg -c copy -f mp4` produced avc1 + mp4a with no header error.
       recordPreset = "preset-record-generic-audio-copy";
     };
-    garage_door = {
-      brand = "hikvision";
-      host = "192.168.31.35";
-      detect = {
-        width = 640;
-        height = 360;
-        fps = 5;
-      };
-    };
+    # ── garage_door: TEMPORARILY REMOVED 2026-08-18 ───────────────────────
+    #
+    # DS-2CD2342WD-I at 192.168.31.35, offline for a few days. To restore it,
+    # re-add:
+    #
+    #   garage_door = {
+    #     brand = "hikvision";
+    #     host = "192.168.31.35";
+    #     detect = { width = 640; height = 360; fps = 5; };
+    #   };
+    #
+    # WHY THE ENTRY IS DELETED RATHER THAN `enabled = false`
+    #
+    # Setting `enabled = false` would NOT have stopped the alerts, and would in
+    # fact have made them permanent. Frigate 0.17.2 registers metrics for every
+    # camera in the config regardless of `enabled`:
+    #
+    #   * app.py:143-145 init_camera_metrics() loops config.cameras.keys() with
+    #     no enabled check, creating a CameraMetrics for each.
+    #   * CameraMetrics.__init__ (camera/__init__.py:24) inits camera_fps to 0.
+    #   * camera/maintainer.py:98,149 then SKIP starting the processor and
+    #     capture process for a disabled camera, so nothing ever writes a
+    #     nonzero value.
+    #   * stats/util.py:269 iterates camera_metrics.items() and
+    #     stats/prometheus.py:84 exports every entry.
+    #
+    # So a disabled camera publishes frigate_camera_fps == 0 forever, and
+    # FrigateCameraNoFrames (`frigate_camera_fps == 0 for 10m`, see
+    # ../../../modules/monitoring/master/alert-rules/frigate-alerts.yaml) fires
+    # continuously instead of transiently. Removing the key is the only thing
+    # that stops the series being emitted at all.
+    #
+    # Existing footage is NOT destroyed by this. record/cleanup.py:287 deletes
+    # recordings for cameras `not_in config.cameras.keys()` only where
+    # `end_time < expire_before`, i.e. already past the 3-day continuous
+    # retention. The garage's recent recordings therefore age out normally
+    # rather than being purged on the next cleanup run.
     inside_garage = {
       brand = "hikvision";
       host = "192.168.31.180";
