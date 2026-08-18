@@ -36,6 +36,12 @@
   ...
 }:
 let
+  # YOLOv9-s exported to ONNX at 640x640, plus the matching 80-class COCO
+  # labelmap. Both are produced by ./frigate-model.nix from hash-pinned
+  # upstream weights; see that file for why the export runs in a derivation
+  # rather than being fetched as a prebuilt binary.
+  detectorModel = pkgs.callPackage ./frigate-model.nix { };
+
   # ── Camera inventory ──────────────────────────────────────────────────────
   #
   # Five Hikvision, verified 2026-08-10 by querying /ISAPI/System/deviceInfo
@@ -460,58 +466,77 @@ in
 
       # ── Detector ────────────────────────────────────────────────────────
       #
-      # FIXME(frigate-openvino-yolox-detection-shape): this SHOULD be the openvino
-      # detector with the yolox model packaged in frigate-model.nix. It is the
-      # `cpu` (tflite) detector instead solely because YOLOX post-processing is
-      # BROKEN in Frigate 0.17.2's OpenVINO plugin.
+      # ONNX runtime on the RTX 3070, running YOLOv9-s at 640x640.
       #
-      # The bug, in frigate/detectors/plugins/openvino.py (0.17.2):
+      # There is no `device` or provider setting because there is nothing to
+      # choose: the plugin calls ort.get_available_providers() and takes
+      # CUDAExecutionProvider when the runtime exposes one
+      # (frigate/util/model.py:304-314). Making that true is a BUILD-time
+      # concern handled in ./cuda-onnxruntime.nix, not a config one -- stock
+      # nixpkgs builds onnxruntime with cudaSupport off, and this host reported
+      # only ['OpenVINOExecutionProvider', 'CPUExecutionProvider'] until that
+      # override landed.
       #
-      #   detections = np.concatenate((image_pred[:, :5], class_conf,
-      #                                class_pred), axis=1)   # 7 columns
-      #   ordered = detections[...][:20]
-      #   for i, object_detected in enumerate(ordered):
-      #       detections[i] = self.process_yolo(...)          # returns 6 elems
-      #   return detections                                   # 7-col array
+      # WHAT THIS REPLACED, AND WHY
       #
-      # `process_yolo` returns [class_id, conf, y_min, x_min, y_max, x_max] --
-      # six values -- but is assigned into a row of the seven-column working
-      # array, and that array is then returned to a caller expecting (20, 6).
-      # Both halves fail at runtime:
+      # Previously the tflite `cpu` detector with nixpkgs' bundled
+      # ssdlite_mobiledet at 320x320. That was never a preference; it was the
+      # only correct option available, because Frigate 0.17.2's OpenVINO plugin
+      # crashes on YOLOX post-processing. Moving to ONNX sidesteps that plugin
+      # entirely, so the bug stops mattering rather than being worked around --
+      # see the retired entry in .github/tracked-upstream-fixes.json.
       #
-      #   ValueError: could not broadcast input array from shape (6,) into shape (7,)
-      #   ValueError: could not broadcast input array from shape (0,7) into shape (20,6)
+      # The CPU detector was also the direct cause of the load this box was
+      # carrying, in two compounding ways. It cost ~219% CPU on its own. And
+      # being a 320x320 model it scored a street-parked car at 0.63-0.67 --
+      # straddling the 0.7 average-confidence threshold, so the object was
+      # repeatedly acquired and lost, never settled to `stationary`, and drew a
+      # fresh detector region every single frame. That churn was ~44 of the
+      # fleet's ~50 detections/sec and pinned two camera processes near 200%.
+      # It also mislabelled a car as a motorcycle at 0.707.
       #
-      # The same function in the memryx plugin is written correctly -- it
-      # allocates `final_detections = np.zeros((20, 6), np.float32)` and writes
-      # into that -- which confirms this is a copy-paste defect in the OpenVINO
-      # path and not a misconfiguration here. Every other model type the
-      # OpenVINO plugin supports (ssd, yolonas, yologeneric, rfdetr, dfine)
-      # correctly produces (20, 6). Only yolox is affected, and it fails
-      # unconditionally, so no config could avoid it.
+      # MEASURED, on this GPU, before wiring it in here:
       #
-      # Symptom if this is reverted too early: the detector process crashes in
-      # a loop, the watchdog logs "Detection appears to be stuck. Restarting
-      # detection process..." then "Detection appears to have stopped. Exiting
-      # Frigate...", and detection_fps stays 0 while recording keeps working.
+      #   YOLOv9-s @ 640, CUDAExecutionProvider   7.9 ms/frame, 312 MiB VRAM
+      #   ssdlite_mobiledet @ 320, tflite on CPU  13.1 ms/frame, ~219% CPU
       #
-      # The `cpu` detector is a genuine downgrade in model quality
-      # (ssdlite_mobiledet, 320x320) but it is CORRECT: tflite_detect_raw
-      # allocates np.zeros((20, 6)) properly. It also needs no model config at
-      # all -- nixpkgs patches ModelConfig's default path to the
-      # ssdlite_mobiledet tflite it bundles, so omitting `model` entirely is
-      # what makes this work.
+      # i.e. a far larger model at four times the input area, and it is still
+      # ~40% faster while costing no CPU at all.
       #
-      # num_threads: 3 is the plugin default and is per-detector, not global.
-      # Raised to 8 because this box has 16 threads and detection is the only
-      # CPU-heavy work on it (recording is a stream copy).
+      # A second detector (onnx2) is possible if one cannot keep up, but one is
+      # sized correctly here: 7.9 ms serves ~126 inferences/sec against a
+      # current fleet demand of ~50/sec, and that demand should fall sharply
+      # once detections stop flapping.
+      detectors.onnx1.type = "onnx";
+
+      # ── Model ───────────────────────────────────────────────────────────
       #
-      # See .github/workflows/track-upstream-fixes.yaml -- when the upstream
-      # fix lands, revert to the openvino/yolox block preserved in git history
-      # and re-verify detection_fps > 0.
-      detectors.cpu1 = {
-        type = "cpu";
-        num_threads = 8;
+      # width/height MUST match the size the ONNX was exported at. The
+      # derivation asserts its own graph really declares 640x640 in an
+      # installCheckPhase, so the two cannot silently diverge.
+      #
+      # input_tensor/input_dtype are what the YOLO family expects: NCHW and
+      # float, as opposed to the NHWC uint8 the tflite path used. Getting these
+      # wrong does not error -- it feeds the model transposed or misscaled
+      # garbage and yields a detector that runs and finds nothing.
+      #
+      # THE LABELMAP IS THE DANGEROUS PART. YOLOv9 emits 80-class COCO;
+      # Frigate's bundled labelmap.txt is the 91-class map, and the two agree
+      # only up to index 10 before diverging. Pairing this model with the stock
+      # map produces a detector that runs perfectly and is confidently wrong
+      # about every label past `traffic light` -- the exact hazard called out in
+      # ../../../modules/monitoring/master/alert-rules/frigate-alerts.yaml.
+      # frigate-model.nix therefore GENERATES the labelmap from data/coco.yaml
+      # in the same pinned checkout that produced the weights, so the indices
+      # are right by construction rather than by a matching filename.
+      model = {
+        model_type = "yolo-generic";
+        width = 640;
+        height = 640;
+        input_tensor = "nchw";
+        input_dtype = "float";
+        path = "${detectorModel}/yolov9-s-640.onnx";
+        labelmap_path = "${detectorModel}/labelmap.txt";
       };
 
       # Detection is OFF by default in Frigate 0.17.
@@ -573,15 +598,15 @@ in
 
       # ── Objects ─────────────────────────────────────────────────────────
       #
-      # Every label here must exist in the ACTIVE MODEL'S labelmap, which for
-      # the bundled ssdlite_mobiledet is the 91-class COCO map at
-      # <frigate>/share/frigate/labelmap.txt. Swapping the detector swaps the
-      # labelmap, so this list is coupled to the model -- see the 80-vs-91-class
-      # hazard noted in the alert rules.
+      # Every label here must exist in the ACTIVE MODEL'S labelmap, which is now
+      # the 80-class COCO map generated by ./frigate-model.nix from the same
+      # checkout the weights came from. This list is coupled to the model:
+      # swapping the detector swaps the labelmap.
       #
-      # NOTE there is no "truck" in that map. Delivery vans and pickups
-      # therefore classify as "car", which is why adding a truck entry here
-      # would silently never match.
+      # `truck` is new here and is a direct consequence of that swap. The
+      # previous 91-class map had no truck class at all, so delivery vans and
+      # pickups were classified as `car` and a truck entry would silently never
+      # have matched. The 80-class map has it at index 7.
       #
       # COST OF EACH ADDITION. Tracking more classes does NOT make an
       # individual inference more expensive -- the model already emits all 90
@@ -619,78 +644,13 @@ in
         track = [
           "person"
           "car"
+          "truck"
           "motorcycle"
           "bicycle"
           "bus"
           "dog"
           "cat"
         ];
-
-        # ── EXPERIMENT 2026-08-18: car detection-confidence floor ──────────
-        #
-        # TEMPORARY. Revert this filter (delete the whole `filters` block) once
-        # the detector question below is settled either way.
-        #
-        # THE PROBLEM THIS TESTS
-        #
-        # The two outdoor Reolinks burn ~200% CPU EACH in their camera tracker
-        # processes, against 0-24% for every indoor Hikvision. Measured from
-        # /api/stats:
-        #
-        #   doorbell    cam_proc 194%   detection_fps 21.3
-        #   front_door  cam_proc 208%   detection_fps 22.6
-        #   (every Hikvision)           detection_fps 0.0 - 5.0
-        #
-        # At camera_fps 5 that is ~4.4 detector regions per frame, sustained
-        # forever, and it is what triggers Frigate's "has high detect CPU usage"
-        # banner (web/src/hooks/use-stats.ts:112, threshold 40%).
-        #
-        # ROOT CAUSE
-        #
-        # A car parked on the street. It produced 101 SEPARATE car events on
-        # doorbell (durations 1s..731s) when one parked car should produce one.
-        # Scores across those events:
-        #
-        #   min 0.512   max 0.770   mean 0.668
-        #
-        # FilterConfig.threshold (config/camera/objects.py:30) defaults to 0.7
-        # and is the AVERAGE detection confidence required for an object to be
-        # counted -- not the per-frame minimum, which is min_score (0.5). The
-        # car's average of 0.668 sits just under 0.7, so it is repeatedly
-        # counted, dropped, and re-acquired. Because it never holds a stable
-        # track it never reaches the `stationary` state, so it never drops to
-        # the cheap re-check path (detect.stationary.interval, 50 frames) and
-        # instead gets a fresh region EVERY frame.
-        #
-        # 0.6 is chosen to sit below the measured 0.668 mean but comfortably
-        # above the 0.512 floor, and above min_score so the two still compose.
-        # Set globally rather than per-camera because the indoor cameras see
-        # essentially no cars, so the blast radius is the two that matter.
-        #
-        # HOW TO READ THE RESULT
-        #
-        # If the theory holds, after deploying THIS COMMIT ALONE:
-        #
-        #   frigate_detection_fps{camera_name="doorbell"}   22 -> near 0
-        #   frigate_detection_fps{camera_name="front_door"} 23 -> near 0
-        #   the two cam_proc figures fall well under 40%
-        #   the UI banner stops
-        #
-        # That would confirm the churn mechanism and prove a better detection
-        # model is the real fix (a stronger model scores this car ~0.9 and it
-        # latches without needing a lowered threshold). If detection_fps does
-        # NOT fall, the model theory is wrong and the GPU work should not be
-        # started on this reasoning.
-        #
-        # Do NOT deploy this together with the objects.track expansion --
-        # tracking more classes creates more tracked objects, hence more
-        # regions per frame, which moves detection_fps in the OPPOSITE
-        # direction and would make this measurement unreadable.
-        #
-        # This is a diagnostic, not the fix. Lowering a confidence threshold to
-        # quiet a weak model trades false negatives for stability, so it should
-        # not outlive the experiment.
-        filters.car.threshold = 0.6;
       };
 
       snapshots.enabled = true;
@@ -757,6 +717,12 @@ in
       # here on the MODEL family switching 320x320 -> 416x416: every one of the
       # segments stayed 307200 bytes from the previous generation and every
       # camera process crashed on startup. It cost a live debugging session.
+      #
+      # This is exactly why the tflite -> YOLOv9 switch is safe to deploy: that
+      # change takes the model family from 320x320x3 (307,200 bytes) to
+      # 640x640x3 (1,228,800 bytes), a 4x resize of every per-camera segment,
+      # which is precisely the situation that broke before. The loop below
+      # clears them, so the new generation allocates at the new size.
       #
       # The frameN family used to be left alone here, on the reasoning that it
       # is sized from the camera's own detect resolution rather than the
