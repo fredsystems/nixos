@@ -13,10 +13,16 @@
     ../modules/secrets/sops.nix
     ../modules/data/nas-mounts.nix
     ../modules/data/wifi-networks.nix
-    # Monitoring: node_exporter only. cadvisor (Docker container metrics)
-    # and alloy (log shipping) are deliberately not pulled in — desktops
-    # don't run the same container fleet and log shipping is out of scope
-    # for this profile.
+    # Monitoring: node_exporter only. cadvisor (Docker container metrics) is
+    # deliberately not pulled in -- desktops don't run the same container
+    # fleet.
+    #
+    # Log shipping is NOT excluded on purpose, it is just per-host: the two
+    # desktops need different shippers. Daytona is a roaming laptop on
+    # push-based monitoring with its own inline alloy config that also does
+    # prometheus remote_write; maranello is stationary, is scraped normally,
+    # and imports modules/monitoring/agent/alloy.nix for the journal half
+    # only. Defining alloy here would collide with Daytona's.
     ../modules/monitoring/agent/node_exporter.nix
   ];
 
