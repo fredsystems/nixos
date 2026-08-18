@@ -771,6 +771,60 @@ with no overlap and ~3h45m of slack before the NAS pulls.
   previously resolving regressed. **Re-run this after deploying sdrhub and
   fredvps** -- it should resolve all 8.
 
+### Deploy outcome, 2026-08-18
+
+Deployed to sdrhub and fredvps. fredvps activated cleanly first time;
+**sdrhub's activation failed**, and the cause is worth recording because it was
+caused by this work.
+
+`createPrometheusSnapshot` exited with curl status **7** -- "failed to connect"
+-- not 22, so it was never an HTTP problem: nothing was listening on 9090 yet.
+`after`/`wants` order that unit against prometheus.service _starting_, not
+against it listening, and Prometheus replays its WAL before binding the port.
+Two consequences of this branch put the job inside that window:
+
+- the timer is `Persistent = true`, so an activation past the day's
+  `OnCalendar` fires an immediate catch-up run, and
+- adding a rule file changed Prometheus' config, so prometheus.service
+  restarted in the same activation.
+
+Fixed by polling `/-/ready`, Prometheus' own readiness endpoint, which returns
+503 until WAL replay finishes -- so the job waits on the real precondition
+rather than a guessed sleep. Bounded at 120s, then fails loudly.
+
+The ordering bug was **latent, not new**: any reboot after 00:10, or any future
+change to Prometheus' config, could have triggered it. This branch just made it
+reproducible.
+
+Post-fix verification against the live fleet:
+
+| Check                                   | Result                                                                                  |
+| --------------------------------------- | --------------------------------------------------------------------------------------- |
+| `createPrometheusSnapshot` run manually | `ExecMainStatus=0`, snapshot created                                                    |
+| Metrics scraped into Prometheus         | 2 series per metric, correct `hostname`/`backup` labels                                 |
+| `scripts/check-alert-metrics.sh`        | **0 unresolved** (was 8 pre-deploy, as predicted)                                       |
+| All 8 alert rules                       | `health=ok`, `state=inactive` -- no false positives                                     |
+| The `group_left` join on live data      | Matches both artifacts, confirming it is genuinely evaluable rather than silently empty |
+
+That last row is the one that mattered most to check. A join that matches
+nothing evaluates as "no alerts" forever and is indistinguishable from health
+-- the exact failure `check-alert-metrics.sh` exists to catch, and the reason
+the promtool suite pins the `desc`-label case.
+
+First real measurements, useful for the remaining items:
+
+| Artifact                           | Newest size | Count |
+| ---------------------------------- | ----------- | ----- |
+| Prometheus TSDB snapshots (sdrhub) | **36.8 GB** | 31    |
+| Discord DB dumps (fredvps)         | **1.91 GB** | 15    |
+
+Both are larger than this document assumed. The Discord dump is 1.91 GB, not
+the ~1 GB the code comment estimates, which makes the newest-only change in
+Part 2 worth more than budgeted. The 36.8 GB snapshot figure is apparent size
+across a hardlink farm, so it is not 36.8 GB of unique disk -- but it _is_
+roughly what a `rsync -av` without `-H` would transfer and store per night,
+which sharpens Part 1's argument considerably.
+
 ### The boundary, restated
 
 This proves the artifacts are produced. It proves nothing about the NAS.
