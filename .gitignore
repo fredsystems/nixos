@@ -5,3 +5,9 @@ dotfiles/fred/.config/nvim/lazy-lock.json
 *.pre-commit-config.yaml
 .DS_Store
 @girs
+
+# `nix build` output symlinks. Not ignoring these meant a stray `result` was
+# staged by `git add -A` and rejected by the check-symlinks hook as a broken
+# symlink once its target was garbage collected.
+result
+result-*
