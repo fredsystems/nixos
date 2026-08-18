@@ -274,7 +274,7 @@
       "min_version": null,
       "upstream_pr": null,
       "tracking": ["https://nvd.nist.gov/vuln/detail/CVE-2026-58592"],
-      "workaround": "features/desktop/default.nix -- `ladybird.enable = false;` (see FIXME(nixpkgs-ladybird-cve-2026-58592)). Deliberately NOT added to `permittedInsecurePackages` in features/common/system/default.nix: unlike the openssl-1.1.1w entry already in that list, ladybird is a browser, so the vulnerability is reachable from untrusted network input.",
+      "workaround": "features/desktop/default.nix -- `ladybird.enable = false;` (see FIXME(nixpkgs-ladybird-cve-2026-58592)). Deliberately NOT added to `permittedInsecurePackages` in features/common/system/default.nix: that list is now empty (the openssl-1.1.1w entry it used to hold was removed once nothing in the fleet needed it), and ladybird is a browser, so its vulnerability is reachable from untrusted network input rather than being a transitive library concern.",
       "revert_action": "Once nixpkgs ships a ladybird build that is no longer flagged insecure, set `min_version` to that version so the checker can resolve. Then set `ladybird.enable = true;` in features/desktop/default.nix, delete the FIXME, confirm a desktop toplevel evaluates without NIXPKGS_ALLOW_INSECURE, and set `done: true`. min_version is null so this entry stays BLOCKED and cannot falsely resolve."
     },
     {
