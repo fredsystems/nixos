@@ -42,6 +42,35 @@
   # use, not misused.
   services.xserver.videoDrivers = [ "nvidia" ];
 
+  # Required for CUDA, despite the name suggesting this is a desktop concern.
+  #
+  # This option is what creates the `/run/opengl-driver` symlink, via a
+  # tmpfiles rule in nixos/modules/hardware/graphics.nix:134 that lives inside
+  # that module's `mkIf cfg.enable`. The NVIDIA module contributes
+  # `nvidia_x11.out` to `hardware.graphics.extraPackages`
+  # (hardware/video/nvidia.nix:505-508) but does NOT turn `enable` on, so with
+  # it left at the default the driver's userspace libraries are collected into
+  # an environment that is then never materialised anywhere on disk.
+  #
+  # That directory is how NixOS makes the driver's libraries findable at all:
+  # nixpkgs' CUDA packages are built with `autoAddDriverRunpath`, which puts
+  # `/run/opengl-driver/lib` into their RUNPATH. Without it, `libcuda.so.1` and
+  # `libnvidia-cfg.so.1` exist in the store (verified: both are in
+  # nvidia_x11.out/lib) and are on no search path whatsoever.
+  #
+  # Found the hard way. `nvidia-smi` works regardless, because it is patched
+  # with an RPATH into its own package -- so the driver looks entirely healthy.
+  # What actually failed was nvidia-persistenced, in a restart loop with
+  #
+  #   Failed to open libnvidia-cfg.so.1: cannot open shared object file
+  #
+  # and `/run/opengl-driver: No such file or directory`. The same missing
+  # directory would have broken onnxruntime's CUDAExecutionProvider in exactly
+  # the same way, but later and with a much more confusing symptom -- a
+  # detector that silently falls back to CPU. The failing unit was the cheap
+  # version of that discovery.
+  hardware.graphics.enable = true;
+
   hardware.nvidia = {
     # 595.71.05 -- `production`, `stable` and `latest` are all the same version
     # in this nixpkgs, so this is the unambiguous choice rather than a
