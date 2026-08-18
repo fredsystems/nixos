@@ -15,6 +15,8 @@
   };
 
   config = lib.mkIf config.hardware-profile.fingerprint.enable {
+    nixpkgsUnfree.allowed = [ "libfprint-2-tod1-goodix" ];
+
     services.fprintd = {
       enable = lib.mkDefault true;
       tod.enable = lib.mkDefault true;

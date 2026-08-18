@@ -13,6 +13,11 @@ in
   };
 
   config = lib.mkIf cfg.enable {
+    nixpkgsUnfree.allowed = [
+      "steam"
+      "steam-unwrapped"
+    ];
+
     environment.systemPackages = with pkgs; [
       mangohud
       mangojuice

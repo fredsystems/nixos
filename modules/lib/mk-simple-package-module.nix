@@ -23,6 +23,7 @@
   description,
   packages,
   systemWide ? false,
+  unfree ? [ ],
 }:
 if systemWide then
   {
@@ -41,6 +42,7 @@ if systemWide then
     };
 
     config = lib.mkIf cfg.enable {
+      nixpkgsUnfree.allowed = unfree;
       environment.systemPackages = packages pkgs;
     };
   }
@@ -64,6 +66,7 @@ else
     };
 
     config = lib.mkIf cfg.enable {
+      nixpkgsUnfree.allowed = unfree;
       users.users = lib.genAttrs allUsers (_: {
         packages = packages pkgs;
       });

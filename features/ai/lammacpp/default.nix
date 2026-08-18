@@ -61,6 +61,8 @@ in
   imports = lib.optional isLinux ./linux.nix;
 
   config = lib.mkIf cfg.enable {
+    nixpkgsUnfree.allowed = [ "open-webui" ];
+
     ########################################
     # REQUIRED: group must exist
     ########################################
