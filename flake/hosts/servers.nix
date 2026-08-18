@@ -9,7 +9,7 @@
 #   2. Add one entry below — everything else is derived.
 #
 # Per-entry fields (all optional — defaults shown):
-#   stateVersion         = "24.11"
+#   stateVersion         – REQUIRED, no default (see flake/lib/mk-system.nix)
 #   extraUsers           = []
 #   hmModules            = []
 #   extraModules         = []
@@ -47,22 +47,27 @@
   };
 
   sdrhub = {
+    stateVersion = "24.11";
     tags = [ "sdr" ];
   };
 
   acarshub = {
+    stateVersion = "24.11";
     tags = [ "adsb" ];
   };
 
   vdlmhub = {
+    stateVersion = "24.11";
     tags = [ "adsb" ];
   };
 
   hfdlhub1 = {
+    stateVersion = "24.11";
     tags = [ "hfdl" ];
   };
 
   hfdlhub2 = {
+    stateVersion = "24.11";
     tags = [ "hfdl" ];
   };
 

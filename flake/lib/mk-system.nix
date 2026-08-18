@@ -25,7 +25,7 @@
 #   hostName             – the machine hostname (required)
 #   hmModules        = [] – extra Home Manager modules for the primary user
 #   extraModules     = [] – extra NixOS modules appended after the baseline
-#   stateVersion     = "24.11"
+#   stateVersion         – REQUIRED, no default. See the note below.
 #   system           = "x86_64-linux"
 #   extraUsers       = []
 #   pkgsInput        = inputs.nixpkgs          (nixos-unstable)
@@ -67,7 +67,7 @@
   hostName,
   hmModules ? [ ],
   extraModules ? [ ],
-  stateVersion ? "24.11",
+  stateVersion,
   system ? "x86_64-linux",
   extraUsers ? [ ],
   pkgsInput ? inputs.nixpkgs,
@@ -83,6 +83,28 @@
 let
   isDarwin = pkgsInput.lib.hasSuffix "darwin" system;
 
+  # `stateVersion` has NO default, deliberately. It used to default to "24.11",
+  # which meant nine of twelve hosts inherited it silently and a single edit here
+  # would have retroactively changed the stateVersion of every one of them --
+  # the exact opposite of what the option is for. Every host now states its own,
+  # and omitting it is a hard eval error rather than a silent inheritance.
+  #
+  # Omission is caught by the missing-argument error. This guard catches the
+  # other half: a value that is a well-formed string but not a NixOS release,
+  # e.g. "25.5" instead of "25.05", or "2411". Those pass `types.str` and would
+  # otherwise reach the host as a real (wrong) stateVersion.
+  checkedStateVersion =
+    if builtins.match "[0-9][0-9]\\.[0-9][0-9]" stateVersion != null then
+      stateVersion
+    else
+      throw (
+        "mkSystem: host '${hostName}' has stateVersion '${toString stateVersion}', "
+        + "which is not a NixOS release of the form YY.MM (e.g. \"24.11\"). "
+        + "Fix it in flake/hosts/servers.nix or flake/hosts/nixos.nix. "
+        + "Do NOT change a host's stateVersion to make this pass -- it must keep "
+        + "the value the machine was originally installed with."
+      );
+
   _specialArgs = {
     inherit
       inputs
@@ -93,7 +115,6 @@ let
       github_signing_key
       hmlib
       system
-      stateVersion
       agentNodes
       agentTargets
       agentScrapeMap
@@ -108,6 +129,7 @@ let
       kernelPkgsInput
       isDarwin
       ;
+    stateVersion = checkedStateVersion;
 
     catppuccinWallpapers = self.packages.${system}.catppuccin-wallpapers;
   };
@@ -186,9 +208,9 @@ let
             github_signing_key
             catppuccinInput
             nixYaziPluginsInput
-            stateVersion
             isDarwin
             ;
+          stateVersion = checkedStateVersion;
           inherit (inputs)
             catppuccin
             nixvim

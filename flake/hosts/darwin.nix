@@ -11,6 +11,7 @@
 {
   "Freds-MacBook-Pro" = self.lib.mkDarwinSystem {
     hostName = "Freds-MacBook-Pro";
+    stateVersion = "25.05";
     hmModules = [
       ../../hosts/darwin/Freds-MacBook-Pro/home.nix
       freminal.homeManagerModules.default
@@ -20,6 +21,7 @@
 
   "Freds-Mac-Studio" = self.lib.mkDarwinSystem {
     hostName = "Freds-Mac-Studio";
+    stateVersion = "25.05";
     hmModules = [
       ../../hosts/darwin/Freds-Mac-Studio/home.nix
       freminal.homeManagerModules.default

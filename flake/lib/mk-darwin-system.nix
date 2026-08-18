@@ -27,7 +27,7 @@
   hostName,
   hmModules ? [ ],
   extraModules ? [ ],
-  stateVersion ? "25.05",
+  stateVersion,
   system ? "aarch64-darwin",
 }:
 let
