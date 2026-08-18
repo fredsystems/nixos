@@ -41,7 +41,7 @@ in
       ###############################################################
       # DUMPHFDL-1
       ###############################################################
-      {
+      (config.services.adsb.mkSdrContainer {
         name = "dumphfdl-1";
         image = "ghcr.io/sdr-enthusiasts/docker-dumphfdl:latest-build-201@sha256:3de816c1cfc7f89b40574faaa8e175dd76b8f4c31e88744c68a8de5f21d5219a";
 
@@ -52,12 +52,7 @@ in
           config.sops.secrets."docker/hfdlhub1/dumphfdl1.env".path
         ];
 
-        deviceCgroupRules = [
-          "c 189:* rwm"
-        ];
-
         tmpfs = [
-          "/run:exec,size=64M"
           "/var/log"
           "/tmp"
         ];
@@ -68,12 +63,12 @@ in
           "/opt/adsb/data/dumphfdl1-scanner:/opt/scanner"
         ];
 
-      }
+      })
 
       ###############################################################
       # DUMPHFDL-2
       ###############################################################
-      {
+      (config.services.adsb.mkSdrContainer {
         name = "dumphfdl-2";
         image = "ghcr.io/sdr-enthusiasts/docker-dumphfdl:latest-build-201@sha256:3de816c1cfc7f89b40574faaa8e175dd76b8f4c31e88744c68a8de5f21d5219a";
 
@@ -90,12 +85,7 @@ in
           config.sops.secrets."docker/hfdlhub1/dumphfdl2.env".path
         ];
 
-        deviceCgroupRules = [
-          "c 189:* rwm"
-        ];
-
         tmpfs = [
-          "/run:exec,size=64M"
           "/var/log"
           "/tmp"
         ];
@@ -105,12 +95,12 @@ in
           "/opt/adsb/data/dumphfdl2-data:/opt/dumphfdl"
           "/opt/adsb/data/dumphfdl2-scanner:/opt/scanner"
         ];
-      }
+      })
 
       ###############################################################
       # DUMPHFDL-3
       ###############################################################
-      {
+      (config.services.adsb.mkSdrContainer {
         name = "dumphfdl-3";
         image = "ghcr.io/sdr-enthusiasts/docker-dumphfdl:latest-build-201@sha256:3de816c1cfc7f89b40574faaa8e175dd76b8f4c31e88744c68a8de5f21d5219a";
 
@@ -126,12 +116,7 @@ in
           config.sops.secrets."docker/hfdlhub1/dumphfdl3.env".path
         ];
 
-        deviceCgroupRules = [
-          "c 189:* rwm"
-        ];
-
         tmpfs = [
-          "/run:exec,size=64M"
           "/var/log"
           "/tmp"
         ];
@@ -141,7 +126,7 @@ in
           "/opt/adsb/data/dumphfdl3-data:/opt/dumphfdl"
           "/opt/adsb/data/dumphfdl3-scanner:/opt/scanner"
         ];
-      }
+      })
     ];
   };
 }

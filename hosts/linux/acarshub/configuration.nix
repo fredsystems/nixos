@@ -47,7 +47,7 @@ in
       ###############################################################
       # ACARSDEC-1
       ###############################################################
-      {
+      (config.services.adsb.mkSdrContainer {
         name = "acarsdec-1";
         image = "ghcr.io/sdr-enthusiasts/docker-acarsdec:latest-build-502@sha256:6fa61ab3ff70340e660e6f3ae2a322e446fa78e509b139a18311473494639f20";
 
@@ -56,10 +56,6 @@ in
 
         environmentFiles = [
           config.sops.secrets."docker/acarshub.env".path
-        ];
-
-        deviceCgroupRules = [
-          "c 189:* rwm"
         ];
 
         environment = {
@@ -72,19 +68,18 @@ in
         };
 
         tmpfs = [
-          "/run:exec,size=64M"
           "/var/log"
         ];
 
         volumes = [
           "/dev:/dev"
         ];
-      }
+      })
 
       ###############################################################
       # ACARSDEC-2
       ###############################################################
-      {
+      (config.services.adsb.mkSdrContainer {
         name = "acarsdec-2";
         image = "ghcr.io/sdr-enthusiasts/docker-acarsdec:latest-build-502@sha256:6fa61ab3ff70340e660e6f3ae2a322e446fa78e509b139a18311473494639f20";
 
@@ -93,10 +88,6 @@ in
 
         environmentFiles = [
           config.sops.secrets."docker/acarshub.env".path
-        ];
-
-        deviceCgroupRules = [
-          "c 189:* rwm"
         ];
 
         environment = {
@@ -109,19 +100,18 @@ in
         };
 
         tmpfs = [
-          "/run:exec,size=64M"
           "/var/log"
         ];
 
         volumes = [
           "/dev:/dev"
         ];
-      }
+      })
 
       ###############################################################
       # XNG
       ###############################################################
-      {
+      (config.services.adsb.mkSdrContainer {
         name = "xng";
         image = "ghcr.io/sdr-enthusiasts/docker-xng:latest-build-2@sha256:5378dde090a05a14db4225899c78ba4626daa46cbe0ad6d74d8f9e410a5e423b";
 
@@ -130,10 +120,6 @@ in
 
         environmentFiles = [
           config.sops.secrets."docker/acarshub.env".path
-        ];
-
-        deviceCgroupRules = [
-          "c 189:* rwm"
         ];
 
         environment = {
@@ -149,14 +135,13 @@ in
         };
 
         tmpfs = [
-          "/run:exec,size=64M"
           "/var/log"
         ];
 
         volumes = [
           "/dev:/dev"
         ];
-      }
+      })
     ];
   };
 }
