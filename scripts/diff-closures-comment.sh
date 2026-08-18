@@ -100,7 +100,11 @@ SAMPLE_LIMIT=15
 
 fail_nothing() {
   echo "error: $*" >&2
-  : >"$OUT_FILE"
+  # Per the OUTPUT CONTRACT above: STATUS=nothing means nothing written
+  # to $OUT_FILE. Deliberately do not touch/truncate it here -- a caller
+  # relying on the documented contract should never need to look at the
+  # file when STATUS=nothing, but leaving a stale or unexpectedly-empty
+  # file behind would be a silent contract violation if one ever did.
   echo "STATUS=nothing"
   exit 0
 }
@@ -108,7 +112,7 @@ fail_nothing() {
 [ -n "${BASE_SHA:-}" ] || fail_nothing "BASE_SHA env var required"
 [ -n "${HOSTS_JSON:-}" ] || fail_nothing "HOSTS_JSON env var required"
 
-for tool in nix nix-store jq comm sort git; do
+for tool in nix nix-store jq comm sort git sed head mktemp grep; do
   command -v "$tool" >/dev/null 2>&1 || fail_nothing "required tool not on PATH: $tool"
 done
 
@@ -127,6 +131,7 @@ if ! git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
 fi
 
 declare -A STATUS
+declare -A ERROR_SIDE
 declare -A UNAVAILABLE_REASON
 declare -A DIFF_OUTPUT
 declare -A ADDED_SAMPLE
@@ -135,6 +140,32 @@ declare -A ADDED_COUNT
 declare -A REMOVED_COUNT
 declare -A HEAD_PATH
 declare -A BASE_PATH
+
+# A host absent from the base commit's own nixosConfigurations (added by
+# this PR) is not an error -- there is nothing to diff against. A host
+# PRESENT at base whose toplevel eval nonetheless fails there IS a
+# genuine eval error and must be reported as one, not silently folded
+# into "new". Distinguishing the two requires knowing the base commit's
+# attribute set up front, once, rather than inferring it from a single
+# per-host eval failure (which cannot tell "absent" from "broken").
+declare -A BASE_HOST_EXISTS
+base_hosts_err="$(mktemp)"
+if base_hosts_json="$(nix eval --json "git+file://${REPO_ROOT}?rev=${BASE_SHA}#nixosConfigurations" --apply builtins.attrNames 2>"$base_hosts_err")"; then
+  while IFS= read -r bh; do
+    [ -n "$bh" ] && BASE_HOST_EXISTS[$bh]=1
+  done < <(jq -r '.[]' <<<"$base_hosts_json" 2>/dev/null)
+  base_hosts_known=1
+else
+  # Could not even enumerate the base commit's hosts (e.g. the whole
+  # base flake fails to evaluate). Do NOT default to "new" here -- that
+  # would misreport a genuine base-wide breakage as a set of harmless
+  # new hosts. Fall through to the per-host eval below, which will fail
+  # the same way and be correctly reported as "error".
+  echo "warning: could not enumerate base commit's nixosConfigurations:" >&2
+  sed 's/^/  /' "$base_hosts_err" >&2
+  base_hosts_known=0
+fi
+rm -f "$base_hosts_err"
 
 for host in "${HOSTS[@]}"; do
   echo "== $host ==" >&2
@@ -149,24 +180,37 @@ for host in "${HOSTS[@]}"; do
     echo "  HEAD eval failed:" >&2
     sed 's/^/    /' "$head_err" >&2
     STATUS[$host]="error"
+    ERROR_SIDE[$host]="head"
     rm -f "$head_err" "$base_err"
+    continue
+  fi
+
+  rm -f "$head_err"
+
+  if [ "$base_hosts_known" -eq 1 ] && [ -z "${BASE_HOST_EXISTS[$host]:-}" ]; then
+    echo "  host not present in nixosConfigurations at base commit -- new host, nothing to diff" >&2
+    STATUS[$host]="new"
+    rm -f "$base_err"
     continue
   fi
 
   base_path="$(nix eval --raw "git+file://${REPO_ROOT}?rev=${BASE_SHA}#nixosConfigurations.${host}.config.system.build.toplevel.outPath" 2>"$base_err")"
   base_rc=$?
-  rm -f "$head_err" "$base_err"
 
   if [ "$base_rc" -ne 0 ] || [ -z "$base_path" ]; then
-    # Most common real cause: the host did not exist in
-    # nixosConfigurations at the base commit (a host added by this PR).
-    # Anything else is a genuine eval error at the base rev -- and this
-    # job must degrade on that exactly like every other failure mode,
-    # not propagate it.
-    echo "  BASE eval failed (new host, or base-rev eval error)" >&2
-    STATUS[$host]="new"
+    # The host IS present in the base commit's nixosConfigurations (or
+    # we could not tell either way) yet its toplevel still fails to
+    # evaluate there -- a genuine eval error at the base rev, not a new
+    # host. Degrade like every other failure mode, but report it as
+    # what it is.
+    echo "  BASE eval failed (genuine eval error at base rev):" >&2
+    sed 's/^/    /' "$base_err" >&2
+    STATUS[$host]="error"
+    ERROR_SIDE[$host]="base"
+    rm -f "$base_err"
     continue
   fi
+  rm -f "$base_err"
 
   HEAD_PATH[$host]="$head_path"
   BASE_PATH[$host]="$base_path"
@@ -345,7 +389,10 @@ fi
       error)
         echo "#### \`${host}\` -- eval error"
         echo
-        echo "Evaluating this host's toplevel failed at HEAD; see the workflow run logs."
+        case "${ERROR_SIDE[$host]:-}" in
+          base) echo "Evaluating this host's toplevel failed at the PR base commit \`${BASE_SHA:0:12}\`; see the workflow run logs." ;;
+          *) echo "Evaluating this host's toplevel failed at HEAD; see the workflow run logs." ;;
+        esac
         echo
         ;;
     esac
