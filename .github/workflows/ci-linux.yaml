@@ -768,6 +768,222 @@ jobs:
             ./scripts/check-colmena-parity.sh
 
   # =====================================================================
+  # `nix store diff-closures` PR comment
+  #
+  # Audit item 6.2. The concrete motivation: a refactor asserted to be
+  # entirely behaviour-preserving merged with all 8 servers byte-identical
+  # (correct) but both desktops changed. Finding out *what* changed took a
+  # manual investigation across two commits -- comparing `system.path`,
+  # `environment.etc` names, `home.file` sources and text hashes by hand --
+  # and still did not fully resolve; the delta was somewhere inside the
+  # home-manager activation script. This job is the five-second read that
+  # investigation should have been: for every host find-systems flagged as
+  # impacted, diff its `system.build.toplevel` against the PR base and
+  # comment the result.
+  #
+  # NOT a required check. This is informational only -- see the "must never
+  # fail the PR" reasoning below -- and is deliberately NOT part of
+  # build-linux-summary's `needs`.
+  #
+  # WHY self-hosted, NOT ubuntu-latest
+  #
+  # Two independent reasons, either one sufficient on its own:
+  #
+  #   1. Reachability. The Attic substituter this job needs to check the
+  #      base commit's cached closure lives at http://192.168.31.14:8080/fred
+  #      -- a private LAN address. ubuntu-latest cannot reach it at all, so
+  #      this job could never usefully run there regardless of cost.
+  #   2. Cost class. colmena-parity's header measured 578s on ubuntu-latest
+  #      vs 103s on self-hosted for a full closure realisation, entirely due
+  #      to a cold eval cache and no LAN cache access. This job's substitute
+  #      step (see below) realises store paths the same way; it belongs
+  #      wherever build-servers/build-desktops already do.
+  #
+  # WHY THIS NEVER COSTS A BUILD -- read scripts/diff-closures-comment.sh's
+  # header before touching the substitution logic
+  #
+  # The AFTER closure is free: build-servers/build-desktops already realised
+  # it earlier in this same run and pushed it to Attic. The BEFORE closure
+  # (the PR base commit) is the one that could be expensive, and the script
+  # never pays that cost: it evaluates (never realises) the base commit's
+  # outPath via a `git+file://...?rev=<base_sha>` flake ref, and only
+  # attempts `nix build --max-jobs 0` (substitute-only; --max-jobs 0 makes a
+  # missing path a clean failure, never a real build) if that outPath
+  # actually differs from HEAD's.
+  #
+  # Whether that substitution succeeds depends on whether the base commit's
+  # closure is still cached. This repo's merge queue builds every commit
+  # that reaches `main`, and Attic retains what it serves for 30 days from
+  # last fetch (modules/services/attic/attic_server.nix), so the common
+  # case -- a PR based on a recent main commit -- substitutes cleanly. It is
+  # NOT guaranteed: a long-lived PR or GC pressure can make the base closure
+  # unavailable, and the honest answer in that case is "diff unavailable",
+  # not a silent fallback to a real build.
+  #
+  # NO-CHANGE / FORK-PR HANDLING
+  #
+  # - Every impacted host unchanged -> the script emits a single "no
+  #   closure changes" line rather than an empty table, and the comment
+  #   step only UPDATES an existing comment with it (never creates a new
+  #   one -- a clean PR should not get a fresh comment just to say so).
+  # - Fork PRs get a read-only GITHUB_TOKEN and cannot post comments even
+  #   with `pull-requests: write` declared below. The same fork guard every
+  #   other self-hosted job in this workflow carries (`if:` below) already
+  #   keeps fork PR code off self-hosted runners entirely, so this never
+  #   gets far enough to hit that limitation.
+  #
+  # `always()` is required in `if:` because build-servers/build-desktops use
+  # `fail-fast: false`: one matrix leg failing marks the whole job
+  # 'failure', and without `always()` this job would be skipped entirely --
+  # losing the diff for every host whose build DID succeed. Substitution
+  # failing for an unbuilt host is handled per-host inside the script
+  # (reported as "unavailable"), not by gating the whole job on build
+  # success.
+  diff-closures-comment:
+    name: Closure diff PR comment
+    runs-on: [self-hosted, Linux]
+    needs: [skip-if-clean, find-systems, build-servers, build-desktops]
+    if: |
+      always() &&
+      needs.skip-if-clean.outputs.skip != 'true' &&
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      (needs.find-systems.outputs.servers != '[]' || needs.find-systems.outputs.desktops != '[]')
+    # pull-requests: write is scoped to exactly this job -- nothing else in
+    # this workflow posts comments, so the top-level `permissions:` block
+    # stays read-only.
+    permissions:
+      id-token: "write"
+      contents: "read"
+      pull-requests: "write"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # fetch-depth: 0 -- the script evaluates the flake AT the PR base
+          # commit via `git+file://...?rev=<base_sha>`, which needs that
+          # commit's objects present locally, not just HEAD's.
+          fetch-depth: 0
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
+        with:
+          trust-runner-user: true
+          extra-conf: |
+            access-tokens = github.com=${{ github.token }}
+            accept-flake-config = true
+            substituters = http://192.168.31.14:8080/fred https://catppuccin.cachix.org https://niri.cachix.org https://niri-epireyn.cachix.org https://cache.nixos.org/
+            trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= fred:JjyhvRSvKfkk8r4HS0mS5r5I7dT4GociEFbrR9OgBZ0= niri.cachix.org-1:Wv0OmO7PsuocRKzfDoJ3mulSl7Z6oezYhGhR+3W2964= niri-epireyn.cachix.org-1:tlVyFN7CtsDT+ZcLPS+ekFWeT1X6X4OqvWqbBMyIzFA= catppuccin.cachix.org-1:noG/4HkbhJb+lUAdKrph6LaozJvAeEEZj4N732IysmU=
+
+      # jq comes from `nix shell`, not the runner -- see the identical note
+      # on the colmena-parity job above.
+      - name: Combine impacted hosts
+        id: hosts
+        shell: bash
+        env:
+          SERVERS: ${{ needs.find-systems.outputs.servers }}
+          DESKTOPS: ${{ needs.find-systems.outputs.desktops }}
+        run: |
+          set -uo pipefail
+
+          # shellcheck disable=SC2016 # $servers/$desktops are jq --argjson
+          # bindings, not shell variables -- they must stay single-quoted.
+          hosts_json=$(nix shell --inputs-from . nixpkgs#jq --command jq -cn \
+            --argjson servers "$SERVERS" --argjson desktops "$DESKTOPS" \
+            '($servers + $desktops) | unique')
+
+          echo "Impacted hosts: $hosts_json"
+          echo "hosts_json=$hosts_json" >> "$GITHUB_OUTPUT"
+
+      # This step must never fail the job -- see the header block above.
+      # diff-closures-comment.sh already degrades every internal error to
+      # STATUS=nothing on stdout; the `status=$(...)` capture here plus the
+      # explicit rc/empty check is a second layer in case the script itself
+      # cannot even start (e.g. a shell parse error introduced by a future
+      # edit), so a bug in the script degrades to "nothing to report"
+      # instead of a red required-adjacent job.
+      - name: Compute closure diff
+        id: diff
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HOSTS_JSON: ${{ steps.hosts.outputs.hosts_json }}
+          OUT_FILE: body.md
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -uo pipefail
+
+          status="$(nix shell --inputs-from . nixpkgs#jq --command ./scripts/diff-closures-comment.sh)"
+          rc=$?
+
+          if [ "$rc" -ne 0 ] || [ -z "$status" ]; then
+            echo "diff-closures-comment.sh exited abnormally (rc=$rc) -- treating as nothing to report"
+            status="STATUS=nothing"
+            : > body.md
+          fi
+
+          echo "$status" >> "$GITHUB_OUTPUT"
+
+      # Find-then-edit-or-create, the same shape cve-scan.yaml's "Find or
+      # update CVE report issue" step uses for its rolling issue -- adapted
+      # here to a PR comment instead of an issue. The marker HTML comment at
+      # the top of body.md (written by the script) is what "find" searches
+      # for, so repeated pushes to the same PR update one comment instead of
+      # stacking a new one every run.
+      #
+      # gh/jq are added to PATH via `nix build --print-out-paths` rather
+      # than wrapping every call in `nix shell --command` -- both packages
+      # are common enough to substitute from cache.nixos.org in a couple of
+      # seconds, and prepending their `bin` dirs once keeps the rest of this
+      # step readable as plain `gh`/`jq` calls instead of deeply nested
+      # quoting.
+      #
+      # No `-e` and an explicit `exit 0` at the end: this step must never
+      # fail the job, per the "must never fail the PR" requirement -- a
+      # transient GitHub API error here is logged, not propagated.
+      - name: Find or update PR comment
+        if: steps.diff.outputs.STATUS != 'nothing'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          STATUS: ${{ steps.diff.outputs.STATUS }}
+        run: |
+          set -uo pipefail
+
+          bin_paths=$(nix build --no-link --print-out-paths --inputs-from . nixpkgs#gh nixpkgs#jq)
+          while IFS= read -r p; do
+            [ -n "$p" ] && PATH="$p/bin:$PATH"
+          done <<<"$bin_paths"
+          export PATH
+
+          marker='<!-- diff-closures-report -->'
+
+          existing_id=$(gh api "repos/${REPO}/issues/${PR_NUMBER}/comments" --paginate \
+            --jq '[.[] | select(.body | startswith("'"$marker"'"))] | (first.id // empty)' \
+            2>/dev/null)
+
+          if [ "$STATUS" = "unchanged" ]; then
+            if [ -n "$existing_id" ]; then
+              echo "No closure changes -- updating existing comment #${existing_id}."
+              gh api --method PATCH "repos/${REPO}/issues/comments/${existing_id}" -f body=@body.md >/dev/null
+            else
+              echo "No closure changes and no existing comment -- nothing to do."
+            fi
+            exit 0
+          fi
+
+          if [ -n "$existing_id" ]; then
+            echo "Updating existing comment #${existing_id}."
+            gh api --method PATCH "repos/${REPO}/issues/comments/${existing_id}" -f body=@body.md >/dev/null
+          else
+            echo "Creating new PR comment."
+            gh pr comment "$PR_NUMBER" --repo "$REPO" --body-file body.md >/dev/null
+          fi
+
+          exit 0
+
+  # =====================================================================
   # Required summary check
   # =====================================================================
   build-linux-summary:
