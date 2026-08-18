@@ -21,7 +21,10 @@ in
       default = null;
       description = ''
         Hostname or IP address Prometheus uses to scrape this node.
-        When null, defaults to <hostname>.local (suitable for LAN nodes).
+        When null, defaults to "<attr>.local", where <attr> is this host's
+        nixosConfigurations attribute name in flake.nix -- NOT
+        config.networking.hostName, which is not guaranteed to match (suitable
+        for LAN nodes).
         Set this to a Tailscale MagicDNS name for nodes not on the LAN.
       '';
     };
@@ -116,21 +119,27 @@ in
         # Unlike the assertion above, a missing scrapeAddress does not break
         # eval -- it just means flake.nix's agentScrapeMap/desktopScrapeMap
         # (see the "Monitoring topology" section of flake.nix) fall back to
-        # "<hostname>.local" for this node. That fallback is the right default
-        # for a LAN host with mDNS, and exactly wrong for one whose exporters
-        # were just rebound off the LAN by internetFacing itself: Prometheus
-        # would keep trying an address the host most likely does not answer
-        # on (a bare VPS in particular has no mDNS responder at all), so
-        # scrapes fail closed and silently rather than pointing at the
-        # Tailscale address this option's own doc comment says to use.
+        # "<attr>.local" for this node, where <attr> is the nixosConfigurations
+        # attribute name (flake.nix:319/334) -- NOT config.networking.hostName.
+        # The two are not guaranteed to match (a mismatch already caused a real
+        # bug in this repo: an alert rule excluded "daytona" while the actual
+        # identifier was "Daytona"). That fallback is the right default for a
+        # LAN host with mDNS, and exactly wrong for one whose exporters were
+        # just rebound off the LAN by internetFacing itself: Prometheus would
+        # keep trying an address the host most likely does not answer on (a
+        # bare VPS in particular has no mDNS responder at all), so scrapes
+        # fail closed and silently rather than pointing at the Tailscale
+        # address this option's own doc comment says to use.
         warnings = lib.optional (cfg.internetFacing && cfg.scrapeAddress == null) ''
           deployment.internetFacing is set on this host, but deployment.scrapeAddress is not.
 
-          Prometheus's target for this node falls back to "<hostname>.local", which is unlikely to
-          resolve for an internet-facing node (no LAN mDNS responder), while the exporters themselves
-          are now bound to deployment.tailscaleAddress instead of 0.0.0.0. Scraping this host will
-          most likely fail. Set deployment.scrapeAddress to this node's Tailscale MagicDNS name (see
-          fredvps's configuration.nix for the pattern).
+          Prometheus's target for this node falls back to "<attr>.local", where <attr> is this
+          host's nixosConfigurations attribute name in flake.nix (not necessarily
+          config.networking.hostName), which is unlikely to resolve for an internet-facing node (no
+          LAN mDNS responder), while the exporters themselves are now bound to
+          deployment.tailscaleAddress instead of 0.0.0.0. Scraping this host will most likely fail.
+          Set deployment.scrapeAddress to this node's Tailscale MagicDNS name (see fredvps's
+          configuration.nix for the pattern).
         '';
       }
     ]

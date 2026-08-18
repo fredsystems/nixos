@@ -518,6 +518,16 @@ in
           ExecStart = pkgs.writeShellScript "node-journal-metrics.sh" ''
             set -uo pipefail
 
+            # Forced C locale for the whole script, not just the commands
+            # below: the parsing here depends on journalctl emitting the
+            # literal English string "take up" and both journalctl and awk
+            # using "." as the decimal separator. Under any locale that
+            # translates that message or uses "," for decimals, every match
+            # below silently fails -- the collector would then report
+            # OK=0 on EVERY run, forever, rather than only when something
+            # is actually wrong. Raised in review on PR #2251.
+            export LC_ALL=C
+
             JOURNALCTL=${pkgs.systemd}/bin/journalctl
             AWK=${pkgs.gawk}/bin/awk
             HOST="${config.networking.hostName}"
