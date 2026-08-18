@@ -95,10 +95,66 @@ let
     # uses the same detect geometry as the Hikvisions. detect.fps stays at the
     # fleet's 5 even though the substream delivers 10, for the same
     # shared-CPU-detector reason documented on the doorbell.
+    #
+    # Only camera in the fleet with PTZ — see `ptz` below.
     front_door = {
       brand = "reolink";
       codec = "h265";
       host = "192.168.31.38";
+
+      # ── Manual pan/tilt over ONVIF ──────────────────────────────────────
+      #
+      # Presence of `ptz` is what enables the ONVIF block; the port is carried
+      # here rather than as a separate bool so there is no way to enable PTZ
+      # without stating which port it speaks on. 8000 is verified open on this
+      # camera and is also Frigate's OnvifConfig default, but Hikvision ONVIF
+      # answers on 80, so the next PTZ camera must state its own.
+      #
+      # WHAT WORKS: pan and tilt from the UI. Frigate derives its feature list
+      # from the PTZ node's supported spaces (ptz/onvif.py:347-430), and this
+      # camera advertises ContinuousPanTiltVelocitySpace, which is what yields
+      # the `pt` feature.
+      #
+      # WHAT DOES NOT, and why autotracking is deliberately left OFF (it
+      # defaults to false; this is documentation, not configuration). Read off
+      # the camera's own PTZ node via GetNodes, verified 2026-08-18:
+      #
+      #   ContinuousPanTiltVelocitySpace : yes  -> feature "pt"
+      #   RelativePanTiltTranslationSpace: no   -> NO feature "pt-r-fov"
+      #   AbsolutePanTiltPositionSpace   : no
+      #   ContinuousZoomVelocitySpace    : no   -> NO feature "zoom"
+      #   HomeSupported                  : False
+      #   GetStatus -> Position          : None
+      #
+      # ptz/onvif.py:419-424 only appends "pt-r-fov" when
+      # DefaultRelativePanTiltTranslationSpace exists, and autotrack.py:274-279
+      # then does:
+      #
+      #   if "pt-r-fov" not in features:
+      #       "Disabling autotracking for {camera}: FOV relative movement
+      #        not supported"
+      #       camera_config.onvif.autotracking.enabled = False
+      #
+      # So setting autotracking.enabled = true here would log a warning on every
+      # start and turn itself straight back off. `Position: None` and
+      # `HomeSupported: False` rule it out independently — autotracking needs
+      # position feedback to know where it is and a home preset to return to.
+      #
+      # Zoom is absent over ONVIF despite Reolink's own API reporting
+      # `supportZoom`, because on an E1 Outdoor SE the zoom is DIGITAL. Nothing
+      # to configure; the UI simply will not offer a zoom control.
+      #
+      # Preset recall is wired up but close to useless until presets are created
+      # in the Reolink app: GetPresets returns exactly one (token '000', name
+      # '0') against a MaximumNumberOfPresets of 64. `return_preset` is
+      # untouched for the same reason — its default is "home", which this camera
+      # does not have.
+      #
+      # `ignore_time_mismatch` is deliberately NOT set. ONVIF auth is
+      # timestamp-sensitive, so it was measured rather than guessed: the camera
+      # reports DateTimeType NTP and a skew of -4.7s against this host, well
+      # inside any tolerance. Set it only if ONVIF auth actually starts failing.
+      ptz.port = 8000;
       detect = {
         width = 640;
         height = 360;
@@ -317,37 +373,61 @@ let
       (streamPaths.${cam.brand} cam).${role}
     }";
 
-  mkCamera = _name: cam: {
-    ffmpeg = {
-      inputs = [
-        # Substream drives detection. Decoding a 4MP stream 5x a second for
-        # every camera is the single largest avoidable CPU cost in an NVR, and
-        # every one of these cameras already publishes a low-resolution
-        # substream for exactly this.
-        {
-          path = mkStream cam "detect";
-          roles = [ "detect" ];
-        }
-        # Mainstream is recorded as-is: the bytes arrive already H.264 and are
-        # stream-copied straight to disk, so recording costs almost no CPU.
-        {
-          path = mkStream cam "record";
-          roles = [ "record" ];
-        }
-      ];
+  mkCamera =
+    _name: cam:
+    {
+      ffmpeg = {
+        inputs = [
+          # Substream drives detection. Decoding a 4MP stream 5x a second for
+          # every camera is the single largest avoidable CPU cost in an NVR, and
+          # every one of these cameras already publishes a low-resolution
+          # substream for exactly this.
+          {
+            path = mkStream cam "detect";
+            roles = [ "detect" ];
+          }
+          # Mainstream is recorded as-is: the bytes arrive already H.264 and are
+          # stream-copied straight to disk, so recording costs almost no CPU.
+          {
+            path = mkStream cam "record";
+            roles = [ "record" ];
+          }
+        ];
 
-      # `preset-record-generic` (-an, no audio) is the default because the five
-      # Hikvisions publish no audio stream at all. Cameras that do carry audio
-      # override this via `recordPreset` -- see the doorbell and front door.
-      #
-      # Deliberately NOT `preset-record-generic-audio-copy` fleet-wide: that
-      # copies whatever audio codec the camera offers, which breaks the MP4
-      # container on any camera whose audio is not MP4-representable.
-      output_args.record = cam.recordPreset or "preset-record-generic";
+        # `preset-record-generic` (-an, no audio) is the default because the five
+        # Hikvisions publish no audio stream at all. Cameras that do carry audio
+        # override this via `recordPreset` -- see the doorbell and front door.
+        #
+        # Deliberately NOT `preset-record-generic-audio-copy` fleet-wide: that
+        # copies whatever audio codec the camera offers, which breaks the MP4
+        # container on any camera whose audio is not MP4-representable.
+        output_args.record = cam.recordPreset or "preset-record-generic";
+      };
+
+      inherit (cam) detect;
+    }
+    # ONVIF block, emitted only for cameras that declare `ptz`. Frigate gates the
+    # whole PTZ subsystem on `onvif.host` being non-empty (ptz/onvif.py:64), so
+    # omitting the block entirely — rather than emitting an empty one — is what
+    # keeps the six non-PTZ cameras out of it.
+    #
+    # host and credentials are derived rather than repeated per camera: the
+    # placeholders are the SAME ones used for the RTSP URLs, and they work here for
+    # the same reason. OnvifConfig.user/password are typed EnvString
+    # (config/camera/onvif.py:76-78), and validate_env_string (config/env.py:18-23)
+    # runs `.format(**FRIGATE_ENV_VARS)` on every EnvString field, where
+    # FRIGATE_ENV_VARS is populated from FRIGATE_-prefixed files in
+    # $CREDENTIALS_DIRECTORY. So the existing LoadCredential= pair covers ONVIF
+    # too, and no second sops secret is needed. preCheckConfig's dummy exports
+    # likewise make these resolvable in the build sandbox.
+    // lib.optionalAttrs (cam ? ptz) {
+      onvif = {
+        inherit (cam) host;
+        inherit (cam.ptz) port;
+        user = "{FRIGATE_CAMERA_USER}";
+        password = "{FRIGATE_CAMERA_PASSWORD}";
+      };
     };
-
-    inherit (cam) detect;
-  };
 in
 {
   services.frigate = {
