@@ -1001,3 +1001,125 @@ behind its own backup.
 When DST ends the clocks realign and every NAS time shifts an hour later
 relative to the fleet. All three still work: 0130 becomes 01:30 wall clock,
 still comfortably after the dumps.
+
+---
+
+## Part 11 -- What landed for item 3
+
+Branch `backup-verification`. Deployed to fredvps 2026-08-18.
+
+### The problem, quantified
+
+fredvps has **one filesystem** for everything, and the discord dumps had become
+its largest single consumer:
+
+|                        | Before     | After          |
+| ---------------------- | ---------- | -------------- |
+| Dumps retained on host | 15         | 1              |
+| Space used by dumps    | 14.85 GB   | 1.83 GiB       |
+| Filesystem used        | 48 G / 69% | **35 G / 50%** |
+| Free                   | 22 GB      | **35 GB**      |
+
+`DiskFillPredicted` was firing for `/` and `/nix/store` as a direct
+consequence, and **has now cleared**.
+
+### Why keep=1 rather than 2 or 3
+
+The database is growing fast, measured from the dumps themselves:
+
+```text
+Aug 04 dump : 0.62 GiB
+Aug 18 dump : 1.78 GiB
+growth      : 84.7 MiB/day   (2.86x in 14 days)
+```
+
+Projected forward, a second retained copy is not affordable on a 74 GB disk:
+
+| Horizon  | One dump | keep=2    |
+| -------- | -------- | --------- |
+| +30 days | 4.26 GiB | 8.52 GiB  |
+| +90 days | 9.23 GiB | 18.46 GiB |
+
+One local copy is the restore-from-here path; the NAS provides depth. Note this
+is a **relocation of retention, not a reduction** -- the history now lives on
+the NAS, which is why the two halves are interlocked.
+
+### The interlock, and why it is not optional
+
+`rsync --delete` propagates source deletions. With `keep=1` on the host, a NAS
+job still passing `--delete` would leave exactly one copy at BOTH ends after the
+first pull -- strictly worse than before, and indistinguishable from success.
+
+So the NAS command had to change in the same window as the host deploy:
+
+```sh
+rsync -aHv --fuzzy --partial --no-perms --no-owner --no-group \
+  -e 'ssh -p 2269' \
+  fred@5.161.253.151:/mnt/discord-storage/ /volume1/discord/
+```
+
+`--delete` removed; `-a` replaces `-rlt` now that the explicit `--no-*` flags
+carry the DSM-compatibility intent; `-H` and `--partial` added for consistency
+with the other jobs and to make a 2 GB transfer resumable.
+
+**NAS-side retention is now mandatory**, since nothing else bounds growth:
+
+```sh
+find /volume1/discord/backups -name 'discord_db-*.sqlite' -mtime +30 -delete
+```
+
+The `-name` filter matters -- see the bug below.
+
+### Two defects fixed while in there
+
+**The old retention could delete unrelated files.** It was
+`find /mnt/discord-storage/backups -mtime +14 -type f -delete`, with no `-name`
+filter, so ANY file in that directory was on a 14-day deletion timer. There was
+one at the time: a manually created, root-owned 1.94 GB `dump.sqlite` that
+nothing in this repository creates, which would have been silently deleted on
+2026-09-02. Retention is now by count and globbed on the `discord_db-` prefix.
+
+Count-based also survives mtime changes, which matters because these files are
+moved by rsync and could be restored from the NAS with fresh timestamps.
+
+**Added an integrity gate.** At keep=1 the risk profile changes: a torn dump
+replacing the only retained copy leaves the host with nothing valid.
+`integrity_check` now runs on the `.part` file before publishing, and a failure
+deletes it and exits non-zero so the previous good copy survives untouched.
+
+### Verification
+
+Against fixtures before deploying: 14 old dumps pruned and the newest kept; an
+unrelated `dump.sqlite` left untouched; a corrupted source produced exit 1 with
+the previous good copy intact; and the stale `.part` left by that failure was
+self-healed by the next successful run.
+
+On the live host after deploying:
+
+| Check                    | Result                                                          |
+| ------------------------ | --------------------------------------------------------------- |
+| Unit                     | `success`, exit 0, 2m34s (integrity check on 2 GB dominates)    |
+| Pruned                   | Exactly 15 `discord_db-*.sqlite`, nothing else                  |
+| Surviving dump           | 1.83 GiB, `PRAGMA integrity_check` **ok**, matches live DB size |
+| Freshness metric         | `files=1`, within min=1 / max=2                                 |
+| Backup alerts            | none firing                                                     |
+| `DiskFillPredicted`      | **cleared**                                                     |
+| Free space in Prometheus | 22.0 -> 38.0 GB                                                 |
+
+### Timing, and a correction
+
+fredvps is `America/Denver` and **is** DST-corrected (`timedatectl` confirms
+MDT, UTC-6, NTP synced). Earlier parts of this document implied the clock
+offset was a fleet-wide condition; it is not. Every NixOS host in the fleet is
+`America/Denver` via `features/common/locale/default.nix`. **Only the NAS is
+fixed-offset**, and that is the single reason NAS-scheduled times need
+translating.
+
+The dump window is 01:00-01:15 MDT (`OnCalendar=01:00` plus 15m jitter), so the
+NAS pull is set to **0130**, i.e. 02:30 wall clock during DST and 01:30 after it
+ends -- after the producer in both cases, so no seasonal edit is needed. This is
+the same setting as the ADSB job, which is coincidence rather than design.
+
+Worth watching on the first night: both jobs now pull at 02:30 against the same
+slow RS818+, and the ADSB transfer is ~15 GiB. If they contend, move discord to
+0200; they are independent.
