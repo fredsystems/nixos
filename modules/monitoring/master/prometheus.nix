@@ -140,10 +140,51 @@ in
           # The grep is a second, independent assertion: a 200 whose body does
           # not contain a snapshot name means the API changed shape or returned
           # a JSON error with a success status, which -f alone would accept.
+          #
+          # WHY THE READINESS WAIT
+          #
+          # `after`/`wants` above order this unit against prometheus.service
+          # STARTING, not against it listening on 9090. Prometheus replays its
+          # WAL on startup and only binds once that finishes, which on this host
+          # takes appreciably longer than the 90-day TSDB makes obvious.
+          #
+          # That gap is reachable in practice, not in theory. This timer is
+          # Persistent=true, so any activation that has passed the day's
+          # OnCalendar triggers an immediate catch-up run -- and any change to
+          # Prometheus' own config (adding a rule file, for instance) restarts
+          # prometheus.service in the same activation. The two then race, curl
+          # gets ECONNREFUSED, and the unit fails: exactly what happened when
+          # this backup work was first deployed.
+          #
+          # Waiting on /-/ready rather than sleeping is what makes this
+          # deterministic. /-/ready is Prometheus' own readiness endpoint and
+          # returns 503 until the WAL replay completes, so this polls the actual
+          # precondition instead of guessing at a duration. 60 attempts at 2s
+          # bounds it at two minutes, after which failing is correct: at that
+          # point Prometheus really is broken and a silent skip would be the
+          # false signal this job exists to avoid.
           ExecStart = "${pkgs.writeShellScript "create-prometheus-snapshot" ''
             set -euo pipefail
 
-            response=$(${pkgs.curl}/bin/curl -sf --max-time 300 \
+            CURL=${pkgs.curl}/bin/curl
+
+            for _ in $(${pkgs.coreutils}/bin/seq 1 60); do
+              if $CURL -sf --max-time 5 http://localhost:9090/-/ready >/dev/null; then
+                break
+              fi
+              ${pkgs.coreutils}/bin/sleep 2
+            done
+
+            # Deliberately re-checked rather than tracking the loop's exit: if
+            # readiness never arrived, say so in the journal instead of letting
+            # the snapshot call fail with a bare connection error that looks
+            # like a networking fault.
+            if ! $CURL -sf --max-time 5 http://localhost:9090/-/ready >/dev/null; then
+              echo "prometheus did not become ready within 120s; not snapshotting" >&2
+              exit 1
+            fi
+
+            response=$($CURL -sf --max-time 300 \
               -XPOST http://localhost:9090/api/v1/admin/tsdb/snapshot)
 
             if ! printf '%s' "$response" | ${pkgs.gnugrep}/bin/grep -q '"name"'; then
