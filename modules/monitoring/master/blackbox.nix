@@ -165,6 +165,17 @@ let
     "https://jellyfin.int.fredsystems.org/" # -> fredhub 192.168.31.14:8096
     "https://karma.int.fredsystems.org/" # -> 127.0.0.1 (karma.nix)
 
+    # Synology DSM on the NAS. Verified 200 on `/` over both :5000 and :5001,
+    # so there is no redirect to follow -- this job's module follows them
+    # regardless, for dump978's sake.
+    #
+    # This one earns its probe for a reason the others do not have: its upstream
+    # is the only service behind this nginx that is NOT managed by this flake. A
+    # DSM update that moves a port, or an admin toggle that turns off the HTTPS
+    # listener, changes the proxy target with no commit in this repository to
+    # review and no `up` metric to drop. Nothing else here would report it.
+    "https://nas.int.fredsystems.org/" # -> NAS 192.168.31.16:5001 (DSM, TLS upstream)
+
     # AdGuard Home's admin UI, which answers 200 on / directly (verified from
     # sdrhub). Worth probing beyond the DNS probes above: those prove resolution
     # works, this proves the control plane is still reachable to fix it when it
@@ -507,8 +518,8 @@ in
 
       # `-secondary`, because every one of these shares the single
       # int.fredsystems.org wildcard with the authed job below. Without the
-      # suffix, one failed renewal of that wildcard would be reported ten
-      # times on ten instance labels.
+      # suffix, one failed renewal of that wildcard would be reported once per
+      # probed URL rather than once.
       (mkProbeJob "blackbox-https-internal-secondary" "https_2xx_internal" internalEndpoints)
 
       # No `-secondary` suffix, deliberately. The cert-expiry rules select
