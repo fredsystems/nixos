@@ -7,6 +7,7 @@
     ./hardware-configuration.nix
     ./frigate.nix
     ./nvidia.nix
+    ./cuda-onnxruntime.nix
     ../../../profiles/adsb-hub.nix
   ];
 
