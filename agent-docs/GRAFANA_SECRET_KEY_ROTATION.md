@@ -79,23 +79,41 @@ the new key, or it has not.
 
 ## Verifying a change
 
+Do this from a browser, not `curl` with credentials on the command line --
+both the session cookie and the admin password are secrets, and a shell
+command line is world-readable to anyone on the box via `/proc` or shell
+history for as long as it persists.
+
+1. **Grafana is up and serving with the new process.** Load
+   `https://grafana.int.fredsystems.org/login` -- expect the login page,
+   not a connection error.
+
+2. **An old session is rejected -- the user-visible proof the key
+   actually rotated.** In a browser tab that was logged in before the
+   deploy, reload any dashboard. Expect a redirect to the login page,
+   not the dashboard.
+
+3. **A fresh login still works.** Log in with the current admin
+   credentials in that same browser. Expect success.
+
+If you must script this (e.g. from an automation host with no browser),
+put the cookie and password in files with `chmod 600`, pass them via
+`curl`'s `-H @file` / `--data @file` forms, and delete the files
+immediately after:
+
 ```sh
-# Grafana is up and serving with the new process
-curl -s -o /dev/null -w '%{http_code}\n' \
-  https://grafana.int.fredsystems.org/login          # expect 200
+umask 077
+printf 'Cookie: grafana_session=%s\n' "$OLD_SESSION_COOKIE" >cookie.hdr
+printf '{"user":"admin","password":"%s"}\n' "$GRAFANA_PW" >login.json
 
-# an old session cookie is rejected -- the user-visible proof the key
-# actually rotated. Grab a cookie value from a browser session that
-# predates the deploy and confirm it no longer authenticates:
 curl -s -o /dev/null -w '%{http_code}\n' \
-  -H "Cookie: grafana_session=<OLD_SESSION_COOKIE>" \
-  https://grafana.int.fredsystems.org/api/user       # expect 401
+  -H @cookie.hdr https://grafana.int.fredsystems.org/api/user   # expect 401
 
-# a fresh login still works
 curl -s -o /dev/null -w '%{http_code}\n' \
-  -X POST -H 'Content-Type: application/json' \
-  -d '{"user":"admin","password":"<current grafana_pw>"}' \
-  https://grafana.int.fredsystems.org/login          # expect 200
+  -X POST -H 'Content-Type: application/json' --data @login.json \
+  https://grafana.int.fredsystems.org/login                     # expect 200
+
+rm -f cookie.hdr login.json
 ```
 
 Then check the journal once for the expected, harmless `data_keys`

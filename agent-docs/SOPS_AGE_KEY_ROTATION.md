@@ -121,16 +121,33 @@ Use when bringing up a new host that needs any secret from
 
 6. Deploy the new host and confirm it actually decrypted (the metadata
    check in step 4 proves sops *intends* the host to be able to
-   decrypt; it does not prove the host's own key file matches):
+   decrypt; it does not prove the host's own key file matches). The
+   secret to check and how it lands on disk differ by platform — sops
+   secrets are not deployed the same way on Darwin as on NixOS:
 
-   ```sh
-   ssh <newhost> 'test -s /run/secrets/fred-gpg && echo OK'
-   ```
+   - **Linux**: `fred-gpg` is the one every host with
+     `sops_secrets.enable_secrets.enable = true` gets via
+     `modules/secrets/sops.nix`, decrypted by `sops-nix` into
+     `/run/secrets`:
 
-   Pick any secret the new host's config actually declares in its
-   `sops.secrets` block — `fred-gpg` is the one every Linux host with
-   `sops_secrets.enable_secrets.enable = true` gets via
-   `modules/secrets/sops.nix`.
+     ```sh
+     ssh <newhost> 'test -s /run/secrets/fred-gpg && echo OK'
+     ```
+
+   - **Darwin**: `sops-nix`'s NixOS module is not in play; verify with
+     the host's own darwin-rebuild/home-manager activation output
+     instead, or decrypt directly on the host to prove its key file
+     works:
+
+     ```sh
+     ssh <newdarwinhost> \
+       'sops -d --extract '"'"'["monitoring"]["grafana_pw"]'"'"' \
+         ~/GitHub/nixos/modules/secrets/secrets.yaml >/dev/null && echo OK'
+     ```
+
+     Substitute any key path the new host's own age recipient can
+     decrypt; `monitoring.grafana_pw` is just an example that exists in
+     the file today.
 
 ## Procedure B: remove a compromised recipient
 
@@ -205,13 +222,28 @@ brand-new host: generate a fresh age keypair (Procedure A, step 1) and
 add it back under a fresh anchor. Never re-add the compromised public
 key.
 
-## Verifying every one of the 12 recipients can still decrypt
+## Verifying every current recipient can still decrypt
 
 The automated check only proves the *metadata* is internally
-consistent — that sops *intends* exactly these recipients to be able to
-decrypt. It cannot prove a given host's key file on disk still matches,
-so both steps below are required after any recipient change, not just
-one.
+consistent — that sops *intends* exactly the current recipients to be
+able to decrypt. It cannot prove a given host's key file on disk still
+matches, so both steps below are required after any recipient change,
+not just one.
+
+**The expected recipient count and host list are whatever this
+procedure just changed them to, not a number fixed in this document.**
+After Procedure A (add) the list is one longer and includes the new
+host; after Procedure B (remove) it is one shorter and must NOT include
+the host you just revoked — that host succeeding here would mean the
+removal did not take effect. Read the current list from `.sops.yaml`
+itself rather than trusting a count written down in a runbook:
+
+```sh
+count=$(yq '.keys | length' modules/secrets/.sops.yaml)
+hosts=$(yq '.keys[] | anchor' modules/secrets/.sops.yaml)
+echo "expected recipients: $count"
+echo "$hosts"
+```
 
 1. Run the three-way check:
 
@@ -219,39 +251,57 @@ one.
    bash scripts/check-sops-recipients.sh
    ```
 
-   Expect:
+   Expect `sops recipient consistency OK (<count> recipients, ...)`
+   where `<count>` matches the `count` computed above. A different
+   count, or a non-zero exit, means stop here — do not proceed to
+   redeploying the fleet with a `secrets.yaml` that does not match
+   `.sops.yaml`.
 
-   ```text
-   sops recipient consistency OK (12 recipients, keys/creation_rules/secrets.yaml agree)
-   ```
-
-   A count other than the number of recipients you expect, or a
-   non-zero exit, means stop here — do not proceed to redeploying the
-   fleet with a `secrets.yaml` that does not match `.sops.yaml`.
-
-2. Confirm actual decryption on every host that should still have
-   access. Run this from each host, not against a copy of the repo
-   elsewhere — the whole point is testing that host's own key file:
+2. Confirm actual decryption on every host in `$hosts` above. Do this
+   against the **deployed** commit's ciphertext on each host, not a
+   possibly-stale local checkout of the repo elsewhere — the whole
+   point is testing that host's own key file against the sops file it
+   actually runs with. Set the age identity explicitly so this cannot
+   silently fall back to some other key on the runner's `$PATH`/env
+   (sops's own default identity resolution), and accumulate failures
+   instead of only printing them, so one bad host cannot hide behind
+   later successes:
 
    ```sh
+   fail=0
    for host in maranello Daytona acarshub hfdlhub1 hfdlhub2 sdrhub \
      vdlmhub fredhub nvrhub; do
      echo "== $host =="
-     ssh "$host" 'cd ~/GitHub/nixos && sops -d modules/secrets/secrets.yaml >/dev/null && echo OK'
+     if ! ssh fred@"$host" '
+       cd ~/GitHub/nixos && git fetch -q && git checkout -q origin/main &&
+       SOPS_AGE_KEY_FILE=/home/fred/.config/sops/age/keys.txt \
+         sops -d modules/secrets/secrets.yaml >/dev/null && echo OK'; then
+       echo "FAILED: $host"
+       fail=1
+     fi
    done
 
    # fredvps uses a non-standard SSH port and a different target host --
    # see flake/hosts/servers.nix
-   ssh -p 2269 fredclausen.com \
-     'cd ~/GitHub/nixos && sops -d modules/secrets/secrets.yaml >/dev/null && echo OK'
+   if ! ssh -p 2269 fred@fredclausen.com '
+     cd ~/GitHub/nixos && git fetch -q && git checkout -q origin/main &&
+     SOPS_AGE_KEY_FILE=/home/fred/.config/sops/age/keys.txt \
+       sops -d modules/secrets/secrets.yaml >/dev/null && echo OK'; then
+     echo "FAILED: fredvps"
+     fail=1
+   fi
+
+   [ "$fail" -eq 0 ] || { echo "one or more hosts failed to decrypt -- do not proceed"; exit 1; }
    ```
 
    The two Darwin hosts (`Freds-MacBook-Pro`, `Freds-Mac-Studio`) are
-   often offline or unreachable over SSH; run the same `sops -d ... &&
-   echo OK` check locally on each the next time it is available, rather
-   than skipping it. Do not consider a recipient-set change fully
-   verified until all 12 have reported `OK` at least once since the
-   change.
+   often offline or unreachable over SSH; run the same check locally on
+   each the next time it is available, using
+   `SOPS_AGE_KEY_FILE=/Users/fred/.config/sops/age/keys.txt` (Darwin's
+   age key path differs from Linux's), rather than skipping it. Do not
+   consider a recipient-set change fully verified until every current
+   recipient has reported `OK` at least once since the change, and any
+   host you just removed has been confirmed to FAIL.
 
 ## Invariants
 
