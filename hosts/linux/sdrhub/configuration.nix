@@ -328,6 +328,90 @@ let
         '';
       };
     };
+
+    # Synology DSM on the RackStation, at 192.168.31.16 (the same host
+    # modules/data/nas-mounts.nix mounts /volume1/* from).
+    #
+    # The landing page used to link to http://192.168.31.20/rackstation -- a
+    # path nginx on THIS host has never served, so the link 404'd here without
+    # ever reaching the NAS.
+    #
+    # No `legacy` names, same reasoning as adguard and grafana: the old link was
+    # an address and a path rather than a name, so there is no `.lan` vhost to
+    # preserve, and inventing one would mean creating a plaintext entry point
+    # for the machine that stores everything.
+    #
+    # WHY THE UPSTREAM IS https ON 5001 RATHER THAN http ON 5000
+    #
+    # DSM's login is the NAS's admin credential. Proxying to :5000 would put it
+    # on the LAN in cleartext on the sdrhub -> NAS hop while the browser showed
+    # a padlock -- precisely the defect that moved ai and jellyfin off this host
+    # (see externalTlsHosts below and hosts/linux/fredhub/nginx.nix).
+    #
+    # There the fix was to remove the hop. That is not available here: DSM is not
+    # managed by this flake, so terminating TLS on the NAS would mean a
+    # hand-made reverse-proxy entry and a certificate maintained outside this
+    # repository, and until that was done by hand the name would serve a cert
+    # error. Encrypting the hop needs nothing on the NAS, because DSM already
+    # listens on 5001.
+    #
+    # It also keeps DSM's absolute self-links on https, since the connection DSM
+    # sees is https. Talking to :5000 would have it emit http:// URLs back to a
+    # forceSSL vhost.
+    #
+    # WHAT THIS DOES NOT ACHIEVE
+    #
+    # DSM presents Synology's stock certificate (CN=synology.com, issuer
+    # "Synology Inc. CA"), which chains to nothing nginx trusts. So this hop is
+    # encrypted but NOT authenticated: it stops a passive listener on the LAN,
+    # not an active machine-in-the-middle able to impersonate the NAS to nginx.
+    #
+    # Closing that gap needs a certificate nginx can actually check, which means
+    # either vendoring Synology's CA into this repo -- and re-vendoring it every
+    # time DSM regenerates -- or issuing a real certificate on the NAS. The
+    # latter is the real fix and is DSM-side work; this is deliberately the
+    # version that is strictly better than what it replaces with no manual step.
+    #
+    # The browser is unaffected by any of that. It validates only the wildcard
+    # this vhost serves, so nas.int.fredsystems.org shows no warning even though
+    # https://192.168.31.16:5001/ directly does.
+    nas = {
+      legacy = [ ];
+      vhost.locations."/" = {
+        proxyPass = "https://192.168.31.16:5001";
+        extraConfig = ''
+          # nginx's default, written out because this is a security posture and
+          # not an accident: see WHAT THIS DOES NOT ACHIEVE above. Turning it on
+          # without also supplying a trusted certificate would break the vhost
+          # entirely rather than harden it.
+          proxy_ssl_verify off;
+
+          # DSM pushes desktop notifications, File Station transfer progress and
+          # the Container Manager terminal over websockets. recommendedProxySettings
+          # sets `Connection ""` at http level, so the upgrade has to be
+          # re-established per location ($connection_upgrade lives in
+          # appendHttpConfig).
+          proxy_http_version 1.1;
+          proxy_set_header Upgrade $http_upgrade;
+          proxy_set_header Connection $connection_upgrade;
+
+          # File Station uploads are whole files, so there is no sensible
+          # ceiling to pick -- and the 1m default would reject nearly all of
+          # them with a 413 that DSM surfaces as a generic upload failure.
+          client_max_body_size 0;
+
+          # Stream to DSM rather than spooling a multi-gigabyte upload into
+          # nginx's temp directory in full before the NAS sees a byte.
+          proxy_request_buffering off;
+
+          # The defaults are 60s. A large transfer, a package install or a
+          # long-running DSM task legitimately outlasts that and would be cut
+          # off with a 504.
+          proxy_read_timeout 600s;
+          proxy_send_timeout 600s;
+        '';
+      };
+    };
   };
 
   # The serving half.
