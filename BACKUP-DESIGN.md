@@ -4,23 +4,27 @@ Working design document for the two items **excluded by explicit decision**
 from `AUDIT-2026-08-04.md` (see its "Scope exclusions, by explicit decision"),
 plus the NAS/UniFi monitoring question that surfaced alongside them.
 
-Status: **partially implemented.** Sequencing item 1 (source-side backup
-verification) has landed on branch `backup-verification`; everything else is
-still design. Open questions are collected in the last section and several of
-them block the remaining work.
+Status: **partially implemented.** Items 1 and 2 have landed and are deployed
+from branch `backup-verification`; the rest is still design. Open questions are
+collected in the last section and several of them block the remaining work.
 
-| Item                                   | State                                                                   |
-| -------------------------------------- | ----------------------------------------------------------------------- |
-| 1. Source-side verification            | LANDED. Freshness/size/retention metrics plus 8 alert rules. See Part 9 |
-| 2. ADSB SQLite dump handling           | Design only. Blocked on the endurance decision in Part 8                |
-| 3. Discord newest-only + NAS retention | Design only. Must land with the `--delete` removal                      |
-| 4. rsync flag normalisation            | Design only. Blocked on measuring the NAS                               |
-| 5. Restore test                        | Being handled separately by fred                                        |
-| 6-9                                    | Design only                                                             |
+| Item                                   | State                                                                          |
+| -------------------------------------- | ------------------------------------------------------------------------------ |
+| 1. Source-side verification            | LANDED + DEPLOYED. Freshness/size/retention metrics plus 8 alert rules. Part 9 |
+| 2. ADSB SQLite dump handling           | LANDED + DEPLOYED. `services.sqliteBackup`, both databases. Part 10            |
+| 3. Discord newest-only + NAS retention | Design only. Must land with the `--delete` removal                             |
+| 4. rsync flag normalisation            | Decided, see Part 10. ADSB job updated; the other two still to do              |
+| 5. Restore test                        | Being handled separately by fred                                               |
+| 6-9                                    | Design only                                                                    |
 
-Note that item 1 as landed covers the **source side only**. The NAS-side half
--- proving the pull happened -- is still open and is the larger remaining gap.
-See Part 9 for exactly where the boundary sits.
+Note that items 1 and 2 cover the **source side only**. The NAS-side half --
+proving the pull happened -- is still open and is the larger remaining gap. See
+Part 9 for exactly where the boundary sits.
+
+Two of this document's own assumptions were wrong and are corrected in Part 10:
+the write-endurance concern that "blocked" item 2 turned out to be immaterial
+(+2.7% of daily writes), and the real problem on sdrhub was journald write
+amplification, not backups.
 
 Scope of this document:
 
@@ -834,3 +838,166 @@ stay silent and the board would stay green, because sdrhub would still be
 writing perfectly good snapshots. Closing that gap needs either a ping from the
 NAS's own jobs or a fleet-side probe of the NAS, and both are still open
 questions in Part 8.
+
+---
+
+## Part 10 -- What landed for item 2, and the NAS-side changes
+
+Branch `backup-verification`. Deployed to sdrhub 2026-08-18 and verified
+against the live databases.
+
+### Correction: the endurance blocker was not real
+
+Part 3 listed sdrhub's NVMe write endurance as a genuine tradeoff blocking
+this work, and Part 8 made it a decision that had to be taken first. Measured,
+it is immaterial:
+
+|                                                 | Value          |
+| ----------------------------------------------- | -------------- |
+| Both dumps                                      | 2.82 GiB/night |
+| Measured daily writes on sdrhub, before any fix | ~110 GB/day    |
+| Cost of a nightly dump of both                  | **+2.7%**      |
+
+The endurance figure was real -- 55% consumed, and the drive's own counter
+moved 54% -> 55% in seven days -- but backups were never what was consuming it.
+Investigating that number found the actual cause, which had nothing to do with
+this document:
+
+- **journald write amplification.** 56.8 GB/day of block writes against 2.1
+  GB/day of log content and 0.8 GB/day of rotation. `/proc/<pid>/io` showed
+  `wchar` 2.18 MiB against `write_bytes` 236 GiB. journald mmaps the journal, so
+  records bypass `write()`, but every dirtied page is flushed -- and the index
+  pages get re-dirtied on every sync cycle.
+- **Every container's logs written twice.** `mkUnit` runs `docker run` without
+  `-d`, so the wrapper unit captured container stdout, while dockerd's journald
+  log driver independently wrote the same lines again.
+
+Both fixed separately (`SyncIntervalSec=15min`, `logDriver = "local"`, plus
+log-level changes). sdrhub's journald writes fell from **56.8 to 10.0 GB/day**,
+an 82% cut. Recorded here because this document is what sent us looking.
+
+Lesson worth keeping: the "expensive" change was 2.7%, and the thing actually
+consuming the disk was invisible until someone measured per-process writes
+rather than reasoning from the total.
+
+### What was built
+
+`modules/services/sqlite-backup.nix` -- `services.sqliteBackup`, a shared
+module rather than a third copy of `discord-backup.nix`'s script. Each database
+gets its own unit and timer, so one failing cannot stop another.
+
+Declared on sdrhub for both message databases, dumping to `/opt/adsb/backups`
+so the existing NAS pull collects them with no NAS-side path change.
+
+`discord-backup.nix` is deliberately **not** migrated onto this module yet. It
+is the only copy of a 1.9 GB database, and rewriting a working backup in the
+same change that introduces its replacement is how both end up broken. Do that
+once this has run in production for a while.
+
+Three decisions worth not re-litigating:
+
+- **Verify before publishing.** `integrity_check` runs on the `.part` file;
+  failure deletes it and exits non-zero, so the previous good dump stays the
+  newest published copy. This is Part 7 item 4 closed where it is cheapest.
+- **Uncompressed, and not `VACUUM INTO`.** gzip -1 takes 1.41 GiB to 0.47 GiB
+  in 14s, but a recompressed or rewritten file shares no blocks with last
+  night's, so rsync would retransfer all of it. Disk is not scarce (285 GB
+  free); NAS transfer time is.
+- **`keep = 3`, not 1.** The newest-only plan in Part 2 cannot land on its own
+  while the NAS passes `--delete`: one dump here would mean one dump there, and
+  the first pull would delete every older copy at both ends.
+
+### Deploy verification, 2026-08-18
+
+Run against the live databases, not fixtures:
+
+| Check                    | Result                                       |
+| ------------------------ | -------------------------------------------- |
+| Both units               | `success`, exit 0                            |
+| Duration                 | 22.7s (acarshub), 28.7s (acarshubv4)         |
+| Dumps                    | 1.51 GB + 1.51 GB in `/opt/adsb/backups`     |
+| `PRAGMA integrity_check` | **ok** on both                               |
+| Row counts               | 3,448,627 and 3,448,319                      |
+| Freshness metrics        | Both artifacts reporting, `scrape_success=1` |
+| Next scheduled fire      | 00:31:11 and 00:35:15 MDT                    |
+
+Pre-deploy testing against fixtures also confirmed: retention prunes to exactly
+`keep` oldest-first; a corrupted dump is rejected with "database disk image is
+malformed" rather than published; a missing source fails loudly; and a dump
+taken while a writer inserted 300 rows still passed `integrity_check` at a
+clean commit boundary.
+
+### The ADSB NAS command
+
+Updated and in use:
+
+```sh
+rsync -aHv --delete --fuzzy --partial \
+  --exclude='.htaccess' \
+  --exclude='data/acarshub/' \
+  --exclude='data/acarshubv4/' \
+  fred@192.168.31.20:/opt/adsb /volume1/docker
+```
+
+The two new excludes are the point of the change. `backups/` now holds a
+consistent copy of the same data, so copying the live WAL-mode files as well
+would mean transferring a knowingly-torn copy alongside a good one -- and
+restoring the wrong one yields "database disk image is malformed".
+
+Transfer volume is roughly unchanged: the tree is 14.88 GiB, the change drops
+2.83 GiB of live databases and adds 2.82 GiB of dumps. What changed is that
+what lands on the NAS is now restorable.
+
+**Excluded files are protected from `--delete`.** This is worth stating because
+it surprises people: on the first run after adding an exclude, the previously
+synced copies stay on the receiver forever rather than being cleaned up.
+Deleting excluded paths requires the separate `--delete-excluded` flag. The
+stale `data/acarshub*` copies on the NAS were therefore removed by hand, which
+was the correct call -- adding `--delete-excluded` would work but is a blunt
+instrument to leave in a nightly job.
+
+### rsync flags, reconciled (item 4)
+
+| Flag        | Decision     | Why                                                                                                                                                                                               |
+| ----------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `-a`        | keep         | Archive mode.                                                                                                                                                                                     |
+| `-H`        | **add**      | Preserves hardlinks. Load-bearing for the Prometheus job -- snapshots are hardlink farms, so without it ~31 nearly-free snapshots become ~31 full copies. Harmless on the other two.              |
+| `-v`        | keep         |                                                                                                                                                                                                   |
+| `--delete`  | keep for now | But see Part 2: it must come off the discord job in the same change as any newest-only retention.                                                                                                 |
+| `--fuzzy`   | **add**      | Finds a delta basis when the filename changed. This is what makes dated-filename backups incremental rather than full re-transfers, and is the most likely answer to "these jobs are super slow". |
+| `--partial` | **add**      | An interrupted multi-GB transfer resumes instead of restarting.                                                                                                                                   |
+| `-z`        | **no**       | Atom C2538 with 2 GB RAM. Compressing 1.5 GB of SQLite would likely be slower than the LAN.                                                                                                       |
+
+The discord job keeps its `--no-perms --no-owner --no-group` and
+`-e 'ssh -p 2269'`. Those are correct for a Linux-to-DSM copy and should not be
+propagated to the LAN jobs, which use `-a` legitimately.
+
+All three added flags long predate any rsync DSM 7.2 ships, so the
+no-new-rsync constraint holds. One caution: `-H` builds an in-memory hardlink
+map, so watch the first Prometheus run on a 2 GB non-ECC box. `--link-dest` is
+the fallback if it struggles.
+
+### Timing, and the DST trap
+
+sdrhub dumps at **00:30 MDT** plus up to 10 minutes of jitter (observed 00:31
+and 00:35).
+
+The NAS is not DST-corrected, so during DST a NAS-scheduled time is one hour
+behind wall clock:
+
+| Job        | NAS schedule    | Wall clock (MDT) | Collects                                |
+| ---------- | --------------- | ---------------- | --------------------------------------- |
+| ADSB       | **0130**        | 02:30            | Same night's dumps, ~2h after they land |
+| Prometheus | 0300            | 04:00            | Snapshot taken 00:10                    |
+| Discord    | 0100 (was 2100) | 02:00            | Same night's dump from 01:00-01:15      |
+
+The old ADSB schedule of 0000 would have been **01:00 wall clock, before the
+00:30 dumps existed on a DST day** -- it would have collected the previous
+night's. That is precisely the trap Part 0 exists to document.
+
+Moving discord from 2100 to 0100 also closes the ~21-hour lag it currently has
+behind its own backup.
+
+When DST ends the clocks realign and every NAS time shifts an hour later
+relative to the fleet. All three still work: 0130 becomes 01:30 wall clock,
+still comfortably after the dumps.
