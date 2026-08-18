@@ -132,6 +132,27 @@ let
         Restart = restartPolicy;
         TimeoutStartSec = 0;
 
+        # Per-container journal filtering, opt-in via `logFilterPatterns`.
+        #
+        # This exists for containers whose upstream image has no log-level
+        # control of its own. The alternative approaches are all worse: a
+        # per-container Docker log driver breaks alloy's journal-based
+        # ingestion into Loki (modules/monitoring/agent/alloy.nix relabels
+        # __journal__container_name, so a container logging anywhere other
+        # than the journal simply disappears from Loki), and piping through
+        # grep in ExecStart would mean the wrapper unit no longer execs docker
+        # directly.
+        #
+        # LogFilterPatterns is applied by journald at the point of ingestion,
+        # so a dropped line is never written to disk at all -- which is the
+        # entire point, since the cost being avoided is write amplification
+        # rather than disk footprint.
+        #
+        # Note the documented limitation: filtering applies to the unit's own
+        # log stream, not to messages systemd emits *about* the unit, so
+        # start/stop/failure records are always preserved.
+        LogFilterPatterns = c.logFilterPatterns or [ ];
+
         # This hardens the WRAPPER unit, not the container it runs. The
         # unit's own process only ever shells out to
         # `docker run|pull|rm|stop` against the Docker socket -- the
@@ -254,6 +275,13 @@ in
       - `volumes`, `tmpfs`, `ports` (lists)
       - `devices`, `deviceCgroupRules` (lists)
       - `restart` (default "always"), `exec`, `tty`, `extraDockerArgs`
+      - `logFilterPatterns` -- list of systemd `LogFilterPatterns=` entries,
+        applied to this container's journal stream. A pattern prefixed with
+        `~` is a deny pattern. Use this only for images with no log-level
+        control of their own; prefer configuring the application when it
+        offers the option. Because journald applies it at ingestion, matching
+        lines are never written to disk, so this reduces SSD write
+        amplification and not merely journal size.
 
       Anything else is a no-op. Add it here and to `mkUnit` if it is needed.
     '';
@@ -262,6 +290,83 @@ in
   config = lib.mkIf (cfg.containers != [ ]) {
     virtualisation.docker = {
       enable = true;
+
+      # Every container's output was being written to the journal TWICE.
+      #
+      # Measured on sdrhub 2026-08-18. All entries at a single timestamp, for
+      # one 80-line burst from acars2pos:
+      #
+      #   81 lines  from  docker          <- this unit's stdout
+      #   81 lines  from  7acfceb5aa97    <- same content, dockerd's log driver
+      #
+      # 162 journal entries for 81 lines of application output.
+      #
+      # The cause is structural, not per-container: mkUnit runs `docker run`
+      # WITHOUT -d, so the wrapper unit stays attached to the container's
+      # stdout for its whole lifetime and systemd captures it as
+      # docker-<name>.service output. Meanwhile dockerd's own logDriver
+      # (journald, the NixOS default -- see the correction in
+      # AUDIT-2026-08-04.md Part 3) independently wrote the identical lines a
+      # second time. Two writers, same bytes.
+      #
+      # That doubled journald write amplification, Loki ingestion, and 30 days
+      # of Loki storage, on all six container hosts.
+      #
+      # WHY THE DOCKERD COPY IS THE ONE THAT GOES
+      #
+      # This direction is load-bearing and was verified before changing it,
+      # because the intuitive choice is wrong. The two copies are NOT
+      # interchangeable:
+      #
+      #   * The wrapper copy lands as unit="docker-<name>.service". NINE Loki
+      #     alert rules select on `unit=~"docker-.*"`
+      #     (modules/monitoring/master/loki-ruler.nix) -- DecoderS6Caution,
+      #     UsbClaimInterface, SdrPlayServiceNotResponding, the decoder
+      #     message-rate rules -- and the "Container Logs" panel in
+      #     dashboards/system-logs.json queries the same selector.
+      #   * The dockerd copy lands as unit="docker.service", with nothing
+      #     selecting on it anywhere in this repo.
+      #
+      # Suppressing the wrapper copy instead would therefore have silently
+      # disabled nine alerts. Nothing would have caught it either:
+      # scripts/check-alert-metrics.sh validates Prometheus metrics, and these
+      # are Loki rules.
+      #
+      # Note also that alloy's `_CONTAINER_NAME` -> `container` relabel
+      # (modules/monitoring/agent/alloy.nix) yields nothing in practice --
+      # Loki's own /labels endpoint lists no `container` label at all -- so the
+      # dockerd copy's supposed advantage of carrying container metadata does
+      # not actually materialise. Verified against the live instance.
+      #
+      # Confirmed before landing that every container has a wrapper stream in
+      # Loki (all 31 docker-*.service units present), including xng and
+      # radarvirtuel, which had appeared only under docker.service in a
+      # narrower sample.
+      #
+      # `local` rather than `none`: it keeps `docker logs <name>` working for
+      # interactive debugging, which `none` would break. It is capped, unlike
+      # the json-file default, so it cannot become the disk filler that the
+      # audit rejected log-opts for. Container output still reaches the
+      # journal, and therefore Loki, via the wrapper unit.
+      # Set via the module's own logDriver option rather than
+      # daemon.settings.log-driver. Both work -- the module renders
+      # `log-driver = mkDefault cfg.logDriver`, so an explicit
+      # daemon.settings entry would override it -- but having the two disagree
+      # makes `config.virtualisation.docker.logDriver` report "journald" on a
+      # host that is not using it, which is exactly the kind of
+      # stated-versus-actual gap this repo keeps getting bitten by.
+      logDriver = "local";
+
+      # log-opts is only honoured by the json-file and local drivers, which is
+      # why the audit rejected it while the driver was journald
+      # (AUDIT-2026-08-04.md, "Items to not re-propose"). That rejection was
+      # correct then and is now superseded: under `local` these are live, and
+      # they are what keeps this from becoming the disk filler the audit was
+      # right to worry about.
+      daemon.settings.log-opts = {
+        max-size = "10m";
+        max-file = "3";
+      };
     };
 
     systemd.services = lib.foldl' (
