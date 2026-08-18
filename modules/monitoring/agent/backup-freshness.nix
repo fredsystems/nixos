@@ -175,17 +175,32 @@ let
   # Emitted per artifact by the scan loop below. Kept as a Nix list so the
   # generated shell is a flat sequence of assignments rather than a loop over
   # an associative array, which keeps it readable in `systemctl cat`.
+  # Escape a string for use as a Prometheus label VALUE.
+  #
+  # The exposition format requires backslash, double-quote and newline to be
+  # escaped inside a quoted label value, and it is unforgiving: one malformed
+  # sample makes the textfile collector reject the ENTIRE file, so a stray
+  # quote in one artifact's description would silently drop every backup metric
+  # this generator produces -- on every artifact, on that host. Exactly the
+  # false-signal class this module exists to remove.
+  #
+  # Done here, at eval time, rather than in shell: these values come from Nix
+  # and are static, so the cost is zero and the generated script stays readable.
+  # Backslash first, or it would double-escape the backslashes introduced by
+  # the later replacements.
+  escapeLabelValue = s: builtins.replaceStrings [ "\\" "\"" "\n" ] [ "\\\\" "\\\"" "\\n" ] s;
+
   scanArtifact =
     name: a:
     let
       findType = if a.kind == "directory" then "d" else "f";
     in
     ''
-      scan_artifact ${lib.escapeShellArg name} ${lib.escapeShellArg a.path} \
+      scan_artifact ${lib.escapeShellArg (escapeLabelValue name)} ${lib.escapeShellArg a.path} \
         ${lib.escapeShellArg a.pattern} ${findType} \
         ${toString a.maxAgeSeconds} ${toString a.minCount} \
         ${if a.maxCount == null then "-1" else toString a.maxCount} \
-        ${lib.escapeShellArg a.description}
+        ${lib.escapeShellArg (escapeLabelValue a.description)}
     '';
 
   # This module is imported by every agent (via profiles/adsb-hub.nix) and by
@@ -314,15 +329,26 @@ in
 
                 local newest_ts=0 newest_size=0 count=0 ok=0
 
-                if [ -d "$path" ]; then
+                # Readable AND searchable, not merely present. `-d` alone is not
+                # enough: a directory whose permissions were changed still
+                # satisfies it, while every `find` below silently returns
+                # nothing. That combination would publish
+                # scrape_success=1 with count=0, so BackupArtifactMissing would
+                # fire ("the job has never succeeded") for what is actually a
+                # permissions fault, and BackupArtifactScanFailing -- the rule
+                # that exists precisely for this -- would stay quiet.
+                #
+                # -r and -x are the two bits find needs: read to list entries,
+                # execute to stat them.
+                if [ -d "$path" ] && [ -r "$path" ] && [ -x "$path" ]; then
                   # -maxdepth 1 so a snapshot directory's own contents are never
                   # mistaken for additional snapshots. -printf '%T@' gives the
                   # mtime as a number we can sort on without parsing dates.
                   #
                   # 2>/dev/null on find, not on the whole pipeline: an
-                  # unreadable subdirectory should not turn a successful scan
-                  # into a failed one, but a genuinely absent path must (see the
-                  # -d test above, which is what distinguishes them).
+                  # unreadable SUBdirectory should not turn a successful scan
+                  # into a failed one, whereas an unreadable or absent top-level
+                  # path must -- that is what the guard above distinguishes.
                   local newest
                   newest=$(find "$path" -maxdepth 1 -mindepth 1 \
                              -type "$ftype" -name "$pattern" \

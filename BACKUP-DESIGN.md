@@ -4,9 +4,11 @@ Working design document for the two items **excluded by explicit decision**
 from `AUDIT-2026-08-04.md` (see its "Scope exclusions, by explicit decision"),
 plus the NAS/UniFi monitoring question that surfaced alongside them.
 
-Status: **partially implemented.** Items 1 and 2 have landed and are deployed
-from branch `backup-verification`; the rest is still design. Open questions are
-collected in the last section and several of them block the remaining work.
+Status: **partially implemented.** Items 1 through 4 have landed and are
+deployed from branch `backup-verification`; items 5 onward are still design.
+Open questions are collected in Part 8, which is now scoped to the REMAINING
+work -- several of its entries were answered by the deployments recorded in
+Parts 9 to 12, and are marked there.
 
 | Item                                   | State                                                                          |
 | -------------------------------------- | ------------------------------------------------------------------------------ |
@@ -70,6 +72,9 @@ changes twice a year.
 | ADSB pull    | 0000     | 01:00            | `sdrhub:/opt/adsb` -> `/volume1/docker`                |
 | Prom pull    | 0300     | 04:00            | `sdrhub:/var/lib/prometheus2/data/snapshots`           |
 | Discord pull | 2100     | 22:00            | `fredvps:/mnt/discord-storage/` -> `/volume1/discord/` |
+
+Those are the times **as found**. All three have since been rescheduled -- see
+Part 12 for the deployed set.
 
 ### The fleet-side jobs they depend on
 
@@ -576,7 +581,13 @@ policy question rather than an implementation one.
 
 ## Part 8 -- Open questions
 
-These block implementation. Grouped by what they block.
+Grouped by what they block.
+
+**Read this alongside Parts 9 to 12.** This part was written before any of the
+work landed, and the questions blocking items 1 to 4 have since been answered by
+measurement -- the endurance question most notably, which turned out to be
+immaterial (+2.7%). Entries below that concern items 1 to 4 are historical;
+those concerning the SNMP, UniFi and offsite work are still live.
 
 ### Blocking the NAS-side rsync changes
 
@@ -989,14 +1000,15 @@ behind wall clock:
 | ---------- | --------------- | ---------------- | --------------------------------------- |
 | ADSB       | **0130**        | 02:30            | Same night's dumps, ~2h after they land |
 | Prometheus | 0300            | 04:00            | Snapshot taken 00:10                    |
-| Discord    | 0100 (was 2100) | 02:00            | Same night's dump from 01:00-01:15      |
+| Discord    | 0130 (was 2100) | 02:30            | Same night's dump from 01:00-01:15      |
 
 The old ADSB schedule of 0000 would have been **01:00 wall clock, before the
 00:30 dumps existed on a DST day** -- it would have collected the previous
 night's. That is precisely the trap Part 0 exists to document.
 
-Moving discord from 2100 to 0100 also closes the ~21-hour lag it currently has
-behind its own backup.
+Moving discord from 2100 to 0130 also closes the ~21-hour lag it previously had
+behind its own backup. 0130 rather than 0100 so it does not race the dump's
+01:00-01:15 window; see Part 11.
 
 When DST ends the clocks realign and every NAS time shifts an hour later
 relative to the fleet. All three still work: 0130 becomes 01:30 wall clock,
@@ -1065,7 +1077,7 @@ with the other jobs and to make a 2 GB transfer resumable.
 **NAS-side retention is now mandatory**, since nothing else bounds growth:
 
 ```sh
-find /volume1/discord/backups -name 'discord_db-*.sqlite' -mtime +30 -delete
+find /volume1/discord/backups -name 'discord_db-*.sqlite' -type f -mtime +30 -delete
 ```
 
 The `-name` filter matters -- see the bug below.
@@ -1166,7 +1178,7 @@ Plus NAS-side retention for discord, which is now the only bound on its
 growth:
 
 ```sh
-find /volume1/discord/backups -name 'discord_db-*.sqlite' -mtime +30 -delete
+find /volume1/discord/backups -name 'discord_db-*.sqlite' -type f -mtime +30 -delete
 ```
 
 ### The differences between them are deliberate
