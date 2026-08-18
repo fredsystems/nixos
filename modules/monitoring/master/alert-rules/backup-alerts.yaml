@@ -1,0 +1,246 @@
+groups:
+  # Alerts about backup artifacts on the hosts that produce them.
+  #
+  # WHY THIS GROUP EXISTS
+  #
+  # Before it, every backup in this fleet was unverified. A stopped timer, a
+  # full disk, a broken sqlite3 invocation and a perfectly healthy night all
+  # produced the same observable state: nothing at all. That is the worst shape
+  # a backup can have, because it is indistinguishable from a working one right
+  # up until someone needs a restore. See BACKUP-DESIGN.md Part 5.
+  #
+  # WHAT THESE RULES DO NOT COVER
+  #
+  # Read this before trusting a green board. Every metric here is produced on
+  # the host that WRITES the backup (modules/monitoring/agent/backup-freshness.nix),
+  # so these rules prove the artifact exists, is fresh, is non-empty, and is
+  # being culled. They prove nothing whatsoever about whether the NAS pulled
+  # it -- a source-side metric cannot observe the destination.
+  #
+  # The NAS-side half is still open (BACKUP-DESIGN.md Part 8). Until it lands,
+  # "no backup alerts firing" means "the artifacts are being produced", not
+  # "the backups are safe".
+  #
+  # WHY THE AGE THRESHOLD IS A SERIES, NOT A CONSTANT
+  #
+  # The artifacts have genuinely different cadences and more are coming when
+  # the ADSB SQLite dumps land. Each one publishes its own limit as
+  # backup_artifact_max_age_seconds, and BackupArtifactStale compares against
+  # it with `on (hostname, backup) group_left ()`. Same idiom as
+  # SmartAvailableSpareLow in smart-alerts.yaml, which compares each drive
+  # against the threshold that drive itself reports rather than a constant that
+  # is wrong for two of six drives.
+  #
+  # So the thresholds live in Nix next to the job they describe, are visible in
+  # Prometheus, and one rule stays correct for every artifact.
+  #
+  # Rules deliberately do NOT pin hostname, following the convention in
+  # fail2ban-alerts.yaml and home-ip-alerts.yaml: any host that declares an
+  # artifact is covered automatically. The absent() rules are the exception,
+  # since they cannot work without naming what they expect.
+  #
+  # scripts/check-alert-metrics.sh will report all eight metrics here as
+  # MISSING until sdrhub and fredvps have been deployed, because nothing
+  # produces them before then. That is expected, and the script's own failure
+  # text says so. Re-run it after deploying; it should then resolve every one.
+  - name: backup-alerts
+    rules:
+      # The newest backup is older than the artifact's own declared limit.
+      #
+      # This is the rule that catches a backup job which has silently stopped
+      # producing -- the failure the whole module exists for.
+      #
+      # Guarded on scrape_success == 1 so a missing or unmounted directory
+      # cannot fire this. When the scan fails, the timestamp is written as 0,
+      # which makes `time() - 0` an enormous age and would otherwise report a
+      # stalled backup job when the real fault is a bad path. That conflation
+      # is exactly what BackupArtifactScanFailing exists to keep separate, and
+      # it is the same guard imageapi-metrics.nix uses for the same reason.
+      #
+      # critical, because a backup that is not being produced is not a backup,
+      # and every one of these guards data with no other copy.
+      #
+      # 1h: the generator runs every 15 minutes, so this is four consecutive
+      # confirmations. The thresholds themselves already carry hours of slack,
+      # so anything reaching this point is a real stall rather than jitter.
+      - alert: BackupArtifactStale
+        expr: |
+          (
+            time() - backup_artifact_newest_timestamp_seconds
+          )
+            > on (hostname, backup) group_left ()
+          backup_artifact_max_age_seconds
+          and on (hostname, backup) (backup_artifact_scrape_success == 1)
+        for: 1h
+        labels:
+          severity: critical
+        annotations:
+          summary: "Backup is stale on {{ $labels.hostname }} ({{ $labels.backup }})"
+          description: >-
+            The newest backup for {{ $labels.backup }} on {{ $labels.hostname }}
+            is older than its configured limit, so the job that produces it has
+            most likely stopped. Check that unit and its timer. This artifact is
+            guarding data with no other copy.
+
+      # The newest backup exists but is zero bytes.
+      #
+      # Separate from staleness on purpose, because it is the failure that
+      # looks healthiest: the file is present, its mtime is current, and every
+      # age-based check passes. A truncated sqlite3 .backup, a full disk, or a
+      # dump interrupted at the wrong moment all land here.
+      #
+      # This is not hypothetical for this fleet -- scripts/acarshub-db-repair.sh
+      # found a stale 5.6 GB backup that was deleted with no replacement, and
+      # AUDIT-2026-08-04.md Part 7 item 4 calls the whole class out.
+      #
+      # Guarded on scrape_success and on the artifact being non-empty, so it
+      # cannot double-fire with BackupArtifactMissing on a directory that
+      # legitimately has nothing in it yet.
+      - alert: BackupArtifactEmpty
+        expr: |
+          backup_artifact_newest_size_bytes == 0
+          and on (hostname, backup) (backup_artifact_scrape_success == 1)
+          and on (hostname, backup) (backup_artifact_files > 0)
+        for: 30m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Newest backup is empty on {{ $labels.hostname }} ({{ $labels.backup }})"
+          description: >-
+            The newest {{ $labels.backup }} backup on {{ $labels.hostname }} is
+            zero bytes. A file exists with a current timestamp, so every
+            age-based check passes while the backup is worthless. Check for a
+            full disk or a truncated dump.
+
+      # Fewer backups than the artifact says it should have.
+      #
+      # Catches "the directory is there and being scanned, but nothing has ever
+      # landed in it" -- a job that was declared and never ran successfully, or
+      # a retention sweep that deleted everything.
+      - alert: BackupArtifactMissing
+        expr: |
+          backup_artifact_files
+            < on (hostname, backup) group_left ()
+          backup_artifact_min_files
+          and on (hostname, backup) (backup_artifact_scrape_success == 1)
+        for: 1h
+        labels:
+          severity: critical
+        annotations:
+          summary: "Too few backups on {{ $labels.hostname }} ({{ $labels.backup }})"
+          description: >-
+            {{ $labels.backup }} on {{ $labels.hostname }} has fewer stored
+            backups than its configured minimum. Either the producing job has
+            never succeeded or a retention sweep has removed too much.
+
+      # More backups than the retention policy should allow.
+      #
+      # The half of retention everybody forgets. Culling that stops working
+      # does not look like a fault, it looks like more backups -- right up
+      # until the volume fills and every job on the box fails at once.
+      #
+      # This matters specifically because BACKUP-DESIGN.md Part 2 proposes
+      # moving the Discord cull from the VPS to the NAS. If that lands, this is
+      # the rule that catches the VPS-side sweep silently not happening.
+      #
+      # Skips artifacts with max_files == -1, the sentinel for "unset".
+      # warning rather than critical: the backups are all present and valid,
+      # this is a disk-space trajectory rather than a data-loss event.
+      - alert: BackupArtifactPilingUp
+        expr: |
+          backup_artifact_files
+            > on (hostname, backup) group_left ()
+          (backup_artifact_max_files > 0)
+          and on (hostname, backup) (backup_artifact_scrape_success == 1)
+        for: 6h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Backups are accumulating on {{ $labels.hostname }} ({{ $labels.backup }})"
+          description: >-
+            {{ $labels.backup }} on {{ $labels.hostname }} holds more backups
+            than its retention policy allows, so the sweep that prunes them has
+            probably stopped. Nothing is lost yet; the risk is filling the
+            volume, which would break every backup on this host at once.
+
+      # The artifact's directory could not be scanned at all.
+      #
+      # Distinct from every rule above: those mean the scan worked and found
+      # something wrong, this means the scan could not run. Usually a bad path,
+      # an unmounted volume, or a permissions change. Kept separate so a
+      # monitoring fault can never be reported as a data problem, and so the
+      # other rules can guard on it.
+      #
+      # warning, not critical: the backup may well be fine, we have stopped
+      # being able to see it. It is still urgent, because while this fires
+      # every other rule here is suppressed by its own guard.
+      - alert: BackupArtifactScanFailing
+        expr: backup_artifact_scrape_success == 0
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Cannot scan backup directory on {{ $labels.hostname }} ({{ $labels.backup }})"
+          description: >-
+            The freshness scan for {{ $labels.backup }} on
+            {{ $labels.hostname }} could not read its directory, so this backup
+            is unmonitored and the other backup alerts for it are suppressed.
+            Check the path exists and is mounted.
+
+      # The generator itself has stopped running.
+      #
+      # Without this, a dead timer leaves every metric above frozen at its last
+      # healthy value and the board stays green forever. Compares against
+      # time(), so it needs no companion series. Same reasoning and threshold
+      # shape as HomePublicIPCheckStale.
+      #
+      # The generator runs every 15 minutes, so 1h is four missed runs.
+      - alert: BackupFreshnessGeneratorStale
+        expr: time() - backup_freshness_timestamp_seconds > 3600
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Backup freshness generator has stopped on {{ $labels.hostname }}"
+          description: >-
+            backup-freshness-metric.service on {{ $labels.hostname }} last
+            wrote its textfile over an hour ago, so every backup metric from
+            this host is frozen at its last value and cannot be trusted. Check
+            the backup-freshness-metric timer and service.
+
+      # The series never appeared at all, per host that should have them.
+      #
+      # These must name their hosts, because absent() cannot express "on
+      # whichever host is supposed to have this". They catch what every rule
+      # above structurally cannot: a generator that was never deployed, or
+      # whose textfile was removed, produces no series for any of them to
+      # evaluate against, so a completely unmonitored backup looks identical to
+      # a healthy one.
+      #
+      # One rule per host rather than a loop, since the host set is small and
+      # explicit here is clearer than clever. Add a rule when a host starts
+      # declaring artifacts.
+      - alert: BackupFreshnessMissingSdrhub
+        expr: absent(backup_freshness_timestamp_seconds{hostname="sdrhub"})
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Backup freshness metrics absent for sdrhub"
+          description: >-
+            No backup_freshness_timestamp_seconds series exists for sdrhub, so
+            the Prometheus TSDB snapshots are either not being watched or not
+            being scraped. They are unmonitored while this fires.
+
+      - alert: BackupFreshnessMissingFredvps
+        expr: absent(backup_freshness_timestamp_seconds{hostname="fredvps"})
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Backup freshness metrics absent for fredvps"
+          description: >-
+            No backup_freshness_timestamp_seconds series exists for fredvps, so
+            the Discord database dumps are either not being watched or not being
+            scraped. The fleet's only copy of that database is unmonitored while
+            this fires.

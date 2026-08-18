@@ -1,0 +1,476 @@
+# promtool unit tests for the backup artifact rules.
+#
+# Gotcha, documented in smart-alerts-test.yaml and home-ip-alerts-test.yaml and
+# re-stated here because it bites every new file in this directory: rules
+# evaluate at the top-level evaluation_interval, but samples are spaced at each
+# test's own `interval`. If `interval` exceeds Prometheus' 5m lookback delta the
+# series is stale at most evaluation steps and a `for:` clause never accumulates
+# a continuous pending period. Keep every interval <= 5m and make input_series
+# long enough to cover the rule's `for:` plus eval_time.
+#
+# Specific to this file, and the reason several series below look odd:
+#
+#   * The age rules compare against time(), so timestamp values must be
+#     absolute epoch seconds consistent with the test clock, which starts at 0.
+#     A series holding 0 is therefore "written at epoch 0" and its age equals
+#     the clock. A healthy series has to ADVANCE in step with the clock instead,
+#     which is what `0+60x...` at a 1m interval does.
+#   * BackupArtifactStale compares two series with
+#     `on (hostname, backup) group_left ()`, so every test for it must supply
+#     BOTH backup_artifact_newest_timestamp_seconds AND
+#     backup_artifact_max_age_seconds with matching hostname/backup labels, plus
+#     backup_artifact_scrape_success for the guard. Omitting any one of the
+#     three makes the rule silently unevaluable, which would look like a passing
+#     "does not fire" test -- so the negative cases here are deliberately
+#     constructed to be genuinely evaluable rather than merely empty.
+#   * The threshold used throughout is 108000 (30h), matching what both real
+#     artifacts declare in Nix.
+rule_files:
+  - ../backup-alerts.yaml
+
+evaluation_interval: 1m
+
+tests:
+  #########################################################################
+  # BackupArtifactStale
+  #########################################################################
+  - interval: 5m
+    name: BackupArtifactStale fires once the newest backup passes its own limit
+    input_series:
+      # Frozen at epoch 0, so its age equals the test clock. The threshold is
+      # 108000s (30h) and the rule is strictly `>`, so the condition first
+      # becomes true just after t=30h and, with `for: 1h`, fires at 31h.
+      # Evaluated at 32h to leave margin.
+      - series: 'backup_artifact_newest_timestamp_seconds{hostname="fredvps", backup="discord-db", instance="fredvps:9100", job="node"}'
+        values: "0+0x400"
+      - series: 'backup_artifact_max_age_seconds{hostname="fredvps", backup="discord-db", instance="fredvps:9100", job="node"}'
+        values: "108000+0x400"
+      - series: 'backup_artifact_scrape_success{hostname="fredvps", backup="discord-db", instance="fredvps:9100", job="node"}'
+        values: "1+0x400"
+    alert_rule_test:
+      - eval_time: 32h
+        alertname: BackupArtifactStale
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              hostname: fredvps
+              backup: discord-db
+              instance: fredvps:9100
+              job: node
+            exp_annotations:
+              summary: "Backup is stale on fredvps (discord-db)"
+              description: >-
+                The newest backup for discord-db on fredvps is older than its
+                configured limit, so the job that produces it has most likely
+                stopped. Check that unit and its timer. This artifact is
+                guarding data with no other copy.
+
+  - interval: 5m
+    name: BackupArtifactStale tolerates the desc label and passes it through
+    input_series:
+      # The real generator attaches a `desc` label to the timestamp metric only
+      # (see the description option in backup-freshness.nix). That makes the two
+      # sides of the group_left join carry different label sets, which is
+      # exactly the shape that breaks a naive `on(...)` match -- so this pins
+      # that the join still works and that desc reaches the alert, where it
+      # tells the operator what would be lost.
+      - series: 'backup_artifact_newest_timestamp_seconds{hostname="fredvps", backup="discord-db", desc="Discord bot SQLite database dumps"}'
+        values: "0+0x400"
+      - series: 'backup_artifact_max_age_seconds{hostname="fredvps", backup="discord-db"}'
+        values: "108000+0x400"
+      - series: 'backup_artifact_scrape_success{hostname="fredvps", backup="discord-db"}'
+        values: "1+0x400"
+    alert_rule_test:
+      - eval_time: 32h
+        alertname: BackupArtifactStale
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              hostname: fredvps
+              backup: discord-db
+              desc: Discord bot SQLite database dumps
+            exp_annotations:
+              summary: "Backup is stale on fredvps (discord-db)"
+              description: >-
+                The newest backup for discord-db on fredvps is older than its
+                configured limit, so the job that produces it has most likely
+                stopped. Check that unit and its timer. This artifact is
+                guarding data with no other copy.
+
+  - interval: 5m
+    name: BackupArtifactStale stays quiet while the job keeps producing
+    input_series:
+      # Advances 300s per 5m sample, i.e. in step with the test clock, so the
+      # age stays at 0 and never approaches the threshold.
+      - series: 'backup_artifact_newest_timestamp_seconds{hostname="fredvps", backup="discord-db"}'
+        values: "0+300x400"
+      - series: 'backup_artifact_max_age_seconds{hostname="fredvps", backup="discord-db"}'
+        values: "108000+0x400"
+      - series: 'backup_artifact_scrape_success{hostname="fredvps", backup="discord-db"}'
+        values: "1+0x400"
+    alert_rule_test:
+      - eval_time: 32h
+        alertname: BackupArtifactStale
+        exp_alerts: []
+
+  - interval: 5m
+    name: BackupArtifactStale does not fire when the scan itself failed
+    input_series:
+      # This is the important negative case. A failed scan writes the timestamp
+      # as 0, which makes the age enormous -- exactly the shape that WOULD fire
+      # the rule without its scrape_success guard. This test pins that the guard
+      # works, so a bad path can never be reported as a stalled backup job.
+      - series: 'backup_artifact_newest_timestamp_seconds{hostname="fredvps", backup="discord-db"}'
+        values: "0+0x400"
+      - series: 'backup_artifact_max_age_seconds{hostname="fredvps", backup="discord-db"}'
+        values: "108000+0x400"
+      - series: 'backup_artifact_scrape_success{hostname="fredvps", backup="discord-db"}'
+        values: "0+0x400"
+    alert_rule_test:
+      - eval_time: 32h
+        alertname: BackupArtifactStale
+        exp_alerts: []
+
+  - interval: 5m
+    name: BackupArtifactStale respects each artifact's own threshold
+    input_series:
+      # Two artifacts, same age, different limits. Only the one whose own limit
+      # is exceeded may fire. This is the test that justifies the
+      # threshold-as-a-series design over a constant in the expression: with a
+      # hardcoded 30h, the 48h artifact would false-positive here.
+      - series: 'backup_artifact_newest_timestamp_seconds{hostname="sdrhub", backup="tight"}'
+        values: "0+0x500"
+      - series: 'backup_artifact_max_age_seconds{hostname="sdrhub", backup="tight"}'
+        values: "108000+0x500"
+      - series: 'backup_artifact_scrape_success{hostname="sdrhub", backup="tight"}'
+        values: "1+0x500"
+      - series: 'backup_artifact_newest_timestamp_seconds{hostname="sdrhub", backup="loose"}'
+        values: "0+0x500"
+      - series: 'backup_artifact_max_age_seconds{hostname="sdrhub", backup="loose"}'
+        values: "172800+0x500"
+      - series: 'backup_artifact_scrape_success{hostname="sdrhub", backup="loose"}'
+        values: "1+0x500"
+    alert_rule_test:
+      - eval_time: 32h
+        alertname: BackupArtifactStale
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              hostname: sdrhub
+              backup: tight
+            exp_annotations:
+              summary: "Backup is stale on sdrhub (tight)"
+              description: >-
+                The newest backup for tight on sdrhub is older than its
+                configured limit, so the job that produces it has most likely
+                stopped. Check that unit and its timer. This artifact is
+                guarding data with no other copy.
+
+  #########################################################################
+  # BackupArtifactEmpty
+  #########################################################################
+  - interval: 1m
+    name: BackupArtifactEmpty fires on a zero-byte newest backup
+    input_series:
+      - series: 'backup_artifact_newest_size_bytes{hostname="fredvps", backup="discord-db"}'
+        values: "0+0x60"
+      - series: 'backup_artifact_scrape_success{hostname="fredvps", backup="discord-db"}'
+        values: "1+0x60"
+      - series: 'backup_artifact_files{hostname="fredvps", backup="discord-db"}'
+        values: "14+0x60"
+    alert_rule_test:
+      - eval_time: 45m
+        alertname: BackupArtifactEmpty
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              hostname: fredvps
+              backup: discord-db
+            exp_annotations:
+              summary: "Newest backup is empty on fredvps (discord-db)"
+              description: >-
+                The newest discord-db backup on fredvps is zero bytes. A file
+                exists with a current timestamp, so every age-based check passes
+                while the backup is worthless. Check for a full disk or a
+                truncated dump.
+
+  - interval: 1m
+    name: BackupArtifactEmpty stays quiet on a healthy non-empty backup
+    input_series:
+      - series: 'backup_artifact_newest_size_bytes{hostname="fredvps", backup="discord-db"}'
+        values: "819200+0x60"
+      - series: 'backup_artifact_scrape_success{hostname="fredvps", backup="discord-db"}'
+        values: "1+0x60"
+      - series: 'backup_artifact_files{hostname="fredvps", backup="discord-db"}'
+        values: "14+0x60"
+    alert_rule_test:
+      - eval_time: 45m
+        alertname: BackupArtifactEmpty
+        exp_alerts: []
+
+  - interval: 1m
+    name: BackupArtifactEmpty does not fire on an empty directory
+    input_series:
+      # files == 0 means there is no backup at all, which is
+      # BackupArtifactMissing's job. Without the `files > 0` guard both rules
+      # would fire for one fault and the operator would get two pages
+      # describing different problems.
+      - series: 'backup_artifact_newest_size_bytes{hostname="fredvps", backup="discord-db"}'
+        values: "0+0x60"
+      - series: 'backup_artifact_scrape_success{hostname="fredvps", backup="discord-db"}'
+        values: "1+0x60"
+      - series: 'backup_artifact_files{hostname="fredvps", backup="discord-db"}'
+        values: "0+0x60"
+    alert_rule_test:
+      - eval_time: 45m
+        alertname: BackupArtifactEmpty
+        exp_alerts: []
+
+  #########################################################################
+  # BackupArtifactMissing
+  #########################################################################
+  - interval: 5m
+    name: BackupArtifactMissing fires when no backups exist
+    input_series:
+      - series: 'backup_artifact_files{hostname="sdrhub", backup="prometheus-tsdb"}'
+        values: "0+0x40"
+      - series: 'backup_artifact_min_files{hostname="sdrhub", backup="prometheus-tsdb"}'
+        values: "1+0x40"
+      - series: 'backup_artifact_scrape_success{hostname="sdrhub", backup="prometheus-tsdb"}'
+        values: "1+0x40"
+    alert_rule_test:
+      - eval_time: 2h
+        alertname: BackupArtifactMissing
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              hostname: sdrhub
+              backup: prometheus-tsdb
+            exp_annotations:
+              summary: "Too few backups on sdrhub (prometheus-tsdb)"
+              description: >-
+                prometheus-tsdb on sdrhub has fewer stored backups than its
+                configured minimum. Either the producing job has never succeeded
+                or a retention sweep has removed too much.
+
+  - interval: 5m
+    name: BackupArtifactMissing stays quiet at the minimum
+    input_series:
+      # Exactly at the minimum. The rule is strictly `<`, so this must not
+      # fire -- an off-by-one here would alert permanently on any artifact
+      # sitting at its floor.
+      - series: 'backup_artifact_files{hostname="sdrhub", backup="prometheus-tsdb"}'
+        values: "1+0x40"
+      - series: 'backup_artifact_min_files{hostname="sdrhub", backup="prometheus-tsdb"}'
+        values: "1+0x40"
+      - series: 'backup_artifact_scrape_success{hostname="sdrhub", backup="prometheus-tsdb"}'
+        values: "1+0x40"
+    alert_rule_test:
+      - eval_time: 2h
+        alertname: BackupArtifactMissing
+        exp_alerts: []
+
+  #########################################################################
+  # BackupArtifactPilingUp
+  #########################################################################
+  - interval: 5m
+    name: BackupArtifactPilingUp fires when retention stops culling
+    input_series:
+      - series: 'backup_artifact_files{hostname="fredvps", backup="discord-db"}'
+        values: "25+0x120"
+      - series: 'backup_artifact_max_files{hostname="fredvps", backup="discord-db"}'
+        values: "20+0x120"
+      - series: 'backup_artifact_scrape_success{hostname="fredvps", backup="discord-db"}'
+        values: "1+0x120"
+    alert_rule_test:
+      - eval_time: 8h
+        alertname: BackupArtifactPilingUp
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              hostname: fredvps
+              backup: discord-db
+            exp_annotations:
+              summary: "Backups are accumulating on fredvps (discord-db)"
+              description: >-
+                discord-db on fredvps holds more backups than its retention
+                policy allows, so the sweep that prunes them has probably
+                stopped. Nothing is lost yet; the risk is filling the volume,
+                which would break every backup on this host at once.
+
+  - interval: 5m
+    name: BackupArtifactPilingUp stays quiet at the ceiling
+    input_series:
+      - series: 'backup_artifact_files{hostname="fredvps", backup="discord-db"}'
+        values: "20+0x120"
+      - series: 'backup_artifact_max_files{hostname="fredvps", backup="discord-db"}'
+        values: "20+0x120"
+      - series: 'backup_artifact_scrape_success{hostname="fredvps", backup="discord-db"}'
+        values: "1+0x120"
+    alert_rule_test:
+      - eval_time: 8h
+        alertname: BackupArtifactPilingUp
+        exp_alerts: []
+
+  - interval: 5m
+    name: BackupArtifactPilingUp ignores artifacts with no configured ceiling
+    input_series:
+      # -1 is the sentinel for "unset". The rule filters on
+      # `backup_artifact_max_files > 0`, so this must not fire no matter how
+      # many backups accumulate. Without that filter every count above -1 would
+      # alert, i.e. always.
+      - series: 'backup_artifact_files{hostname="sdrhub", backup="unbounded"}'
+        values: "500+0x120"
+      - series: 'backup_artifact_max_files{hostname="sdrhub", backup="unbounded"}'
+        values: "-1+0x120"
+      - series: 'backup_artifact_scrape_success{hostname="sdrhub", backup="unbounded"}'
+        values: "1+0x120"
+    alert_rule_test:
+      - eval_time: 8h
+        alertname: BackupArtifactPilingUp
+        exp_alerts: []
+
+  #########################################################################
+  # BackupArtifactScanFailing
+  #########################################################################
+  - interval: 5m
+    name: BackupArtifactScanFailing fires when the directory cannot be read
+    input_series:
+      - series: 'backup_artifact_scrape_success{hostname="sdrhub", backup="prometheus-tsdb"}'
+        values: "0+0x40"
+    alert_rule_test:
+      - eval_time: 2h
+        alertname: BackupArtifactScanFailing
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              hostname: sdrhub
+              backup: prometheus-tsdb
+            exp_annotations:
+              summary: "Cannot scan backup directory on sdrhub (prometheus-tsdb)"
+              description: >-
+                The freshness scan for prometheus-tsdb on sdrhub could not read
+                its directory, so this backup is unmonitored and the other
+                backup alerts for it are suppressed. Check the path exists and
+                is mounted.
+
+  - interval: 5m
+    name: BackupArtifactScanFailing stays quiet on a successful scan
+    input_series:
+      - series: 'backup_artifact_scrape_success{hostname="sdrhub", backup="prometheus-tsdb"}'
+        values: "1+0x40"
+    alert_rule_test:
+      - eval_time: 2h
+        alertname: BackupArtifactScanFailing
+        exp_alerts: []
+
+  #########################################################################
+  # BackupFreshnessGeneratorStale
+  #########################################################################
+  - interval: 5m
+    name: BackupFreshnessGeneratorStale fires when the textfile stops advancing
+    input_series:
+      # Frozen at epoch 0, so its age equals the test clock. Threshold is 3600
+      # and `for` is 30m, so it fires at 90m+. Evaluated at 2h.
+      - series: 'backup_freshness_timestamp_seconds{hostname="sdrhub", instance="sdrhub.local:9100", job="node"}'
+        values: "0+0x40"
+    alert_rule_test:
+      - eval_time: 2h
+        alertname: BackupFreshnessGeneratorStale
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              hostname: sdrhub
+              instance: sdrhub.local:9100
+              job: node
+            exp_annotations:
+              summary: "Backup freshness generator has stopped on sdrhub"
+              description: >-
+                backup-freshness-metric.service on sdrhub last wrote its
+                textfile over an hour ago, so every backup metric from this host
+                is frozen at its last value and cannot be trusted. Check the
+                backup-freshness-metric timer and service.
+
+  - interval: 5m
+    name: BackupFreshnessGeneratorStale stays quiet while the timer runs
+    input_series:
+      # Advances 300s per 5m sample, in step with the test clock.
+      - series: 'backup_freshness_timestamp_seconds{hostname="sdrhub"}'
+        values: "0+300x40"
+    alert_rule_test:
+      - eval_time: 2h
+        alertname: BackupFreshnessGeneratorStale
+        exp_alerts: []
+
+  #########################################################################
+  # BackupFreshnessMissing{Sdrhub,Fredvps}
+  #########################################################################
+  - interval: 5m
+    name: BackupFreshnessMissingSdrhub fires when sdrhub reports nothing
+    input_series:
+      # An unrelated series so there is something to evaluate against while
+      # backup_freshness_timestamp_seconds{hostname="sdrhub"} is genuinely
+      # absent. Note this also has to NOT satisfy the fredvps rule, so the
+      # hostname here is deliberately neither.
+      - series: 'up{hostname="acarshub", instance="acarshub.local:9100", job="node"}'
+        values: "1+0x40"
+    alert_rule_test:
+      - eval_time: 2h
+        alertname: BackupFreshnessMissingSdrhub
+        exp_alerts:
+          # hostname is present even though no series is: absent() synthesises
+          # the labels named in its own matcher, so the alert carries
+          # hostname="sdrhub". Pinned here deliberately -- it means alert
+          # routing by hostname keeps working for a host that has gone silent,
+          # which is exactly when routing matters most.
+          - exp_labels:
+              severity: warning
+              hostname: sdrhub
+            exp_annotations:
+              summary: "Backup freshness metrics absent for sdrhub"
+              description: >-
+                No backup_freshness_timestamp_seconds series exists for sdrhub,
+                so the Prometheus TSDB snapshots are either not being watched or
+                not being scraped. They are unmonitored while this fires.
+
+  - interval: 5m
+    name: BackupFreshnessMissingSdrhub stays quiet once the series exists
+    input_series:
+      - series: 'backup_freshness_timestamp_seconds{hostname="sdrhub"}'
+        values: "0+300x40"
+    alert_rule_test:
+      - eval_time: 2h
+        alertname: BackupFreshnessMissingSdrhub
+        exp_alerts: []
+
+  - interval: 5m
+    name: BackupFreshnessMissingFredvps fires when fredvps reports nothing
+    input_series:
+      - series: 'up{hostname="acarshub", instance="acarshub.local:9100", job="node"}'
+        values: "1+0x40"
+    alert_rule_test:
+      - eval_time: 2h
+        alertname: BackupFreshnessMissingFredvps
+        exp_alerts:
+          # See the note on the sdrhub case above: absent() synthesises
+          # hostname from its own matcher.
+          - exp_labels:
+              severity: warning
+              hostname: fredvps
+            exp_annotations:
+              summary: "Backup freshness metrics absent for fredvps"
+              description: >-
+                No backup_freshness_timestamp_seconds series exists for fredvps,
+                so the Discord database dumps are either not being watched or not
+                being scraped. The fleet's only copy of that database is
+                unmonitored while this fires.
+
+  - interval: 5m
+    name: BackupFreshnessMissingFredvps stays quiet once the series exists
+    input_series:
+      - series: 'backup_freshness_timestamp_seconds{hostname="fredvps"}'
+        values: "0+300x40"
+    alert_rule_test:
+      - eval_time: 2h
+        alertname: BackupFreshnessMissingFredvps
+        exp_alerts: []
