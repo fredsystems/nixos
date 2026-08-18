@@ -27,11 +27,20 @@
   hostName,
   hmModules ? [ ],
   extraModules ? [ ],
-  stateVersion ? "25.05",
+  stateVersion,
   system ? "aarch64-darwin",
 }:
 let
   isDarwin = true;
+
+  # Same contract as mkSystem, which had a format guard while this path had
+  # none. On Darwin this value feeds home-manager's home.stateVersion only --
+  # nix-darwin's own system.stateVersion is a small integer set in
+  # profiles/darwin.nix -- but a typo is just as wrong here. Raised in review
+  # on PR #2243.
+  checkedStateVersion =
+    import ./check-state-version.nix "mkDarwinSystem: host '${hostName}'"
+      stateVersion;
 in
 darwin.lib.darwinSystem {
   specialArgs = {
@@ -44,8 +53,8 @@ darwin.lib.darwinSystem {
       github_email
       github_signing_key
       hmlib
-      stateVersion
       ;
+    stateVersion = checkedStateVersion;
 
     inherit isDarwin;
     sopsNixInput = inputs.sops-nix;
@@ -94,9 +103,9 @@ darwin.lib.darwinSystem {
             github_signing_key
             catppuccin
             nixvim
-            stateVersion
             isDarwin
             ;
+          stateVersion = checkedStateVersion;
           catppuccinInput = catppuccin;
           nixYaziPluginsInput = nix-yazi-plugins;
         };

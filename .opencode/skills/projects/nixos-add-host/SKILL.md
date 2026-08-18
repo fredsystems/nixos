@@ -99,6 +99,6 @@ must be wired by hand before that discovery does what you want.
   change.
 - Adding the host would push the CI matrix size past anything that's
   been tested in parallel before. Mention it.
-- The host needs hardware-specific firmware changes
-  (`firmware.nix`). That file is classified `global` for CI, so a
-  firmware change triggers a full rebuild -- worth flagging.
+- The host needs a change to a file CI classifies `global` (e.g.
+  `flake.nix`), since that triggers a rebuild of every host rather
+  than just the new one -- worth flagging.

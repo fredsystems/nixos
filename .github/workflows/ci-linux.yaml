@@ -114,7 +114,7 @@ jobs:
           while IFS= read -r file; do
             [ -z "$file" ] && continue
             case "$file" in
-              flake.nix|firmware.nix)
+              flake.nix)
                 global=true ;;
               flake.lock)
                 flake_lock_changed=true ;;

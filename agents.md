@@ -21,7 +21,6 @@ and HFDL decoders.
 .
 ├── flake.nix              # Flake inputs and top-level outputs
 ├── flake.lock             # Pinned input revisions
-├── firmware.nix           # Firmware blobs (triggers global rebuild)
 ├── flake/                 # Output wiring (imported by flake.nix)
 │   ├── lib/               # mkSystem, mkDarwinSystem helpers
 │   ├── hosts/

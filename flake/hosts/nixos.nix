@@ -28,6 +28,7 @@
 {
   Daytona = self.lib.mkSystem {
     hostName = "daytona";
+    stateVersion = "24.11";
     isDesktop = true;
     isLaptop = true;
     hmModules = [
@@ -43,6 +44,7 @@
 
   maranello = self.lib.mkSystem {
     hostName = "maranello";
+    stateVersion = "24.11";
     isDesktop = true;
     # wayle is not focus-aware: OSD/notification popups are pinned to the
     # bottom-left monitor of the 2x2 grid (connector DP-3, EDID "ASUSTek
@@ -66,7 +68,9 @@
   name: node:
   self.lib.mkSystem {
     hostName = name;
-    stateVersion = node.stateVersion or "24.11";
+    # No `or` fallback, deliberately: a node that forgets stateVersion must
+    # fail loudly rather than silently inherit one. See flake/lib/mk-system.nix.
+    inherit (node) stateVersion;
     extraUsers = node.extraUsers or [ ];
     pkgsInput = node.pkgsInput or nixpkgs-stable;
     hmInput = node.hmInput or home-manager-stable;

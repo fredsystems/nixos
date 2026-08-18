@@ -43,7 +43,7 @@ in
       ###############################################################
       # dumpvdl2-1
       ###############################################################
-      {
+      (config.services.adsb.mkSdrContainer {
         name = "dumpvdl2-1";
         image = "ghcr.io/sdr-enthusiasts/docker-dumpvdl2:latest-build-431@sha256:b2c39bdfd3741f3c37b21d507577d5e485d658f2c9f260e9eadcdd88eaf65812";
 
@@ -54,24 +54,19 @@ in
           config.sops.secrets."docker/vdlmhub/dumpvdl2-1.env".path
         ];
 
-        deviceCgroupRules = [
-          "c 189:* rwm"
-        ];
-
         tmpfs = [
-          "/run:exec,size=64M"
           "/var/log"
         ];
 
         volumes = [
           "/dev:/dev"
         ];
-      }
+      })
 
       ###############################################################
       # dumpvdl2-2
       ###############################################################
-      {
+      (config.services.adsb.mkSdrContainer {
         name = "dumpvdl2-2";
         image = "ghcr.io/sdr-enthusiasts/docker-dumpvdl2:latest-build-431@sha256:b2c39bdfd3741f3c37b21d507577d5e485d658f2c9f260e9eadcdd88eaf65812";
 
@@ -82,24 +77,19 @@ in
           config.sops.secrets."docker/vdlmhub/dumpvdl2-2.env".path
         ];
 
-        deviceCgroupRules = [
-          "c 189:* rwm"
-        ];
-
         tmpfs = [
-          "/run:exec,size=64M"
           "/var/log"
         ];
 
         volumes = [
           "/dev:/dev"
         ];
-      }
+      })
 
       ###############################################################
       # dumpvdl2-3
       ###############################################################
-      {
+      (config.services.adsb.mkSdrContainer {
         name = "dumpvdl2-3";
         image = "ghcr.io/sdr-enthusiasts/docker-dumpvdl2:latest-build-431@sha256:b2c39bdfd3741f3c37b21d507577d5e485d658f2c9f260e9eadcdd88eaf65812";
 
@@ -110,24 +100,19 @@ in
           config.sops.secrets."docker/vdlmhub/dumpvdl2-3.env".path
         ];
 
-        deviceCgroupRules = [
-          "c 189:* rwm"
-        ];
-
         tmpfs = [
-          "/run:exec,size=64M"
           "/var/log"
         ];
 
         volumes = [
           "/dev:/dev"
         ];
-      }
+      })
 
       ###############################################################
       # dumpvdl2-4
       ###############################################################
-      {
+      (config.services.adsb.mkSdrContainer {
         name = "dumpvdl2-4";
         image = "ghcr.io/sdr-enthusiasts/docker-dumpvdl2:latest-build-431@sha256:b2c39bdfd3741f3c37b21d507577d5e485d658f2c9f260e9eadcdd88eaf65812";
 
@@ -138,19 +123,14 @@ in
           config.sops.secrets."docker/vdlmhub/dumpvdl2-4.env".path
         ];
 
-        deviceCgroupRules = [
-          "c 189:* rwm"
-        ];
-
         tmpfs = [
-          "/run:exec,size=64M"
           "/var/log"
         ];
 
         volumes = [
           "/dev:/dev"
         ];
-      }
+      })
     ];
   };
 }

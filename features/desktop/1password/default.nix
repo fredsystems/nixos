@@ -13,6 +13,11 @@ in
   };
 
   config = lib.mkIf cfg.enable {
+    nixpkgsUnfree.allowed = [
+      "1password"
+      "1password-cli"
+    ];
+
     programs._1password.enable = true;
     programs._1password-gui = {
       enable = true;

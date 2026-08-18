@@ -142,7 +142,7 @@ jobs:
                 ;; # other CI/GH files don't affect darwin builds
               hosts/darwin/*)
                 machine_files_arr+=("$file") ;;
-              hosts/linux/*|firmware.nix)
+              hosts/linux/*)
                 ;; # linux-only, skip
             esac
           done <<< "$changed_files"

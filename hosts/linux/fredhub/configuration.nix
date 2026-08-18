@@ -24,11 +24,12 @@ in
     ./nginx.nix
   ];
 
-  nixpkgs.config.allowUnfreePredicate =
-    pkg:
-    builtins.elem (lib.getName pkg) [
-      "open-webui"
-    ];
+  # open-webui's nixpkgsUnfree.allowed entry is contributed by
+  # features/ai/lammacpp/default.nix itself (mkIf ai.local-llm.enable), so no
+  # entry is needed here. The near-identical predicate in the `let` above is
+  # NOT a duplicate of that: this one configures a separate
+  # `import nixpkgs { }` instance for unstable packages, which the NixOS
+  # module system never reaches.
 
   ai = {
     local-llm = {

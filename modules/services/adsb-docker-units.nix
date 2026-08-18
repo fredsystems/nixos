@@ -28,6 +28,42 @@ let
 
   mkDeviceFlags = devs: lib.concatStringsSep " " (map (d: ''--device="${d}"'') devs);
 
+  # Common SDR device-access boilerplate, opt-in per container.
+  #
+  # `c 189:* rwm` is the USB char-device major number every SDR dongle on
+  # these hosts (RTL-SDR, SDRplay RSP, Airspy) shows up under, and
+  # `/run:exec,size=64M` is the writable+executable /run every one of those
+  # decoders needs for its own PID file / control socket. Both were being
+  # copy-pasted verbatim into every SDR container across sdrhub, hfdlhub1,
+  # vdlmhub and acarshub.
+  #
+  # Deliberately opt-in (call mkSdrContainer instead of writing a plain
+  # attrset) rather than folded into mkUnit's defaults: most containers on
+  # these hosts are feeders, UIs and sidecars that never touch the hardware,
+  # so applying this to every container would be wrong for the majority of
+  # them.
+  #
+  # A container needing more than the defaults lists its own
+  # `deviceCgroupRules` / `tmpfs` exactly as it would on a plain attrset --
+  # mkSdrContainer appends them after the defaults rather than replacing
+  # them, so e.g. `tmpfs = [ "/var/log" ]` here becomes
+  # `[ "/run:exec,size=64M" "/var/log" ]` in the final container.
+  #
+  # Containers whose device access needs differ from this shape entirely
+  # (ultrafeeder's /run tmpfs is 256M with different sibling mounts;
+  # dump978's is a different path altogether) do not fit "defaults ++
+  # extras" and are left as plain attrsets rather than forced through here.
+  sdrDeviceCgroupRulesDefault = [ "c 189:* rwm" ];
+  sdrTmpfsDefault = [ "/run:exec,size=64M" ];
+
+  mkSdrContainer =
+    c:
+    c
+    // {
+      deviceCgroupRules = sdrDeviceCgroupRulesDefault ++ (c.deviceCgroupRules or [ ]);
+      tmpfs = sdrTmpfsDefault ++ (c.tmpfs or [ ]);
+    };
+
   mkUnit =
     c:
     let
@@ -130,6 +166,36 @@ let
     };
 in
 {
+  options.services.adsb.mkSdrContainer = lib.mkOption {
+    type = lib.types.raw;
+    readOnly = true;
+    internal = true;
+    default = mkSdrContainer;
+    description = ''
+      Helper function, not configuration data: takes a container attrset
+      (the same shape accepted by `services.adsb.containers`) and returns
+      one with the common SDR `deviceCgroupRules` / `tmpfs` boilerplate
+      merged in ahead of anything the caller supplies for those two keys.
+
+      Usage in a host configuration:
+
+        services.adsb.containers = [
+          (config.services.adsb.mkSdrContainer {
+            name = "dumphfdl-1";
+            image = "...";
+            tmpfs = [ "/var/log" "/tmp" ]; # appended after the SDR defaults
+            volumes = [ "/dev:/dev" ];
+          })
+        ];
+
+      Opt-in only: most containers on these hosts (feeders, UIs, sidecars)
+      never touch SDR hardware, so this must never apply automatically.
+      See the `mkSdrContainer` definition in this file for exactly what it
+      merges and why some SDR containers (ultrafeeder, dump978) still use a
+      plain attrset instead.
+    '';
+  };
+
   options.services.adsb.containers = lib.mkOption {
     type = lib.types.listOf lib.types.attrs;
     default = [ ];

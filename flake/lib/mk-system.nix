@@ -25,7 +25,7 @@
 #   hostName             – the machine hostname (required)
 #   hmModules        = [] – extra Home Manager modules for the primary user
 #   extraModules     = [] – extra NixOS modules appended after the baseline
-#   stateVersion     = "24.11"
+#   stateVersion         – REQUIRED, no default. See the note below.
 #   system           = "x86_64-linux"
 #   extraUsers       = []
 #   pkgsInput        = inputs.nixpkgs          (nixos-unstable)
@@ -67,7 +67,7 @@
   hostName,
   hmModules ? [ ],
   extraModules ? [ ],
-  stateVersion ? "24.11",
+  stateVersion,
   system ? "x86_64-linux",
   extraUsers ? [ ],
   pkgsInput ? inputs.nixpkgs,
@@ -83,6 +83,11 @@
 let
   isDarwin = pkgsInput.lib.hasSuffix "darwin" system;
 
+  # stateVersion is required and format-checked. The validator is shared with
+  # mkDarwinSystem and colmena so the three construction paths cannot drift
+  # into enforcing different contracts. See flake/lib/check-state-version.nix.
+  checkedStateVersion = import ./check-state-version.nix "mkSystem: host '${hostName}'" stateVersion;
+
   _specialArgs = {
     inherit
       inputs
@@ -93,7 +98,6 @@ let
       github_signing_key
       hmlib
       system
-      stateVersion
       agentNodes
       agentTargets
       agentScrapeMap
@@ -108,6 +112,7 @@ let
       kernelPkgsInput
       isDarwin
       ;
+    stateVersion = checkedStateVersion;
 
     catppuccinWallpapers = self.packages.${system}.catppuccin-wallpapers;
   };
@@ -186,9 +191,9 @@ let
             github_signing_key
             catppuccinInput
             nixYaziPluginsInput
-            stateVersion
             isDarwin
             ;
+          stateVersion = checkedStateVersion;
           inherit (inputs)
             catppuccin
             nixvim

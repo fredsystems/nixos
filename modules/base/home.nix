@@ -73,42 +73,10 @@ in
   ##########################################################################
   ## .gitconfig — fully generated
   ##########################################################################
-  home.file.".gitconfig".text = ''
-    [filter "lfs"]
-        required = true
-        clean = git-lfs clean -- %f
-        smudge = git-lfs smudge -- %f
-        process = git-lfs filter-process
-
-    [user]
-        name = ${verbose_name}
-        email = ${github_email}
-
-    [commit]
-        gpgsign = false
-
-    [gpg]
-        program = /run/current-system/sw/bin/gpg
-        format = ssh
-
-    [core]
-        pager = delta
-
-    [interactive]
-        diffFilter = delta --color-only
-
-    [delta]
-        navigate = true
-        side-by-side = true
-
-    [merge]
-        conflictstyle = diff3
-
-    [diff]
-        colorMoved = default
-    [include]
-        path = ~/.config/git/signing.conf
-  '';
+  home.file.".gitconfig".text = import ../../modules/lib/gitconfig-template.nix {
+    name = verbose_name;
+    email = github_email;
+  };
 
   home.file.".config/git/yubikey-map" = {
     text = yubikeyMapText + "\n";

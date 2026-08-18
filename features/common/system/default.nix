@@ -67,14 +67,6 @@
       };
     };
 
-    nixpkgs.config = {
-      permittedInsecurePackages = [
-        "openssl-1.1.1w"
-      ];
-
-      allowUnfree = true;
-    };
-
     security.polkit.enable = true;
     security.polkit.extraConfig = ''
       polkit.addRule(function(action, subject) {
