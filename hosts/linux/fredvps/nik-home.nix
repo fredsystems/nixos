@@ -9,7 +9,7 @@
 }:
 let
   username = "nik";
-  homeDir = "/home/${username}";
+  homeDir = import ../../../modules/lib/home-dir.nix { inherit username; };
   nikVerboseName = "Nik";
   nikGithubEmail = "nik@placeholder.example"; # TODO: replace with real email (github: shake-py)
 in
@@ -27,41 +27,9 @@ in
     homeDirectory = homeDir;
 
     # Mirrors modules/base/home.nix — gitconfig fully generated
-    file.".gitconfig".text = ''
-      [filter "lfs"]
-          required = true
-          clean = git-lfs clean -- %f
-          smudge = git-lfs smudge -- %f
-          process = git-lfs filter-process
-
-      [user]
-          name = ${nikVerboseName}
-          email = ${nikGithubEmail}
-
-      [commit]
-          gpgsign = false
-
-      [gpg]
-          program = /run/current-system/sw/bin/gpg
-          format = ssh
-
-      [core]
-          pager = delta
-
-      [interactive]
-          diffFilter = delta --color-only
-
-      [delta]
-          navigate = true
-          side-by-side = true
-
-      [merge]
-          conflictstyle = diff3
-
-      [diff]
-          colorMoved = default
-      [include]
-          path = ~/.config/git/signing.conf
-    '';
+    file.".gitconfig".text = import ../../../modules/lib/gitconfig-template.nix {
+      name = nikVerboseName;
+      email = nikGithubEmail;
+    };
   };
 }

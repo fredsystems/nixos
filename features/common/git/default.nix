@@ -16,16 +16,14 @@ let
 in
 {
   config = {
-    environment.systemPackages =
-      with pkgs;
-      [
-        git
-        gh
-        gnupg
-        delta
-      ]
-      ++ lib.optional isLinux pinentry-tty
-      ++ lib.optional isDarwin pinentry_mac;
+    environment.systemPackages = [
+      pkgs.git
+      pkgs.gh
+      pkgs.gnupg
+      pkgs.delta
+    ]
+    ++ lib.optional isLinux pkgs.pinentry-tty
+    ++ lib.optional isDarwin pkgs.pinentry_mac;
 
     programs.gnupg.agent = {
       enable = true;
@@ -35,7 +33,10 @@ in
     home-manager.users = lib.genAttrs allUsers (
       uname:
       let
-        homeDir = if isDarwin then "/Users/${uname}" else "/home/${uname}";
+        homeDir = import ../../../modules/lib/home-dir.nix {
+          username = uname;
+          inherit isDarwin;
+        };
       in
       {
         programs.diff-so-fancy = {

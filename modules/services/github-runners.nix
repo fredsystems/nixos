@@ -6,8 +6,6 @@
   ...
 }:
 
-with lib;
-
 let
   cfg = config.ci.githubRunners;
   hostname = config.networking.hostName;
@@ -225,7 +223,7 @@ let
         --name "$RUNNER_NAME" \
         --labels "self-hosted,macOS,ARM64" \
         --work "$WORK_DIR/_work" \
-        ${optionalString ephemeral "--ephemeral"} \
+        ${lib.optionalString ephemeral "--ephemeral"} \
         --replace
 
       # Run the runner (blocks until job completes if ephemeral, or until stopped)
@@ -253,13 +251,13 @@ let
       };
     };
 
-  runnersList = mapAttrsToList mkRunner cfg.runners;
+  runnersList = lib.mapAttrsToList mkRunner cfg.runners;
 
   # Build the full list of all runners (auto-generated + custom)
   allRunners =
     let
       prefix = if isDarwin then "darwin" else "nixos";
-      autoRunners = genList (i: {
+      autoRunners = lib.genList (i: {
         id = "runner-${toString (i + 1)}";
         name = "${prefix}-${hostname}-runner-${toString (i + 1)}";
         tokenFile = cfg.defaultTokenFile;
@@ -284,49 +282,49 @@ in
   ###### OPTIONS ######
 
   options.ci.githubRunners = {
-    enable = mkEnableOption "GitHub self-hosted runners with cleanup";
+    enable = lib.mkEnableOption "GitHub self-hosted runners with cleanup";
 
-    repo = mkOption {
-      type = types.str;
+    repo = lib.mkOption {
+      type = lib.types.str;
       example = "FredSystems/nixos";
       description = "GitHub repo (owner/name) runners are registered to.";
     };
 
-    defaultTokenFile = mkOption {
-      type = types.path;
+    defaultTokenFile = lib.mkOption {
+      type = lib.types.path;
       description = "Default GitHub token file path.";
     };
 
-    runnerCount = mkOption {
-      type = types.int;
+    runnerCount = lib.mkOption {
+      type = lib.types.int;
       default = 0;
       description = "Number of auto-generated runners (runner-1, runner-2, etc.). Set to 0 to disable auto-generation.";
     };
 
-    runners = mkOption {
-      type = types.attrsOf (
-        types.submodule {
+    runners = lib.mkOption {
+      type = lib.types.attrsOf (
+        lib.types.submodule {
           options = {
-            name = mkOption {
-              type = types.nullOr types.str;
+            name = lib.mkOption {
+              type = lib.types.nullOr lib.types.str;
               default = null;
               description = "Explicit runner name (defaults to <platform>-<host>-<id>).";
             };
 
-            url = mkOption {
-              type = types.nullOr types.str;
+            url = lib.mkOption {
+              type = lib.types.nullOr lib.types.str;
               default = null;
               description = "GitHub repository URL override.";
             };
 
-            tokenFile = mkOption {
-              type = types.nullOr types.path;
+            tokenFile = lib.mkOption {
+              type = lib.types.nullOr lib.types.path;
               default = null;
               description = "Token file override for this runner.";
             };
 
-            ephemeral = mkOption {
-              type = types.bool;
+            ephemeral = lib.mkOption {
+              type = lib.types.bool;
               default = true;
               description = "Whether the runner is ephemeral.";
             };
@@ -340,7 +338,7 @@ in
 
   ###### IMPLEMENTATION ######
 
-  config = mkIf cfg.enable (
+  config = lib.mkIf cfg.enable (
     {
       # ── Shared ────────────────────────────────────────────────────────
       environment.systemPackages = [
@@ -351,14 +349,14 @@ in
     }
 
     # ── Linux (NixOS) ────────────────────────────────────────────────
-    # Uses optionalAttrs (not mkIf) because systemd.services and
+    # Uses lib.optionalAttrs (not lib.mkIf) because systemd.services and
     # services.github-runners do not exist as options in nix-darwin.
-    // optionalAttrs isLinux {
+    // lib.optionalAttrs isLinux {
       # Generate services.github-runners entries
-      services.github-runners = mkMerge [
+      services.github-runners = lib.mkMerge [
         # Auto-generated runners based on runnerCount
-        (listToAttrs (
-          genList (i: {
+        (lib.listToAttrs (
+          lib.genList (i: {
             name = "runner-${toString (i + 1)}";
             value = {
               enable = true;
@@ -371,7 +369,7 @@ in
         ))
 
         # Custom runners from the runners attrset
-        (listToAttrs (
+        (lib.listToAttrs (
           map (r: {
             name = r.id;
             inherit (r) value;
@@ -383,8 +381,8 @@ in
       systemd.services =
         let
           # Auto-generated runner services
-          autoRunnerServices = listToAttrs (
-            genList (i: {
+          autoRunnerServices = lib.listToAttrs (
+            lib.genList (i: {
               name = "github-runner-runner-${toString (i + 1)}";
               value = {
                 serviceConfig = {
@@ -397,7 +395,7 @@ in
           );
 
           # Custom runner services
-          customRunnerServices = foldl' (
+          customRunnerServices = lib.foldl' (
             acc: r:
             let
               svcName = "github-runner-${r.id}";
@@ -415,7 +413,7 @@ in
             }
           ) { } runnersList;
         in
-        mkMerge [
+        lib.mkMerge [
           autoRunnerServices
           customRunnerServices
           {
@@ -449,17 +447,17 @@ in
     }
 
     # ── Darwin (launchd) ─────────────────────────────────────────────
-    # Uses optionalAttrs (not mkIf) because launchd.daemons does not
+    # Uses lib.optionalAttrs (not lib.mkIf) because launchd.daemons does not
     # exist as an option in NixOS.
-    // optionalAttrs isDarwin {
+    // lib.optionalAttrs isDarwin {
       # Ensure the runner working directory exists
       system.activationScripts.postActivation.text =
         let
           mkDir = r: "mkdir -p /var/lib/github-runners/${r.name}";
         in
-        concatStringsSep "\n" (map mkDir allRunners);
+        lib.concatStringsSep "\n" (map mkDir allRunners);
 
-      launchd.daemons = listToAttrs (
+      launchd.daemons = lib.listToAttrs (
         map (r: {
           name = "github-runner-${r.id}";
           value = {
@@ -491,7 +489,7 @@ in
 
               # Set PATH so the runner can find nix and other tools
               EnvironmentVariables = {
-                PATH = concatStringsSep ":" [
+                PATH = lib.concatStringsSep ":" [
                   "/run/current-system/sw/bin"
                   "/nix/var/nix/profiles/default/bin"
                   "/usr/local/bin"
