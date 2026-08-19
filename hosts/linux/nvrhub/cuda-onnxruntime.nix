@@ -23,6 +23,56 @@
 # libraries -- on hosts that will never run an inference. `nixpkgs.overlays` is
 # a list option, so a host can contribute its own; this one is scoped to nvrhub
 # and nothing else sees it.
+#
+# ── MAINTENANCE COST, AND THE PIN THIS DELIBERATELY DOES NOT HAVE ──────────
+#
+# onnxruntime with CUDA is a genuinely long build, and it is not a one-time
+# cost: the derivation changes whenever its version or any of its inputs move,
+# including a stdenv bump. That was measured rather than guessed, by computing
+# the derivation hash at each nixpkgs-stable revision this repo actually pinned:
+#
+#   2026-07-04  dfjb634r
+#   2026-07-12  dfjb634r   unchanged
+#   2026-07-18  dfjb634r   unchanged
+#   2026-07-25  4sj5iwmy   rebuild
+#   2026-07-30  4sj5iwmy   unchanged
+#   2026-08-05  5rrsv93m   rebuild
+#   2026-08-10  gravh5pp   rebuild
+#   2026-08-15  gravh5pp   unchanged
+#
+# Three rebuilds in 42 days, so roughly fortnightly; a wider 100-day sample
+# suggested slower, so call it every two to four weeks depending on whether a
+# mass rebuild lands. For scale, `nixpkgs-stable` itself moves about every 2.2
+# days in this repo (241 distinct revisions over 530 days), so the large
+# majority of input bumps do NOT touch this.
+#
+# Each such change also drags Frigate and keras with it, because both depend on
+# python3Packages.onnxruntime -- see the keras note further down.
+#
+# WHO PAYS. Not nvrhub, and not any other host: Attic substitutes the result.
+# The cost lands on CI, because ci-linux.yaml builds nvrhub's toplevel, so the
+# self-hosted runner performs this compile whenever the derivation moves unless
+# the cache was primed first.
+#
+# THE OBVIOUS FIX, NOT APPLIED YET. modules/system/kernel-pin.nix already solves
+# exactly this shape of problem for the kernel, and its header states the
+# reasoning in terms that transfer directly -- it decouples an expensive,
+# reboot-requiring component from weekly auto-merged nixpkgs-stable churn so it
+# lands on its own manual cadence. An `nixpkgs-onnxruntime` input pinned the
+# same way would mean this rebuilds only when deliberately bumped, at a moment
+# chosen for priming Attic first.
+#
+# It is deliberately NOT done yet. The rebuild frequency above is inferred from
+# sampled derivation hashes, not from watching real CI runs, and the actual
+# question is how much a rebuild HURTS in practice -- whether the runner absorbs
+# it or times out. Pinning now would hide that signal permanently and buy a
+# maintenance burden (a fourth place needing input-category sync, plus
+# onnxruntime security fixes no longer arriving automatically) against a cost
+# that has not been observed. Let CI hit it a few times first.
+#
+# REVISIT WHEN: a CI run fails or times out on this build, or the runner's disk
+# budget suffers, or the fortnightly cadence proves to be a weekly one. At that
+# point the pin is the answer and kernel-pin.nix is the template.
 _: {
   nixpkgs.config = {
     # Build device code for ONE architecture: sm_86, which is GA104, which is
