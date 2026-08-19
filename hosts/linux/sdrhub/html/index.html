@@ -1,135 +1,833 @@
 <!doctype html>
-<html>
+<html lang="en">
   <head>
-    <title>Fred's ADSB Hub</title>
+    <meta charset="utf-8" />
+    <title>Fred's SDR Hub</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link
-      rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.3.1/css/all.min.css"
-      integrity="sha512-QeR2VH+lsBE5LSAe1Q5EnTBbe7XTBubt8dG93Y7gidSgdMCr8nVqKcfKAMyN96SV8KDbZVTDXChatu5G2KQGzg=="
-      crossorigin="anonymous"
-      referrerpolicy="no-referrer"
-    />
+    <meta name="color-scheme" content="dark" />
+
+    <!--
+      LCARS-styled landing page, Catppuccin Mocha palette.
+
+      EVERYTHING HERE IS LOCAL, ON PURPOSE.
+
+      This page previously pulled Font Awesome from cdnjs.cloudflare.com. The
+      comment block above `migratedVhosts` in ../configuration.nix documents
+      this page as part of the escape hatch for a DNS/AdGuard fault -- and in
+      exactly that situation a CDN name does not resolve, so the icons
+      silently vanished from the page whose job is to help debug the outage.
+      No external origin is referenced any more: no CDN, no webfont service,
+      no analytics. Keep it that way.
+
+      Fonts are subsetted and committed under ./fonts/. They are regenerated
+      by ../../../../scripts/gen-sdrhub-fonts.sh, which also explains why
+      they are committed bytes rather than a build-time derivation. ADDING AN
+      ICON HERE REQUIRES ADDING ITS CODEPOINT TO THAT SCRIPT and re-running
+      it, otherwise the glyph is not in the subset and renders as a blank
+      box.
+
+      Icons are addressed by Font Awesome's PRIVATE-USE codepoints, never the
+      emoji ones -- FA7 maps many icons to both, and a browser may satisfy
+      the emoji codepoint from a colour emoji font instead of this face.
+    -->
+
     <style>
-          body {
-            background-color: #1e1e2e;
-            width: 35em;
-            margin: 0 auto;
-            font-family: Tahoma, Verdana, Arial, sans-serif;
-            color: #cdd6f4;
-          }
-          a,
-          a:visited {
-            text-decoration: none;
-            color: #cdd6f4;
-          }
-          li::marker {
-            /* content: "\f072 "; FontAwesome Unicode */
-            /* font-family: FontAwesome; */
-            color: #a6e3a1;
-          }
-          li::before {
-            content: "\f072 "; /* FontAwesome Unicode */
-            font-family: FontAwesome;
-            color: #a6e3a1;
-          }
-          li.ad::before {
-            content: "\f641 "; /* FontAwesome Unicode */
-            font-family: FontAwesome;
-            color: #a6e3a1;
-          }
-          li.computer::before {
-            content: "\e4e5 "; /* FontAwesome Unicode */
-            font-family: FontAwesome;
-            color: #a6e3a1;
-          }
-          li.history::before {
-            content: "\f1da "; /* FontAwesome Unicode */
-            font-family: FontAwesome;
-            color: #a6e3a1;
-          }
-          li.tower::before {
-            content: "\f519 "; /* FontAwesome Unicode */
-            font-family: FontAwesome;
-            color: #a6e3a1;
-          }
-          li.bell::before {
-            content: "\f0f3 "; /* FontAwesome Unicode */
-            font-family: FontAwesome;
-            color: #a6e3a1;
-          }
-          li.chart::before {
-            content: "\e473 "; /* FontAwesome Unicode */
-            font-family: FontAwesome;
-            color: #a6e3a1;
-          }
-          li.tv::before {
-            content: "\f26c "; /* FontAwesome Unicode */
-            font-family: FontAwesome;
-            color: #a6e3a1;
-          }
-          li.camera::before {
-            content: "\f03d "; /* FontAwesome Unicode */
-            font-family: FontAwesome;
-            color: #a6e3a1;
-          }
+      /* Subsetted faces; see ./fonts/ and scripts/gen-sdrhub-fonts.sh. */
+      @font-face {
+        font-family: "Antonio";
+        src: url("fonts/antonio.woff2") format("woff2");
+        font-weight: 100 700;
+        font-display: block;
       }
+      @font-face {
+        font-family: "JetBrains Mono";
+        src: url("fonts/jetbrains-mono.woff2") format("woff2");
+        font-weight: 100 800;
+        font-display: block;
+      }
+      /*
+        font-display: block on the icon faces rather than swap. There is no
+        sensible fallback glyph for an icon -- a swap period renders tofu --
+        and these files are 3 KB served from the LAN.
+      */
+      @font-face {
+        font-family: "FA Solid";
+        src: url("fonts/fa-solid.woff2") format("woff2");
+        font-weight: 900;
+        font-display: block;
+      }
+      @font-face {
+        font-family: "FA Brands";
+        src: url("fonts/fa-brands.woff2") format("woff2");
+        font-weight: 400;
+        font-display: block;
+      }
+
+      :root {
+        /* Catppuccin Mocha. The LCARS palette maps onto it unusually well:
+           peach and mauve sit almost exactly where the canonical Okudagram
+           orange and lilac do. */
+        --crust: #11111b;
+        --surface0: #313244;
+        --surface1: #45475a;
+        --overlay0: #6c7086;
+        --text: #cdd6f4;
+        --subtext0: #a6adc8;
+        --peach: #fab387;
+        --mauve: #cba6f7;
+        --blue: #89b4fa;
+        --teal: #94e2d5;
+        --yellow: #f9e2af;
+        --red: #f38ba8;
+        --green: #a6e3a1;
+        --sapphire: #74c7ec;
+
+        --rail: 190px;
+        --gap: 8px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        padding: 18px;
+        background: var(--crust);
+        color: var(--text);
+        font-family: "Antonio", "Arial Narrow", sans-serif;
+        letter-spacing: 0.06em;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      /* Icons come from data-i so no per-icon CSS class is needed. The
+         attribute holds the literal character, set in the HTML below. */
+      .ic::before {
+        font-family: "FA Solid";
+        font-weight: 900;
+        content: attr(data-i);
+        font-style: normal;
+        letter-spacing: 0;
+      }
+      .ic.br::before {
+        font-family: "FA Brands";
+        font-weight: 400;
+      }
+
+      a:focus-visible,
+      input:focus-visible {
+        outline: 2px solid var(--text);
+        outline-offset: 2px;
+      }
+
+      .lcars {
+        max-width: 1500px;
+        margin: 0 auto;
+      }
+
+      /*
+        The LCARS "elbow": a filled block with a large corner radius, then a
+        background-coloured inner block with its own radius punched out of
+        it, leaving an L-shaped sweep. ::after is that punch-out.
+      */
+      .elbow-top {
+        position: relative;
+        height: 132px;
+        background: var(--peach);
+        border-top-left-radius: 96px;
+        border-top-right-radius: 12px;
+        /* The tick blocks are a fixed-width decorative row, so on a narrow
+           viewport they run past the header. Clip rather than reflow: they
+           carry no information, and wrapping them would break the elbow. */
+        overflow: hidden;
+      }
+      .elbow-top::after {
+        content: "";
+        position: absolute;
+        left: var(--rail);
+        top: 58px;
+        right: 0;
+        bottom: 0;
+        background: var(--crust);
+        border-top-left-radius: 48px;
+      }
+      .elbow-top .cap {
+        position: absolute;
+        left: 0;
+        bottom: 0;
+        width: var(--rail);
+        height: 74px;
+        background: var(--peach);
+        display: grid;
+        place-items: center;
+      }
+      .elbow-top .cap .ic {
+        font-size: 2rem;
+        color: var(--crust);
+        opacity: 0.5;
+      }
+
+      .brand {
+        position: absolute;
+        z-index: 2;
+        left: calc(var(--rail) + 64px);
+        top: 62px;
+        right: 8px;
+        display: flex;
+        align-items: baseline;
+        gap: 18px;
+        justify-content: space-between;
+        flex-wrap: wrap;
+      }
+      .brand h1 {
+        margin: 0;
+        font-size: 3rem;
+        line-height: 0.9;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--peach);
+      }
+      .brand .meta {
+        font-family: "JetBrains Mono", monospace;
+        font-size: 0.68rem;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--subtext0);
+      }
+
+      /* Decorative Okudagram tick blocks. aria-hidden in the markup. */
+      .ticks {
+        position: absolute;
+        z-index: 2;
+        left: calc(var(--rail) + 64px);
+        top: 18px;
+        display: flex;
+        gap: var(--gap);
+      }
+      .ticks i {
+        display: block;
+        height: 26px;
+        border-radius: 3px;
+      }
+
+      .frame {
+        display: grid;
+        grid-template-columns: var(--rail) 1fr;
+        gap: var(--gap);
+        margin-top: var(--gap);
+      }
+
+      .rail {
+        display: flex;
+        flex-direction: column;
+        gap: var(--gap);
+      }
+      .rail a {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 10px;
+        padding: 11px 14px 9px;
+        border-radius: 4px 0 0 4px;
+        text-decoration: none;
+        color: var(--crust);
+        font-size: 1.15rem;
+        font-weight: 600;
+        line-height: 1;
+        text-transform: uppercase;
+      }
+      .rail a .ic {
+        font-size: 0.86rem;
+        opacity: 0.7;
+      }
+      .rail a:hover {
+        filter: brightness(1.22);
+      }
+      .rail .search {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 12px;
+        border-radius: 4px 0 0 4px;
+        background: var(--surface0);
+      }
+      .rail .search .ic {
+        font-size: 0.74rem;
+        color: var(--overlay0);
+      }
+      .rail .search input {
+        width: 100%;
+        min-width: 0;
+        border: 0;
+        outline: 0;
+        background: transparent;
+        color: var(--text);
+        font-family: "JetBrains Mono", monospace;
+        font-size: 0.74rem;
+      }
+      /* Decorative filler that makes the rail read as a continuous panel. */
+      .rail .fill {
+        flex: 1;
+        min-height: 40px;
+        border-radius: 4px 0 0 4px;
+        background: var(--surface0);
+      }
+      .rail .stub {
+        height: 22px;
+        border-radius: 4px 0 0 4px;
+        background: var(--surface1);
+      }
+
+      main {
+        min-width: 0;
+      }
+      section {
+        margin-bottom: 26px;
+      }
+      .sec-head {
+        display: flex;
+        align-items: center;
+        gap: var(--gap);
+        margin-bottom: 12px;
+      }
+      .sec-head h2 {
+        margin: 0;
+        font-size: 1.5rem;
+        font-weight: 600;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        white-space: nowrap;
+      }
+      .sec-head .bar {
+        flex: 1;
+        height: 14px;
+        border-radius: 7px;
+      }
+      .sec-head .num {
+        font-family: "JetBrains Mono", monospace;
+        font-size: 0.66rem;
+        letter-spacing: 0.14em;
+        color: var(--subtext0);
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(228px, 1fr));
+        gap: var(--gap);
+      }
+
+      /* The LCARS button: flat left edge, heavily rounded right edge, label
+         bottom-right, icon and reference number along the top. */
+      .btn {
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        align-items: flex-end;
+        min-height: 96px;
+        padding: 11px 16px;
+        border-radius: 4px 26px 26px 4px;
+        text-decoration: none;
+        color: var(--crust);
+        font-size: 1.4rem;
+        font-weight: 600;
+        line-height: 1;
+        text-align: right;
+        text-transform: uppercase;
+        transition:
+          filter 0.12s ease,
+          transform 0.12s ease;
+      }
+      .btn .top {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .btn .ic {
+        font-size: 1.5rem;
+        opacity: 0.8;
+      }
+      .btn code {
+        font-family: "JetBrains Mono", monospace;
+        font-size: 0.62rem;
+        font-weight: 600;
+        letter-spacing: 0.12em;
+        opacity: 0.62;
+      }
+      .btn:hover {
+        filter: brightness(1.24);
+        transform: translateX(-3px);
+      }
+      .btn:hover .ic {
+        opacity: 1;
+      }
+      .btn:active {
+        filter: brightness(0.9);
+      }
+
+      /* Buttons carry a dark label on a saturated fill, so these set
+         background; the nav rail reuses them for the same reason. */
+      .c-peach {
+        background: var(--peach);
+      }
+      .c-mauve {
+        background: var(--mauve);
+      }
+      .c-blue {
+        background: var(--blue);
+      }
+      .c-teal {
+        background: var(--teal);
+      }
+      .c-yellow {
+        background: var(--yellow);
+      }
+      .c-red {
+        background: var(--red);
+      }
+      .c-green {
+        background: var(--green);
+      }
+      .c-sapphire {
+        background: var(--sapphire);
+      }
+      /* External links are deliberately desaturated: they leave the LAN. */
+      .c-surface {
+        background: var(--surface1);
+        color: var(--text);
+      }
+
+      .hidden {
+        display: none !important;
+      }
+
+      .elbow-bot {
+        position: relative;
+        height: 96px;
+        margin-top: var(--gap);
+        background: var(--mauve);
+        border-bottom-left-radius: 96px;
+        border-bottom-right-radius: 12px;
+      }
+      .elbow-bot::after {
+        content: "";
+        position: absolute;
+        left: var(--rail);
+        top: 0;
+        right: 0;
+        bottom: 46px;
+        background: var(--crust);
+        border-bottom-left-radius: 48px;
+      }
+      .elbow-bot .foot {
+        position: absolute;
+        z-index: 2;
+        right: 18px;
+        bottom: 12px;
+        font-family: "JetBrains Mono", monospace;
+        font-size: 0.64rem;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--crust);
+      }
+
+      /*
+        LCARS is a fixed-aspect design; below ~820px the rail is narrowed,
+        the header shrinks and the button grid collapses to one column rather
+        than letting the elbows squeeze into nonsense.
+      */
+      @media (max-width: 820px) {
+        :root {
+          --rail: 112px;
         }
+        .elbow-top {
+          height: 104px;
+          border-top-left-radius: 52px;
+        }
+        .elbow-top::after {
+          top: 44px;
+          border-top-left-radius: 28px;
+        }
+        .elbow-top .cap {
+          height: 60px;
+        }
+        .elbow-top .cap .ic {
+          font-size: 1.3rem;
+        }
+        .ticks {
+          left: calc(var(--rail) + 16px);
+          top: 12px;
+        }
+        .ticks i {
+          height: 18px;
+        }
+        .brand {
+          left: calc(var(--rail) + 16px);
+          top: 50px;
+        }
+        .brand h1 {
+          font-size: 1.75rem;
+        }
+        /* The meta line is the first thing to go: it is the least useful
+           text on the page and the only thing that clips awkwardly. */
+        .brand .meta {
+          display: none;
+        }
+        .grid {
+          grid-template-columns: 1fr;
+        }
+        .rail a {
+          font-size: 0.92rem;
+          padding: 10px;
+        }
+        .rail .search input {
+          display: none;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .btn {
+          transition: none;
+        }
+        .btn:hover {
+          transform: none;
+        }
+      }
     </style>
   </head>
 
   <body>
-    <h1>Welcome to Fred's ADSB Hub!</h1>
-    <ul>
-      <li class="tv">
-        <a href="https://jellyfin.int.fredsystems.org">Jellyfin</a>
-      </li>
-      <li><a href="https://search.int.fredsystems.org/">Search</a></li>
-      <li>
-        <a href="https://ai.int.fredsystems.org/">AI Interface (fredhub)</a>
-      </li>
-      <li><a href="http://localhost:8889/">AI Interface (local)</a></li>
-      <li><a href="https://tar1090.int.fredsystems.org/">Tar1090</a></li>
-      <li><a href="https://dump978.int.fredsystems.org/">dump978</a></li>
-      <li>
-        <a href="https://sdrhub.int.fredsystems.org/graphs/">Tar1090 Graphs</a>
-      </li>
-      <li>
-        <a href="https://sdrhub.int.fredsystems.org/fr24/">Flight Radar 24</a>
-      </li>
-      <li><a href="https://piaware.int.fredsystems.org/">PiAware</a></li>
-      <li>
-        <a href="https://sdrhub.int.fredsystems.org/planefinder/"
-          >Plane Finder</a
+    <div class="lcars">
+      <header class="elbow-top">
+        <div class="cap">
+          <i class="ic" data-i="&#xf519;" aria-hidden="true"></i>
+        </div>
+        <div class="ticks" aria-hidden="true">
+          <i class="c-mauve" style="width: 96px"></i>
+          <i class="c-surface" style="width: 44px"></i>
+          <i class="c-blue" style="width: 150px"></i>
+          <i class="c-red" style="width: 30px"></i>
+          <i class="c-surface" style="width: 68px"></i>
+        </div>
+        <div class="brand">
+          <h1>Fred's SDR Hub</h1>
+          <span class="meta"
+            >sdrhub &middot; 192.168.31.20 &middot; lcars 47-b</span
+          >
+        </div>
+      </header>
+
+      <div class="frame">
+        <nav class="rail" aria-label="Sections">
+          <label class="search">
+            <i class="ic" data-i="&#xf002;" aria-hidden="true"></i>
+            <input
+              id="q"
+              type="search"
+              placeholder="filter /"
+              aria-label="Filter services"
+              autocomplete="off"
+            />
+          </label>
+          <a href="#aviation" class="c-peach"
+            ><i class="ic" data-i="&#xe22d;" aria-hidden="true"></i>Aviation</a
+          >
+          <a href="#monitoring" class="c-mauve"
+            ><i class="ic" data-i="&#xf625;" aria-hidden="true"></i>Monitor</a
+          >
+          <a href="#media" class="c-blue"
+            ><i class="ic" data-i="&#xf008;" aria-hidden="true"></i>Media</a
+          >
+          <a href="#infrastructure" class="c-teal"
+            ><i class="ic" data-i="&#xf233;" aria-hidden="true"></i>Infra</a
+          >
+          <a href="#external" class="c-yellow"
+            ><i class="ic" data-i="&#xf0ac;" aria-hidden="true"></i>External</a
+          >
+          <div class="stub" aria-hidden="true"></div>
+          <div class="fill" aria-hidden="true"></div>
+          <div class="stub" aria-hidden="true"></div>
+        </nav>
+
+        <main>
+          <section id="aviation">
+            <div class="sec-head">
+              <h2>Aviation</h2>
+              <span class="bar c-peach" aria-hidden="true"></span>
+              <span class="num" aria-hidden="true">sec 01</span>
+            </div>
+            <div class="grid">
+              <a
+                class="btn c-peach"
+                href="https://tar1090.int.fredsystems.org/"
+              >
+                <span class="top"
+                  ><i class="ic" data-i="&#xf5a0;" aria-hidden="true"></i
+                  ><code>4701</code></span
+                >Tar1090
+              </a>
+              <a
+                class="btn c-peach"
+                href="https://sdrhub.int.fredsystems.org/acarshub/"
+              >
+                <span class="top"
+                  ><i class="ic" data-i="&#xf658;" aria-hidden="true"></i
+                  ><code>4702</code></span
+                >ACARS Hub
+              </a>
+              <a
+                class="btn c-peach"
+                href="https://dump978.int.fredsystems.org/"
+              >
+                <span class="top"
+                  ><i class="ic" data-i="&#xf012;" aria-hidden="true"></i
+                  ><code>4703</code></span
+                >dump978
+              </a>
+              <a
+                class="btn c-yellow"
+                href="https://piaware.int.fredsystems.org/"
+              >
+                <span class="top"
+                  ><i class="ic br" data-i="&#xf7bb;" aria-hidden="true"></i
+                  ><code>4704</code></span
+                >PiAware
+              </a>
+              <a
+                class="btn c-yellow"
+                href="https://sdrhub.int.fredsystems.org/graphs/"
+              >
+                <span class="top"
+                  ><i class="ic" data-i="&#xf1fe;" aria-hidden="true"></i
+                  ><code>4705</code></span
+                >Graphs
+              </a>
+              <a
+                class="btn c-red"
+                href="https://sdrhub.int.fredsystems.org/fr24/"
+              >
+                <span class="top"
+                  ><i class="ic" data-i="&#xf57d;" aria-hidden="true"></i
+                  ><code>4706</code></span
+                >Flightradar24
+              </a>
+              <a
+                class="btn c-red"
+                href="https://sdrhub.int.fredsystems.org/planefinder/"
+              >
+                <span class="top"
+                  ><i class="ic" data-i="&#xf689;" aria-hidden="true"></i
+                  ><code>4707</code></span
+                >Plane Finder
+              </a>
+            </div>
+          </section>
+
+          <section id="monitoring">
+            <div class="sec-head">
+              <h2>Monitoring</h2>
+              <span class="bar c-mauve" aria-hidden="true"></span>
+              <span class="num" aria-hidden="true">sec 02</span>
+            </div>
+            <div class="grid">
+              <a
+                class="btn c-mauve"
+                href="https://grafana.int.fredsystems.org/"
+              >
+                <span class="top"
+                  ><i class="ic" data-i="&#xf201;" aria-hidden="true"></i
+                  ><code>2201</code></span
+                >Grafana
+              </a>
+              <a class="btn c-mauve" href="https://karma.int.fredsystems.org/">
+                <span class="top"
+                  ><i class="ic" data-i="&#xf0a2;" aria-hidden="true"></i
+                  ><code>2202</code></span
+                >Karma
+              </a>
+              <a
+                class="btn c-mauve"
+                href="https://prometheus.int.fredsystems.org/"
+              >
+                <span class="top"
+                  ><i class="ic" data-i="&#xf1c0;" aria-hidden="true"></i
+                  ><code>2203</code></span
+                >Prometheus
+              </a>
+              <a
+                class="btn c-mauve"
+                href="https://sdrhub.int.fredsystems.org/dozzle/"
+              >
+                <span class="top"
+                  ><i class="ic br" data-i="&#xf395;" aria-hidden="true"></i
+                  ><code>2204</code></span
+                >Dozzle
+              </a>
+            </div>
+          </section>
+
+          <section id="media">
+            <div class="sec-head">
+              <h2>Media</h2>
+              <span class="bar c-blue" aria-hidden="true"></span>
+              <span class="num" aria-hidden="true">sec 03</span>
+            </div>
+            <div class="grid">
+              <a
+                class="btn c-blue"
+                href="https://jellyfin.int.fredsystems.org/"
+              >
+                <span class="top"
+                  ><i class="ic" data-i="&#xf008;" aria-hidden="true"></i
+                  ><code>3301</code></span
+                >Jellyfin
+              </a>
+              <a class="btn c-blue" href="https://nvr.int.fredsystems.org/">
+                <span class="top"
+                  ><i class="ic" data-i="&#xf03d;" aria-hidden="true"></i
+                  ><code>3302</code></span
+                >Frigate NVR
+              </a>
+            </div>
+          </section>
+
+          <section id="infrastructure">
+            <div class="sec-head">
+              <h2>Infrastructure</h2>
+              <span class="bar c-teal" aria-hidden="true"></span>
+              <span class="num" aria-hidden="true">sec 04</span>
+            </div>
+            <div class="grid">
+              <a class="btn c-teal" href="https://search.int.fredsystems.org/">
+                <span class="top"
+                  ><i class="ic" data-i="&#xf002;" aria-hidden="true"></i
+                  ><code>4401</code></span
+                >Search
+              </a>
+              <a class="btn c-teal" href="https://ai.int.fredsystems.org/">
+                <span class="top"
+                  ><i class="ic" data-i="&#xf5dc;" aria-hidden="true"></i
+                  ><code>4402</code></span
+                >AI &middot; fredhub
+              </a>
+              <a class="btn c-green" href="http://localhost:8889/">
+                <span class="top"
+                  ><i class="ic" data-i="&#xf544;" aria-hidden="true"></i
+                  ><code>4403</code></span
+                >AI &middot; local
+              </a>
+              <a
+                class="btn c-green"
+                href="https://adguard.int.fredsystems.org/"
+              >
+                <span class="top"
+                  ><i class="ic" data-i="&#xf3ed;" aria-hidden="true"></i
+                  ><code>4404</code></span
+                >AdGuard
+              </a>
+              <a class="btn c-sapphire" href="https://nas.int.fredsystems.org/">
+                <span class="top"
+                  ><i class="ic" data-i="&#xf0a0;" aria-hidden="true"></i
+                  ><code>4405</code></span
+                >Rackstation
+              </a>
+            </div>
+          </section>
+
+          <section id="external">
+            <div class="sec-head">
+              <h2>External</h2>
+              <span class="bar c-yellow" aria-hidden="true"></span>
+              <span class="num" aria-hidden="true">sec 05</span>
+            </div>
+            <div class="grid">
+              <a class="btn c-surface" href="http://fredclausen.com/tar1090">
+                <span class="top"
+                  ><i class="ic" data-i="&#xe4e2;" aria-hidden="true"></i
+                  ><code>5501</code></span
+                >Combined Tar1090
+              </a>
+              <a class="btn c-surface" href="http://acarshub.app">
+                <span class="top"
+                  ><i class="ic" data-i="&#xf0ac;" aria-hidden="true"></i
+                  ><code>5502</code></span
+                >acarshub.app
+              </a>
+            </div>
+          </section>
+        </main>
+      </div>
+
+      <footer class="elbow-bot">
+        <span class="foot"
+          >lcars access 47-beta &middot; nixos &middot; nginx</span
         >
-      </li>
-      <li class="tower">
-        <a href="https://sdrhub.int.fredsystems.org/acarshub/">ACARS Hub</a>
-      </li>
-      <li class="history">
-        <a href="https://sdrhub.int.fredsystems.org/dozzle/">Dozzle</a>
-      </li>
-      <li class="bell">
-        <a href="https://karma.int.fredsystems.org/">Karma (alert dashboard)</a>
-      </li>
-      <li class="chart">
-        <a href="https://grafana.int.fredsystems.org/">Grafana</a>
-      </li>
-      <li class="ad">
-        <a href="https://adguard.int.fredsystems.org/">Ad Guard Home</a>
-      </li>
-      <li class="camera">
-        <a href="https://nvr.int.fredsystems.org/">Frigate NVR</a>
-      </li>
-      <li class="computer">
-        <a href="https://nas.int.fredsystems.org/">Rackstation</a>
-      </li>
-      <li>
-        <a href="http://fredclausen.com/tar1090"
-          >Fred Clausen's Combined Tar1090</a
-        >
-      </li>
-      <li><a href="http://acarshub.app">acarshub.app</a></li>
-    </ul>
+      </footer>
+    </div>
+
+    <script>
+      // Type-to-filter. Progressive enhancement: with JS off the input is
+      // inert and every link still works, which matters for a page that
+      // exists to be usable when things are broken.
+      (function () {
+        "use strict";
+
+        var q = document.getElementById("q");
+        var buttons = Array.prototype.slice.call(
+          document.querySelectorAll(".btn"),
+        );
+        var sections = Array.prototype.slice.call(
+          document.querySelectorAll("section"),
+        );
+
+        function apply() {
+          var term = q.value.trim().toLowerCase();
+
+          buttons.forEach(function (b) {
+            var hit = !term || b.textContent.toLowerCase().indexOf(term) !== -1;
+            b.classList.toggle("hidden", !hit);
+          });
+
+          // Hide a section whose every button was filtered out, so the
+          // headers do not stack up over empty space.
+          sections.forEach(function (s) {
+            var any = Array.prototype.slice
+              .call(s.querySelectorAll(".btn"))
+              .some(function (b) {
+                return !b.classList.contains("hidden");
+              });
+            s.classList.toggle("hidden", !any);
+          });
+        }
+
+        q.addEventListener("input", apply);
+
+        document.addEventListener("keydown", function (e) {
+          if (e.key === "/" && document.activeElement !== q) {
+            e.preventDefault();
+            q.focus();
+            q.select();
+          } else if (e.key === "Escape" && document.activeElement === q) {
+            q.value = "";
+            apply();
+            q.blur();
+          } else if (e.key === "Enter" && document.activeElement === q) {
+            // Enter on a filtered list goes to the single remaining hit.
+            var first = buttons.filter(function (b) {
+              return !b.classList.contains("hidden");
+            })[0];
+            if (first) {
+              window.location.href = first.href;
+            }
+          }
+        });
+
+        // A browser may restore a non-empty search box on back/forward.
+        if (q.value) {
+          apply();
+        }
+      })();
+    </script>
   </body>
 </html>
