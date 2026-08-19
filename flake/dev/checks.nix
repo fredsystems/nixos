@@ -20,6 +20,15 @@
       excludes = [
         "secrets.yaml"
         "tsconfig.json"
+        # Binary web fonts. The generic whitespace hooks are configured with
+        # `types: [file]` rather than `[text]`, so they do not skip binaries
+        # on their own: `mixed-line-ending` rewrites any CRLF byte pair it
+        # finds inside the compressed stream, which silently produces a font
+        # that fails brotli decoding (verified -- it grew the file by one byte
+        # and broke `TTFont()`). `.png`/`.jpg` above are excluded for the same
+        # reason; this extends that to the subsetted faces served by sdrhub's
+        # landing page.
+        "\\.woff2$"
       ];
 
       # Validates the Prometheus alerting rules: `check rules` for syntax and
