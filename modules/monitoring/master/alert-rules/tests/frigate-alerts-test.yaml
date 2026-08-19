@@ -265,7 +265,7 @@ tests:
               hostname: nvrhub
             exp_annotations:
               summary: "Frigate on nvrhub has recorded no detection events in 24 hours"
-              description: "Not one person or car event across all eight cameras in a day, while detection appears to be running. Either the site really was empty, or detection is subtly broken -- a wrong labelmap (Frigate's 80-class and nixpkgs' 91-class COCO maps diverge from index 11), an over-high threshold, or a model that loads but classifies nothing. Verify by walking past a camera."
+              description: "Not one person or car event across any camera in a day, while detection appears to be running. Either the site really was empty, or detection is subtly broken -- a wrong labelmap (Frigate's 80-class and nixpkgs' 91-class COCO maps diverge from index 11), an over-high threshold, or a model that loads but classifies nothing. Verify by walking past a camera."
 
   # A climbing counter means detection is demonstrably working.
   - interval: 5m

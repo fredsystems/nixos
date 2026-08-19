@@ -6,6 +6,9 @@
   imports = [
     ./hardware-configuration.nix
     ./frigate.nix
+    ./nvidia.nix
+    ./cuda-onnxruntime.nix
+    ./nginx.nix
     ../../../profiles/adsb-hub.nix
   ];
 

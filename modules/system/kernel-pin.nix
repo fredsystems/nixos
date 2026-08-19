@@ -15,6 +15,7 @@
 # The pin uses lib.mkDefault so an individual server can still override
 # (e.g. to test a newer kernel) by setting boot.kernelPackages explicitly.
 {
+  config,
   lib,
   kernelPkgsInput,
   system,
@@ -29,7 +30,33 @@ let
   # attributes; this is a separate evaluation from the host's main pkgs
   # tree but shares the cache.nixos.org binary cache because it points at
   # a real nixpkgs commit.
-  kernelPkgs = import kernelPkgsInput { inherit system; };
+  #
+  # The unfree predicate MUST be threaded through here, and is not merely
+  # defensive.  modules/base/nixpkgs-unfree.nix calls itself the single source
+  # of truth for the fleet, but it sets `nixpkgs.config.allowUnfreePredicate`,
+  # which only ever applies to the host's MAIN pkgs tree.  This is a second,
+  # independent `import` of nixpkgs, so it starts from an empty config and
+  # check-meta.nix defaults the predicate to `x: false` -- every unfree package
+  # reachable from `boot.kernelPackages` is refused no matter what the fleet
+  # allowlist says.
+  #
+  # That is invisible until something actually pulls an unfree package out of
+  # the kernel tree.  The first such case is nvrhub's NVIDIA driver:
+  # `hardware.nvidia.package` has to come from
+  # `config.boot.kernelPackages.nvidiaPackages.*` so the kernel module is built
+  # against the pinned 6.18 kernel rather than some other tree's kernel, and
+  # that resolves nvidia-x11 HERE.  Without this the eval fails with
+  # nixpkgs' unfree error naming a package that is already on the allowlist,
+  # which is a genuinely confusing way to discover the split.
+  #
+  # Deliberately the same expression as nixpkgs-unfree.nix:79-80 so the two
+  # trees agree by construction.  No cycle: `nixpkgsUnfree.allowed` is a plain
+  # list contributed by modules and nothing in it depends on
+  # `boot.kernelPackages`.
+  kernelPkgs = import kernelPkgsInput {
+    inherit system;
+    config.allowUnfreePredicate = pkg: builtins.elem (lib.getName pkg) config.nixpkgsUnfree.allowed;
+  };
 in
 {
   config = lib.mkIf pinActive {

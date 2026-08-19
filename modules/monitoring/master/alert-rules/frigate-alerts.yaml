@@ -19,7 +19,7 @@
 #      process died repeatedly while ffmpeg kept writing recordings.
 #   3. A single camera silently not recording. The doorbell's pcm_mulaw audio
 #      cannot go in an MP4 container, so every one of its segments was discarded
-#      while the other seven cameras were fine.
+#      while every other camera was fine.
 #
 # All three are invisible to a unit-state check and all three are covered below.
 #
@@ -68,12 +68,20 @@ groups:
       # This is the "camera down" signal: an unplugged PoE cable, a rebooting
       # camera, a wrong RTSP path, or expired credentials all land here, because
       # in every case ffmpeg stops producing frames for that one camera while
-      # the other seven continue.
+      # the others continue.
       #
       # Threshold is 0 rather than "below expected", because the expected rate
-      # legitimately differs per camera (5 fps on the seven DS-2CD2342WD-I
-      # units, ~3 on the DB1 doorbell) and Frigate restarts a stalled ffmpeg
-      # itself. Only a sustained total absence of frames is a real fault.
+      # legitimately differs per camera (~5 fps on the Hikvisions, ~5.1 on the
+      # Reolinks) and Frigate restarts a stalled ffmpeg itself. Only a sustained
+      # total absence of frames is a real fault.
+      #
+      # NOTE: this rule is why a camera must be DELETED from nvrhub's frigate.nix
+      # when it goes offline for a while, not merely set `enabled = false`.
+      # Frigate 0.17 registers metrics for every camera in the config regardless
+      # of `enabled` and never writes a value for a disabled one, so disabling
+      # pins camera_fps at 0 and makes this alert fire forever instead of
+      # transiently. See the garage_door note in
+      # ../../../../hosts/linux/nvrhub/frigate.nix.
       #
       # 10m rather than a couple of minutes: Frigate's own ffmpeg watchdog
       # restarts a wedged input within about a minute, and a camera power-cycle
@@ -98,7 +106,7 @@ groups:
       # motion-driven and legitimately sits at 0.0 on a still camera for long
       # periods (living_room was observed at 0.0 with everything working). A
       # per-camera zero rule would be permanent false-positive noise; the sum
-      # across eight cameras being zero for 15 minutes is not.
+      # across every camera being zero for 15 minutes is not.
       - alert: FrigateDetectionStopped
         expr: frigate_detection_total_fps == 0
         for: 15m
@@ -206,7 +214,7 @@ groups:
 
       # The whole fleet has gone quiet.
       #
-      # A deliberate deadman rather than a per-camera one. Eight cameras
+      # A deliberate deadman rather than a per-camera one. Cameras
       # covering a front door, driveway, garage and four interior rooms produce
       # SOME person or car event over 24 hours in normal use, so total silence
       # for a day means detection is broken in a way that leaves detection_fps
@@ -255,4 +263,4 @@ groups:
           severity: warning
         annotations:
           summary: "Frigate on {{ $labels.hostname }} has recorded no detection events in 24 hours"
-          description: "Not one person or car event across all eight cameras in a day, while detection appears to be running. Either the site really was empty, or detection is subtly broken -- a wrong labelmap (Frigate's 80-class and nixpkgs' 91-class COCO maps diverge from index 11), an over-high threshold, or a model that loads but classifies nothing. Verify by walking past a camera."
+          description: "Not one person or car event across any camera in a day, while detection appears to be running. Either the site really was empty, or detection is subtly broken -- a wrong labelmap (Frigate's 80-class and nixpkgs' 91-class COCO maps diverge from index 11), an over-high threshold, or a model that loads but classifies nothing. Verify by walking past a camera."

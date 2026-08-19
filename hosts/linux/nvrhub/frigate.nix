@@ -1,4 +1,4 @@
-# Frigate NVR — 8 cameras: 7 Hikvision + 1 Reolink doorbell.
+# Frigate NVR — 7 cameras: 5 Hikvision + 2 Reolink.
 #
 # WHY FRIGATE AND NOT SHINOBI
 #
@@ -36,15 +36,25 @@
   ...
 }:
 let
+  # YOLOv9-s exported to ONNX at 640x640, plus the matching 80-class COCO
+  # labelmap. Both are produced by ./frigate-model.nix from hash-pinned
+  # upstream weights; see that file for why the export runs in a derivation
+  # rather than being fetched as a prebuilt binary.
+  detectorModel = pkgs.callPackage ./frigate-model.nix { };
+
   # ── Camera inventory ──────────────────────────────────────────────────────
   #
-  # Seven Hikvision, verified 2026-08-10 by querying /ISAPI/System/deviceInfo
+  # Five Hikvision, verified 2026-08-10 by querying /ISAPI/System/deviceInfo
   # and /ISAPI/Streaming/channels on each, and by ffprobing both RTSP channels
   # of each over TCP.
   #
-  #   7x DS-2CD2342WD-I (firmware V5.5.0)
+  #   5x DS-2CD2342WD-I (firmware V5.5.0)
   #     channel 101: 2688x1520 H.264 @20fps  (record)
   #     channel 102:  640x360  H.264 @15fps  (detect)
+  #
+  # A sixth DS-2CD2342WD-I covered the garage door at 192.168.31.35 and is
+  # TEMPORARILY REMOVED (2026-08-18) while the camera is offline — see the
+  # note where its block used to be, below.
   #
   # One Reolink doorbell, which REPLACED the Hikvision DB1 that used to sit at
   # 192.168.31.122. Verified 2026-08-17 against the device itself via its
@@ -74,17 +84,108 @@ let
   # rather than the mangled BlueIris identifiers (`insidegaragemoti`) that the
   # previous NVR left on the disk.
   cameras = {
+    # Reolink E1 Outdoor SE PoE, which REPLACED the Hikvision DS-2CD2342WD-I
+    # that used to sit at 192.168.31.237. Verified 2026-08-18 against the device
+    # via /cgi-bin/api.cgi GetDevInfo + GetEnc and by ffprobing its RTSP paths
+    # over TCP:
+    #
+    #   192.168.31.38, hardVer IPC_NT2NA48MPSD8V3
+    #   firmware v3.1.0.5223_2510172104
+    #   h265Preview_01_main: 3840x2160 HEVC Main @25fps + AAC LC 16 kHz mono
+    #   h264Preview_01_sub:   640x360  H.264 High @10fps + AAC LC 16 kHz mono
+    #
+    # This is the only H.265 camera in the fleet, hence `codec = "h265"` — see
+    # the streamPaths comment for why that is a separate dimension from `brand`.
+    #
+    # Its substream is a conventional 640x360, so unlike the 4:3 doorbell it
+    # uses the same detect geometry as the Hikvisions. detect.fps stays at the
+    # fleet's 5 even though the substream delivers 10, for the same
+    # shared-CPU-detector reason documented on the doorbell.
+    #
+    # Only camera in the fleet with PTZ — see `ptz` below.
     front_door = {
-      brand = "hikvision";
-      host = "192.168.31.237";
+      brand = "reolink";
+      codec = "h265";
+      host = "192.168.31.38";
+
+      # ── Manual pan/tilt over ONVIF ──────────────────────────────────────
+      #
+      # Presence of `ptz` is what enables the ONVIF block; the port is carried
+      # here rather than as a separate bool so there is no way to enable PTZ
+      # without stating which port it speaks on. 8000 is verified open on this
+      # camera and is also Frigate's OnvifConfig default, but Hikvision ONVIF
+      # answers on 80, so the next PTZ camera must state its own.
+      #
+      # WHAT WORKS: pan and tilt from the UI. Frigate derives its feature list
+      # from the PTZ node's supported spaces (ptz/onvif.py:347-430), and this
+      # camera advertises ContinuousPanTiltVelocitySpace, which is what yields
+      # the `pt` feature.
+      #
+      # WHAT DOES NOT, and why autotracking is deliberately left OFF (it
+      # defaults to false; this is documentation, not configuration). Read off
+      # the camera's own PTZ node via GetNodes, verified 2026-08-18:
+      #
+      #   ContinuousPanTiltVelocitySpace : yes  -> feature "pt"
+      #   RelativePanTiltTranslationSpace: no   -> NO feature "pt-r-fov"
+      #   AbsolutePanTiltPositionSpace   : no
+      #   ContinuousZoomVelocitySpace    : no   -> NO feature "zoom"
+      #   HomeSupported                  : False
+      #   GetStatus -> Position          : None
+      #
+      # ptz/onvif.py:419-424 only appends "pt-r-fov" when
+      # DefaultRelativePanTiltTranslationSpace exists, and autotrack.py:274-279
+      # then does:
+      #
+      #   if "pt-r-fov" not in features:
+      #       "Disabling autotracking for {camera}: FOV relative movement
+      #        not supported"
+      #       camera_config.onvif.autotracking.enabled = False
+      #
+      # So setting autotracking.enabled = true here would log a warning on every
+      # start and turn itself straight back off. `Position: None` and
+      # `HomeSupported: False` rule it out independently — autotracking needs
+      # position feedback to know where it is and a home preset to return to.
+      #
+      # Zoom is absent over ONVIF despite Reolink's own API reporting
+      # `supportZoom`, because on an E1 Outdoor SE the zoom is DIGITAL. Nothing
+      # to configure; the UI simply will not offer a zoom control.
+      #
+      # Preset recall is wired up but close to useless until presets are created
+      # in the Reolink app: GetPresets returns exactly one (token '000', name
+      # '0') against a MaximumNumberOfPresets of 64. `return_preset` is
+      # untouched for the same reason — its default is "home", which this camera
+      # does not have.
+      #
+      # `ignore_time_mismatch` is deliberately NOT set. ONVIF auth is
+      # timestamp-sensitive, so it was measured rather than guessed: the camera
+      # reports DateTimeType NTP and a skew of -4.7s against this host, well
+      # inside any tolerance. Set it only if ONVIF auth actually starts failing.
+      ptz.port = 8000;
       detect = {
         width = 640;
         height = 360;
         fps = 5;
       };
+
+      # Second camera with audio. It publishes AAC LC directly, exactly like the
+      # doorbell, so both streams are stream-copied and recording costs
+      # essentially no CPU despite being 4K. Verified rather than assumed: 10s of
+      # the mainstream muxed with `ffmpeg -c copy -f mp4` produced hev1 + mp4a
+      # with no header error.
+      #
+      # NOTE: 4K HEVC records correctly but may not PLAY BACK in a browser —
+      # Firefox and Chrome have no software HEVC decoder. If the Frigate UI shows
+      # black for this camera's recordings, that is why, and the fix is to switch
+      # the camera's mainStream vType to h264 (GetEnc action=1 reports both
+      # "h264" and "h265" are supported) and drop the `codec` line above.
+      recordPreset = "preset-record-generic-audio-copy";
     };
     doorbell = {
       brand = "reolink";
+
+      # Genuinely H.264, unlike the front door's HEVC — ffprobe-verified against
+      # h264Preview_01_main (avc1 in the muxed MP4).
+      codec = "h264";
       host = "192.168.31.27";
 
       # 4:3 substream, so not the shared 640x360 block.
@@ -102,8 +203,8 @@ let
       # detect role at the 2560x1920 mainstream, which is the exact cost the
       # substream split exists to avoid.
       #
-      # fps is 5 rather than the 10 the substream actually delivers: the other
-      # seven cameras detect at 5, the detector is a single shared CPU
+      # fps is 5 rather than the 10 the substream actually delivers: every other
+      # camera detects at 5, the detector is a single shared CPU
       # detector, and Frigate downsamples the decode to detect.fps anyway.
       # Frigate itself warns above 10 and recommends 5 (config.py:559). The
       # DB1's 3 was a hardware ceiling; this 5 is a choice, so it can be raised
@@ -114,7 +215,8 @@ let
         fps = 5;
       };
 
-      # Still the only camera with audio, but it no longer needs transcoding.
+      # No longer needs transcoding (and no longer the only camera with audio —
+      # the Reolink front door has it too).
       #
       # The DB1 published pcm_mulaw (G.711 µ-law), which MP4 has no tag for, so
       # copying it failed the container header outright:
@@ -123,26 +225,55 @@ let
       #   [out#0/segment] Could not write header (incorrect codec parameters ?)
       #
       # Every doorbell segment was then discarded ("Invalid or missing video
-      # stream in segment ... Discarding") while the other seven recorded fine
-      # — 54 errors on first deploy, all of them that camera. Hence the old
+      # stream in segment ... Discarding") while every other camera recorded
+      # fine — 54 errors on first deploy, all of them that camera. Hence the old
       # `preset-record-generic-audio-aac`, which re-encoded to AAC.
       #
       # The D340W publishes AAC LC directly, so the transcode is pure waste.
       # `-audio-copy` is `-c copy` with no `-an`, i.e. BOTH streams are
       # stream-copied and this camera now costs the same CPU to record as the
-      # other seven. Verified rather than assumed: 20s of the mainstream muxed
-      # with `ffmpeg -c copy -f mp4` produced avc1 + mp4a with no header error.
+      # video-only ones. Verified rather than assumed: 20s of the mainstream
+      # muxed with `ffmpeg -c copy -f mp4` produced avc1 + mp4a with no header
+      # error.
       recordPreset = "preset-record-generic-audio-copy";
     };
-    garage_door = {
-      brand = "hikvision";
-      host = "192.168.31.35";
-      detect = {
-        width = 640;
-        height = 360;
-        fps = 5;
-      };
-    };
+    # ── garage_door: TEMPORARILY REMOVED 2026-08-18 ───────────────────────
+    #
+    # DS-2CD2342WD-I at 192.168.31.35, offline for a few days. To restore it,
+    # re-add:
+    #
+    #   garage_door = {
+    #     brand = "hikvision";
+    #     host = "192.168.31.35";
+    #     detect = { width = 640; height = 360; fps = 5; };
+    #   };
+    #
+    # WHY THE ENTRY IS DELETED RATHER THAN `enabled = false`
+    #
+    # Setting `enabled = false` would NOT have stopped the alerts, and would in
+    # fact have made them permanent. Frigate 0.17.2 registers metrics for every
+    # camera in the config regardless of `enabled`:
+    #
+    #   * app.py:143-145 init_camera_metrics() loops config.cameras.keys() with
+    #     no enabled check, creating a CameraMetrics for each.
+    #   * CameraMetrics.__init__ (camera/__init__.py:24) inits camera_fps to 0.
+    #   * camera/maintainer.py:98,149 then SKIP starting the processor and
+    #     capture process for a disabled camera, so nothing ever writes a
+    #     nonzero value.
+    #   * stats/util.py:269 iterates camera_metrics.items() and
+    #     stats/prometheus.py:84 exports every entry.
+    #
+    # So a disabled camera publishes frigate_camera_fps == 0 forever, and
+    # FrigateCameraNoFrames (`frigate_camera_fps == 0 for 10m`, see
+    # ../../../modules/monitoring/master/alert-rules/frigate-alerts.yaml) fires
+    # continuously instead of transiently. Removing the key is the only thing
+    # that stops the series being emitted at all.
+    #
+    # Existing footage is NOT destroyed by this. record/cleanup.py:287 deletes
+    # recordings for cameras `not_in config.cameras.keys()` only where
+    # `end_time < expire_before`, i.e. already past the 3-day continuous
+    # retention. The garage's recent recordings therefore age out normally
+    # rather than being purged on the next cleanup run.
     inside_garage = {
       brand = "hikvision";
       host = "192.168.31.180";
@@ -202,14 +333,36 @@ let
   # time. Defaulting to hikvision would let the next Reolink silently inherit
   # /Streaming/Channels/10x paths and fail only once deployed, as a stream that
   # never connects.
+  #
+  # WHY REOLINK'S RECORD PATH IS BUILT FROM `codec`
+  #
+  # Reolink names its mainstream after a codec, and the fleet now contains one
+  # of each: the doorbell's mainstream is genuinely H.264 while the front door's
+  # is HEVC. So the path cannot be a constant.
+  #
+  # Do NOT assume the name in the path selects the codec — it does not. On the
+  # E1 Outdoor SE, `h264Preview_01_main` and `h265Preview_01_main` BOTH return
+  # the same 4K HEVC stream (ffprobe-verified on all four combinations); the
+  # camera serves whatever its mainStream vType is set to and ignores the name.
+  # The name is therefore documentation, and `codec` exists to keep that
+  # documentation honest rather than to change what the camera sends. Getting it
+  # wrong yields a working stream that lies about its codec, which is exactly
+  # how the 4K HEVC front door would otherwise have been mistaken for H.264.
+  #
+  # `cam.codec` is indexed with no default for the same reason `brand` is: a
+  # Reolink added without one is an eval error, not a silent wrong guess.
+  #
+  # Substreams are H.264 on both Reolinks regardless of the mainstream setting
+  # (the E1's GetEnc reports subStream vType h264 while mainStream is h265), so
+  # the detect path is constant.
   streamPaths = {
-    hikvision = {
+    hikvision = _cam: {
       detect = "Streaming/Channels/102";
       record = "Streaming/Channels/101";
     };
-    reolink = {
+    reolink = cam: {
       detect = "h264Preview_01_sub";
-      record = "h264Preview_01_main";
+      record = "${cam.codec}Preview_01_main";
     };
   };
 
@@ -217,54 +370,80 @@ let
   # placeholders below are substituted at runtime from the sops-provided
   # credential files, so no secret is rendered into the store.
   #
-  # All eight cameras share one credential pair, including the Reolink — its
-  # admin account was set to the same username/password as the Hikvisions
+  # All seven cameras share one credential pair, including both Reolinks — their
+  # admin accounts were set to the same username/password as the Hikvisions
   # rather than adding a second sops secret and a second LoadCredential entry.
   mkStream =
     cam: role:
     "rtsp://{FRIGATE_CAMERA_USER}:{FRIGATE_CAMERA_PASSWORD}@${cam.host}:554/${
-      streamPaths.${cam.brand}.${role}
+      (streamPaths.${cam.brand} cam).${role}
     }";
 
-  mkCamera = _name: cam: {
-    ffmpeg = {
-      inputs = [
-        # Substream drives detection. Decoding a 4MP stream 5x a second for
-        # every camera is the single largest avoidable CPU cost in an NVR, and
-        # every one of these cameras already publishes a low-resolution
-        # substream for exactly this.
-        {
-          path = mkStream cam "detect";
-          roles = [ "detect" ];
-        }
-        # Mainstream is recorded as-is: the bytes arrive already H.264 and are
-        # stream-copied straight to disk, so recording costs almost no CPU.
-        {
-          path = mkStream cam "record";
-          roles = [ "record" ];
-        }
-      ];
+  mkCamera =
+    _name: cam:
+    {
+      ffmpeg = {
+        inputs = [
+          # Substream drives detection. Decoding a 4MP stream 5x a second for
+          # every camera is the single largest avoidable CPU cost in an NVR, and
+          # every one of these cameras already publishes a low-resolution
+          # substream for exactly this.
+          {
+            path = mkStream cam "detect";
+            roles = [ "detect" ];
+          }
+          # Mainstream is recorded as-is: the bytes arrive already H.264 and are
+          # stream-copied straight to disk, so recording costs almost no CPU.
+          {
+            path = mkStream cam "record";
+            roles = [ "record" ];
+          }
+        ];
 
-      # `preset-record-generic` (-an, no audio) is the default because seven of
-      # the eight cameras publish no audio stream at all. Cameras that do carry
-      # audio override this via `recordPreset` -- see the doorbell.
-      #
-      # Deliberately NOT `preset-record-generic-audio-copy` fleet-wide: that
-      # copies whatever audio codec the camera offers, which breaks the MP4
-      # container on any camera whose audio is not MP4-representable.
-      output_args.record = cam.recordPreset or "preset-record-generic";
+        # `preset-record-generic` (-an, no audio) is the default because the five
+        # Hikvisions publish no audio stream at all. Cameras that do carry audio
+        # override this via `recordPreset` -- see the doorbell and front door.
+        #
+        # Deliberately NOT `preset-record-generic-audio-copy` fleet-wide: that
+        # copies whatever audio codec the camera offers, which breaks the MP4
+        # container on any camera whose audio is not MP4-representable.
+        output_args.record = cam.recordPreset or "preset-record-generic";
+      };
+
+      inherit (cam) detect;
+    }
+    # ONVIF block, emitted only for cameras that declare `ptz`. Frigate gates the
+    # whole PTZ subsystem on `onvif.host` being non-empty (ptz/onvif.py:64), so
+    # omitting the block entirely — rather than emitting an empty one — is what
+    # keeps the six non-PTZ cameras out of it.
+    #
+    # host and credentials are derived rather than repeated per camera: the
+    # placeholders are the SAME ones used for the RTSP URLs, and they work here for
+    # the same reason. OnvifConfig.user/password are typed EnvString
+    # (config/camera/onvif.py:76-78), and validate_env_string (config/env.py:18-23)
+    # runs `.format(**FRIGATE_ENV_VARS)` on every EnvString field, where
+    # FRIGATE_ENV_VARS is populated from FRIGATE_-prefixed files in
+    # $CREDENTIALS_DIRECTORY. So the existing LoadCredential= pair covers ONVIF
+    # too, and no second sops secret is needed. preCheckConfig's dummy exports
+    # likewise make these resolvable in the build sandbox.
+    // lib.optionalAttrs (cam ? ptz) {
+      onvif = {
+        inherit (cam) host;
+        inherit (cam.ptz) port;
+        user = "{FRIGATE_CAMERA_USER}";
+        password = "{FRIGATE_CAMERA_PASSWORD}";
+      };
     };
-
-    inherit (cam) detect;
-  };
 in
 {
   services.frigate = {
     enable = true;
 
-    # Served over plain HTTP on the LAN. The module only supports nginx, and
-    # wires this vhost itself.
-    hostname = "nvrhub.local";
+    # `hostname` is deliberately NOT set here. The module only supports nginx
+    # and wires the vhost itself, naming it after this option -- which makes the
+    # value a statement about how the UI is published, not about Frigate. It is
+    # therefore set in ./nginx.nix alongside the certificate and the redirect
+    # from the old name, so the FQDN appears exactly once.
 
     # Satisfy the build-time config validator.
     #
@@ -289,58 +468,77 @@ in
 
       # ── Detector ────────────────────────────────────────────────────────
       #
-      # FIXME(frigate-openvino-yolox-detection-shape): this SHOULD be the openvino
-      # detector with the yolox model packaged in frigate-model.nix. It is the
-      # `cpu` (tflite) detector instead solely because YOLOX post-processing is
-      # BROKEN in Frigate 0.17.2's OpenVINO plugin.
+      # ONNX runtime on the RTX 3070, running YOLOv9-s at 640x640.
       #
-      # The bug, in frigate/detectors/plugins/openvino.py (0.17.2):
+      # There is no `device` or provider setting because there is nothing to
+      # choose: the plugin calls ort.get_available_providers() and takes
+      # CUDAExecutionProvider when the runtime exposes one
+      # (frigate/util/model.py:304-314). Making that true is a BUILD-time
+      # concern handled in ./cuda-onnxruntime.nix, not a config one -- stock
+      # nixpkgs builds onnxruntime with cudaSupport off, and this host reported
+      # only ['OpenVINOExecutionProvider', 'CPUExecutionProvider'] until that
+      # override landed.
       #
-      #   detections = np.concatenate((image_pred[:, :5], class_conf,
-      #                                class_pred), axis=1)   # 7 columns
-      #   ordered = detections[...][:20]
-      #   for i, object_detected in enumerate(ordered):
-      #       detections[i] = self.process_yolo(...)          # returns 6 elems
-      #   return detections                                   # 7-col array
+      # WHAT THIS REPLACED, AND WHY
       #
-      # `process_yolo` returns [class_id, conf, y_min, x_min, y_max, x_max] --
-      # six values -- but is assigned into a row of the seven-column working
-      # array, and that array is then returned to a caller expecting (20, 6).
-      # Both halves fail at runtime:
+      # Previously the tflite `cpu` detector with nixpkgs' bundled
+      # ssdlite_mobiledet at 320x320. That was never a preference; it was the
+      # only correct option available, because Frigate 0.17.2's OpenVINO plugin
+      # crashes on YOLOX post-processing. Moving to ONNX sidesteps that plugin
+      # entirely, so the bug stops mattering rather than being worked around --
+      # see the retired entry in .github/tracked-upstream-fixes.json.
       #
-      #   ValueError: could not broadcast input array from shape (6,) into shape (7,)
-      #   ValueError: could not broadcast input array from shape (0,7) into shape (20,6)
+      # The CPU detector was also the direct cause of the load this box was
+      # carrying, in two compounding ways. It cost ~219% CPU on its own. And
+      # being a 320x320 model it scored a street-parked car at 0.63-0.67 --
+      # straddling the 0.7 average-confidence threshold, so the object was
+      # repeatedly acquired and lost, never settled to `stationary`, and drew a
+      # fresh detector region every single frame. That churn was ~44 of the
+      # fleet's ~50 detections/sec and pinned two camera processes near 200%.
+      # It also mislabelled a car as a motorcycle at 0.707.
       #
-      # The same function in the memryx plugin is written correctly -- it
-      # allocates `final_detections = np.zeros((20, 6), np.float32)` and writes
-      # into that -- which confirms this is a copy-paste defect in the OpenVINO
-      # path and not a misconfiguration here. Every other model type the
-      # OpenVINO plugin supports (ssd, yolonas, yologeneric, rfdetr, dfine)
-      # correctly produces (20, 6). Only yolox is affected, and it fails
-      # unconditionally, so no config could avoid it.
+      # MEASURED, on this GPU, before wiring it in here:
       #
-      # Symptom if this is reverted too early: the detector process crashes in
-      # a loop, the watchdog logs "Detection appears to be stuck. Restarting
-      # detection process..." then "Detection appears to have stopped. Exiting
-      # Frigate...", and detection_fps stays 0 while recording keeps working.
+      #   YOLOv9-s @ 640, CUDAExecutionProvider   7.9 ms/frame, 312 MiB VRAM
+      #   ssdlite_mobiledet @ 320, tflite on CPU  13.1 ms/frame, ~219% CPU
       #
-      # The `cpu` detector is a genuine downgrade in model quality
-      # (ssdlite_mobiledet, 320x320) but it is CORRECT: tflite_detect_raw
-      # allocates np.zeros((20, 6)) properly. It also needs no model config at
-      # all -- nixpkgs patches ModelConfig's default path to the
-      # ssdlite_mobiledet tflite it bundles, so omitting `model` entirely is
-      # what makes this work.
+      # i.e. a far larger model at four times the input area, and it is still
+      # ~40% faster while costing no CPU at all.
       #
-      # num_threads: 3 is the plugin default and is per-detector, not global.
-      # Raised to 8 because this box has 16 threads and detection is the only
-      # CPU-heavy work on it (recording is a stream copy).
+      # A second detector (onnx2) is possible if one cannot keep up, but one is
+      # sized correctly here: 7.9 ms serves ~126 inferences/sec against a
+      # current fleet demand of ~50/sec, and that demand should fall sharply
+      # once detections stop flapping.
+      detectors.onnx1.type = "onnx";
+
+      # ── Model ───────────────────────────────────────────────────────────
       #
-      # See .github/workflows/track-upstream-fixes.yaml -- when the upstream
-      # fix lands, revert to the openvino/yolox block preserved in git history
-      # and re-verify detection_fps > 0.
-      detectors.cpu1 = {
-        type = "cpu";
-        num_threads = 8;
+      # width/height MUST match the size the ONNX was exported at. The
+      # derivation asserts its own graph really declares 640x640 in an
+      # installCheckPhase, so the two cannot silently diverge.
+      #
+      # input_tensor/input_dtype are what the YOLO family expects: NCHW and
+      # float, as opposed to the NHWC uint8 the tflite path used. Getting these
+      # wrong does not error -- it feeds the model transposed or misscaled
+      # garbage and yields a detector that runs and finds nothing.
+      #
+      # THE LABELMAP IS THE DANGEROUS PART. YOLOv9 emits 80-class COCO;
+      # Frigate's bundled labelmap.txt is the 91-class map, and the two agree
+      # only up to index 10 before diverging. Pairing this model with the stock
+      # map produces a detector that runs perfectly and is confidently wrong
+      # about every label past `traffic light` -- the exact hazard called out in
+      # ../../../modules/monitoring/master/alert-rules/frigate-alerts.yaml.
+      # frigate-model.nix therefore GENERATES the labelmap from data/coco.yaml
+      # in the same pinned checkout that produced the weights, so the indices
+      # are right by construction rather than by a matching filename.
+      model = {
+        model_type = "yolo-generic";
+        width = 640;
+        height = 640;
+        input_tensor = "nchw";
+        input_dtype = "float";
+        path = "${detectorModel}/yolov9-s-640.onnx";
+        labelmap_path = "${detectorModel}/labelmap.txt";
       };
 
       # Detection is OFF by default in Frigate 0.17.
@@ -348,7 +546,7 @@ in
       # `DetectConfig.enabled` defaults to False, so setting only width/height/
       # fps per camera -- which looks like a complete detect block -- yields
       # cameras that decode their substream and then throw every frame away.
-      # Confirmed via /api/stats: all eight reported
+      # Confirmed via /api/stats: every camera reported
       #
       #   "camera_fps": 5.1, "process_fps": 5.1, "detection_fps": 0.0,
       #   "detection_enabled": false
@@ -360,16 +558,23 @@ in
 
       # ── Retention ───────────────────────────────────────────────────────
       #
-      # Sized from a MEASURED bitrate, not a guess: 20s of the front-door
-      # mainstream averaged 7.9 Mbps (VBR, 16 Mbps ceiling). That is ~85 GB per
-      # camera per day, ~683 GB/day for all eight, against 3.5 TB usable.
+      # Sized from MEASURED bitrates, not guesses. Per camera per day, against
+      # 3.5 TB usable:
       #
-      # The Reolink doorbell does not disturb this despite recording 4.9 MP:
-      # Reolink caps its mainstream at 4096 kbps and 20s of it measured
-      # 4.39 Mbps, well under the 7.9 Mbps the estimate assumes per camera. So
-      # the figures below stay conservative.
+      #   5x Hikvision DS-2CD2342WD-I  7.9 Mbps  ~85 GB  = ~425 GB
+      #   1x Reolink D340W doorbell    4.39 Mbps ~47 GB  =  ~47 GB
+      #   1x Reolink E1 front door     6.21 Mbps ~67 GB  =  ~67 GB
+      #                                                  ---------
+      #                                                   ~539 GB/day
       #
-      # So continuous recording of everything is ~5.1 days and nothing else
+      # The Hikvision figure is 20s of mainstream at VBR with a 16 Mbps ceiling.
+      # Neither Reolink disturbs it despite recording more pixels, because both
+      # cap their mainstream bitrate: the doorbell at 4096 kbps (4.39 Mbps
+      # measured) and the front door at 6144 kbps (6.21 Mbps measured over 10s).
+      # The 4K HEVC front door is therefore CHEAPER per day than any Hikvision —
+      # H.265 at a capped bitrate buys resolution, not bytes.
+      #
+      # So continuous recording of everything is ~6.5 days and nothing else
       # fits. Hence the tiered policy:
       #
       #   * continuous 3 days  -- always able to scrub back over a long
@@ -378,10 +583,14 @@ in
       #     keeping.
       #   * detections 14 days -- everything the detector fired on.
       #
-      # Worst case is 3 days of everything (~2.05 TB) plus 30 days of event
+      # Worst case is 3 days of everything (~1.62 TB) plus 30 days of event
       # segments; events are a small fraction of wall-clock time, so this sits
       # comfortably inside 3.5 TB. Frigate expires the oldest segments itself
       # rather than filling the disk.
+      #
+      # Note this is currently one camera light: garage_door is temporarily
+      # removed, so restoring it adds ~85 GB/day back. The figures above already
+      # exclude it, so it is the 6.5-day headroom that shrinks, not the policy.
       record = {
         enabled = true;
         continuous.days = 3;
@@ -391,13 +600,106 @@ in
 
       # ── Objects ─────────────────────────────────────────────────────────
       #
-      # person and car only. Adding pets roughly multiplies indoor events on
-      # the kitchen/living-room cameras, and every extra event is retained
-      # footage.
-      objects.track = [
-        "person"
-        "car"
-      ];
+      # Every label here must exist in the ACTIVE MODEL'S labelmap, which is now
+      # the 80-class COCO map generated by ./frigate-model.nix from the same
+      # checkout the weights came from. This list is coupled to the model:
+      # swapping the detector swaps the labelmap.
+      #
+      # `truck` is new here and is a direct consequence of that swap. The
+      # previous 91-class map had no truck class at all, so delivery vans and
+      # pickups were classified as `car` and a truck entry would silently never
+      # have matched. The 80-class map has it at index 7.
+      #
+      # COST OF EACH ADDITION. Tracking more classes does NOT make an
+      # individual inference more expensive -- the model already emits all 90
+      # classes and this list only filters them. It costs CPU indirectly:
+      # every tracked object gets its own detector region every frame, so more
+      # matched classes means more regions, which is the same mechanism
+      # currently pinning the two Reolinks at ~200%. It also costs disk, since
+      # every extra event is retained footage.
+      #
+      # Pets were deliberately excluded when this was first written, on the
+      # grounds that they multiply indoor events on the kitchen and living-room
+      # cameras. That is still true and is accepted here as the price of
+      # actually recording the dog; if indoor event volume becomes a problem,
+      # dog/cat are the first things to drop.
+      #
+      # DELIBERATELY NOT TRACKED, despite being in the labelmap:
+      #
+      #   bird                  Constant outdoor false triggers, which is the
+      #                         exact failure mode being fought elsewhere in
+      #                         this file.
+      #   umbrella, backpack,   Only ever co-occur with a person who is already
+      #   handbag, suitcase     tracked, so they add regions and events without
+      #                         adding information. `backpack`/`suitcase` are
+      #                         tempting for porch-piracy detection, but the
+      #                         courier logos in DEFAULT_ATTRIBUTE_LABEL_MAP
+      #                         (amazon, fedex, dhl, ups, ...) already attach to
+      #                         the parent person/car as ATTRIBUTES and cannot
+      #                         be tracked as objects here anyway.
+      #
+      # RETENTION INTERACTION: review.alerts.labels is [person, car], so only
+      # those two produce 30-day alerts. Everything added below lands in the
+      # 14-day detections tier instead. That is deliberate -- promoting pets or
+      # bicycles to alerts would inflate the 30-day tier.
+      objects = {
+        track = [
+          "person"
+          "car"
+          "truck"
+          "motorcycle"
+          "bicycle"
+          "bus"
+          "dog"
+          "cat"
+        ];
+
+        # ── car confidence calibration ──────────────────────────────────────
+        #
+        # NOT a workaround for a weak model. An earlier version of this line
+        # was exactly that, and was removed when the detector moved to YOLOv9
+        # on the assumption that a better model would make it unnecessary. That
+        # assumption was tested and is FALSE, so it is back -- this time with
+        # the measurements behind it.
+        #
+        # WHAT WAS MEASURED. The same doorbell frame, same preprocessing, run
+        # outside Frigate against three detectors:
+        #
+        #   ssdlite_mobiledet 320 (tflite)   car 0.668
+        #   yolov9-s 640 (current)           car 0.753
+        #   yolov9-e 640 (57M params, 8x)    car 0.784
+        #
+        # Eight times the model buys 0.03. The car parked on the street is
+        # ~110x48 px in a 640 input -- small, distant, and simply a ~0.75
+        # object. No detector swap available here reaches 0.9.
+        #
+        # WHY THAT MATTERS. FilterConfig.threshold (0.7 by default) is the
+        # AVERAGE confidence required for an object to be counted, not a
+        # per-frame floor -- that is min_score, left at its 0.5 default. With
+        # per-event scores observed between 0.504 and 0.70, the running average
+        # sits just under 0.7, so the object is counted, dropped and
+        # re-acquired forever. Never holding a stable track means it never
+        # reaches `stationary`, so it never falls back to the cheap 50-frame
+        # re-check and instead draws a fresh detector region every frame. That
+        # churn is what pins the two outdoor camera processes near 280%.
+        #
+        # 0.6 rather than 0.65: the observed floor is 0.504, so 0.65 leaves
+        # almost no margin and would keep flapping on the low samples. 0.6 sits
+        # below the running average with room to spare while staying above
+        # min_score, so the two still compose.
+        #
+        # The cost is real and accepted: a lower average-confidence bar means
+        # more marginal car detections are believed. On outdoor cameras whose
+        # job is noticing vehicles, a false car is far cheaper than a vehicle
+        # that is never tracked because its score hovers under an arbitrary
+        # default.
+        #
+        # Only `car` is calibrated. person scores 0.70-0.82 here and needs no
+        # help; the other tracked classes have no measurements yet, and a
+        # blanket lowering would be guesswork of exactly the kind this comment
+        # exists to replace.
+        filters.car.threshold = 0.6;
+      };
 
       snapshots.enabled = true;
 
@@ -412,7 +714,7 @@ in
     # The /var/lib/frigate mount is `nofail` so a dead disk cannot strand this
     # headless box in an emergency shell. The consequence is that without this
     # guard Frigate would start regardless, StateDirectory= would CREATE
-    # /var/lib/frigate on the root filesystem, and 8 cameras at ~7.9 Mbps would
+    # /var/lib/frigate on the root filesystem, and the fleet's ~539 GB/day would
     # fill the 465 GB root disk in under a day -- then mounting the media disk
     # later would hide that footage without deleting it.
     #
@@ -423,7 +725,7 @@ in
     serviceConfig = {
       # ── Credentials ───────────────────────────────────────────────────────
       #
-      # The camera username/password are shared across all eight cameras and
+      # The camera username/password are shared across every camera and
       # live in sops. LoadCredential= hands the decrypted files to the unit;
       # Frigate reads $CREDENTIALS_DIRECTORY and substitutes the {FRIGATE_*}
       # placeholders.
@@ -460,9 +762,15 @@ in
       #   TypeError: buffer is too small for requested array
       #
       # while the service still reports active and keeps recording. Observed
-      # here on the MODEL family switching 320x320 -> 416x416: all eight
+      # here on the MODEL family switching 320x320 -> 416x416: every one of the
       # segments stayed 307200 bytes from the previous generation and every
       # camera process crashed on startup. It cost a live debugging session.
+      #
+      # This is exactly why the tflite -> YOLOv9 switch is safe to deploy: that
+      # change takes the model family from 320x320x3 (307,200 bytes) to
+      # 640x640x3 (1,228,800 bytes), a 4x resize of every per-camera segment,
+      # which is precisely the situation that broke before. The loop below
+      # clears them, so the new generation allocates at the new size.
       #
       # The frameN family used to be left alone here, on the reasoning that it
       # is sized from the camera's own detect resolution rather than the
@@ -622,8 +930,10 @@ in
     };
   };
 
+  # 80 and 443 are opened by ./nginx.nix, which owns the UI's TLS vhost and the
+  # redirect from the old plaintext name. Only the metrics port belongs to this
+  # file, because the vhost behind it is defined here.
   networking.firewall.allowedTCPPorts = [
-    80 # nginx -> Frigate UI
     9634 # nginx frigate-metrics vhost (/api/metrics only) -> Prometheus
   ];
 }
