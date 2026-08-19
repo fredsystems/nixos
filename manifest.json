@@ -1,5 +1,5 @@
 {
-  "generated_at": 1787104501,
+  "generated_at": 1787105755,
   "hosts": {
     "Daytona": {
       "history": [
@@ -907,6 +907,11 @@
     "nvrhub": {
       "history": [
         {
+          "at": 1787105755,
+          "rev": "6a6deab74fb2c7f594a221379a151aaba0d1f896",
+          "toplevel": "/nix/store/35jbps6ydxs109f3r0m95zk9h6qzdnd7-nixos-system-nvrhub-26.05.20260817.0dd31db"
+        },
+        {
           "at": 1787079195,
           "rev": "e45e1811986eb3f1823533cb2b0db23c8d1fdf17",
           "toplevel": "/nix/store/cqpb68qn78in7ik885397cllvgpsq0ay-nixos-system-nvrhub-26.05.20260817.0dd31db"
@@ -1000,6 +1005,11 @@
     },
     "sdrhub": {
       "history": [
+        {
+          "at": 1787105755,
+          "rev": "6a6deab74fb2c7f594a221379a151aaba0d1f896",
+          "toplevel": "/nix/store/q6fyf5ihqw9dnd12rwy5jaydj132w41b-nixos-system-sdrhub-26.05.20260817.0dd31db"
+        },
         {
           "at": 1787079195,
           "rev": "e45e1811986eb3f1823533cb2b0db23c8d1fdf17",
@@ -1119,11 +1129,6 @@
           "at": 1786408874,
           "rev": "07f93d3d7dd68977233f6359a6e4cec427329851",
           "toplevel": "/nix/store/jzjkd4zsbw6rglblnffnj5gvmpxyy3av-nixos-system-sdrhub-26.05.20260809.fcb8fcd"
-        },
-        {
-          "at": 1786405587,
-          "rev": "fa75cae03f0a6ad85cffe75efdf722794774b078",
-          "toplevel": "/nix/store/6fh170xm62p1qmni3fbs36ny0pb30qzf-nixos-system-sdrhub-26.05.20260809.fcb8fcd"
         }
       ]
     },
@@ -1257,6 +1262,6 @@
       ]
     }
   },
-  "rev": "e45e1811986eb3f1823533cb2b0db23c8d1fdf17",
+  "rev": "6a6deab74fb2c7f594a221379a151aaba0d1f896",
   "schema": 1
 }
