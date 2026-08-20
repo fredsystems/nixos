@@ -27,7 +27,7 @@
 # WHY SUBSETTED
 #
 # The upstream faces total ~1.5 MB (Font Awesome Solid alone is 414 KB) and
-# the page uses 26 icons and ASCII text. Subsetting to the codepoints
+# the page uses 25 icons and ASCII text. Subsetting to the codepoints
 # actually referenced takes that to ~52 KB, which also keeps each file well
 # under the `check-added-large-files --maxkb=600` pre-commit hook.
 #
@@ -92,9 +92,10 @@ command -v nix >/dev/null 2>&1 || {
 FA_SOLID_CP="e22d,e4e2,f002,f008,f012,f03d,f0a0,f0a2,f0ac,f1c0,f1fe,f201,f233,f3ed,f519,f544,f57d,f5a0,f5dc,f625,f658,f689"
 
 # Brand marks, from the Brands face rather than Solid.
+#   f09b github       (repo jump button and its overlay)
 #   f395 docker       (dozzle)
 #   f7bb raspberry-pi (piaware)
-FA_BRANDS_CP="f395,f7bb"
+FA_BRANDS_CP="f09b,f395,f7bb"
 
 # Printable ASCII, plus U+00B7 MIDDLE DOT (used as a separator throughout
 # the page) and U+2019 RIGHT SINGLE QUOTATION MARK (the apostrophe in
