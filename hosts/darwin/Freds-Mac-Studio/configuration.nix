@@ -37,6 +37,24 @@
   #     Privacy panes at all. The GUI is present in this build because `gtk`
   #     is a default cargo feature.
   #
+  #     THE TRAP, hit for real on first setup: granting the permission is not
+  #     enough, and running the GUI does NOT apply it. The agent is already
+  #     running, so the GUI logs "service already running!" (src/main.rs
+  #     swallows IpcListenerCreationError::AlreadyRunning) and attaches to the
+  #     existing daemon over IPC instead of starting its own. That daemon
+  #     checked its permissions once at startup and never rechecks, so it goes
+  #     on emulating nothing while the GUI cheerfully reports the permission
+  #     as granted -- it looks like it worked, and it did not.
+  #
+  #     The daemon process itself has to be replaced. Cleanest:
+  #
+  #       launchctl kickstart -k gui/$UID/org.nix-community.home.lan-mouse
+  #
+  #     `pkill lan-mouse` also works (KeepAlive brings it straight back), as
+  #     does a reboot. The grant carries across the restart because the GUI
+  #     and the daemon are the same store path, and TCC keys on the
+  #     executable rather than on the process.
+  #
   #  2. Fill in `authorizedFingerprints` below. Being the listening side, this
   #     is the machine that decides who may connect, and an empty list refuses
   #     maranello. maranello's fingerprint does not exist until it has run
