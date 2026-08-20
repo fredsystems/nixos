@@ -688,6 +688,27 @@
         "type": "github"
       }
     },
+    "lan-mouse": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ],
+        "rust-overlay": "rust-overlay_7"
+      },
+      "locked": {
+        "lastModified": 1782656559,
+        "narHash": "sha256-i2xXiqLOnCNfwZnbrm1teVlTTA1HQ0IRVPXEiyiQtpU=",
+        "owner": "feschber",
+        "repo": "lan-mouse",
+        "rev": "392af44cbe06a7a591db86856ad6ed2aa83958d8",
+        "type": "github"
+      },
+      "original": {
+        "owner": "feschber",
+        "repo": "lan-mouse",
+        "type": "github"
+      }
+    },
     "niri": {
       "inputs": {
         "niri-stable": "niri-stable",
@@ -1180,7 +1201,7 @@
         "flake-utils": "flake-utils_9",
         "git-hooks": "git-hooks_5",
         "nixpkgs": "nixpkgs_14",
-        "rust-overlay": "rust-overlay_7"
+        "rust-overlay": "rust-overlay_8"
       },
       "locked": {
         "lastModified": 1786691678,
@@ -1250,6 +1271,7 @@
         "github-ci-exporter": "github-ci-exporter",
         "home-manager": "home-manager",
         "home-manager-stable": "home-manager-stable",
+        "lan-mouse": "lan-mouse",
         "niri": "niri",
         "nix-flatpak": "nix-flatpak",
         "nix-yazi-plugins": "nix-yazi-plugins",
@@ -1385,6 +1407,27 @@
       }
     },
     "rust-overlay_7": {
+      "inputs": {
+        "nixpkgs": [
+          "lan-mouse",
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1773025773,
+        "narHash": "sha256-Wik8+xApNfldpUFjPmJkPdg0RrvUPSWGIZis+A/0N1w=",
+        "owner": "oxalica",
+        "repo": "rust-overlay",
+        "rev": "3c06fdbbd36ff60386a1e590ee0cd52dcd1892bf",
+        "type": "github"
+      },
+      "original": {
+        "owner": "oxalica",
+        "repo": "rust-overlay",
+        "type": "github"
+      }
+    },
+    "rust-overlay_8": {
       "inputs": {
         "nixpkgs": "nixpkgs_15"
       },

@@ -124,6 +124,18 @@
       url = "github:gmodena/nix-flatpak/v0.7.0"; # unstable branch. Use github:gmodena/nix-flatpak/<tag> to pin releases.
     };
 
+    # CI: desktop
+    # Imported for its home-manager module ONLY -- the package comes from
+    # nixpkgs on Linux and from the upstream .app bundle on Darwin (see
+    # features/desktop/lan-mouse). That is why this follows our nixpkgs
+    # despite upstream publishing to lan-mouse.cachix.org: we never build
+    # their derivation, so there is nothing for that cache to serve, and
+    # following avoids dragging a second nixpkgs into the closure.
+    lan-mouse = {
+      url = "github:feschber/lan-mouse";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     # CI: global
     nixvim = {
       url = "github:nix-community/nixvim";

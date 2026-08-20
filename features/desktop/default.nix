@@ -39,6 +39,7 @@ in
     ./githubdesktop
     ./kitty
     ./ladybird
+    ./lan-mouse
     ./ledger-live
     ./libreoffice
     ./missioncenter
@@ -85,6 +86,13 @@ in
       # permittedInsecurePackages: this is a browser, so the CVE is directly
       # reachable by untrusted input.
       ladybird.enable = false;
+      # No `lan-mouse.enable` line here on purpose, unlike every other entry
+      # in this block. It pairs one specific machine with one specific peer
+      # sitting at one specific edge of that machine's monitor layout, so
+      # there is no fleet-wide default that would be correct -- enabling it
+      # here would put a phantom screen edge on Daytona, whose desk has no
+      # second computer beyond it. Hosts opt in individually; see
+      # hosts/linux/maranello/configuration.nix.
       ledger.enable = cfg.enable_extra;
       libreoffice.enable = true;
       missioncenter.enable = true;

@@ -53,6 +53,49 @@ in
   desktop = {
     enable_games = true;
     enable_streaming = true;
+
+    # This desk has a second machine on it -- the Mac Studio, driving its own
+    # monitor -- which until now meant a second keyboard and mouse taking up
+    # space next to the first. maranello keeps the physical peripherals and
+    # hands them over when the pointer leaves the right-hand edge.
+    #
+    # No `authorizedFingerprints` here, deliberately. Authorisation is checked
+    # by the LISTENING side only (src/listen.rs verifies the peer certificate
+    # against that list); the connecting side runs with
+    # `insecure_skip_verify: true` (src/connect.rs). maranello only ever
+    # initiates, so it has nothing to authorise -- the Mac Studio carries
+    # maranello's fingerprint instead. Add the Mac's fingerprint here if this
+    # ever becomes bidirectional.
+    lan-mouse = {
+      enable = true;
+      clients = [
+        {
+          # Bonjour name. nix-darwin's networking.localHostName defaults to
+          # networking.hostName, which flake/lib/mk-darwin-system.nix sets
+          # from the directory name, so this tracks hosts/darwin/.
+          hostname = "Freds-Mac-Studio.local";
+
+          # Required, not an optimisation -- the hostname above does NOT
+          # resolve on its own. lan-mouse builds its own hickory-resolver
+          # (src/dns.rs) and calls lookup_ip directly, which never consults
+          # NSS, so avahi/nssmdns4 is bypassed and `.local` is treated as an
+          # ordinary DNS name: the observed failure is a query for
+          # "freds-mac-studio.local.localdomain" against the LAN nameserver.
+          # `avahi-resolve` and `getent ahosts` both answer 192.168.31.103
+          # for this name; lan-mouse simply is not asking them.
+          #
+          # This wants a DHCP reservation on the router to stay true.
+          ips = [ "192.168.31.103" ];
+
+          # The Mac's monitor sits to the right of the 2x2 grid of 27" panels
+          # described in ./monitors.nix. Note that the barrier spans the right
+          # edge of the WHOLE layout, i.e. both DP-1 (top-right) and DP-2
+          # (bottom-right) -- 2880px of it -- not just the panel the Mac is
+          # level with.
+          position = "right";
+        }
+      ];
+    };
   };
 
   virtualization.libvirt.enable = true;

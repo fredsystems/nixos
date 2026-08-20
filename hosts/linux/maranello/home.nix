@@ -27,6 +27,25 @@ in
           "-b"
         ];
       }
+      {
+        # Nothing else starts lan-mouse in a niri session: upstream's unit is
+        # `WantedBy` hyprland-session.target and sway-session.target only, so
+        # under niri it would silently never run. `restart` rather than
+        # `start` for the same reason as the Hyprland autostart below -- the
+        # layer-shell capture surfaces bind to the outputs present when the
+        # daemon started, so one surviving from a previous session comes back
+        # with its edges attached to nothing.
+        #
+        # It still stops with the session despite not being `WantedBy`
+        # anything here: the unit has `Requires=graphical-session.target`, and
+        # Requires propagates stop.
+        command = [
+          "systemctl"
+          "--user"
+          "restart"
+          "lan-mouse"
+        ];
+      }
     ];
   };
 
@@ -41,6 +60,12 @@ in
     -- Autostart streamcontroller
     hl.on("hyprland.start", function()
       hl.exec_cmd("streamcontroller -b")
+      -- Restarted rather than left to graphical-session.target, matching the
+      -- other session services in features/desktop/environments/hyprland. Its
+      -- layer-shell capture surfaces are bound to the outputs that existed
+      -- when it started, so a daemon that survived the previous session comes
+      -- back with edges attached to nothing.
+      hl.exec_cmd("systemctl restart --user lan-mouse")
     end)
 
     -- Pin workspaces 1-4 to the four physical monitor corners and mark each
