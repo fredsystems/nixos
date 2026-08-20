@@ -974,7 +974,22 @@
           />
         </div>
         <div class="jump-list" id="jlist"></div>
-        <div class="jump-foot" id="jstat"></div>
+        <!--
+          role=status/aria-live because this element carries the ONLY
+          feedback for the match count and for every failure path ("index
+          unreachable", "index timed out", "index unreadable"). Written with
+          textContent on a plain div, none of that is announced, so a screen
+          reader user gets silence when the endpoint is down.
+
+          polite, not assertive: it updates on every keystroke as the match
+          count changes, and assertive would interrupt continuously.
+        -->
+        <div
+          class="jump-foot"
+          id="jstat"
+          role="status"
+          aria-live="polite"
+        ></div>
       </div>
     </div>
 
@@ -1021,16 +1036,21 @@
 
         q.addEventListener("input", apply);
 
-        // `/` is a shortcut only when nothing else is accepting text.
+        // `/` is a shortcut only when no text field has focus.
+        //
         // Testing `activeElement !== q` was enough while this was the page's
         // only field, but the repository jump overlay added a second one --
-        // and `/` is a character you type into it constantly, since repos are
-        // addressed as owner/name. Without this the first slash would yank
-        // focus out of that box and into this one.
-        function typingElsewhere() {
+        // and `/` is a character you type into it constantly, since repos
+        // are addressed as owner/name. Without this the first slash would
+        // yank focus out of that box and into this one.
+        //
+        // `q` needs no special case: it is an INPUT, so the general test
+        // already covers the original "do not re-focus the box you are
+        // already in" behaviour.
+        function textFieldFocused() {
           var el = document.activeElement;
-          if (!el || el === q) {
-            return el === q;
+          if (!el) {
+            return false;
           }
           var tag = el.tagName;
           return (
@@ -1042,7 +1062,7 @@
         }
 
         document.addEventListener("keydown", function (e) {
-          if (e.key === "/" && !typingElsewhere()) {
+          if (e.key === "/" && !textFieldFocused()) {
             e.preventDefault();
             q.focus();
             q.select();
@@ -1154,12 +1174,38 @@
           foot.textContent = text;
         }
 
-        function indexAge() {
-          if (!generated) {
-            return "";
+        // Array.isArray is ES5, so it is available anywhere this script's
+        // syntax is, but it is wrapped rather than called directly so the
+        // shape check reads the same at both call sites.
+        function isArray(value) {
+          return Object.prototype.toString.call(value) === "[object Array]";
+        }
+
+        // Milliseconds since the epoch, 0 when unknown or unparseable.
+        //
+        // Ordering by comparing the RFC 3339 strings looks correct and is
+        // not. chrono serialises with automatic fractional precision, so the
+        // index mixes "...T10:00:00Z" and "...T10:00:00.500Z" -- and "." is
+        // 0x2E against "Z" at 0x5A, so the LATER instant sorts first. Every
+        // pushed_at GitHub currently returns is whole-second, which is why
+        // this has not misordered anything; generated_at in the same payload
+        // already carries nine fractional digits, so the mixed case is one
+        // upstream change away.
+        //
+        // Fractional digits are trimmed to three because ES5 specifies only
+        // millisecond precision for Date.parse; engines vary on more, and
+        // returning NaN there would silently flatten the ordering.
+        function timeOf(stamp) {
+          if (!stamp) {
+            return 0;
           }
-          var at = Date.parse(generated);
-          if (isNaN(at)) {
+          var at = Date.parse(String(stamp).replace(/\.(\d{3})\d*/, ".$1"));
+          return isNaN(at) ? 0 : at;
+        }
+
+        function indexAge() {
+          var at = timeOf(generated);
+          if (!at) {
             return "";
           }
           var mins = Math.round((new Date().getTime() - at) / 60000);
@@ -1178,6 +1224,20 @@
 
           var xhr = new XMLHttpRequest();
           xhr.open("GET", "/repos.json", true);
+
+          // Without a timeout a connection that is accepted and then never
+          // answered leaves `pending` true forever. Every later open() would
+          // short-circuit load(), and the footer would sit on "reading
+          // repository index" for the rest of the page's life -- a stuck UI
+          // that lies, which is worse than an honest failure. On timeout
+          // `repos` is still null and `pending` is cleared, so the next open
+          // retries.
+          xhr.timeout = 8000;
+          xhr.ontimeout = function () {
+            pending = false;
+            say("index timed out" + FALLBACK);
+          };
+
           xhr.onreadystatechange = function () {
             if (xhr.readyState !== 4) {
               return;
@@ -1203,8 +1263,25 @@
               return;
             }
 
-            repos = payload && payload.repos ? payload.repos : [];
-            generated = payload ? payload.generated_at : null;
+            // Shape-checked, not merely truthy. A payload whose `repos` is
+            // a string would pass a truthiness test, then `repos[i]` yields
+            // single characters and rankOf throws on `repo.name` at the
+            // first keystroke -- inside the input handler, so the box just
+            // stops responding. That is a worse failure than the documented
+            // unreadable path, for the same bad input.
+            if (!payload || !isArray(payload.repos)) {
+              say("index unreadable" + FALLBACK);
+              return;
+            }
+
+            repos = payload.repos;
+            generated = payload.generated_at;
+            // Sort key computed once here rather than per comparison; see
+            // timeOf.
+            var i;
+            for (i = 0; i < repos.length; i++) {
+              repos[i].ts = timeOf(repos[i].pushed_at);
+            }
             render();
           };
           xhr.send();
@@ -1257,12 +1334,11 @@
               return a.rank - b.rank;
             }
             // Most recently pushed first, so an empty box opens on what is
-            // actually being worked on. RFC 3339 in UTC sorts correctly as a
-            // string, so this parses no dates.
-            var ap = a.repo.pushed_at || "";
-            var bp = b.repo.pushed_at || "";
-            if (ap !== bp) {
-              return ap < bp ? 1 : -1;
+            // actually being worked on. Numeric, from the key computed at
+            // load; see timeOf for why the timestamps are not compared as
+            // strings.
+            if (a.repo.ts !== b.repo.ts) {
+              return b.repo.ts - a.repo.ts;
             }
             return a.repo.name < b.repo.name ? -1 : 1;
           });
@@ -1273,6 +1349,10 @@
         function itemFor(repo) {
           var a = document.createElement("a");
           a.className = "jump-item" + (repo.archived ? " arch" : "");
+          // Out of the tab ring: the dialog declares aria-modal, and these
+          // are driven by the arrow keys. Still a real link, so click,
+          // middle-click and "copy link address" all behave normally.
+          a.setAttribute("tabindex", "-1");
           a.href =
             "https://github.com/" +
             encodeURIComponent(repo.owner) +
@@ -1416,6 +1496,18 @@
           } else if (e.key === "Escape") {
             e.preventDefault();
             closeJump();
+          } else if (e.key === "Tab") {
+            // aria-modal="true" is a promise that focus cannot leave the
+            // dialog, and without this it does: Tab walked straight out of
+            // the input and onto the section buttons behind the backdrop,
+            // which stay focusable and activatable while invisible. A
+            // keyboard user would then be operating controls they cannot
+            // see.
+            //
+            // The input is the only tab stop left inside (results are
+            // tabindex="-1"), so holding focus here is the whole trap; there
+            // is no ring to cycle.
+            e.preventDefault();
           }
         });
 

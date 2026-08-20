@@ -212,10 +212,20 @@
       # scripts/check-page-scripts-es5.sh's header.
       pageScriptsEs5Check = pkgs.writeShellApplication {
         name = "check-page-scripts-es5";
-        # esprima rather than a grep: `,)` occurs legitimately inside
-        # string literals and comments on that page, and only a tokeniser
-        # can tell those from real syntax.
-        runtimeInputs = [ (pkgs.python3.withPackages (ps: [ ps.esprima ])) ];
+        # Two parsers, deliberately. eslint pinned to `ecmaVersion: 5` is
+        # the authoritative gate -- a real grammar, so it also rejects
+        # generators, default parameters, destructuring and for...of, which
+        # no hand-maintained blocklist would have covered. The esprima
+        # token scan runs alongside it purely to name the construct, since
+        # eslint reports the trailing-comma case as "Unexpected token )",
+        # which blames the paren rather than the comma.
+        #
+        # A tokeniser either way, never a grep: `,)` occurs legitimately
+        # inside string literals and comments on that page.
+        runtimeInputs = [
+          pkgs.eslint
+          (pkgs.python3.withPackages (ps: [ ps.esprima ]))
+        ];
         text = ''
           bash scripts/check-page-scripts-es5.sh "$@"
         '';
