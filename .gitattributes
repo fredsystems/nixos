@@ -1,2 +1,8 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Subsetted web fonts served by sdrhub's landing page. `text=auto` above
+# lets git guess, and a guess of "text" on a brotli-compressed stream means
+# LF normalization rewrites bytes inside it -- producing a font that fails
+# to decode. Mark them binary so neither normalization nor diffing applies.
+*.woff2 binary

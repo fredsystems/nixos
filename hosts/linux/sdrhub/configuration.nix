@@ -303,6 +303,52 @@ let
       };
     };
 
+    # Prometheus.
+    #
+    # UNLIKE grafana and adguard above, this does NOT come with the service
+    # being moved to loopback and its firewall port dropped. Port 9090 stays
+    # open on the LAN, because daytona remote-writes to
+    # http://192.168.31.20:9090/api/v1/write
+    # (hosts/linux/daytona/configuration.nix) -- a cross-host write that a
+    # loopback bind would break. So this vhost is an ADDITIONAL, encrypted way
+    # in, not a replacement for the plaintext port. Anything reachable on the
+    # LAN can still speak to :9090 directly.
+    #
+    # `legacy = [ ]`, same reasoning as grafana and adguard: Prometheus was
+    # only ever reached as http://192.168.31.20:9090/, an address and a port
+    # rather than a name, so there is no `.lan` vhost to preserve.
+    #
+    # basicAuth, which no other vhost on this host uses. Prometheus ships no
+    # authentication whatsoever, and `--web.enable-admin-api` is set in
+    # modules/monitoring/master/prometheus.nix, so an unauthenticated TLS name
+    # would be a second route to /api/v1/admin/tsdb/delete_series. Grafana and
+    # AdGuard both have their own logins and need no such wrapper.
+    #
+    # This is emphatically NOT a claim that Prometheus is now protected: the
+    # open :9090 above is the honest hole, and basic auth here only ensures
+    # the new name is not a *further* one. Closing the hole means repointing
+    # daytona's remote-write at this vhost (with credentials) and then binding
+    # Prometheus to loopback, which is a separate change.
+    #
+    # basicAuthFile rather than basicAuth: the latter takes a plaintext
+    # attrset and renders it into the world-readable Nix store, which is the
+    # same defect as the old hardcoded grafana secret_key. The file is a
+    # bcrypt htpasswd from sops, owned by nginx.
+    prometheus = {
+      legacy = [ ];
+      vhost = {
+        basicAuthFile = config.sops.secrets."monitoring/prometheus_htpasswd".path;
+
+        locations."/" = {
+          # 127.0.0.1 rather than the LAN address: nginx and Prometheus are on
+          # the same host, so there is no reason to leave the proxy hop on the
+          # wire. The port is read from the service definition so the target
+          # cannot drift from the bind.
+          proxyPass = "http://127.0.0.1:${toString config.services.prometheus.port}";
+        };
+      };
+    };
+
     # Clipboard payloads are whatever happened to be on a clipboard, so the
     # default 1m body limit is far too small once images are in play. The
     # upstream is loopback-only, so this vhost is the only way in.

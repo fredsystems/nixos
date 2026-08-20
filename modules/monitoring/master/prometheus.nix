@@ -47,6 +47,29 @@ in
     "healthchecks.io/endpoint" = { };
     "pushover/api_token" = { };
     "pushover/user_key" = { };
+
+    # htpasswd file gating the prometheus.int.fredsystems.org vhost declared in
+    # hosts/linux/sdrhub/configuration.nix.
+    #
+    # Prometheus has no authentication of its own, and `--web.enable-admin-api`
+    # below means anything that can reach it can also delete the TSDB via
+    # /api/v1/admin/tsdb/delete_series. Port 9090 stays open on the LAN because
+    # daytona remote-writes to it (see the vhost comment for why closing it is
+    # not on the table), so this does not make Prometheus unreachable without a
+    # password -- it stops the TLS name from being a second unauthenticated
+    # entry point, and gives a credential to rotate.
+    #
+    # Owned by nginx because nginx is what reads it, unlike the two pushover
+    # secrets above which are handed to a DynamicUser unit via LoadCredential.
+    #
+    # restartUnits is deliberately NOT set. nginx opens this file per request
+    # rather than caching it at startup, so a rotated hash takes effect without
+    # a reload -- the failure mode that makes restartUnits necessary for
+    # Grafana's `$__file{...}` secrets does not apply here.
+    "monitoring/prometheus_htpasswd" = {
+      owner = config.services.nginx.user;
+      mode = "0400";
+    };
   };
 
   # The alertmanager unit runs with DynamicUser=yes, so there is no stable uid

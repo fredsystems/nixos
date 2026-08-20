@@ -22,6 +22,29 @@
         "tsconfig.json"
       ];
 
+      # Binary files that the content-rewriting hooks must not touch.
+      #
+      # Those hooks are configured with `types: [file]` rather than `[text]`,
+      # so they do not skip binaries on their own: `mixed-line-ending`
+      # rewrites any CRLF byte pair it finds inside a brotli-compressed font,
+      # silently producing a file that no longer decodes (verified -- it grew
+      # a subsetted Font Awesome face by one byte and broke `TTFont()`).
+      #
+      # Applied per-hook rather than being appended to `excludes` above,
+      # which applies to EVERY base hook. That would also take `.woff2` out of
+      # `check-added-large-files`, whose 600 kB ceiling is precisely what
+      # should stop someone committing a non-subsetted 1.5 MB face. Only the
+      # hooks that rewrite file contents need to skip these.
+      binaryExcludes = [ "\\.woff2$" ];
+
+      excludeBinaries =
+        hooks:
+        lib.genAttrs [
+          "trailing-whitespace"
+          "mixed-line-ending"
+          "end-of-file-fixer"
+        ] (name: hooks.${name} // { excludes = (hooks.${name}.excludes or [ ]) ++ binaryExcludes; });
+
       # Validates the Prometheus alerting rules: `check rules` for syntax and
       # templates, `test rules` for behaviour.
       #
@@ -211,11 +234,13 @@
 
           gitHooks = inputs.precommit-base.inputs.git-hooks;
 
+          baseHooks = base.hooks // excludeBinaries base.hooks;
+
           run = gitHooks.lib.${system}.run {
             src = self;
             inherit (base) excludes;
 
-            hooks = base.hooks // {
+            hooks = baseHooks // {
               prometheus-alert-rules = {
                 enable = true;
                 name = "prometheus alert rules (promtool check + test)";
