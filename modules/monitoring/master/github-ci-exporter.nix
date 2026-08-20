@@ -118,7 +118,15 @@
     # Archived repositories and repositories with no workflow files are
     # dropped automatically; the denylist is only for anything that survives
     # those filters and still is not worth watching.
-    denylist = [ ];
+    denylist = [
+      "airframesio/acars-decoder-typescript"
+      "airframesio/coverage"
+      "airframesio/flightboard"
+      "airframesio/xng"
+      "airframesio/data"
+      "airframesio/data-archiver"
+      "airframesio/acars-decoder"
+    ];
 
     # Individual pull requests that are stuck and are not ours to unstick.
     #
