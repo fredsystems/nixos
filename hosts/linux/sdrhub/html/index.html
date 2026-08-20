@@ -19,6 +19,15 @@
       No external origin is referenced any more: no CDN, no webfont service,
       no analytics. Keep it that way.
 
+      The repository jump overlay at the bottom of this file does fetch
+      something, but from this host: /repos.json is proxied by nginx to
+      github-ci-exporter over loopback. It is also fetched lazily, on first
+      use, and every failure mode degrades to a plain link to github.com --
+      so the page still renders and still works with that endpoint dead. The
+      rule this comment is defending is about SUBRESOURCES the page cannot
+      render without; ordinary outbound <a href> targets (acarshub.app,
+      github.com) have always been fine.
+
       Fonts are subsetted and committed under ./fonts/. They are regenerated
       by ../../../../scripts/gen-sdrhub-fonts.sh, which also explains why
       they are committed bytes rather than a build-time derivation. ADDING AN
@@ -402,6 +411,146 @@
         display: none !important;
       }
 
+      /*
+        Repository jump overlay, opened by the GitHub button in section 05.
+
+        This is the one part of the page that talks to anything: it reads
+        /repos.json, which nginx proxies to github-ci-exporter on this same
+        host (see the `= /repos.json` location in ../configuration.nix). That
+        is still a LAN origin -- the no-external-origins rule at the top of
+        this file is intact -- and the page is fully usable without it. See
+        the script for the failure behaviour.
+      */
+      .jump {
+        position: fixed;
+        inset: 0;
+        z-index: 10;
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+        padding: 8vh 18px 18px;
+        background: rgba(17, 17, 27, 0.86);
+      }
+      /* Class+attribute outranks the bare `.jump` rule above, so this wins
+         over `display: flex` without needing !important. */
+      .jump[hidden] {
+        display: none;
+      }
+
+      .jump-panel {
+        display: flex;
+        flex-direction: column;
+        width: min(780px, 100%);
+        max-height: 78vh;
+        background: var(--crust);
+        border-left: 14px solid var(--mauve);
+        border-radius: 4px 26px 26px 4px;
+        overflow: hidden;
+      }
+
+      .jump-head {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 14px 20px;
+        background: var(--surface0);
+      }
+      .jump-head .ic {
+        font-size: 1.3rem;
+        color: var(--mauve);
+      }
+      .jump-head input {
+        flex: 1;
+        min-width: 0;
+        border: 0;
+        outline: 0;
+        background: transparent;
+        color: var(--text);
+        font-family: "JetBrains Mono", monospace;
+        font-size: 0.92rem;
+      }
+
+      .jump-list {
+        overflow-y: auto;
+        /* The list is the only scrollable region; without this the flex item
+           refuses to shrink below its content and the panel outgrows the
+           viewport. */
+        min-height: 0;
+      }
+
+      .jump-item {
+        display: block;
+        padding: 9px 20px;
+        text-decoration: none;
+        color: var(--text);
+        border-left: 4px solid transparent;
+      }
+      /* Selection is driven by the keyboard, so it must be a real class and
+         not :hover -- the pointer is usually nowhere near the list. */
+      .jump-item.is-sel {
+        background: var(--surface0);
+        border-left-color: var(--peach);
+      }
+      .jump-item .n {
+        font-family: "JetBrains Mono", monospace;
+        font-size: 0.84rem;
+        letter-spacing: 0.02em;
+      }
+      .jump-item .n .o {
+        color: var(--subtext0);
+      }
+      .jump-item .n .r {
+        color: var(--peach);
+        font-weight: 700;
+      }
+      .jump-item .d {
+        display: block;
+        margin-top: 2px;
+        font-family: "JetBrains Mono", monospace;
+        font-size: 0.68rem;
+        color: var(--subtext0);
+        /* Descriptions are arbitrary upstream text and some are paragraphs.
+           One line each keeps the list scannable. */
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      /* Archived repositories are listed, not hidden: old work stays
+         reachable. Marked rather than dropped, per the exporter's index. */
+      .jump-item .tag {
+        margin-left: 8px;
+        padding: 1px 5px;
+        border-radius: 3px;
+        background: var(--surface1);
+        color: var(--subtext0);
+        font-family: "JetBrains Mono", monospace;
+        font-size: 0.56rem;
+        letter-spacing: 0.12em;
+        vertical-align: 1px;
+      }
+      .jump-item.arch .n .r {
+        color: var(--overlay0);
+      }
+
+      .jump-foot {
+        padding: 9px 20px;
+        background: var(--surface0);
+        font-family: "JetBrains Mono", monospace;
+        font-size: 0.62rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--subtext0);
+      }
+
+      @media (max-width: 820px) {
+        .jump {
+          padding: 4vh 8px 8px;
+        }
+        .jump-panel {
+          max-height: 88vh;
+        }
+      }
+
       .elbow-bot {
         position: relative;
         height: 96px;
@@ -771,6 +920,22 @@
                   ><code>5502</code></span
                 >acarshub.app
               </a>
+              <!--
+                The href is the real fallback, not a placeholder: with JS off,
+                or if /repos.json cannot be read, this is still a working link
+                to the account's repository list. The script upgrades the
+                click into the jump overlay.
+              -->
+              <a
+                class="btn c-surface"
+                id="gh-jump"
+                href="https://github.com/fredclausen?tab=repositories"
+              >
+                <span class="top"
+                  ><i class="ic br" data-i="&#xf09b;" aria-hidden="true"></i
+                  ><code>5503</code></span
+                >GitHub
+              </a>
             </div>
           </section>
         </main>
@@ -781,6 +946,36 @@
           >lcars access 47-beta &middot; nixos &middot; nginx</span
         >
       </footer>
+    </div>
+
+    <!--
+      Repository jump. Starts hidden and stays hidden with JS off, where the
+      GitHub button above remains an ordinary link to github.com.
+    -->
+    <div
+      class="jump"
+      id="jump"
+      hidden
+      role="dialog"
+      aria-modal="true"
+      aria-label="Jump to a GitHub repository"
+    >
+      <div class="jump-panel">
+        <div class="jump-head">
+          <i class="ic br" data-i="&#xf09b;" aria-hidden="true"></i>
+          <input
+            id="jq"
+            type="search"
+            placeholder="repository name"
+            aria-label="Repository name"
+            autocomplete="off"
+            autocapitalize="off"
+            spellcheck="false"
+          />
+        </div>
+        <div class="jump-list" id="jlist"></div>
+        <div class="jump-foot" id="jstat"></div>
+      </div>
     </div>
 
     <script>
@@ -826,8 +1021,28 @@
 
         q.addEventListener("input", apply);
 
+        // `/` is a shortcut only when nothing else is accepting text.
+        // Testing `activeElement !== q` was enough while this was the page's
+        // only field, but the repository jump overlay added a second one --
+        // and `/` is a character you type into it constantly, since repos are
+        // addressed as owner/name. Without this the first slash would yank
+        // focus out of that box and into this one.
+        function typingElsewhere() {
+          var el = document.activeElement;
+          if (!el || el === q) {
+            return el === q;
+          }
+          var tag = el.tagName;
+          return (
+            tag === "INPUT" ||
+            tag === "TEXTAREA" ||
+            tag === "SELECT" ||
+            el.isContentEditable === true
+          );
+        }
+
         document.addEventListener("keydown", function (e) {
-          if (e.key === "/" && document.activeElement !== q) {
+          if (e.key === "/" && !typingElsewhere()) {
             e.preventDefault();
             q.focus();
             q.select();
@@ -850,6 +1065,387 @@
         if (q.value) {
           apply();
         }
+      })();
+    </script>
+
+    <!--
+      Deliberately a SECOND script element rather than another IIFE in the one
+      above. A syntax error takes out its whole element, and the filter in the
+      element above is the page's core function; splitting them means a
+      mistake down here cannot cost the page its search box.
+    -->
+    <script>
+      // Repository jump: open the GitHub button, type a name, press Enter.
+      //
+      // The repository list comes from /repos.json, which nginx proxies to
+      // github-ci-exporter on this host. That exporter already enumerates
+      // every repository owned by fredclausen, airframesio, fredsystems and
+      // sdr-enthusiasts every five minutes to build its CI metrics, so this
+      // costs no GitHub API calls and needs no token here. Asking
+      // api.github.com from the browser instead would spend the
+      // unauthenticated 60/hour budget -- shared by every device behind this
+      // LAN's NAT -- on several hundred paginated repositories, per visitor.
+      //
+      // The whole list is fetched once and matched in memory. A server-side
+      // query endpoint would mean an HTTP round trip per keystroke to filter
+      // a few kilobytes, which is slower and has more ways to fail.
+      //
+      // Fetched on first open, not on page load: this page's job is to be
+      // useful when the network is broken, and it should not spend a request
+      // on a feature nobody has asked for yet. If the fetch fails the overlay
+      // still opens, says so, and Enter falls through to the GitHub button's
+      // own href -- which is why that href is a real URL.
+      //
+      // ES5 and XMLHttpRequest, matching the element above. See its comment
+      // about staying parseable by whatever browser is to hand.
+      (function () {
+        "use strict";
+
+        // Enough to scroll through; past this the answer is to type more.
+        // Rendering every match on each keystroke is wasted DOM work.
+        var MAX_RESULTS = 40;
+
+        // Added to an archived repository's rank, so that ANY live match
+        // outranks ANY archived one. Larger than the worst live rank, which
+        // is what makes it a tier separator rather than a tie-breaker.
+        //
+        // A tie-breaker was not enough. Measured against the real index,
+        // searching "hfdl" opened on the archived airframesio/hfdl-autopilot
+        // ahead of the maintained docker-dumphfdl and docker-hfdlobserver,
+        // because a prefix match outranks a substring one and the archived
+        // demotion only applied within a tier. Match quality is the weaker
+        // signal here: something archived is nearly never what is wanted.
+        //
+        // Archived repositories stay listed and stay reachable -- once the
+        // query is specific enough that nothing live matches, they are first
+        // again, which is the case where someone is deliberately looking for
+        // one.
+        var ARCHIVED_PENALTY = 10;
+
+        var overlay = document.getElementById("jump");
+        var opener = document.getElementById("gh-jump");
+        var input = document.getElementById("jq");
+        var list = document.getElementById("jlist");
+        var foot = document.getElementById("jstat");
+
+        // Stays null until a load succeeds. That is what separates "not
+        // fetched yet" from "fetched, and the answer was genuinely empty".
+        var repos = null;
+        var generated = null;
+        var pending = false;
+        var results = [];
+        var selected = 0;
+        var restoreFocus = null;
+
+        // Appended to every failure message, as a variable rather than
+        // inline, to keep those `say(...)` calls short.
+        //
+        // That is not cosmetic. Prettier reformats this file on commit, and
+        // any call it cannot fit in 80 columns it splits across lines AND
+        // gives a trailing comma -- which in a CALL argument list is ES2017
+        // and a hard syntax error on an older engine, taking this whole
+        // script element with it. Same hazard the `toArray` comment in the
+        // element above describes.
+        // ../../../../scripts/check-page-scripts-es5.sh runs as a hook and
+        // as a flake check, and fails the build if one reappears.
+        var FALLBACK = " \u00b7 enter opens github.com";
+
+        function say(text) {
+          foot.textContent = text;
+        }
+
+        function indexAge() {
+          if (!generated) {
+            return "";
+          }
+          var at = Date.parse(generated);
+          if (isNaN(at)) {
+            return "";
+          }
+          var mins = Math.round((new Date().getTime() - at) / 60000);
+          if (mins < 90) {
+            return " \u00b7 indexed " + mins + "m ago";
+          }
+          return " \u00b7 indexed " + Math.round(mins / 60) + "h ago";
+        }
+
+        function load() {
+          if (repos !== null || pending) {
+            return;
+          }
+          pending = true;
+          say("reading repository index");
+
+          var xhr = new XMLHttpRequest();
+          xhr.open("GET", "/repos.json", true);
+          xhr.onreadystatechange = function () {
+            if (xhr.readyState !== 4) {
+              return;
+            }
+            pending = false;
+
+            // A network-level failure surfaces as status 0, not as an
+            // exception, so both live on this one path.
+            if (xhr.status === 0) {
+              say("index unreachable" + FALLBACK);
+              return;
+            }
+            if (xhr.status !== 200) {
+              say("index error " + xhr.status + FALLBACK);
+              return;
+            }
+
+            var payload;
+            try {
+              payload = JSON.parse(xhr.responseText);
+            } catch (err) {
+              say("index unreadable" + FALLBACK);
+              return;
+            }
+
+            repos = payload && payload.repos ? payload.repos : [];
+            generated = payload ? payload.generated_at : null;
+            render();
+          };
+          xhr.send();
+        }
+
+        // Lower is better. -1 drops the repository.
+        //
+        // Ranked rather than plainly filtered because a bare substring match
+        // buries the obvious answer: typing "nixos" matches half a dozen
+        // repositories that merely mention it in their description, and the
+        // one actually called nixos has to be exactly first.
+        function rankOf(repo, term) {
+          var name = repo.name.toLowerCase();
+          if (name === term) {
+            return 0;
+          }
+          if (name.indexOf(term) === 0) {
+            return 1;
+          }
+          if (name.indexOf(term) !== -1) {
+            return 2;
+          }
+          if (
+            (repo.owner + "/" + repo.name).toLowerCase().indexOf(term) !== -1
+          ) {
+            return 3;
+          }
+          var desc = repo.description ? repo.description.toLowerCase() : "";
+          if (desc.indexOf(term) !== -1) {
+            return 4;
+          }
+          return -1;
+        }
+
+        function matches(term) {
+          var scored = [];
+          var i;
+          for (i = 0; i < repos.length; i++) {
+            var rank = term ? rankOf(repos[i], term) : 0;
+            if (rank !== -1) {
+              if (repos[i].archived) {
+                rank += ARCHIVED_PENALTY;
+              }
+              scored.push({ repo: repos[i], rank: rank });
+            }
+          }
+
+          scored.sort(function (a, b) {
+            if (a.rank !== b.rank) {
+              return a.rank - b.rank;
+            }
+            // Most recently pushed first, so an empty box opens on what is
+            // actually being worked on. RFC 3339 in UTC sorts correctly as a
+            // string, so this parses no dates.
+            var ap = a.repo.pushed_at || "";
+            var bp = b.repo.pushed_at || "";
+            if (ap !== bp) {
+              return ap < bp ? 1 : -1;
+            }
+            return a.repo.name < b.repo.name ? -1 : 1;
+          });
+
+          return scored;
+        }
+
+        function itemFor(repo) {
+          var a = document.createElement("a");
+          a.className = "jump-item" + (repo.archived ? " arch" : "");
+          a.href =
+            "https://github.com/" +
+            encodeURIComponent(repo.owner) +
+            "/" +
+            encodeURIComponent(repo.name);
+
+          var name = document.createElement("span");
+          name.className = "n";
+
+          var owner = document.createElement("span");
+          owner.className = "o";
+          owner.textContent = repo.owner + "/";
+          name.appendChild(owner);
+
+          var bare = document.createElement("span");
+          bare.className = "r";
+          bare.textContent = repo.name;
+          name.appendChild(bare);
+
+          if (repo.archived) {
+            var tag = document.createElement("span");
+            tag.className = "tag";
+            tag.textContent = "archived";
+            name.appendChild(tag);
+          }
+
+          a.appendChild(name);
+
+          if (repo.description) {
+            var desc = document.createElement("span");
+            desc.className = "d";
+            // textContent, never innerHTML. Descriptions are arbitrary
+            // upstream text that anyone with push access can set, and a
+            // handful in these orgs contain angle brackets.
+            desc.textContent = repo.description;
+            a.appendChild(desc);
+          }
+
+          return a;
+        }
+
+        function highlight() {
+          var i;
+          for (i = 0; i < results.length; i++) {
+            results[i].classList.toggle("is-sel", i === selected);
+          }
+          var current = results[selected];
+          if (current && current.scrollIntoView) {
+            current.scrollIntoView({ block: "nearest" });
+          }
+        }
+
+        function render() {
+          list.innerHTML = "";
+          results = [];
+          selected = 0;
+
+          if (repos === null) {
+            return;
+          }
+
+          var term = input.value.trim().toLowerCase();
+          var scored = matches(term);
+          var shown = Math.min(scored.length, MAX_RESULTS);
+          var i;
+          for (i = 0; i < shown; i++) {
+            var node = itemFor(scored[i].repo);
+            list.appendChild(node);
+            results.push(node);
+          }
+          highlight();
+
+          if (!scored.length) {
+            say("no match" + indexAge());
+          } else if (scored.length > shown) {
+            say(shown + " of " + scored.length + indexAge());
+          } else {
+            say(scored.length + " of " + repos.length + indexAge());
+          }
+        }
+
+        function openJump() {
+          restoreFocus = document.activeElement;
+          overlay.hidden = false;
+          input.value = "";
+          list.innerHTML = "";
+          results = [];
+          selected = 0;
+          say("");
+          input.focus();
+
+          load();
+          if (repos !== null) {
+            render();
+          }
+        }
+
+        function closeJump() {
+          overlay.hidden = true;
+          if (restoreFocus && restoreFocus.focus) {
+            restoreFocus.focus();
+          }
+          restoreFocus = null;
+        }
+
+        opener.addEventListener("click", function (e) {
+          // Modified and non-primary clicks are left alone, so ctrl/cmd-click
+          // still opens github.com in a new tab the way every other link on
+          // this page does.
+          if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) {
+            return;
+          }
+          if (typeof e.button === "number" && e.button !== 0) {
+            return;
+          }
+          e.preventDefault();
+          openJump();
+        });
+
+        input.addEventListener("input", render);
+
+        input.addEventListener("keydown", function (e) {
+          if (e.key === "ArrowDown") {
+            e.preventDefault();
+            if (results.length) {
+              selected = (selected + 1) % results.length;
+              highlight();
+            }
+          } else if (e.key === "ArrowUp") {
+            e.preventDefault();
+            if (results.length) {
+              selected = (selected + results.length - 1) % results.length;
+              highlight();
+            }
+          } else if (e.key === "Enter") {
+            e.preventDefault();
+            // With no index and no selection this falls back to the opener's
+            // own href, so Enter is never a no-op.
+            var current = results[selected];
+            window.location.href = current ? current.href : opener.href;
+          } else if (e.key === "Escape") {
+            e.preventDefault();
+            closeJump();
+          }
+        });
+
+        // Clicking the backdrop, but not the panel, dismisses.
+        overlay.addEventListener("click", function (e) {
+          if (e.target === overlay) {
+            closeJump();
+          }
+        });
+
+        document.addEventListener("keydown", function (e) {
+          if (!overlay.hidden || e.key !== "g") {
+            return;
+          }
+          if (e.metaKey || e.ctrlKey || e.altKey) {
+            return;
+          }
+          var el = document.activeElement;
+          var tag = el ? el.tagName : "";
+          if (
+            tag === "INPUT" ||
+            tag === "TEXTAREA" ||
+            tag === "SELECT" ||
+            (el && el.isContentEditable === true)
+          ) {
+            return;
+          }
+          e.preventDefault();
+          openJump();
+        });
       })();
     </script>
   </body>

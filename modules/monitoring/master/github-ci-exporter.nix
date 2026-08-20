@@ -1,7 +1,8 @@
 # modules/monitoring/master/github-ci-exporter.nix
 #
 # GitHub CI visibility: open issues, open pull requests, and Actions state
-# for every repository owned by sdr-enthusiasts, fredsystems, or fredclausen.
+# for every repository owned by sdr-enthusiasts, fredsystems, fredclausen, or
+# airframesio.
 #
 # WHY
 #
@@ -16,8 +17,18 @@
 #
 # Bound to 127.0.0.1. The exporter holds a GitHub token, so it is not
 # reachable off-host; Prometheus scrapes it over loopback. No `openFirewall`,
-# and deliberately no nginx vhost -- unlike Karma there is nothing here a
-# human needs to click.
+# and deliberately no nginx vhost of its own -- unlike Karma there is no UI
+# here a human needs to click.
+#
+# One exception, and it is narrow: hosts/linux/sdrhub/configuration.nix
+# publishes `/repos.json` through the landing page's vhost with an
+# *exact-match* nginx location, for that page's repository jump box. That
+# document is a list of repository names and descriptions, all of them public.
+# `/metrics` is not reachable through it -- an exact-match location proxies
+# one path and nothing else -- and the token never leaves this host either
+# way. Widening that to a prefix match, or giving the exporter a vhost of its
+# own, would publish the full CI picture to anything on the LAN and is the
+# thing to not do.
 #
 # TOKEN
 #
@@ -76,10 +87,24 @@
     # That is deliberate: monitoring the private ones would mean a token with
     # write access to them, which is a bad trade for CI visibility on
     # scratch repositories.
+    #
+    # `airframesio` was added for the sdrhub landing page's repository jump
+    # box, which is served from this exporter's `/repos.json` (see the
+    # `= /repos.json` location in hosts/linux/sdrhub/configuration.nix). There
+    # is no index-only owner list: `orgs` drives both discovery and
+    # monitoring, so adding an owner here to make its repositories findable
+    # also puts its CI under the alert rules in
+    # alert-rules/github-alerts.yaml. That was accepted deliberately rather
+    # than worked around -- airframesio's CI is worth watching on its own
+    # merits. Expect an initial burst of GitHubCIFailingDefaultBranch and
+    # GitHubScheduledWorkflowStale for anything already red or dormant there;
+    # curate it with `denylist`/`ignorePulls` rather than by removing the
+    # owner, which would also empty it out of the jump box.
     orgs = [
       "sdr-enthusiasts"
       "fredsystems"
       "fredclausen"
+      "airframesio"
     ];
 
     listen = "127.0.0.1:9418";

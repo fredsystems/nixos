@@ -195,6 +195,32 @@
         '';
       };
 
+      # Rejects ES6+ syntax in the inline <script> blocks of the statically
+      # served landing pages under hosts/*/html/.
+      #
+      # Those pages are deliberately ES5: they exist to be usable during a
+      # DNS/AdGuard outage on whatever browser is to hand, and a syntax
+      # error there costs the WHOLE <script> element at parse time rather
+      # than just the feature that used the new construct.
+      #
+      # The reason this is mechanised rather than left as a comment is that
+      # the other formatter in this repo actively reintroduces the problem:
+      # `prettier` runs on these files and emits ES2017, so any call it
+      # cannot fit in 80 columns gets split with a trailing comma in the
+      # argument list. That happened while adding the repository-jump
+      # script, to a line that had been written correctly by hand. See
+      # scripts/check-page-scripts-es5.sh's header.
+      pageScriptsEs5Check = pkgs.writeShellApplication {
+        name = "check-page-scripts-es5";
+        # esprima rather than a grep: `,)` occurs legitimately inside
+        # string literals and comments on that page, and only a tokeniser
+        # can tell those from real syntax.
+        runtimeInputs = [ (pkgs.python3.withPackages (ps: [ ps.esprima ])) ];
+        text = ''
+          bash scripts/check-page-scripts-es5.sh "$@"
+        '';
+      };
+
       # Validates opencode.jsonc: a structural check (offline, default --
       # unknown top-level keys and command entries missing `template`,
       # wired into both the hook and the standalone check below via
@@ -318,6 +344,37 @@
                 # appear in any .nix file, so this re-scans the whole tree on
                 # any .nix change rather than reacting to a specific path.
                 files = "\\.nix$";
+                pass_filenames = false;
+              };
+
+              page-scripts-es5 = {
+                enable = true;
+                name = "landing-page <script> blocks are ES5";
+                entry = "${pkgs.lib.getExe pageScriptsEs5Check}";
+
+                # git-hooks orders hooks alphabetically by attribute name, so
+                # this runs BEFORE `prettier` -- which is the hook that
+                # introduces the violation in the first place. That ordering
+                # is not fixable without renaming the hook to sort after it,
+                # and it does not need to be: prettier fails the commit
+                # whenever it rewrites a file, so the sequence is
+                #
+                #   commit 1: prettier reformats, reports "files were
+                #             modified", commit aborts
+                #   commit 2: prettier is a no-op, this hook now reads the
+                #             reformatted bytes and rejects the trailing
+                #             comma
+                #
+                # The violation therefore cannot reach a commit, it just
+                # takes the same two rounds any formatter/linter pair does.
+                # The standalone `page-scripts-es5` check is the backstop for
+                # anything that got in via --no-verify.
+                #
+                # pass_filenames is off because the script resolves its own
+                # file set from hosts/*/html/*.html; a page can also be
+                # broken by an edit to a sibling that git-hooks would not
+                # have listed.
+                files = "^hosts/.*/html/.*\\.html$";
                 pass_filenames = false;
               };
 
@@ -520,6 +577,21 @@
           ''
             cd ${self}
             check-module-reachability
+            touch "$out"
+          '';
+
+      # Standalone check so `nix flake check` and CI catch an ES6 construct
+      # in a landing page even on a route that never ran pre-commit hooks
+      # -- which is the likely route, since the construct is usually
+      # introduced BY a pre-commit hook (prettier) rather than by a human.
+      page-scripts-es5 =
+        pkgs.runCommand "page-scripts-es5-check"
+          {
+            nativeBuildInputs = [ pageScriptsEs5Check ];
+          }
+          ''
+            cd ${self}
+            check-page-scripts-es5
             touch "$out"
           '';
 

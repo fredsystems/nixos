@@ -130,6 +130,34 @@ let
             index = "index.html";
           };
 
+          # The landing page's repository jump box reads this.
+          #
+          # github-ci-exporter runs on this same host (it comes in with
+          # ../../../modules/monitoring/master) bound to loopback, because it
+          # holds a GitHub token. That posture is unchanged here: this is an
+          # *exact-match* location, so it exposes precisely one read-only
+          # JSON document and nothing else on the exporter. A prefix match
+          # would publish /metrics -- which names every repository, workflow
+          # and open PR -- to anything that can reach this vhost.
+          #
+          # An exact-match location also wins over the `/` static root above
+          # regardless of ordering, so this cannot be shadowed by a file that
+          # later lands in ./html.
+          #
+          # Proxying rather than having the page call api.github.com directly
+          # keeps the fleet to one GitHub scraper and one token: the exporter
+          # already enumerates these repositories every five minutes, and its
+          # ETag cache means the index costs no extra API calls. A browser
+          # doing it would burn the unauthenticated 60/hour budget, shared
+          # across every device on the LAN, on ~350 paginated repositories.
+          #
+          # The listen address is read from the service definition rather than
+          # hardcoded, the same way the karma and grafana vhosts do it, so the
+          # proxy target cannot drift out of sync with the server it proxies.
+          "= /repos.json" = {
+            proxyPass = "http://${config.services.github-ci-exporter.listen}/repos.json";
+          };
+
           "/dozzle/" = {
             proxyPass = "http://192.168.31.20:9999";
             extraConfig = "proxy_redirect / /dozzle/;";
