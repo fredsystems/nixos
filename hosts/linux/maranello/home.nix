@@ -41,6 +41,12 @@ in
     -- Autostart streamcontroller
     hl.on("hyprland.start", function()
       hl.exec_cmd("streamcontroller -b")
+      -- Restarted rather than left to graphical-session.target, matching the
+      -- other session services in features/desktop/environments/hyprland. Its
+      -- layer-shell capture surfaces are bound to the outputs that existed
+      -- when it started, so a daemon that survived the previous session comes
+      -- back with edges attached to nothing.
+      hl.exec_cmd("systemctl restart --user lan-mouse")
     end)
 
     -- Pin workspaces 1-4 to the four physical monitor corners and mark each

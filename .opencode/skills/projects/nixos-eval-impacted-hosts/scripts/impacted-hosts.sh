@@ -213,6 +213,7 @@ declare -A INPUT_CATEGORY=(
   [freminal]="desktop"
   [frext]="desktop"
   [nix-flatpak]="desktop"
+  [lan-mouse]="desktop"
   [walls-catppuccin]="desktop"
   [walls-zhichaoh]="desktop"
   [walls-cozypixels]="desktop"

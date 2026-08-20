@@ -54,6 +54,7 @@ Linux categories, as of the `nixpkgs-kernel` sync fix:
 | `nix-yazi-plugins-stable` | `server`          | Stable yazi plugins                                    |
 | `niri`                    | `desktop`         | Desktop compositor                                     |
 | `nix-flatpak`             | `desktop`         | Desktop-only flatpak module                            |
+| `lan-mouse`               | `desktop`         | KVM home-manager module; maranello only                |
 | `freminal`                | `desktop`         | Terminal emulator, desktops only                       |
 | `frext`                   | `desktop`         | Desktop tooling                                        |
 | `github-ci-exporter`      | `server`          | Prometheus exporter; runs on sdrhub only               |
