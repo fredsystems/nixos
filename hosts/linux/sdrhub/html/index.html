@@ -481,8 +481,25 @@
           font-size: 0.92rem;
           padding: 10px;
         }
-        .rail .search input {
+        /*
+          Shrink the search row rather than hiding the input. `display: none`
+          would make the field impossible to focus or type into on a phone,
+          and would also silently kill the `/`, Escape and Enter shortcuts,
+          which all act on this element -- q.focus() on a hidden input is a
+          no-op. Losing the filter is worst exactly where it is most useful:
+          a phone is the likely client for a page consulted during an outage.
+
+          The magnifier goes instead. It is decoration, and dropping it buys
+          the input enough of the 112px rail to stay usable.
+        */
+        .rail .search {
+          padding: 9px 10px;
+        }
+        .rail .search .ic {
           display: none;
+        }
+        .rail .search input {
+          font-size: 0.7rem;
         }
       }
 
@@ -773,13 +790,21 @@
       (function () {
         "use strict";
 
+        // A helper rather than repeating Array.prototype.slice.call at each
+        // site. That is not only brevity: it keeps every call short enough to
+        // stay on one line, and so stops the formatter from splitting the
+        // arguments and adding a trailing comma after the last one. A
+        // trailing comma in a CALL argument list is ES2017 and a syntax error
+        // in older engines -- which would take the whole script out, on a
+        // page written in deliberately conservative ES5 precisely so it keeps
+        // working on whatever browser is to hand during an outage.
+        function toArray(nodes) {
+          return Array.prototype.slice.call(nodes);
+        }
+
         var q = document.getElementById("q");
-        var buttons = Array.prototype.slice.call(
-          document.querySelectorAll(".btn"),
-        );
-        var sections = Array.prototype.slice.call(
-          document.querySelectorAll("section"),
-        );
+        var buttons = toArray(document.querySelectorAll(".btn"));
+        var sections = toArray(document.querySelectorAll("section"));
 
         function apply() {
           var term = q.value.trim().toLowerCase();
@@ -792,11 +817,9 @@
           // Hide a section whose every button was filtered out, so the
           // headers do not stack up over empty space.
           sections.forEach(function (s) {
-            var any = Array.prototype.slice
-              .call(s.querySelectorAll(".btn"))
-              .some(function (b) {
-                return !b.classList.contains("hidden");
-              });
+            var any = toArray(s.querySelectorAll(".btn")).some(function (b) {
+              return !b.classList.contains("hidden");
+            });
             s.classList.toggle("hidden", !any);
           });
         }

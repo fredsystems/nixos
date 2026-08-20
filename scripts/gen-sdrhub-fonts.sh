@@ -103,9 +103,25 @@ FA_BRANDS_CP="f395,f7bb"
 TEXT_CP="U+0020-007E,U+00B7,U+2019"
 MONO_CP="U+0020-007E,U+00B7"
 
+echo "==> resolving nixpkgs from flake.lock"
+# Everything below is resolved from THIS repository's locked `nixpkgs`
+# input, deliberately.
+#
+# `nixpkgs#font-awesome` would resolve through the caller's flake registry
+# and `import <nixpkgs>` through their NIX_PATH -- neither is tied to
+# flake.lock, and both can differ between machines and over time. For a
+# script whose entire purpose is regenerating committed bytes, that is the
+# difference between "re-running this is a no-op" and "re-running this
+# silently swaps in a different upstream font version". Pinning to the
+# locked revision is what makes the idempotency claim in the header true.
+NIXPKGS="$(nix eval --raw --impure \
+  --expr "(builtins.getFlake \"path:$REPO_ROOT\").inputs.nixpkgs.outPath")"
+
 echo "==> resolving upstream font packages"
-FA_DIR="$(nix build --no-link --print-out-paths nixpkgs#font-awesome)/share/fonts/opentype"
-GF_DIR="$(nix build --no-link --print-out-paths nixpkgs#google-fonts)/share/fonts/truetype"
+FA_DIR="$(nix build --no-link --print-out-paths --impure \
+  --expr "(import $NIXPKGS { }).font-awesome")/share/fonts/opentype"
+GF_DIR="$(nix build --no-link --print-out-paths --impure \
+  --expr "(import $NIXPKGS { }).google-fonts")/share/fonts/truetype"
 
 for f in "$FA_DIR/Font Awesome 7 Free-Solid-900.otf" \
   "$FA_DIR/Font Awesome 7 Brands-Regular-400.otf" \
@@ -126,8 +142,8 @@ mkdir -p "$OUT_DIR"
 # would have to be smuggled in as a positional parameter (and shellcheck
 # rightly flags the result as SC2016). Building the environment and calling
 # its binaries directly keeps everything in one scope.
-PY_ENV="$(nix build --no-link --print-out-paths --impure --expr \
-  'with import <nixpkgs> {}; python3.withPackages (ps: [ ps.fonttools ps.brotli ])')"
+PY_ENV="$(nix build --no-link --print-out-paths --impure \
+  --expr "with import $NIXPKGS { }; python3.withPackages (ps: [ ps.fonttools ps.brotli ])")"
 
 echo "==> subsetting"
 
@@ -173,10 +189,33 @@ for fname, cps in (("fa-solid.woff2", solid_cp), ("fa-brands.woff2", brands_cp))
     else:
         print(f"    {fname}: {len(cps.split(','))} icons OK")
 
-# The text faces must keep their variable weight axis; the page asks for
-# several weights and a static subset would silently synthesise them.
-for fname in ("antonio.woff2", "jetbrains-mono.woff2"):
+# The text faces get the same treatment as the icon faces above. A dropped
+# text glyph is even quieter than a dropped icon: the browser satisfies it
+# from a fallback face, so the character still appears and only the shape is
+# wrong. U+00B7 is the separator used throughout the page's header and
+# button labels, and is the one non-ASCII character that actually renders.
+#
+# Checking the full ASCII range one codepoint at a time rather than trusting
+# the range syntax, because `--unicodes` silently accepts ranges that match
+# nothing in the source face.
+required_text = {
+    "antonio.woff2": list(range(0x20, 0x7F)) + [0x00B7, 0x2019],
+    "jetbrains-mono.woff2": list(range(0x20, 0x7F)) + [0x00B7],
+}
+
+# The text faces must also keep their variable weight axis; the page asks
+# for several weights and a static subset would silently synthesise them.
+for fname, required in required_text.items():
     font = TTFont(f"{out_dir}/{fname}")
+
+    cmap = font.getBestCmap()
+    missing = [f"U+{c:04X}" for c in required if c not in cmap]
+    if missing:
+        failed = True
+        print(f"error: {fname} is missing codepoints: {missing}", file=sys.stderr)
+    else:
+        print(f"    {fname}: {len(required)} text codepoints OK")
+
     if "fvar" not in font:
         failed = True
         print(f"error: {fname} lost its variable-font axes", file=sys.stderr)
