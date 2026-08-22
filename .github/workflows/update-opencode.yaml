@@ -91,12 +91,18 @@ jobs:
         run: |
           set -uo pipefail
 
+          # GitHub Actions runs `run:` blocks under `bash -e {0}`. A plain
+          # command used as the body of an if/else is NOT exempt from -e --
+          # only the condition of an if/while/until is. sync-opencode-hash.sh
+          # exits 2 to mean "changed, not an error", and that must not abort
+          # this step before it is translated by the case below, so the
+          # invocation itself has to be the `if` condition rather than a
+          # statement inside one.
           if [ "$NEW_RELEASE" = "true" ]; then
-            ./scripts/sync-opencode-hash.sh --version "$NEW_VERSION"
+            if ./scripts/sync-opencode-hash.sh --version "$NEW_VERSION"; then rc=0; else rc=$?; fi
           else
-            ./scripts/sync-opencode-hash.sh
+            if ./scripts/sync-opencode-hash.sh; then rc=0; else rc=$?; fi
           fi
-          rc=$?
 
           # 0 = already correct, 2 = overlay was updated, anything else = error.
           case "$rc" in
