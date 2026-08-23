@@ -1016,7 +1016,7 @@ in
       ###############################################################
       {
         name = "dozzle";
-        image = "amir20/dozzle:v10.7.3@sha256:c32ca7a443796de62a07afd621b17b6c6c073320cd8431493bb1fd84e3a1eff8";
+        image = "amir20/dozzle:v10.7.4@sha256:068025ea622a1ce3e343a138dd9a962429b5187a133aca301bb4991fe7d2b708";
 
         restart = "always";
 
