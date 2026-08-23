@@ -113,7 +113,7 @@ in
       ###############################################################
       (config.services.adsb.mkSdrContainer {
         name = "xng";
-        image = "ghcr.io/sdr-enthusiasts/docker-xng:latest-build-2@sha256:5378dde090a05a14db4225899c78ba4626daa46cbe0ad6d74d8f9e410a5e423b";
+        image = "ghcr.io/sdr-enthusiasts/docker-xng:latest-build-3@sha256:52ae69b39501aa27992c86469d324a514fda1fa4029ed8f8bbc58e54bd36c5f8";
 
         tty = true;
         restart = "always";
