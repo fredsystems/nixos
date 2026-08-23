@@ -1344,7 +1344,7 @@ in
       ###############################################################
       {
         name = "opensky";
-        image = "ghcr.io/sdr-enthusiasts/docker-opensky-network:latest-build-844@sha256:3db40e3942781387711ef08696112e0ff5f398bb86406023c1734d5aef3a92b7";
+        image = "ghcr.io/sdr-enthusiasts/docker-opensky-network:latest-build-845@sha256:b50bc8c2e7fc9b6c7048592915c1203caaf267dcf5f8d4a180622d1e98920fc2";
 
         restart = "always";
         tty = true;
