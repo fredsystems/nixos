@@ -22,29 +22,15 @@
   };
 
   inputs = {
-    ##########################################################################
-    ## CI categories  (see agents.md for the full mapping)                  ##
-    ##                                                                      ##
-    ##   desktop + fredhub  — rebuilds desktops + fredhub                   ##
-    ##   desktop            — rebuilds desktops only                        ##
-    ##   server             — rebuilds servers only                         ##
-    ##   global             — rebuilds all linux hosts                      ##
-    ##   skip               — no linux rebuild needed                       ##
-    ##########################################################################
-
-    # CI: desktop + fredhub
     nixpkgs = {
       url = "github:nixos/nixpkgs/nixos-unstable";
     };
 
-    # CI: server
     # renovate: datasource=git-refs depName=nixpkgs-stable packageName=https://github.com/NixOS/nixpkgs versioning=regex:^nixos-(?<major>\d+)\.(?<minor>\d+)$
     nixpkgs-stable = {
       url = "github:nixos/nixpkgs/nixos-26.05";
     };
 
-    # CI: server
-    #
     # Pinned-kernel input.  Tracks the `-small` variant of the same
     # stable channel as nixpkgs-stable but lives as its own flake input
     # so the kernel can be bumped on its own cadence (monthly,
@@ -71,14 +57,12 @@
       url = "github:nixos/nixpkgs/nixos-26.05-small";
     };
 
-    # CI: server
     # renovate: datasource=git-refs depName=home-manager-stable packageName=https://github.com/nix-community/home-manager versioning=regex:^release-(?<major>\d+)\.(?<minor>\d+)$
     home-manager-stable = {
       url = "github:nix-community/home-manager/release-26.05";
       inputs.nixpkgs.follows = "nixpkgs-stable";
     };
 
-    # CI: desktop
     # NOTE: deliberately NOT following our nixpkgs. catppuccin publishes
     # prebuilt outputs (whiskers, ports) to catppuccin.cachix.org built
     # against its own pinned nixpkgs. Following our nixpkgs would change
@@ -88,43 +72,36 @@
       url = "github:catppuccin/nix";
     };
 
-    # CI: server
     # renovate: datasource=git-refs depName=catppuccin-stable packageName=https://github.com/catppuccin/nix versioning=regex:^release-(?<major>\d+)\.(?<minor>\d+)$
     catppuccin-stable = {
       url = "github:catppuccin/nix/release-26.05";
       inputs.nixpkgs.follows = "nixpkgs-stable";
     };
 
-    # CI: desktop
     nix-yazi-plugins = {
       url = "github:lordkekz/nix-yazi-plugins";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # CI: server
     nix-yazi-plugins-stable = {
       url = "github:lordkekz/nix-yazi-plugins";
       inputs.nixpkgs.follows = "nixpkgs-stable";
     };
 
-    # CI: desktop
     home-manager = {
       url = "github:nix-community/home-manager";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # CI: skip (utility lib, no system builds)
     flake-utils = {
       url = "github:numtide/flake-utils";
     };
 
-    # CI: desktop
     # renovate: datasource=git-refs depName=nix-flatpak packageName=https://github.com/gmodena/nix-flatpak versioning=semver
     nix-flatpak = {
       url = "github:gmodena/nix-flatpak/v0.7.0"; # unstable branch. Use github:gmodena/nix-flatpak/<tag> to pin releases.
     };
 
-    # CI: desktop
     # Imported for its home-manager module ONLY -- the package comes from
     # nixpkgs on Linux and from the upstream .app bundle on Darwin (see
     # features/desktop/lan-mouse). That is why this follows our nixpkgs
@@ -136,12 +113,10 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # CI: global
     nixvim = {
       url = "github:nix-community/nixvim";
     };
 
-    # CI: desktop
     # NOTE: deliberately NOT following our nixpkgs so niri's prebuilt
     # outputs can be substituted from niri.cachix.org / niri-epireyn.cachix.org
     # (built against niri's own pinned nixpkgs). Following our nixpkgs would
@@ -152,35 +127,29 @@
       url = "github:epireyn/niri-flake";
     };
 
-    # CI: skip (macOS only)
     darwin = {
       url = "github:nix-darwin/nix-darwin";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # CI: desktop
     sops-nix = {
       url = "github:Mic92/sops-nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # CI: server
     sops-nix-stable = {
       url = "github:Mic92/sops-nix";
       inputs.nixpkgs.follows = "nixpkgs-stable";
     };
 
-    # CI: global (all linux)
     nixos-needsreboot = {
       url = "github:fredclausen/nixos-needsreboot";
     };
 
-    # CI: skip (dev tooling only)
     precommit-base = {
       url = "github:FredSystems/pre-commit-checks";
     };
 
-    # CI: skip (deployment tool, no effect on builds)
     # NOTE: deliberately NOT following our nixpkgs so the colmena CLI binary
     # can be substituted from colmena.cachix.org (built against colmena's own
     # pinned nixpkgs). Following our nixpkgs would change its derivation hash
@@ -189,7 +158,6 @@
       url = "github:zhaofengli/colmena";
     };
 
-    # CI: desktop
     freminal = {
       url = "github:FredSystems/freminal";
       #path on disk
@@ -197,7 +165,6 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # CI: desktop
     frext = {
       url = "github:FredSystems/frext";
       #path on disk
@@ -205,7 +172,6 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # CI: server
     # Only sdrhub runs this (monitoring master), and sdrhub is a server, so a
     # bump rebuilds the server set rather than the desktops.
     github-ci-exporter = {
@@ -217,13 +183,11 @@
 
     # wallpapers
 
-    # CI: desktop
     walls-catppuccin = {
       url = "github:orangci/walls-catppuccin-mocha";
       flake = false;
     };
 
-    # CI: desktop
     # Community-maintained mirror of the (taken-down) catppuccin/wallpapers
     # repo. Provides the original 11 categories (dithered, flatppuccin,
     # gradients, landscapes, mandelbrot, minimalistic, misc, os, patterns,
@@ -233,7 +197,6 @@
       flake = false;
     };
 
-    # CI: desktop
     # Curated cozy/aesthetic collection. We only consume the Catppuccin/
     # subtree from this repo (it also ships Nord and One Dark variants).
     walls-cozypixels = {
