@@ -49,7 +49,7 @@ in
       ###############################################################
       (config.services.adsb.mkSdrContainer {
         name = "acarsdec-1";
-        image = "ghcr.io/sdr-enthusiasts/docker-acarsdec:latest-build-502@sha256:6fa61ab3ff70340e660e6f3ae2a322e446fa78e509b139a18311473494639f20";
+        image = "ghcr.io/sdr-enthusiasts/docker-acarsdec:latest-build-503@sha256:8a8924422d9c34ce3422859bb12b4e8bb33850b1cf4bb02edcc20a4601c43d6a";
 
         tty = true;
         restart = "always";
@@ -81,7 +81,7 @@ in
       ###############################################################
       (config.services.adsb.mkSdrContainer {
         name = "acarsdec-2";
-        image = "ghcr.io/sdr-enthusiasts/docker-acarsdec:latest-build-502@sha256:6fa61ab3ff70340e660e6f3ae2a322e446fa78e509b139a18311473494639f20";
+        image = "ghcr.io/sdr-enthusiasts/docker-acarsdec:latest-build-503@sha256:8a8924422d9c34ce3422859bb12b4e8bb33850b1cf4bb02edcc20a4601c43d6a";
 
         tty = true;
         restart = "always";
