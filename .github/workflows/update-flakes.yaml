@@ -45,6 +45,12 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          # Pinned to main, matching the update-flake job's checkout below.
+          # Without this, workflow_dispatch defaults to whatever branch was
+          # picked in the "Run workflow from" selector, which would let
+          # single_input get validated against a flake.lock that isn't the
+          # one update-flake actually updates.
+          ref: main
           sparse-checkout: flake.lock
           persist-credentials: false
 
