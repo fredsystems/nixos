@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
     inputs:
       target:
-        description: "Which input set to update"
+        description: "Which input set to update. Ignored if single_input is set."
         type: choice
         required: true
         default: "auto"
@@ -20,6 +20,16 @@ on:
           - auto
           - manual
           - both
+      single_input:
+        description: >-
+          Update only this one flake input by name (e.g. "nixpkgs"),
+          instead of the whole set selected by target. Must exactly match
+          an input name in flake.lock; validated at run time against
+          flake.lock itself, so there is nothing here to keep in sync as
+          inputs are added or removed. Leave blank to use target instead.
+        type: string
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -47,12 +57,43 @@ jobs:
         #
         # MANUAL_INPUTS is the single source of truth for which inputs
         # are held back from the weekly auto-merge run.
+        #
+        # single_input takes over the whole selection when set: it is
+        # validated against flake.lock's actual input keys (the one
+        # source of truth for "what inputs exist"), not against any
+        # hardcoded list, so there is nothing to keep in sync here as
+        # inputs are added or removed elsewhere in the flake. Its merge
+        # policy (auto vs manual) still comes from MANUAL_INPUTS, so a
+        # manually-dispatched single run of a manual-policy input (e.g.
+        # nixpkgs-kernel) still doesn't auto-merge.
         env:
           MANUAL_INPUTS: '["nixpkgs-kernel"]'
           EVENT: ${{ github.event_name }}
           SCHEDULE: ${{ github.event.schedule }}
           TARGET: ${{ github.event.inputs.target }}
+          SINGLE_INPUT: ${{ github.event.inputs.single_input }}
         run: |
+          if [[ -n "$SINGLE_INPUT" ]]; then
+            if ! jq -e --arg name "$SINGLE_INPUT" \
+              '.nodes.root.inputs | keys | index($name) != null' flake.lock >/dev/null
+            then
+              known="$(jq -c '.nodes.root.inputs | keys' flake.lock)"
+              echo "::error title=Unknown flake input::'${SINGLE_INPUT}' is not a flake input in flake.lock. Known inputs: ${known}" >&2
+              exit 1
+            fi
+
+            flakes=$(jq -nc \
+              --arg name "$SINGLE_INPUT" \
+              --argjson manual "$MANUAL_INPUTS" '
+              [{
+                name: $name,
+                kind: (if ($manual | index($name)) then "manual" else "auto" end)
+              }]
+            ')
+            echo "flakes={\"include\": $flakes}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           run_auto=false
           run_manual=false
           case "$EVENT" in
