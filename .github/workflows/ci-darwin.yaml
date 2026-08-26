@@ -74,167 +74,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Detect which paths changed so we can scope builds to affected
-      # systems only.  Uses the same git-diff approach as ci-linux.yaml.
-      #
-      # When flake.lock changes, we parse the diff to determine which
-      # inputs actually changed and map them to darwin CI categories.
-      #
-      # Darwin input categories:
-      #   darwin       — rebuilds all darwin hosts
-      #   skip         — no darwin rebuild needed
-      #
-      # Any input used by darwin builds maps to "darwin" (rebuild all).
-      # Inputs only used by Linux (stable channel, niri, nix-flatpak, etc.)
-      # map to "skip".
-      - name: Detect changed paths
-        id: changes
-        if: github.event_name != 'workflow_dispatch'
-        shell: bash
-        run: |
-          set -eo pipefail
-
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            base_sha="${{ github.event.pull_request.base.sha }}"
-          else
-            base_sha="${{ github.event.merge_group.base_sha }}"
-          fi
-
-          echo "Comparing ${base_sha}..HEAD"
-          changed_files=$(git diff --name-only "$base_sha" HEAD)
-          echo "Changed files:"
-          echo "$changed_files"
-
-          global=false
-          flake_lock_changed=false
-          machine_files_arr=()
-
-          while IFS= read -r file; do
-            [ -z "$file" ] && continue
-            case "$file" in
-              flake.nix)
-                global=true ;;
-              flake.lock)
-                flake_lock_changed=true ;;
-              modules/*|profiles/*|home-profiles/*|dotfiles/*|overlays/*)
-                global=true ;;
-              .opencode/skills/*)
-                # Currently a no-op for darwin: Freds-MacBook-Pro sets
-                # `ai.opencode.enable = false` (NixOS/nix#15638 workaround)
-                # and Freds-Mac-Studio does not import the feature at all,
-                # so the skills tree reaches no darwin closure. Verified by
-                # diffing the toplevel drvPath with and without a skills
-                # change -- identical.
-                #
-                # Kept as an explicit case rather than left to fall through,
-                # because the moment opencode is re-enabled on darwin the
-                # tree lands in that host's home-manager closure and this
-                # must become `global=true`. An explicit case with this note
-                # is a breadcrumb; silence in the catch-all is a trap.
-                ;;
-              features/*)
-                global=true ;;
-              .github/renovate.json5)
-                ;; # excluded
-              .github/workflows/ci-darwin.yaml)
-                global=true ;;
-              .github/*)
-                ;; # other CI/GH files don't affect darwin builds
-              hosts/darwin/*)
-                machine_files_arr+=("$file") ;;
-              hosts/linux/*)
-                ;; # linux-only, skip
-            esac
-          done <<< "$changed_files"
-
-          # ----------------------------------------------------------------
-          # Input-aware flake.lock filtering for darwin
-          #
-          # Map each changed input to a darwin CI category.  Inputs used by
-          # darwin builds trigger a full rebuild; linux-only inputs are
-          # skipped.  Unknown inputs default to "darwin" (safe over-build).
-          # ----------------------------------------------------------------
-          if [ "$flake_lock_changed" = "true" ] && [ "$global" = "false" ]; then
-            echo ""
-            echo "flake.lock changed — parsing input diff..."
-
-            old_lock=$(git show "${base_sha}:flake.lock" 2>/dev/null || echo '{}')
-            new_lock=$(cat flake.lock)
-
-            # Associative array: input name → darwin CI category
-            declare -A input_category=(
-              [nixpkgs]="darwin"
-              [home-manager]="darwin"
-              [catppuccin]="darwin"
-              [sops-nix]="darwin"
-              [nixvim]="darwin"
-              [darwin]="darwin"
-              [freminal]="darwin"
-              [frext]="darwin"
-              [nix-yazi-plugins]="darwin"
-              [lan-mouse]="darwin"
-              [github-ci-exporter]="skip"
-              [nixpkgs-stable]="skip"
-              [nixpkgs-kernel]="skip"
-              [home-manager-stable]="skip"
-              [catppuccin-stable]="skip"
-              [sops-nix-stable]="skip"
-              [nix-yazi-plugins-stable]="skip"
-              [nix-flatpak]="skip"
-              [niri]="skip"
-              [walls-catppuccin]="skip"
-              [walls-zhichaoh]="skip"
-              [walls-cozypixels]="skip"
-              [nixos-needsreboot]="skip"
-              [colmena]="skip"
-              [flake-utils]="skip"
-              [precommit-base]="skip"
-            )
-
-            root_inputs=$(echo "$new_lock" | jq -r '.nodes.root.inputs | keys[]')
-
-            for input in $root_inputs; do
-              node_name=$(echo "$new_lock" | jq -r ".nodes.root.inputs.\"$input\"")
-              old_rev=$(echo "$old_lock" | jq -r ".nodes.\"$node_name\".locked.rev // .nodes.\"$node_name\".locked.narHash // empty" 2>/dev/null)
-              new_rev=$(echo "$new_lock" | jq -r ".nodes.\"$node_name\".locked.rev // .nodes.\"$node_name\".locked.narHash // empty")
-
-              if [ "$old_rev" != "$new_rev" ]; then
-                category="${input_category[$input]:-darwin}"
-                echo "  Input changed: $input → category: $category"
-
-                case "$category" in
-                  darwin)
-                    global=true ;;
-                  skip)
-                    echo "    (skipped — no darwin rebuild needed)" ;;
-                esac
-              fi
-
-              # Short-circuit
-              if [ "$global" = "true" ]; then
-                echo "  global=true — skipping remaining inputs"
-                break
-              fi
-            done
-          elif [ "$flake_lock_changed" = "true" ] && [ "$global" = "true" ]; then
-            echo ""
-            echo "flake.lock changed but global already set — skipping input parsing"
-          fi
-
-          if [ ${#machine_files_arr[@]} -eq 0 ]; then
-            machine_files="[]"
-          else
-            machine_files=$(printf '%s\n' "${machine_files_arr[@]}" | jq -R . | jq -cs .)
-          fi
-
-          echo "global=$global" >> "$GITHUB_OUTPUT"
-          echo "machine_files=$machine_files" >> "$GITHUB_OUTPUT"
-
-          echo ""
-          echo "Change detection results:"
-          echo "  global=$global"
-          echo "  machine_files=$machine_files"
-
       - name: Install Nix
         uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
         with:
@@ -248,52 +87,33 @@ jobs:
           use-flakehub: false
           use-gha-cache: false
 
+      # Impact detection lives in one place -- scripts/impacted-hosts.sh --
+      # shared verbatim with ci-linux.yaml and the nixos-eval-impacted-hosts
+      # skill, instead of three copies of a hand-maintained path classifier.
+      # It answers "which host closures actually changed" from a real
+      # per-host derivation diff (falling through to that only when it
+      # can't answer cheaply and safely; see the script's own header for
+      # the four-step algorithm). workflow_dispatch has no base-commit
+      # context to diff against, so it keeps its own explicit "build
+      # everything" path here rather than being taught to the script.
       - id: out
         shell: bash
         run: |
-          echo "Evaluating darwinConfigurations..."
+          set -eo pipefail
 
-          all_systems=$(nix eval --json .#darwinConfigurations --apply builtins.attrNames)
-          echo "All darwin systems: $all_systems"
-
-          event="${{ github.event_name }}"
-
-          # Gather change-detection outputs (the step is skipped for
-          # workflow_dispatch, so fall back to building everything).
-          if [ "$event" = "workflow_dispatch" ]; then
-            global_changed="true"
-            machine_files="[]"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "workflow_dispatch: building ALL darwin systems (no base commit to diff against)"
+            systems_json=$(nix eval --json .#darwinConfigurations --apply builtins.attrNames)
           else
-            global_changed="${{ steps.changes.outputs.global }}"
-            machine_files='${{ steps.changes.outputs.machine_files }}'
-          fi
-
-          if [ "$global_changed" = "true" ]; then
-            echo "Building ALL darwin systems (event=$event, global_changed=$global_changed)"
-            systems_json="$all_systems"
-          else
-            echo "Filtering to affected machines only (event=$event)"
-
-            # Extract the third path segment (the machine dir name)
-            # from every changed path under hosts/darwin/**.
-            changed_machines=$(echo "$machine_files" \
-              | jq -r '.[] | split("/")[2]' \
-              | sort -u)
-
-            echo "Changed machine dirs: $(echo "$changed_machines" | tr '\n' ' ')"
-
-            filtered=()
-            for sys in $(jq -r '.[]' <<< "$all_systems"); do
-              if echo "$changed_machines" | grep -qx "$sys"; then
-                filtered+=("$sys")
-              fi
-            done
-
-            if [ ${#filtered[@]} -eq 0 ]; then
-              systems_json="[]"
+            if [ "${{ github.event_name }}" = "pull_request" ]; then
+              base_sha="${{ github.event.pull_request.base.sha }}"
             else
-              systems_json=$(printf '%s\n' "${filtered[@]}" | jq -R . | jq -cs .)
+              base_sha="${{ github.event.merge_group.base_sha }}"
             fi
+
+            result=$(./scripts/impacted-hosts.sh --os darwin --json "$base_sha")
+            echo "impacted-hosts.sh result: $result"
+            systems_json=$(jq -c '.hosts' <<<"$result")
           fi
 
           echo "systems=$systems_json" >> "$GITHUB_OUTPUT"

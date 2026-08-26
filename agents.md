@@ -145,8 +145,8 @@ the task. The full bodies live under `.opencode/skills/`.
 
 | Skill                       | When it fires                                                                                      |
 | --------------------------- | -------------------------------------------------------------------------------------------------- |
-| `nixos-eval-impacted-hosts` | Before pushing any change. Computes impacted hosts from the diff and runs evals.                   |
-| `nixos-input-category-sync` | When editing flake inputs / `flake.lock` / `ci-linux.yaml` / the impacted-hosts script.            |
+| `nixos-eval-impacted-hosts` | Before pushing any change. Runs scripts/impacted-hosts.sh (the same script CI calls) and evals.    |
+| `nixos-ci-pipeline-file-sync` | Adding/removing a script or local action that ci-linux.yaml / ci-darwin.yaml shells out to.      |
 | `nixos-add-host`            | When adding a new host (server or desktop).                                                        |
 | `nixos-add-flake-input`     | When adding (or removing) a flake input.                                                           |
 | `agent-orchestration-protocol` | Before spawning sub-agents. Action classes, scope, prohibitions, stop conditions.               |
@@ -173,23 +173,29 @@ don't paste its contents into this file.
 
 ## CI in one paragraph
 
-`ci-linux.yaml` has a `find-systems` job that classifies changed paths
-(via a bash `case` statement) and parses `flake.lock` diffs (input-aware)
-to decide which hosts to rebuild. `dorny/paths-filter` was rejected
-because negation patterns under picomatch match nearly every file. The
-matrix builds toplevel + home-manager activation for each impacted host
-and pushes to the Attic binary cache at `192.168.31.14`. Any
-`evaluation warning:` in stderr fails the build. `build-linux-summary`
-is the required status check.
+`ci-linux.yaml`'s `find-systems` job and `ci-darwin.yaml`'s
+`find-darwin` job both call the same script, `scripts/impacted-hosts.sh`,
+to decide which hosts to rebuild. That script answers from a real
+per-host derivation diff (`system.build.toplevel.outPath` at base vs.
+HEAD, evaluated -- never built -- so it costs about a minute, not a
+build) rather than guessing from file paths, with two allowlist
+fast-paths ahead of the real diff for the common cases where the answer
+is knowable without one. See the script's own header for the full
+four-step algorithm and the `nixos-eval-impacted-hosts` skill for running
+it locally. The matrix builds toplevel + home-manager activation for
+each impacted host and pushes to the Attic binary cache at
+`192.168.31.14`. Any `evaluation warning:` in stderr fails the build.
+`build-linux-summary` is the required status check.
 
-The full input-to-category mapping lives in the
-`nixos-input-category-sync` skill -- both the reference table and the
-list of the four machine-readable copies that must agree with it
-(`flake.nix` comments, `ci-linux.yaml`, `ci-darwin.yaml`, and the
-impacted-hosts script). It is deliberately **not** duplicated here.
-When changing it, load that skill; the
-`input-category-sync` pre-commit hook and flake check enforce
-agreement mechanically.
+One of the script's two allowlists (`FORCE_ALL_FILES`, per OS) covers
+files CI's pipeline shells out to directly but that aren't part of the
+Nix evaluation graph -- workflow YAML, the merge-queue composite action,
+helper scripts like `attic-push.sh`. Missing an entry there is a real
+gap (a change to an unregistered pipeline file could go unbuilt
+entirely), so it's mechanically checked by
+`scripts/check-ci-pipeline-files-sync.sh` (pre-commit hook + flake
+check) rather than just documented; see the `nixos-ci-pipeline-file-sync`
+skill when adding a script or local action to either workflow.
 
 Both `ci-linux.yaml` and `ci-darwin.yaml` also carry a `dev-shell`
 build-and-push job (one per OS, on the self-hosted runners). The host
@@ -203,9 +209,10 @@ filter because the dev shell has a different input set: it rebuilds only
 when `flake/dev/*.nix`, a CI workflow file, or one of the inputs that
 actually feed the shell changes -- `nixpkgs`, `precommit-base`,
 `colmena`, or the `walls-*` wallpaper inputs. Note that `precommit-base`
-and `colmena` are `skip` for the host filter but **do** trigger the dev
-shell. Keep that `devshell_inputs` list in sync (in both workflows) when
-the dev shell's dependencies change.
+and `colmena` usually leave every host closure unchanged, so the host
+filter ignores them, but they **do** trigger the dev shell. Keep that
+`devshell_inputs` list in sync (in both workflows) when the dev shell's
+dependencies change.
 
 Three inputs deliberately do **not** follow our `nixpkgs` so their
 prebuilt outputs can be substituted from the projects' own caches:
@@ -229,15 +236,17 @@ would change their derivation hashes and force local source builds.
 ## Maintenance rules (one-liners; full procedures in skills)
 
 - **Adding a new host** -> `nixos-add-host` skill.
-- **Adding / removing / recategorizing a flake input** ->
-  `nixos-add-flake-input` skill, which references
-  `nixos-input-category-sync`.
+- **Adding / removing a flake input** -> `nixos-add-flake-input` skill.
+  No category to pick anymore; impact is decided by a real derivation
+  diff.
 - **Verifying a change before push** -> `nixos-eval-impacted-hosts`
-  skill (includes a bundled script that mirrors the CI's filter
-  exactly).
-- **Modifying CI filtering logic in `ci-linux.yaml`** -> remember the
-  `case` order rule (specific patterns before broad ones) and the
-  four-place sync invariant; load `nixos-input-category-sync`.
+  skill, which runs `scripts/impacted-hosts.sh` -- the exact script CI
+  itself calls, not a mirror of it.
+- **Adding a script or local action that `ci-linux.yaml` /
+  `ci-darwin.yaml` shells out to** -> it must be registered in
+  `scripts/impacted-hosts.sh`'s `FORCE_ALL_FILES` array or a change to
+  it could go unbuilt; load `nixos-ci-pipeline-file-sync`, which is
+  checked mechanically, not just documented.
 - **Adding / reverting a temporary workaround for an unfixed upstream
   bug** (overlay, `permittedInsecurePackages`, disabled feature, polkit
   hack) -> register it in `.github/tracked-upstream-fixes.json` so the
@@ -262,14 +271,10 @@ The following used to live here. They were moved to skills to keep this
 file as a stable orientation document and to avoid paying the token cost
 on every turn:
 
-- The full input-to-category mapping table -> `nixos-input-category-sync`.
 - The step-by-step procedures for adding hosts and inputs -> their
   respective skills above.
 - The detailed CI job graph and filtering outcome table -> implementation
   detail; trust the workflow itself and the impacted-hosts script.
-- The "three places to keep in sync" warning -> elevated to four places
-  (the impacted-hosts script is a fourth) in
-  `nixos-input-category-sync`.
 
 If you're tempted to add a long procedure back to this file, write it as
 a skill instead.

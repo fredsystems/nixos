@@ -79,30 +79,22 @@
         '';
       };
 
-      # Verifies the flake-input -> CI-category mapping agrees across all
-      # four locations that hold a copy of it (the `# CI:` comments in
-      # flake.nix, the two workflow `input_category` arrays, and the
-      # impacted-hosts script's `INPUT_CATEGORY`).
-      #
-      # This was previously enforced only by an agent remembering the
-      # `nixos-input-category-sync` skill, and that failed silently:
-      # `nixpkgs-kernel` shipped with a `# CI: server` comment but was
-      # absent from both bash arrays, so it fell through to the `global`
-      # default and every monthly kernel bump rebuilt two desktops that
-      # no-op the pin. Under-building is the worse failure in the same
-      # class, hence a machine check rather than a documented habit.
-      inputCategorySync = pkgs.writeShellApplication {
-        name = "check-input-category-sync";
-        runtimeInputs = [ pkgs.python3 ];
+      # Verifies that every local script/action ci-linux.yaml and
+      # ci-darwin.yaml shell out to directly is registered in the matching
+      # FORCE_ALL_FILES array in scripts/impacted-hosts.sh -- see that
+      # script's own header and the nixos-ci-pipeline-file-sync skill for
+      # why this is a mechanical check rather than a documented habit.
+      ciPipelineFilesSync = pkgs.writeShellApplication {
+        name = "check-ci-pipeline-files-sync";
         text = ''
-          script=".opencode/skills/projects/nixos-input-category-sync/scripts/check-input-category-sync.py"
+          script="scripts/check-ci-pipeline-files-sync.sh"
 
           if [ ! -f "$script" ]; then
             echo "error: $script not found (run from the repository root)" >&2
             exit 1
           fi
 
-          python3 "$script"
+          bash "$script"
         '';
       };
 
@@ -290,18 +282,16 @@
                 pass_filenames = false;
               };
 
-              input-category-sync = {
+              ci-pipeline-files-sync = {
                 enable = true;
-                name = "flake input CI category sync (4 locations)";
-                entry = "${pkgs.lib.getExe inputCategorySync}";
+                name = "CI pipeline files force-all-hosts sync (2 locations)";
+                entry = "${pkgs.lib.getExe ciPipelineFilesSync}";
 
-                # Fires on any file that holds a copy of the mapping, plus
-                # flake.lock (which decides *which* inputs must be present in
-                # each copy -- adding an input there without updating the
-                # arrays is the exact drift this catches). pass_filenames is
-                # off because the checker always cross-references the full
-                # set; a single-file view cannot detect disagreement.
-                files = "^(flake\\.nix|flake\\.lock|\\.github/workflows/ci-(linux|darwin)\\.yaml|\\.opencode/skills/projects/nixos-(eval-impacted-hosts/scripts/impacted-hosts\\.sh|input-category-sync/scripts/check-input-category-sync\\.py))$";
+                # Fires on the two workflow files plus every file either
+                # workflow shells out to directly and scripts/impacted-hosts.sh
+                # itself, since the checker cross-references all of these
+                # against the FORCE_ALL_FILES arrays in that script.
+                files = "^(\\.github/workflows/ci-(linux|darwin)\\.yaml|\\.github/merge-queue-ci-skipper/action\\.yaml|scripts/(attic-push|check-colmena-parity|diff-closures-comment|impacted-hosts)\\.sh)$";
                 pass_filenames = false;
               };
 
@@ -523,14 +513,14 @@
             ''
         );
 
-      input-category-sync =
-        pkgs.runCommand "input-category-sync-check"
+      ci-pipeline-files-sync =
+        pkgs.runCommand "ci-pipeline-files-sync-check"
           {
-            nativeBuildInputs = [ inputCategorySync ];
+            nativeBuildInputs = [ ciPipelineFilesSync ];
           }
           ''
             cd ${self}
-            check-input-category-sync
+            check-ci-pipeline-files-sync
             touch "$out"
           '';
 
