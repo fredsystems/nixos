@@ -258,7 +258,7 @@ if ! ALL_HOSTS_JSON="$(nix eval ".#${FLAKE_ATTR}" --apply 'cfgs: builtins.attrNa
   printf 'ERROR: failed to enumerate %s:\n%s\n' "$FLAKE_ATTR" "$(cat "$NIX_EVAL_STDERR")" >&2
   exit 1
 fi
-mapfile -t ALL_HOSTS < <(echo "$ALL_HOSTS_JSON" | tr -d '[]" ' | tr ',' '\n' | grep -v '^$')
+mapfile -t ALL_HOSTS < <(jq -r '.[]' <<<"$ALL_HOSTS_JSON")
 
 MODE=""
 HOSTS=()
@@ -374,9 +374,16 @@ if [[ $DO_EVAL -eq 1 ]]; then
     exit 1
   fi
   echo "--- eval pass ---" >&2
-  for h in "${HOSTS[@]}"; do
-    echo "[eval] $h" >&2
-    nix eval ".#${FLAKE_ATTR}.${h}.config.system.build.toplevel.drvPath" >/dev/null
-  done
+  # Guarded by count rather than expanding "${HOSTS[@]}" directly: on Bash
+  # older than 4.4, expanding an empty array under `set -u` (this script
+  # runs with `set -euo pipefail`) is itself an unbound-variable error, so
+  # a force-none/inert-only result would crash `--eval` instead of being
+  # the legitimate no-op it is.
+  if [[ ${#HOSTS[@]} -gt 0 ]]; then
+    for h in "${HOSTS[@]}"; do
+      echo "[eval] $h" >&2
+      nix eval ".#${FLAKE_ATTR}.${h}.config.system.build.toplevel.drvPath" >/dev/null
+    done
+  fi
   echo "[eval] OK" >&2
 fi

@@ -57,11 +57,17 @@ extract_force_all() {
 
 # Extract every local script/action reference a workflow file shells out
 # to: `./scripts/*.sh` invocations and `uses: ./...` composite actions.
+# Both patterns tolerate an optional surrounding quote and arbitrary
+# whitespace after `uses:`, since either is valid YAML (`uses:    "./foo"`)
+# and a reference the regex fails to recognize is exactly the dangerous
+# false-negative this checker exists to prevent.
 extract_workflow_refs() {
   local workflow="$1"
   {
-    grep -oE '\./scripts/[a-zA-Z0-9_.-]+\.sh' "$workflow" | sed 's#^\./##'
-    grep -oE 'uses: \./[a-zA-Z0-9_./-]+' "$workflow" | sed -E 's#uses: \./#.github/#; s#$#/action.yaml#' \
+    grep -oE '"?\./scripts/[a-zA-Z0-9_.-]+\.sh"?' "$workflow" | tr -d '"' | sed 's#^\./##'
+    grep -oE 'uses:[[:space:]]*"?'"'"'?\./[a-zA-Z0-9_./-]+'"'"'?"?' "$workflow" \
+      | sed -E 's#^uses:[[:space:]]*["'"'"']?\./##; s#["'"'"']$##' \
+      | sed -E 's#^#.github/#; s#$#/action.yaml#' \
       | sed -E 's#^\.github/\.github/#.github/#'
   } | sort -u
 }

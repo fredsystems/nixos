@@ -209,9 +209,10 @@ filter because the dev shell has a different input set: it rebuilds only
 when `flake/dev/*.nix`, a CI workflow file, or one of the inputs that
 actually feed the shell changes -- `nixpkgs`, `precommit-base`,
 `colmena`, or the `walls-*` wallpaper inputs. Note that `precommit-base`
-and `colmena` are `skip` for the host filter but **do** trigger the dev
-shell. Keep that `devshell_inputs` list in sync (in both workflows) when
-the dev shell's dependencies change.
+and `colmena` usually leave every host closure unchanged, so the host
+filter ignores them, but they **do** trigger the dev shell. Keep that
+`devshell_inputs` list in sync (in both workflows) when the dev shell's
+dependencies change.
 
 Three inputs deliberately do **not** follow our `nixpkgs` so their
 prebuilt outputs can be substituted from the projects' own caches:
