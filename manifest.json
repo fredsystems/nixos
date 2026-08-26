@@ -1,8 +1,13 @@
 {
-  "generated_at": 1787692514,
+  "generated_at": 1787709402,
   "hosts": {
     "Daytona": {
       "history": [
+        {
+          "at": 1787709402,
+          "rev": "6c701c4529c21a4b0e72974834dbbcb1c829ac18",
+          "toplevel": "/nix/store/wgl4qzzj1xxxn0zrb0m3ywinlwzqrcwc-nixos-system-Daytona-26.11.20260823.56c02bc"
+        },
         {
           "at": 1787691946,
           "rev": "ab18545df72fa360397daf1fb5f4ffc782a6365a",
@@ -122,16 +127,16 @@
           "at": 1786845569,
           "rev": "d950295d7d6ffbc01c8db876290b3bf753e8c8de",
           "toplevel": "/nix/store/psb6clm98zamg0d7851pq749zbh7hac4-nixos-system-Daytona-26.11.20260813.0e251e2"
-        },
-        {
-          "at": 1786805568,
-          "rev": "7327dcb084c1e4fa1705fd8b6fb82f874dca72fe",
-          "toplevel": "/nix/store/xjjfwjqgj3r5lbkd6f3agq3kdc8cay0y-nixos-system-Daytona-26.11.20260813.0e251e2"
         }
       ]
     },
     "acarshub": {
       "history": [
+        {
+          "at": 1787709402,
+          "rev": "6c701c4529c21a4b0e72974834dbbcb1c829ac18",
+          "toplevel": "/nix/store/zrddpv0ffm02rn3sdlqfhrdhfszfbwak-nixos-system-acarshub-26.05.20260825.f4f6986"
+        },
         {
           "at": 1787692514,
           "rev": "11d9afdded045f3dd4c16d8c1cd9863b1f6222d9",
@@ -251,16 +256,16 @@
           "at": 1786627786,
           "rev": "0eb59aef7c318002b23cbb32495fcdef6df6a314",
           "toplevel": "/nix/store/qa1x28rsn5dc08sd5175dv19mm1488a3-nixos-system-acarshub-26.05.20260809.fcb8fcd"
-        },
-        {
-          "at": 1786627632,
-          "rev": "97d7eb3dca2183ce27c599a2a29706d3624588b5",
-          "toplevel": "/nix/store/mfbgml9k7z2lj55smmkbn3264qwa1mxh-nixos-system-acarshub-26.05.20260809.fcb8fcd"
         }
       ]
     },
     "fredhub": {
       "history": [
+        {
+          "at": 1787709402,
+          "rev": "6c701c4529c21a4b0e72974834dbbcb1c829ac18",
+          "toplevel": "/nix/store/x8qzs1czx45j1apdbzh2m22a8jra2pz0-nixos-system-fredhub-26.05.20260825.f4f6986"
+        },
         {
           "at": 1787692514,
           "rev": "11d9afdded045f3dd4c16d8c1cd9863b1f6222d9",
@@ -380,16 +385,16 @@
           "at": 1786474225,
           "rev": "728366f7318908fa4b720f1ba7fd284c841a89a6",
           "toplevel": "/nix/store/5d159a4mvm3f8akmjhp811hmk6c7s8vz-nixos-system-fredhub-26.05.20260809.fcb8fcd"
-        },
-        {
-          "at": 1786408874,
-          "rev": "07f93d3d7dd68977233f6359a6e4cec427329851",
-          "toplevel": "/nix/store/kmynvps249l5izkfi2mk1h2zzra247m0-nixos-system-fredhub-26.05.20260809.fcb8fcd"
         }
       ]
     },
     "fredvps": {
       "history": [
+        {
+          "at": 1787709402,
+          "rev": "6c701c4529c21a4b0e72974834dbbcb1c829ac18",
+          "toplevel": "/nix/store/hl1g05qbq5lsncsnqyfn7pi4k68759cb-nixos-system-fredvps-26.05.20260825.f4f6986"
+        },
         {
           "at": 1787692514,
           "rev": "11d9afdded045f3dd4c16d8c1cd9863b1f6222d9",
@@ -509,16 +514,16 @@
           "at": 1786627910,
           "rev": "4ce54e51b01e870cdb5b6fa8ceae7e8f2adf4e78",
           "toplevel": "/nix/store/fb23md77j0cv9a87y661dxsq7hby5h9m-nixos-system-fredvps-26.05.20260812.9f78f44"
-        },
-        {
-          "at": 1786627786,
-          "rev": "0eb59aef7c318002b23cbb32495fcdef6df6a314",
-          "toplevel": "/nix/store/rb4ca4viipx3wq581labqi2gs6333ilw-nixos-system-fredvps-26.05.20260809.fcb8fcd"
         }
       ]
     },
     "hfdlhub1": {
       "history": [
+        {
+          "at": 1787709402,
+          "rev": "6c701c4529c21a4b0e72974834dbbcb1c829ac18",
+          "toplevel": "/nix/store/m8slvdl8n52693pjhfa900l0sxwwic58-nixos-system-hfdlhub1-26.05.20260825.f4f6986"
+        },
         {
           "at": 1787692514,
           "rev": "11d9afdded045f3dd4c16d8c1cd9863b1f6222d9",
@@ -638,16 +643,16 @@
           "at": 1786627632,
           "rev": "97d7eb3dca2183ce27c599a2a29706d3624588b5",
           "toplevel": "/nix/store/aw1jms6kqvbjzxhzaj5hb2hx7bipi5nv-nixos-system-hfdlhub1-26.05.20260809.fcb8fcd"
-        },
-        {
-          "at": 1786474225,
-          "rev": "728366f7318908fa4b720f1ba7fd284c841a89a6",
-          "toplevel": "/nix/store/ykipq9ynqk9dkq1g7klnwffkwlj7sc8w-nixos-system-hfdlhub1-26.05.20260809.fcb8fcd"
         }
       ]
     },
     "hfdlhub2": {
       "history": [
+        {
+          "at": 1787709402,
+          "rev": "6c701c4529c21a4b0e72974834dbbcb1c829ac18",
+          "toplevel": "/nix/store/zhcj6zslw0zq3pw38zw9q4afwdipgiar-nixos-system-hfdlhub2-26.05.20260825.f4f6986"
+        },
         {
           "at": 1787692514,
           "rev": "11d9afdded045f3dd4c16d8c1cd9863b1f6222d9",
@@ -767,16 +772,16 @@
           "at": 1786627632,
           "rev": "97d7eb3dca2183ce27c599a2a29706d3624588b5",
           "toplevel": "/nix/store/lnz34sg1q134fwk7is713iryh9y7i872-nixos-system-hfdlhub2-26.05.20260809.fcb8fcd"
-        },
-        {
-          "at": 1786474225,
-          "rev": "728366f7318908fa4b720f1ba7fd284c841a89a6",
-          "toplevel": "/nix/store/9n8zbzyz8mvdr9f870hr29gnmlri5sim-nixos-system-hfdlhub2-26.05.20260809.fcb8fcd"
         }
       ]
     },
     "maranello": {
       "history": [
+        {
+          "at": 1787709402,
+          "rev": "6c701c4529c21a4b0e72974834dbbcb1c829ac18",
+          "toplevel": "/nix/store/hpsgd7jq51mjwy83k95hdc3dkpnzwi3n-nixos-system-maranello-26.11.20260823.56c02bc"
+        },
         {
           "at": 1787691946,
           "rev": "ab18545df72fa360397daf1fb5f4ffc782a6365a",
@@ -896,16 +901,16 @@
           "at": 1786924295,
           "rev": "f8b680e6a898d69cd7dccc8b639eeeb92359c35f",
           "toplevel": "/nix/store/vzwxm76cy8d2xbcpgj60fsl2ji6zl2c1-nixos-system-maranello-26.11.20260813.0e251e2"
-        },
-        {
-          "at": 1786845569,
-          "rev": "d950295d7d6ffbc01c8db876290b3bf753e8c8de",
-          "toplevel": "/nix/store/85qmmajlc323ypz6dwsriq063jsw92vj-nixos-system-maranello-26.11.20260813.0e251e2"
         }
       ]
     },
     "nvrhub": {
       "history": [
+        {
+          "at": 1787709402,
+          "rev": "6c701c4529c21a4b0e72974834dbbcb1c829ac18",
+          "toplevel": "/nix/store/pnrbgkrf48n66jnqqi55irgpxkr3xcm2-nixos-system-nvrhub-26.05.20260825.f4f6986"
+        },
         {
           "at": 1787692514,
           "rev": "11d9afdded045f3dd4c16d8c1cd9863b1f6222d9",
@@ -1025,16 +1030,16 @@
           "at": 1786474225,
           "rev": "728366f7318908fa4b720f1ba7fd284c841a89a6",
           "toplevel": "/nix/store/ibhfddpb9p7f9jbss1d2vyq5nr33zci5-nixos-system-nvrhub-26.05.20260809.fcb8fcd"
-        },
-        {
-          "at": 1786408874,
-          "rev": "07f93d3d7dd68977233f6359a6e4cec427329851",
-          "toplevel": "/nix/store/k6j3fy0qj3vgqm915qm8z2l36fhk85jw-nixos-system-nvrhub-26.05.20260809.fcb8fcd"
         }
       ]
     },
     "sdrhub": {
       "history": [
+        {
+          "at": 1787709402,
+          "rev": "6c701c4529c21a4b0e72974834dbbcb1c829ac18",
+          "toplevel": "/nix/store/9f25yzcjl87y09a2np5axnhfr619c36f-nixos-system-sdrhub-26.05.20260825.f4f6986"
+        },
         {
           "at": 1787692514,
           "rev": "11d9afdded045f3dd4c16d8c1cd9863b1f6222d9",
@@ -1154,16 +1159,16 @@
           "at": 1786998643,
           "rev": "fbc10fdeb43a25979c1f4bd72e9cb88e99ac5bd8",
           "toplevel": "/nix/store/1s80vd9ij63d3r45pflx7ab6bi03xp3s-nixos-system-sdrhub-26.05.20260814.02e0898"
-        },
-        {
-          "at": 1786932045,
-          "rev": "bd252a8c0e8285bd1061a16d242fe5ef8396b15e",
-          "toplevel": "/nix/store/2j0rb1mqk7kpbrl8chxl6zcyl32nxxnc-nixos-system-sdrhub-26.05.20260814.02e0898"
         }
       ]
     },
     "vdlmhub": {
       "history": [
+        {
+          "at": 1787709402,
+          "rev": "6c701c4529c21a4b0e72974834dbbcb1c829ac18",
+          "toplevel": "/nix/store/scj24kpqv478vjgbwynm0cpf35xx0va1-nixos-system-vdlmhub-26.05.20260825.f4f6986"
+        },
         {
           "at": 1787692514,
           "rev": "11d9afdded045f3dd4c16d8c1cd9863b1f6222d9",
@@ -1283,15 +1288,10 @@
           "at": 1786627632,
           "rev": "97d7eb3dca2183ce27c599a2a29706d3624588b5",
           "toplevel": "/nix/store/90vnsinay0pzlfbvf1q5nhmy411zfmqh-nixos-system-vdlmhub-26.05.20260809.fcb8fcd"
-        },
-        {
-          "at": 1786474225,
-          "rev": "728366f7318908fa4b720f1ba7fd284c841a89a6",
-          "toplevel": "/nix/store/971a8429xzcgva7v9wpaswqgbj4gn4k9-nixos-system-vdlmhub-26.05.20260809.fcb8fcd"
         }
       ]
     }
   },
-  "rev": "11d9afdded045f3dd4c16d8c1cd9863b1f6222d9",
+  "rev": "6c701c4529c21a4b0e72974834dbbcb1c829ac18",
   "schema": 1
 }
