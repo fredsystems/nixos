@@ -45,7 +45,7 @@ in
       ###############################################################
       (config.services.adsb.mkSdrContainer {
         name = "dumpvdl2-1";
-        image = "ghcr.io/sdr-enthusiasts/docker-dumpvdl2:latest-build-431@sha256:b2c39bdfd3741f3c37b21d507577d5e485d658f2c9f260e9eadcdd88eaf65812";
+        image = "ghcr.io/sdr-enthusiasts/docker-dumpvdl2:latest-build-432@sha256:514d599b75b45973aa4d28c044ff8609add9f8b0707cd3a47a9a23e2b96264b9";
 
         tty = true;
         restart = "always";
@@ -68,7 +68,7 @@ in
       ###############################################################
       (config.services.adsb.mkSdrContainer {
         name = "dumpvdl2-2";
-        image = "ghcr.io/sdr-enthusiasts/docker-dumpvdl2:latest-build-431@sha256:b2c39bdfd3741f3c37b21d507577d5e485d658f2c9f260e9eadcdd88eaf65812";
+        image = "ghcr.io/sdr-enthusiasts/docker-dumpvdl2:latest-build-432@sha256:514d599b75b45973aa4d28c044ff8609add9f8b0707cd3a47a9a23e2b96264b9";
 
         tty = true;
         restart = "always";
@@ -91,7 +91,7 @@ in
       ###############################################################
       (config.services.adsb.mkSdrContainer {
         name = "dumpvdl2-3";
-        image = "ghcr.io/sdr-enthusiasts/docker-dumpvdl2:latest-build-431@sha256:b2c39bdfd3741f3c37b21d507577d5e485d658f2c9f260e9eadcdd88eaf65812";
+        image = "ghcr.io/sdr-enthusiasts/docker-dumpvdl2:latest-build-432@sha256:514d599b75b45973aa4d28c044ff8609add9f8b0707cd3a47a9a23e2b96264b9";
 
         tty = true;
         restart = "always";
@@ -114,7 +114,7 @@ in
       ###############################################################
       (config.services.adsb.mkSdrContainer {
         name = "dumpvdl2-4";
-        image = "ghcr.io/sdr-enthusiasts/docker-dumpvdl2:latest-build-431@sha256:b2c39bdfd3741f3c37b21d507577d5e485d658f2c9f260e9eadcdd88eaf65812";
+        image = "ghcr.io/sdr-enthusiasts/docker-dumpvdl2:latest-build-432@sha256:514d599b75b45973aa4d28c044ff8609add9f8b0707cd3a47a9a23e2b96264b9";
 
         tty = true;
         restart = "always";
