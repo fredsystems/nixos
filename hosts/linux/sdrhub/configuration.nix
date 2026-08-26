@@ -1126,7 +1126,7 @@ in
         # set correctly below, so no other change is needed.
         #
         # Cost: the telegraf binary is ~310 MB uncompressed.
-        image = "ghcr.io/sdr-enthusiasts/docker-dump978:telegraf-build-802@sha256:0120c49e2153d25d3b0b81734d4aadbb29deef26c5c3c05d718d4d9cfcb0388a";
+        image = "ghcr.io/sdr-enthusiasts/docker-dump978:telegraf-build-803@sha256:5034be7616afced79c9d46a8715073d14c7a4e745068a7c02999c23cda0f719b";
 
         hostname = "dump978";
         restart = "always";
