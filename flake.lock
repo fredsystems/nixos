@@ -857,11 +857,11 @@
         "nixpkgs": "nixpkgs_11"
       },
       "locked": {
-        "lastModified": 1787790269,
-        "narHash": "sha256-Uzsoo6mHte7XQXI71CsKR0hRffQPOH37At6ZiuWMl8k=",
+        "lastModified": 1787790877,
+        "narHash": "sha256-GaguoxfZB+3c968jvLJXgJnv2YOKlhRnofbpUGfyH6g=",
         "owner": "fredclausen",
         "repo": "nixos-needsreboot",
-        "rev": "0cb950741033a8d0efe7c48c9f3f26314ed8dcea",
+        "rev": "5519b4daada87ce586689251b6139a7d43f4fc07",
         "type": "github"
       },
       "original": {
