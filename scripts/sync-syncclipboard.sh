@@ -8,13 +8,14 @@
 # SyncClipboard ships the server and every desktop client from a single
 # upstream tag, but they land in two different places in this repo:
 #
-#     hosts/linux/sdrhub/configuration.nix   the server, as a Docker image
-#     overlays/syncclipboard.nix             the Linux client, as an AppImage
+#     modules/data/docker-image-pins.nix   the server, as a Docker image
+#     overlays/syncclipboard.nix           the Linux client, as an AppImage
 #
 # Only the first is visible to Renovate (its custom regex manager matches
-# `image = "..."` under hosts/linux/*/configuration.nix, and docker updates
-# automerge). Nothing watches the overlay. Left alone, Renovate would walk the
-# server forward on its own while the client stayed put.
+# every `<key> = "repo:tag@sha256:digest";` entry in
+# modules/data/docker-image-pins.nix, and docker updates automerge).
+# Nothing watches the overlay. Left alone, Renovate would walk the server
+# forward on its own while the client stayed put.
 #
 # HOW BADLY THAT WOULD ACTUALLY BREAK THINGS
 #
@@ -54,9 +55,10 @@ set -uo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 overlay="${repo_root}/overlays/syncclipboard.nix"
-host_config="${repo_root}/hosts/linux/sdrhub/configuration.nix"
+pins_file="${repo_root}/modules/data/docker-image-pins.nix"
 
 image_name="jericx/syncclipboard-server"
+pins_key="syncclipboard"
 appimage_url_base="https://github.com/Jeric-X/SyncClipboard/releases/download"
 
 die() {
@@ -75,10 +77,10 @@ version="${target_version#v}"
 tag="v${version}"
 
 current_version="$(sed -n 's/^\s*version = "\(.*\)";/\1/p' "$overlay" | head -1)"
-current_image="$(sed -n 's|.*image = "'"${image_name}"':\([^"]*\)".*|\1|p' "$host_config" | head -1)"
+current_image="$(sed -n 's|.*'"${pins_key}"' = "'"${image_name}"':\([^"]*\)".*|\1|p' "$pins_file" | head -1)"
 
 [ -n "$current_version" ] || die "could not read the pinned version from $overlay"
-[ -n "$current_image" ] || die "could not read the pinned image from $host_config"
+[ -n "$current_image" ] || die "could not read the pinned image from $pins_file"
 
 echo "overlay version: $current_version"
 echo "image pin:       $current_image"
@@ -118,7 +120,7 @@ fi
 
 # Host config: image tag and digest.
 if [ "$current_image" != "$new_image" ]; then
-  sed -i "s|image = \"${image_name}:[^\"]*\";|image = \"${image_name}:${new_image}\";|" "$host_config"
+  sed -i "s|${pins_key} = \"${image_name}:[^\"]*\";|${pins_key} = \"${image_name}:${new_image}\";|" "$pins_file"
   changed=1
 fi
 
@@ -130,7 +132,7 @@ fi
 # Re-read rather than trusting the sed, so a silently non-matching pattern is
 # caught here instead of at eval time in CI.
 after_version="$(sed -n 's/^\s*version = "\(.*\)";/\1/p' "$overlay" | head -1)"
-after_image="$(sed -n 's|.*image = "'"${image_name}"':\([^"]*\)".*|\1|p' "$host_config" | head -1)"
+after_image="$(sed -n 's|.*'"${pins_key}"' = "'"${image_name}"':\([^"]*\)".*|\1|p' "$pins_file" | head -1)"
 [ "$after_version" = "$version" ] || die "overlay version did not update (got '$after_version')"
 [ "$after_image" = "$new_image" ] || die "image pin did not update (got '$after_image')"
 grep -qF "$appimage_hash" "$overlay" || die "overlay hash did not update"

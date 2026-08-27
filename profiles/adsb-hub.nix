@@ -5,6 +5,7 @@
     ../modules/monitoring/agent
     ../modules/services/github-runners.nix
     ../modules/secrets/sops.nix
+    ../modules/data/docker-image-pins.nix
   ];
 
   deployment.role = lib.mkDefault "monitoring-agent";

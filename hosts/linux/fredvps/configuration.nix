@@ -1179,7 +1179,7 @@ in
       ###############################################################
       {
         name = "fredsite";
-        image = "ghcr.io/fredsystems/fred-site:latest-build-8@sha256:53659b897364c139dc504e6824ae999febdfe96616fbf306b8681a493510ed81";
+        image = config.shared.dockerImages.fredSite;
 
         environmentFiles = [
           config.sops.secrets."docker/fredvps/fredsite.env".path
@@ -1198,6 +1198,7 @@ in
       # including anything secret-bearing that gets logged. sdrhub is the only
       # consumer and is on the tailnet.
       (import ../../../modules/services/mk-dozzle-agent.nix {
+        image = config.shared.dockerImages.dozzle;
         port = "${tailscaleIP}:7007:7007";
       })
 
@@ -1206,7 +1207,7 @@ in
       ###############################################################
       {
         name = "imageapi";
-        image = "ghcr.io/sdr-enthusiasts/sdre-image-api:latest-build-7@sha256:38df445fe37101648032e849a477ee3221ce8517cebd72983e21d9e1ba8dfbff";
+        image = config.shared.dockerImages.sdreImageApi;
 
         volumes = [
           "/opt/adsb/imageapi/data:/opt/api"
@@ -1222,7 +1223,7 @@ in
       ###############################################################
       {
         name = "tar1090";
-        image = "ghcr.io/sdr-enthusiasts/docker-tar1090:telegraf-build-1474@sha256:26a2dae067d9cc5a9738f3370c2323cc397baf3823cf48523a176399b3894dc2";
+        image = config.shared.dockerImages.tar1090;
 
         environmentFiles = [
           config.sops.secrets."docker/fredvps/tar1090.env".path
@@ -1266,7 +1267,7 @@ in
       ###############################################################
       {
         name = "acars_router";
-        image = "ghcr.io/sdr-enthusiasts/acars_router:latest-build-588@sha256:0dc5e94dfa00a0d1f0d5c323a0e3e7cdbbfe9a4cc7de750114d7c887ea575cc5";
+        image = config.shared.dockerImages.acarsRouter;
 
         environmentFiles = [
           config.sops.secrets."docker/fredvps/acars_router.env".path
@@ -1298,7 +1299,7 @@ in
       ###############################################################
       {
         name = "acarshub";
-        image = "ghcr.io/sdr-enthusiasts/docker-acarshub:latest-build-1510@sha256:1938777a30eeb7fd5261b333cc9347b42c95e1b92baa6d871da7281a01696978";
+        image = config.shared.dockerImages.acarshub;
 
         environmentFiles = [
           config.sops.secrets."docker/fredvps/acarshub.env".path

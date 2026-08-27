@@ -338,6 +338,18 @@ fi
 
 if [[ -z "$MODE" ]]; then
   MODE="eval-diff"
+  # --os darwin's find-darwin job runs on ubuntu-latest, not real macOS
+  # hardware (only build-darwin does, on [self-hosted, macOS]) -- but this
+  # still works. `nix eval` only needs to *evaluate* the derivation graph
+  # and compute .outPath from the .drv's hash, never *realize* (build) it,
+  # and Nix's eval/build split doesn't require the evaluator to run on the
+  # target platform. The `system = "aarch64-darwin"` attribute just becomes
+  # metadata embedded in the .drv. This would only break if some part of
+  # nix-darwin's module evaluation triggered import-from-derivation (reading
+  # the actual *contents* of a built artifact mid-eval, not just its path),
+  # which is not how nixpkgs/nix-darwin modules are normally structured.
+  # Verified directly: `nix eval .#darwinConfigurations...toplevel.outPath`
+  # and this exact eval-diff branch both succeed from x86_64-linux.
   echo "Running a real per-host derivation diff (base=${BASE_SHA})..." >&2
   if ! HEAD_JSON="$(nix eval --json ".#${FLAKE_ATTR}" --apply 'cfgs: builtins.mapAttrs (_: c: c.config.system.build.toplevel.outPath) cfgs' 2>"$NIX_EVAL_STDERR")"; then
     printf 'ERROR: failed to evaluate HEAD %s:\n%s\n' "$FLAKE_ATTR" "$(cat "$NIX_EVAL_STDERR")" >&2

@@ -396,6 +396,7 @@
         nas-mounts = import ./modules/data/nas-mounts.nix;
         wifi-networks = import ./modules/data/wifi-networks.nix;
         sync-hosts = import ./modules/data/sync-hosts.nix;
+        docker-image-pins = import ./modules/data/docker-image-pins.nix;
 
         # Service modules
         github-runners = import ./modules/services/github-runners.nix;
