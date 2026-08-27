@@ -7,8 +7,8 @@ name: update-syncclipboard
 # Both artifacts ship from a single upstream tag, but they live in two places
 # here, and only one of them is visible to Renovate:
 #
-#   hosts/linux/sdrhub/configuration.nix   server image  -- Renovate DOES match
-#   overlays/syncclipboard.nix             client AppImage -- nothing watches it
+#   modules/data/docker-image-pins.nix   server image  -- Renovate DOES match
+#   overlays/syncclipboard.nix           client AppImage -- nothing watches it
 #
 # Renovate's docker updates automerge, so left alone it would walk the server
 # forward on its own. That is usually the safe direction (upstream states
@@ -105,7 +105,7 @@ jobs:
           fi
 
           git checkout -b "$branch"
-          git add overlays/syncclipboard.nix hosts/linux/sdrhub/configuration.nix
+          git add overlays/syncclipboard.nix modules/data/docker-image-pins.nix
           git commit -m "chore(syncclipboard): update server and client to v${NEW_VERSION}"
           git push -u origin "$branch"
 
@@ -114,7 +114,7 @@ jobs:
             --body "$(cat <<BODY
           Automated bump of both SyncClipboard pins to upstream v${NEW_VERSION}.
 
-          Server image (\`hosts/linux/sdrhub/configuration.nix\`) and Linux
+          Server image (\`modules/data/docker-image-pins.nix\`) and Linux
           client AppImage (\`overlays/syncclipboard.nix\`) move together, because
           both ship from the same upstream tag and nothing machine-readable
           distinguishes an additive server release from a wire-protocol change.

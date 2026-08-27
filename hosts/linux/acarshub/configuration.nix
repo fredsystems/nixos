@@ -39,6 +39,7 @@ in
       # DOZZLE AGENT
       ###############################################################
       (import ../../../modules/services/mk-dozzle-agent.nix {
+        image = config.shared.dockerImages.dozzle;
         environmentFiles = [
           config.sops.secrets."docker/acarshub.env".path
         ];
@@ -49,7 +50,7 @@ in
       ###############################################################
       (config.services.adsb.mkSdrContainer {
         name = "acarsdec-1";
-        image = "ghcr.io/sdr-enthusiasts/docker-acarsdec:latest-build-503@sha256:8a8924422d9c34ce3422859bb12b4e8bb33850b1cf4bb02edcc20a4601c43d6a";
+        image = config.shared.dockerImages.acarsdec;
 
         tty = true;
         restart = "always";
@@ -81,7 +82,7 @@ in
       ###############################################################
       (config.services.adsb.mkSdrContainer {
         name = "acarsdec-2";
-        image = "ghcr.io/sdr-enthusiasts/docker-acarsdec:latest-build-503@sha256:8a8924422d9c34ce3422859bb12b4e8bb33850b1cf4bb02edcc20a4601c43d6a";
+        image = config.shared.dockerImages.acarsdec;
 
         tty = true;
         restart = "always";
@@ -113,7 +114,7 @@ in
       ###############################################################
       (config.services.adsb.mkSdrContainer {
         name = "xng";
-        image = "ghcr.io/sdr-enthusiasts/docker-xng:latest-build-4@sha256:670282c3d1d519bbcc3de03a2b22ba25242267980725da49f0ead8978f2fe2c8";
+        image = config.shared.dockerImages.xng;
 
         tty = true;
         restart = "always";

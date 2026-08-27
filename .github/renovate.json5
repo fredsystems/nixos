@@ -37,15 +37,21 @@
   platformAutomerge: true,
   customManagers: [
     {
+      // Every container image this fleet runs is centralized in
+      // modules/data/docker-image-pins.nix, keyed by a logical name
+      // (dozzle, acarsdec, ...) rather than the literal attribute name
+      // `image` -- host configs read config.shared.dockerImages.<name>
+      // instead of inlining the string. The regex therefore captures the
+      // leading attribute name generically (imageKey) and replays it
+      // unchanged in autoReplaceStringTemplate, rather than assuming the
+      // key is literally "image". Do not rename entries in that file
+      // without checking this manager still matches them.
       customType: "regex",
-      managerFilePatterns: [
-        "/hosts/linux/(.*)/configuration\\.nix$/",
-        "/modules/services/mk-dozzle-agent\\.nix$/",
-      ],
+      managerFilePatterns: ["/modules/data/docker-image-pins\\.nix$/"],
       matchStrings: [
-        'image = "(?<depName>.*?):(?<currentValue>.*?)(?:@(?<currentDigest>sha256:[a-f0-9]+))?";',
+        '(?<imageKey>[a-zA-Z0-9]+) = "(?<depName>.*?):(?<currentValue>.*?)(?:@(?<currentDigest>sha256:[a-f0-9]+))?";',
       ],
-      autoReplaceStringTemplate: 'image = "{{{depName}}}:{{{newValue}}}{{#if newDigest}}@{{{newDigest}}}{{/if}}";',
+      autoReplaceStringTemplate: '{{{imageKey}}} = "{{{depName}}}:{{{newValue}}}{{#if newDigest}}@{{{newDigest}}}{{/if}}";',
       datasourceTemplate: "docker",
       depTypeTemplate: "container",
       depNameTemplate: "{{depName}}",

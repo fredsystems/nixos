@@ -167,6 +167,29 @@ Centralized Syncthing host list. Provides:
 
 - `syncthing.commonHosts` - List of common sync hosts for sync-compose
 
+#### `nixosModules.docker-image-pins`
+
+Single source of truth for every container image the fleet runs, across
+every registry. Provides:
+
+- `shared.dockerImages` - Attrset of `repo:tag@digest` strings keyed by
+  logical name (e.g. `dozzle`, `acarshub`, `tar1090`)
+
+**Example:**
+
+```nix
+{
+  imports = [ fredsystems.nixosModules.docker-image-pins ];
+
+  services.adsb.containers = [
+    {
+      name = "acarshub";
+      image = config.shared.dockerImages.acarshub;
+    }
+  ];
+}
+```
+
 ### Service Modules
 
 #### `nixosModules.github-runners`

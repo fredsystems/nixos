@@ -3,16 +3,23 @@
 # Usage in a host configuration:
 #
 #   services.adsb.containers = [
-#     (import ../../../modules/services/mk-dozzle-agent.nix { })
+#     (import ../../../modules/services/mk-dozzle-agent.nix {
+#       image = config.shared.dockerImages.dozzle;
+#     })
 #     # ... other containers
 #   ];
 #
 # With options:
 #
 #   (import ../../../modules/services/mk-dozzle-agent.nix {
+#     image = config.shared.dockerImages.dozzle;
 #     port = "3939:7007";
 #     environmentFiles = [ config.sops.secrets."docker/myhost.env".path ];
 #   })
+#
+# `image` is required (no default) so every call site is forced to read
+# the pin from modules/data/docker-image-pins.nix rather than risk a
+# second, driftable copy of the string here.
 #
 # SECURITY: this container mounts the Docker socket, so anything that can
 # reach its port can read the logs of every container on the host. Dozzle
@@ -28,12 +35,13 @@
 # interface, pass an explicit bind address -- see fredvps, which publishes on
 # its Tailscale address after this port was found open to the internet.
 {
+  image,
   port ? "7007:7007",
   environmentFiles ? [ ],
 }:
 {
   name = "dozzle-agent";
-  image = "amir20/dozzle:v10.7.4@sha256:068025ea622a1ce3e343a138dd9a962429b5187a133aca301bb4991fe7d2b708";
+  inherit image;
   exec = "agent";
   volumes = [
     "/var/run/docker.sock:/var/run/docker.sock:ro"

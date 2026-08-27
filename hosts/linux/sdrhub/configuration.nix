@@ -650,6 +650,7 @@ in
     ../../../modules/monitoring/agent
     ../../../modules/services/tailscale
     ../../../modules/hardware/usbfs.nix
+    ../../../modules/data/docker-image-pins.nix
     ./home-ip-drift.nix
   ];
 
@@ -1016,7 +1017,7 @@ in
       ###############################################################
       {
         name = "dozzle";
-        image = "amir20/dozzle:v10.7.4@sha256:068025ea622a1ce3e343a138dd9a962429b5187a133aca301bb4991fe7d2b708";
+        image = config.shared.dockerImages.dozzle;
 
         restart = "always";
 
@@ -1035,6 +1036,7 @@ in
       # DOZZLE AGENT
       ###############################################################
       (import ../../../modules/services/mk-dozzle-agent.nix {
+        image = config.shared.dockerImages.dozzle;
         port = "3939:7007";
       })
 
@@ -1043,7 +1045,7 @@ in
       ###############################################################
       # {
       #   name = "airspy_adsb";
-      #   image = "ghcr.io/sdr-enthusiasts/airspy_adsb:latest-build-316@sha256:a2f8a4a9d9d4f8899ff79b9ec80863c467b57fb70e88892c78fc47df1e323f9e";
+      #   image = config.shared.dockerImages.airspyAdsb;
 
       #   hostname = "airspy_adsb";
       #   restart = "always";
@@ -1068,7 +1070,7 @@ in
       ###############################################################
       {
         name = "ultrafeeder";
-        image = "ghcr.io/sdr-enthusiasts/docker-adsb-ultrafeeder:telegraf-build-956@sha256:8b5b2c069c37273b4cd263da0857a1c11491c13d31e018434d91344c1717622b";
+        image = config.shared.dockerImages.adsbUltrafeeder;
 
         hostname = "ultrafeeder";
         restart = "always";
@@ -1126,7 +1128,7 @@ in
         # set correctly below, so no other change is needed.
         #
         # Cost: the telegraf binary is ~310 MB uncompressed.
-        image = "ghcr.io/sdr-enthusiasts/docker-dump978:telegraf-build-803@sha256:5034be7616afced79c9d46a8715073d14c7a4e745068a7c02999c23cda0f719b";
+        image = config.shared.dockerImages.dump978;
 
         hostname = "dump978";
         restart = "always";
@@ -1177,7 +1179,7 @@ in
       ###############################################################
       {
         name = "adsbhub";
-        image = "ghcr.io/sdr-enthusiasts/docker-adsbhub:latest-build-531@sha256:6825ec77b86e13804fa5bbb98891ce787dfc121b57f0d4ffd4d38a98a0ae798d";
+        image = config.shared.dockerImages.adsbhub;
 
         restart = "always";
         tty = true;
@@ -1197,7 +1199,7 @@ in
       ###############################################################
       {
         name = "fr24";
-        image = "ghcr.io/sdr-enthusiasts/docker-flightradar24:latest-build-860@sha256:917e53402d5158800eef746839dfb722e30cd3b21019e3bc318abb4f3d807c03";
+        image = config.shared.dockerImages.flightradar24;
 
         restart = "always";
         tty = true;
@@ -1221,7 +1223,7 @@ in
       ###############################################################
       {
         name = "piaware";
-        image = "ghcr.io/sdr-enthusiasts/docker-piaware:latest-build-667@sha256:086f48dfbb31d7551e40c0d3d57a6b4727eb54aa184e5c438ca57151740e299c";
+        image = config.shared.dockerImages.piaware;
 
         hostname = "piaware";
         restart = "always";
@@ -1246,7 +1248,7 @@ in
       ###############################################################
       {
         name = "planefinder";
-        image = "ghcr.io/sdr-enthusiasts/docker-planefinder:latest-build-542@sha256:56e493fe119812977385ec7ed0942de10acf8e5555f3078a00fe5f6eca2835cb";
+        image = config.shared.dockerImages.planefinder;
 
         restart = "always";
         tty = true;
@@ -1270,7 +1272,7 @@ in
       ###############################################################
       {
         name = "planewatch";
-        image = "ghcr.io/plane-watch/docker-plane-watch:v0.0.10@sha256:f8cc3254943c3f0cd8b97d448bee929c87f3c78b9ecf1a61a255343797e61745";
+        image = config.shared.dockerImages.planewatch;
 
         restart = "always";
         tty = true;
@@ -1290,7 +1292,7 @@ in
       ###############################################################
       {
         name = "radarvirtuel";
-        image = "ghcr.io/sdr-enthusiasts/docker-radarvirtuel:latest-build-801@sha256:e45bc0dc644f5ab39fbf36e9b5fa40dd7e64fcbc75b553f04acdf38e9a3f5a4a";
+        image = config.shared.dockerImages.radarvirtuel;
 
         hostname = "radarvirtuel";
         restart = "always";
@@ -1319,7 +1321,7 @@ in
       ###############################################################
       {
         name = "rbfeeder";
-        image = "ghcr.io/sdr-enthusiasts/docker-airnavradar:latest-build-884@sha256:cfe95cf01250061f105d4665b2c410a3b079afb400f847cd49797d8f4707e636";
+        image = config.shared.dockerImages.airnavradar;
 
         restart = "always";
         tty = false;
@@ -1344,7 +1346,7 @@ in
       ###############################################################
       {
         name = "opensky";
-        image = "ghcr.io/sdr-enthusiasts/docker-opensky-network:latest-build-846@sha256:d65f878cd47ebd73ee6c68bd7c4f474119a15016987f2098d444da3e5d3bf0be";
+        image = config.shared.dockerImages.openskyNetwork;
 
         restart = "always";
         tty = true;
@@ -1364,7 +1366,7 @@ in
       ###############################################################
       {
         name = "sdrmap";
-        image = "ghcr.io/sdr-enthusiasts/docker-sdrmap:latest-build-100@sha256:ef3d4c1f9d84ba9fe3ffe85d407235a89ed7a5ef00aeba910c22cc00cbf0d44e";
+        image = config.shared.dockerImages.sdrmap;
 
         restart = "always";
 
@@ -1378,7 +1380,7 @@ in
       ###############################################################
       {
         name = "acarshub";
-        image = "ghcr.io/sdr-enthusiasts/docker-acarshub:latest-build-1510@sha256:1938777a30eeb7fd5261b333cc9347b42c95e1b92baa6d871da7281a01696978";
+        image = config.shared.dockerImages.acarshub;
 
         restart = "always";
         tty = true;
@@ -1407,7 +1409,7 @@ in
       ###############################################################
       {
         name = "acarshubv4";
-        image = "ghcr.io/sdr-enthusiasts/docker-acarshub:v4-latest-build-72@sha256:44e2e8f29e456dcc3d9316dab2b8169c6b5f4b46885eb307673790d970908e5b";
+        image = config.shared.dockerImages.acarshubV4;
 
         restart = "always";
         tty = true;
@@ -1433,8 +1435,8 @@ in
 
       {
         name = "acars2pos";
-        #image = "ghcr.io/rpatel3001/docker-acars2pos:latest-build-31@sha256:229f6ee8a65a25989aacf62e2f93b30dff86066a9684396e599a95ccb049b834";
-        image = "ghcr.io/fredclausen/docker-acars2pos:latest-build-2@sha256:44f0ed37ddc9f4fac092d905088d7b0b25e364b1453929125e76322e54b2bad2";
+        #image = config.shared.dockerImages.acars2posAlt;
+        image = config.shared.dockerImages.acars2pos;
 
         restart = "always";
         tty = true;
@@ -1482,7 +1484,7 @@ in
       ###############################################################
       {
         name = "degoog";
-        image = "ghcr.io/fccview/degoog:0.24.0@sha256:79409f76137734baa0516a58def96e4d3842f6db26d813e75365dea8a00974e9";
+        image = config.shared.dockerImages.degoog;
 
         restart = "always";
 
@@ -1509,7 +1511,7 @@ in
       ###############################################################
       {
         name = "syncclipboard";
-        image = "jericx/syncclipboard-server:v3.2.0@sha256:3f2d9c6ce4fbefca769e40d79ed2cac2ad8fc3adf962c0599ba9176b502a3b6d";
+        image = config.shared.dockerImages.syncclipboard;
 
         restart = "always";
 
@@ -1538,7 +1540,7 @@ in
       ###############################################################
       {
         name = "acars_router";
-        image = "ghcr.io/sdr-enthusiasts/acars_router:latest-build-588@sha256:0dc5e94dfa00a0d1f0d5c323a0e3e7cdbbfe9a4cc7de750114d7c887ea575cc5";
+        image = config.shared.dockerImages.acarsRouter;
 
         restart = "always";
         tty = true;

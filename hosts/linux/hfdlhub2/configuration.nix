@@ -50,6 +50,7 @@ in
       # DOZZLE AGENT
       ###############################################################
       (import ../../../modules/services/mk-dozzle-agent.nix {
+        image = config.shared.dockerImages.dozzle;
         environmentFiles = [
           config.sops.secrets."docker/hfdlhub2.env".path
         ];
@@ -60,7 +61,7 @@ in
       ###############################################################
       {
         name = "hfdlobserver";
-        image = "ghcr.io/sdr-enthusiasts/docker-hfdlobserver:latest-build-29@sha256:05b109c671c1664eb98400b3364cad9dbe2a864965df77b92b8e55cba47ec6e4";
+        image = config.shared.dockerImages.hfdlobserver;
 
         environmentFiles = [
           config.sops.secrets."docker/hfdlhub2.env".path

@@ -38,14 +38,16 @@ in
       ###############################################################
       # DOZZLE AGENT
       ###############################################################
-      (import ../../../modules/services/mk-dozzle-agent.nix { })
+      (import ../../../modules/services/mk-dozzle-agent.nix {
+        image = config.shared.dockerImages.dozzle;
+      })
 
       ###############################################################
       # dumpvdl2-1
       ###############################################################
       (config.services.adsb.mkSdrContainer {
         name = "dumpvdl2-1";
-        image = "ghcr.io/sdr-enthusiasts/docker-dumpvdl2:latest-build-432@sha256:514d599b75b45973aa4d28c044ff8609add9f8b0707cd3a47a9a23e2b96264b9";
+        image = config.shared.dockerImages.dumpvdl2;
 
         tty = true;
         restart = "always";
@@ -68,7 +70,7 @@ in
       ###############################################################
       (config.services.adsb.mkSdrContainer {
         name = "dumpvdl2-2";
-        image = "ghcr.io/sdr-enthusiasts/docker-dumpvdl2:latest-build-432@sha256:514d599b75b45973aa4d28c044ff8609add9f8b0707cd3a47a9a23e2b96264b9";
+        image = config.shared.dockerImages.dumpvdl2;
 
         tty = true;
         restart = "always";
@@ -91,7 +93,7 @@ in
       ###############################################################
       (config.services.adsb.mkSdrContainer {
         name = "dumpvdl2-3";
-        image = "ghcr.io/sdr-enthusiasts/docker-dumpvdl2:latest-build-432@sha256:514d599b75b45973aa4d28c044ff8609add9f8b0707cd3a47a9a23e2b96264b9";
+        image = config.shared.dockerImages.dumpvdl2;
 
         tty = true;
         restart = "always";
@@ -114,7 +116,7 @@ in
       ###############################################################
       (config.services.adsb.mkSdrContainer {
         name = "dumpvdl2-4";
-        image = "ghcr.io/sdr-enthusiasts/docker-dumpvdl2:latest-build-432@sha256:514d599b75b45973aa4d28c044ff8609add9f8b0707cd3a47a9a23e2b96264b9";
+        image = config.shared.dockerImages.dumpvdl2;
 
         tty = true;
         restart = "always";

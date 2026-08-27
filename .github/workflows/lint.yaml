@@ -102,7 +102,7 @@ jobs:
           set -euo pipefail
 
           overlay_version=$(sed -n 's/^\s*version = "\(.*\)";/\1/p' overlays/syncclipboard.nix | head -1)
-          image_tag=$(sed -n 's|.*image = "jericx/syncclipboard-server:\([^"@]*\).*|\1|p' hosts/linux/sdrhub/configuration.nix | head -1)
+          image_tag=$(sed -n 's|.*syncclipboard = "jericx/syncclipboard-server:\([^"@]*\).*|\1|p' modules/data/docker-image-pins.nix | head -1)
 
           if [ -z "$overlay_version" ] || [ -z "$image_tag" ]; then
             echo "could not read one of the pins (overlay='$overlay_version' image='$image_tag')" >&2
@@ -113,7 +113,7 @@ jobs:
           if [ "$overlay_version" != "${image_tag#v}" ]; then
             echo "SyncClipboard pins disagree:" >&2
             echo "  overlays/syncclipboard.nix        version = $overlay_version" >&2
-            echo "  hosts/linux/sdrhub/configuration  image   = $image_tag" >&2
+            echo "  modules/data/docker-image-pins    image   = $image_tag" >&2
             echo "Both ship from one upstream tag and must move together." >&2
             echo "Run ./scripts/sync-syncclipboard.sh to reconcile them." >&2
             exit 1

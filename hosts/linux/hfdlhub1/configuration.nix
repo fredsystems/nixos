@@ -36,14 +36,16 @@ in
       ###############################################################
       # DOZZLE AGENT
       ###############################################################
-      (import ../../../modules/services/mk-dozzle-agent.nix { })
+      (import ../../../modules/services/mk-dozzle-agent.nix {
+        image = config.shared.dockerImages.dozzle;
+      })
 
       ###############################################################
       # DUMPHFDL-1
       ###############################################################
       (config.services.adsb.mkSdrContainer {
         name = "dumphfdl-1";
-        image = "ghcr.io/sdr-enthusiasts/docker-dumphfdl:latest-build-202@sha256:4fdde386269d69b36e134b4a6d04e5085d1c9289996caacccad25f21e5b930b4";
+        image = config.shared.dockerImages.dumphfdl;
 
         tty = true;
         restart = "always";
@@ -70,7 +72,7 @@ in
       ###############################################################
       (config.services.adsb.mkSdrContainer {
         name = "dumphfdl-2";
-        image = "ghcr.io/sdr-enthusiasts/docker-dumphfdl:latest-build-202@sha256:4fdde386269d69b36e134b4a6d04e5085d1c9289996caacccad25f21e5b930b4";
+        image = config.shared.dockerImages.dumphfdl;
 
         tty = true;
         restart = "always";
@@ -102,7 +104,7 @@ in
       ###############################################################
       (config.services.adsb.mkSdrContainer {
         name = "dumphfdl-3";
-        image = "ghcr.io/sdr-enthusiasts/docker-dumphfdl:latest-build-202@sha256:4fdde386269d69b36e134b4a6d04e5085d1c9289996caacccad25f21e5b930b4";
+        image = config.shared.dockerImages.dumphfdl;
 
         tty = true;
         restart = "always";
