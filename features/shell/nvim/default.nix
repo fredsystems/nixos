@@ -389,8 +389,18 @@ in
             inccommand = "split";
             ignorecase = true;
             smartcase = true;
-            signcolumn = "yes:2";
+            signcolumn = "yes:1";
             autoread = true;
+            # `wrap` alone breaks lines at the last character that fits the
+            # screen width, mid-word. `linebreak` moves that break point to
+            # the nearest character in 'breakat' (whitespace/punctuation)
+            # instead, so wrapped lines end at word boundaries.
+            # `breakindent` keeps wrapped continuation lines visually
+            # indented to match the start of the logical line rather than
+            # snapping back to column 0.
+            wrap = true;
+            linebreak = true;
+            breakindent = true;
           };
 
           plugins = {
@@ -651,6 +661,15 @@ in
                 # like the "where in the file are the errors/git changes"
                 # overview isn't working at all.
                 always_show = true;
+                # The scrollbar is a floating window docked over the
+                # rightmost column, so it necessarily sits on top of a real
+                # character there. The plugin's own default winblend (50)
+                # still reads as an opaque bar in practice, fully hiding
+                # whatever character was underneath -- a known upstream
+                # quirk (dstein64/nvim-scrollview#80), not a nixvim
+                # misconfiguration. Raising winblend increases how much the
+                # underlying text shows through the bar's highlight.
+                winblend = 80;
               };
             };
             # A blazing fast and easy to configure neovim statusline written in lua.
