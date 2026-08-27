@@ -62,9 +62,21 @@ jobs:
   # =====================================================================
   find-darwin:
     name: Find Darwin systems
-    runs-on: ubuntu-latest
+    # Self-hosted Linux, not ubuntu-latest and not the self-hosted macOS pool:
+    # pure `nix eval` of darwinConfigurations doesn't need real macOS hardware
+    # (only build-darwin's actual build does; verified directly against
+    # x86_64-linux), and a persistent, continuously-warmed self-hosted store
+    # makes the real derivation diff dramatically cheaper than ubuntu-latest's
+    # cold-every-run store. See the identical, longer comment on find-systems
+    # in ci-linux.yaml (measured 9-11 minutes on ubuntu-latest for a single
+    # input bump there) and the fork-safety comment on build-darwin below for
+    # the `if:` / `permissions:` shape.
+    runs-on: [self-hosted, Linux]
     needs: [skip-if-clean]
-    if: ${{ needs.skip-if-clean.outputs.skip != 'true' }}
+    if: ${{ needs.skip-if-clean.outputs.skip != 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+    permissions:
+      id-token: "write"
+      contents: "read"
 
     outputs:
       systems: ${{ steps.out.outputs.systems }}
@@ -77,15 +89,10 @@ jobs:
       - name: Install Nix
         uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
         with:
+          trust-runner-user: true
           extra-conf: |
             access-tokens = github.com=${{ github.token }}
             accept-flake-config = true
-
-      - name: Enable Magic Nix Cache
-        uses: DeterminateSystems/magic-nix-cache-action@908b263ff629f4cc17666315b7fd3ec127c6244d # v14
-        with:
-          use-flakehub: false
-          use-gha-cache: false
 
       # Impact detection lives in one place -- scripts/impacted-hosts.sh --
       # shared verbatim with ci-linux.yaml and the nixos-eval-impacted-hosts
@@ -100,6 +107,19 @@ jobs:
         shell: bash
         run: |
           set -eo pipefail
+
+          # jq comes from `nix shell`, not the runner -- self-hosted NixOS
+          # runners have no jq on PATH. Prepended once so the rest of this
+          # step (and impacted-hosts.sh, which inherits this PATH as a child
+          # process) can call plain `jq`.
+          if ! bin_paths=$(nix build --max-jobs 0 --no-link --print-out-paths --inputs-from . nixpkgs#jq); then
+            echo "could not provision jq (not in cache?)" >&2
+            exit 1
+          fi
+          while IFS= read -r p; do
+            [ -n "$p" ] && PATH="$p/bin:$PATH"
+          done <<<"$bin_paths"
+          export PATH
 
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "workflow_dispatch: building ALL darwin systems (no base commit to diff against)"
