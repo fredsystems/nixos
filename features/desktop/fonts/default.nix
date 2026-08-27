@@ -28,6 +28,8 @@ in
       "sf-compact-nerd"
       "sf-mono-nerd"
       "sf-pro-nerd"
+      "vista-fonts"
+      "corefonts"
     ];
     nixpkgs.config.joypixels.acceptLicense = true;
 
@@ -63,6 +65,8 @@ in
         # unifont_upper
         joypixels
         font-manager
+        corefonts
+        vista-fonts
       ];
 
       fontconfig = {
