@@ -178,6 +178,7 @@ every registry. Provides:
 **Example:**
 
 ```nix
+{ config, ... }:
 {
   imports = [ fredsystems.nixosModules.docker-image-pins ];
 

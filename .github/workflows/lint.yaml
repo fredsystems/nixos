@@ -113,7 +113,7 @@ jobs:
           if [ "$overlay_version" != "${image_tag#v}" ]; then
             echo "SyncClipboard pins disagree:" >&2
             echo "  overlays/syncclipboard.nix        version = $overlay_version" >&2
-            echo "  modules/data/docker-image-pins    image   = $image_tag" >&2
+            echo "  modules/data/docker-image-pins    syncclipboard = $image_tag" >&2
             echo "Both ship from one upstream tag and must move together." >&2
             echo "Run ./scripts/sync-syncclipboard.sh to reconcile them." >&2
             exit 1
