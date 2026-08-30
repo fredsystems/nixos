@@ -196,7 +196,7 @@
     },
     {
       "id": "nixpkgs-526476-fwupd-polkit",
-      "done": false,
+      "done": true,
       "summary": "fwupd-refresh.service fails with 'Failed to obtain auth' on every timer fire because the fwupd-refresh user has no seat; we grant the refresh polkit actions by username instead.",
       "repo": "NixOS/nixpkgs",
       "check": "nixpkgs-pin-contains-commit",
@@ -204,7 +204,7 @@
       "pin_node": "nixpkgs",
       "tracking": ["https://github.com/NixOS/nixpkgs/pull/526476"],
       "workaround": "features/common/system/default.nix -- second `polkit.addRule` block granting fwupd refresh actions to the fwupd-refresh user (see the comment referencing NixOS/nixpkgs#526476).",
-      "revert_action": "Once the merge commit of #526476 is contained in our pinned nixpkgs, remove the fwupd-refresh polkit rule block from features/common/system/default.nix and set `done: true`. NOTE: gated on the `nixpkgs` (unstable) input where the fix merged; if the affected hosts are on a different channel, retarget `pin_node` and confirm the fix is present there too."
+      "revert_action": "DONE. Removed the fwupd-refresh polkit block from features/common/system/default.nix. The `pin_node: nixpkgs` gate was NOT sufficient on its own and would have been unsafe to act on blindly: this workaround lives in features/common/system, which applies to every Linux host, so the eight stable-channel servers needed the fix too. The recorded fix_commit 5ec8276a (master, 2026-06-06 18:50) is genuinely absent from the stable pin -- `compare` reports `diverged` -- because it was backported to release-26.05 as a DIFFERENT sha, 110912079417 (2026-06-06 18:51), which the stable pin does contain. Verified on ground truth rather than topology: the `security.polkit.extraConfig` block in nixos/modules/services/hardware/fwupd.nix is byte-identical to ours in BOTH pinned channels, and the rule count in the evaluated config went from 2 (ours + upstream's) to 1 on sdrhub, fredvps and maranello -- i.e. the rule is retained, only the duplicate is gone."
     },
     {
       "id": "vicinae-468-printer-icon",
