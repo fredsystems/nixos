@@ -48,11 +48,31 @@
 # as current when it is not, and this script would then skip the one host that
 # needed deploying. SSH is ground truth, and colmena needs it anyway.
 #
+# THE PID 1 FREEZE GUARD
+#
+# A `switch` that re-execs PID 1 while the node has network filesystems mounted
+# can leave systemd frozen -- alive but deaf to D-Bus, so nothing starts or
+# stops and `reboot` hangs too, because reboot is itself a D-Bus call to PID 1.
+# The mechanism is NixOS/nixpkgs#375376: on re-exec PID 1 re-runs its
+# generators, systemd-fstab-generator stat()s every fstab entry, a `hard` NFS
+# mount whose server is unreachable blocks forever, the generator sandbox times
+# out after 90s, and PID 1 gives up and freezes.
+#
+# The probe below collects both preconditions per node while it is already
+# connected: whether the deploy changes systemd's store path (which is what
+# triggers the re-exec, and which a glibc/stdenv mass rebuild causes even at an
+# unchanged systemd version), and whether the node has live NFS/CIFS mounts.
+# Nodes with both are refused rather than warned about, because recovering a
+# frozen remote node means physically visiting it. `--goal boot` plus a reboot
+# reaches the same generation without re-execing a running PID 1.
+#
 # Usage:
 #   scripts/colmena-apply-drifted.sh                 # guard, report, deploy
 #   scripts/colmena-apply-drifted.sh --dry-run       # report only
 #   scripts/colmena-apply-drifted.sh --wait          # poll for the manifest
 #   scripts/colmena-apply-drifted.sh --force         # deploy despite the guard
+#   scripts/colmena-apply-drifted.sh -- --goal boot  # stage; reboot to apply
+#   scripts/colmena-apply-drifted.sh --allow-unsafe-switch
 #   scripts/colmena-apply-drifted.sh -- --verbose    # pass args to colmena
 
 set -euo pipefail
@@ -68,6 +88,7 @@ WAIT_INTERVAL=15
 DRY_RUN=0
 FORCE=0
 WAIT=0
+ALLOW_UNSAFE_SWITCH=0
 COLMENA_ARGS=()
 
 while [[ $# -gt 0 ]]; do
@@ -75,6 +96,7 @@ while [[ $# -gt 0 ]]; do
         --dry-run) DRY_RUN=1 ;;
         --force) FORCE=1 ;;
         --wait) WAIT=1 ;;
+        --allow-unsafe-switch) ALLOW_UNSAFE_SWITCH=1 ;;
         --) shift; COLMENA_ARGS=("$@"); break ;;
         -h | --help)
             # Print the whole header block by structure rather than by line
@@ -135,15 +157,26 @@ source_identity() {
 }
 SOURCE_ID_AT_EVAL="$(source_identity)"
 
+# Both maps come out of ONE evaluation. Evaluating the hive is the expensive
+# part of this script -- it is a full module-system evaluation per node -- and
+# asking for systemd.package separately would very nearly double the run time
+# for one extra store path. EXPECTED_JSON is then split back out unchanged, so
+# everything downstream (the probe loop, the manifest guard's jq) still sees the
+# flat {node: toplevel} shape it was written against.
 echo "Evaluating what colmena would deploy..." >&2
-if ! EXPECTED_JSON="$(
+if ! COMBINED_JSON="$(
     nix eval --json '.#colmenaHive.nodes' \
-        --apply 'ns: builtins.mapAttrs (_: n: n.config.system.build.toplevel.outPath) ns' \
+        --apply 'ns: {
+          toplevel = builtins.mapAttrs (_: n: n.config.system.build.toplevel.outPath) ns;
+          systemd = builtins.mapAttrs (_: n: n.config.systemd.package.outPath) ns;
+        }' \
         2>"$EVAL_STDERR"
 )"; then
     printf 'error: failed to evaluate colmenaHive nodes:\n%s\n' "$(cat "$EVAL_STDERR")" >&2
     exit 1
 fi
+EXPECTED_JSON="$(jq -c '.toplevel' <<<"$COMBINED_JSON")"
+SYSTEMD_JSON="$(jq -c '.systemd' <<<"$COMBINED_JSON")"
 
 if ! DEPLOY_JSON="$(nix eval --json '.#colmenaHive.deploymentConfig' 2>>"$EVAL_STDERR")"; then
     printf 'error: failed to evaluate colmenaHive deploymentConfig:\n%s\n' "$(cat "$EVAL_STDERR")" >&2
@@ -167,6 +200,8 @@ echo "Evaluated ${#NODES[@]} node(s)." >&2
 DRIFTED=()
 CURRENT=()
 UNREACHABLE=()
+FREEZE_RISK=()
+FREEZE_UNKNOWN=()
 
 for node in "${NODES[@]}"; do
     expected="$(jq -r --arg n "$node" '.[$n]' <<<"$EXPECTED_JSON")"
@@ -203,15 +238,30 @@ for node in "${NODES[@]}"; do
     # proceeds without it. That is the one failure direction that matters here:
     # withholding a deploy from a host that needed one. Observed in practice, so
     # this is not hypothetical.
-    running=""
+    # The probe also collects the two preconditions of the PID 1 freeze
+    # (nixpkgs#375376) while the connection is open, rather than opening a
+    # second round of SSH sessions later: the systemd build the node is running
+    # (a change means the deploy will daemon-reexec) and whether it has live
+    # network filesystems (whose stat() is what hangs the generators). Emitted
+    # as key=value lines so adding a field later cannot silently shift the
+    # meaning of an existing one, the way positional lines would.
+    probe_out=""
     probe_ok=0
     for attempt in 1 2; do
-        if running="$(
+        # shellcheck disable=SC2016
+        # The single quotes are the point: every $ in this block must expand on
+        # the REMOTE host. Double quotes would expand them locally and ship a
+        # pre-evaluated snapshot of this machine's state instead.
+        if probe_out="$(
             timeout 30 ssh \
                 -o BatchMode=yes \
                 -o ConnectTimeout=10 \
                 -o StrictHostKeyChecking=yes \
-                -p "$port" "${user}@${host}" 'readlink -f /run/current-system' 2>/dev/null
+                -p "$port" "${user}@${host}" '
+                  printf "toplevel=%s\n" "$(readlink -f /run/current-system)"
+                  printf "systemd=%s\n" "$(readlink -f /run/current-system/systemd 2>/dev/null)"
+                  printf "netfs=%s\n" "$(findmnt -t nfs,nfs4,cifs -n -o TARGET 2>/dev/null | wc -l)"
+                ' 2>/dev/null
         )"; then
             probe_ok=1
             break
@@ -224,10 +274,39 @@ for node in "${NODES[@]}"; do
         continue
     fi
 
+    running="$(sed -n 's/^toplevel=//p' <<<"$probe_out" | head -1)"
+    running_systemd="$(sed -n 's/^systemd=//p' <<<"$probe_out" | head -1)"
+    running_netfs="$(sed -n 's/^netfs=//p' <<<"$probe_out" | head -1)"
+
+    # An empty toplevel means the remote command ran but produced nothing
+    # usable. Treating that as drift would deploy on the strength of a failed
+    # probe; treating it as current would silently skip the node forever.
+    if [[ -z "$running" ]]; then
+        UNREACHABLE+=("$node ($host: probe returned no toplevel)")
+        continue
+    fi
+
     if [[ "$running" == "$expected" ]]; then
         CURRENT+=("$node")
-    else
-        DRIFTED+=("$node")
+        continue
+    fi
+
+    DRIFTED+=("$node")
+
+    # Danger = the deploy re-execs PID 1 AND there is something for the
+    # generators to hang on. Both must hold; either alone is routine.
+    #
+    # A field we could not read is NOT the same as a field that says "no". If
+    # the probe came back partial, falling through to the risk test would
+    # evaluate it as safe and silently disable the guard for that node -- the
+    # one direction that matters here, since the cost of a false negative is a
+    # frozen box that needs physically visiting. Unknowns are split out and
+    # reported instead of being folded into either answer.
+    target_systemd="$(jq -r --arg n "$node" '.[$n] // ""' <<<"$SYSTEMD_JSON")"
+    if [[ -z "$running_systemd" || -z "$target_systemd" || ! "$running_netfs" =~ ^[0-9]+$ ]]; then
+        FREEZE_UNKNOWN+=("$node ($host): incomplete probe (systemd='${running_systemd:-?}' netfs='${running_netfs:-?}')")
+    elif [[ "$running_systemd" != "$target_systemd" && "$running_netfs" -gt 0 ]]; then
+        FREEZE_RISK+=("$node ($host): systemd changes and $running_netfs network mount(s) live")
     fi
 done
 
@@ -369,10 +448,157 @@ TARGETS="$(
     echo "${DRIFTED[*]}"
 )"
 
+# --- PID 1 freeze guard ---------------------------------------------------
+#
+# A `switch` that re-execs PID 1 while the node has network filesystems mounted
+# can leave systemd frozen: alive but deaf to D-Bus, so nothing starts or stops
+# and `reboot` -- itself a D-Bus call to PID 1 -- hangs too (nixpkgs#375376).
+#
+# Locally that costs a walk to the power button. On a remote node it costs a
+# trip to wherever the box lives, so the default here is to refuse rather than
+# to warn. Deploying with `--goal boot` and rebooting reaches the same
+# generation without ever re-execing PID 1 on the running system.
+#
+# Skipped when the caller already chose a goal: passing `-- --goal boot` is the
+# recommended remedy, and `-- --goal build`/`push`/`dry-activate` do not
+# activate anything, so none of them can trip this.
+caller_set_goal=0
+for arg in ${COLMENA_ARGS[@]+"${COLMENA_ARGS[@]}"}; do
+    [[ "$arg" == "--goal" || "$arg" == --goal=* ]] && caller_set_goal=1
+done
+
+if [[ ${#FREEZE_RISK[@]} -gt 0 && $ALLOW_UNSAFE_SWITCH -eq 0 && $caller_set_goal -eq 0 ]]; then
+    {
+        echo "error: refusing to switch nodes that could freeze PID 1."
+        echo
+        for entry in "${FREEZE_RISK[@]}"; do
+            echo "  $entry"
+        done
+        cat <<EOF
+
+  These nodes would daemon-reexec systemd during activation while network
+  filesystems are mounted. If the fileserver is unreachable at that moment the
+  fstab generator blocks, PID 1 times out after 90s and freezes, and the node
+  stops responding to both systemctl and reboot. See NixOS/nixpkgs#375376.
+
+  Stage the closure and reboot into it instead -- same generation, no re-exec
+  of a running PID 1:
+
+    scripts/colmena-apply-drifted.sh -- --goal boot
+    # then reboot those nodes
+
+  To deploy anyway, knowing the node may need physical access:
+
+    scripts/colmena-apply-drifted.sh --allow-unsafe-switch
+EOF
+    } >&2
+    exit 1
+fi
+
+if [[ ${#FREEZE_RISK[@]} -gt 0 ]]; then
+    {
+        echo "warning: proceeding despite PID 1 freeze risk on:"
+        for entry in "${FREEZE_RISK[@]}"; do
+            echo "  $entry"
+        done
+        echo
+    } >&2
+fi
+
+if [[ ${#FREEZE_UNKNOWN[@]} -gt 0 ]]; then
+    {
+        echo "warning: the PID 1 freeze guard could not evaluate these nodes:"
+        for entry in "${FREEZE_UNKNOWN[@]}"; do
+            echo "  $entry"
+        done
+        echo "  They are NOT known to be safe -- the guard simply has no answer"
+        echo "  for them. Deploying with --goal boot avoids the question entirely."
+        echo
+    } >&2
+fi
+
 if [[ $DRY_RUN -eq 1 ]]; then
     echo "would run: colmena apply --on $TARGETS ${COLMENA_ARGS[*]}"
     exit 0
 fi
 
 echo "Running: colmena apply --on $TARGETS ${COLMENA_ARGS[*]}"
-exec colmena apply --on "$TARGETS" ${COLMENA_ARGS[@]+"${COLMENA_ARGS[@]}"}
+
+# Not `exec`: the deferred-restart report below has to run after colmena
+# finishes. Colmena's exit code is captured and re-raised so callers and CI see
+# exactly what they saw before.
+set +e
+colmena apply --on "$TARGETS" ${COLMENA_ARGS[@]+"${COLMENA_ARGS[@]}"}
+COLMENA_RC=$?
+set -e
+
+# --- Deferred restarts on the deployed nodes ------------------------------
+#
+# NetworkManager is reloaded rather than restarted on activation
+# (features/common/system/default.nix), which is what keeps the network up
+# across a daemon-reexec. The cost is that the running daemon is still the old
+# binary afterwards, so a NetworkManager update -- including a security fix --
+# is not live until something restarts it or the node reboots.
+#
+# Detected the same way switch-preflight.sh does it locally: ask whether the
+# binary the process actually has open is still in /run/current-system's
+# closure. Comparing ExecStart against /proc/exe instead would false-positive on
+# every unit whose ExecStart is a generated unit-script-*-start wrapper.
+if [[ $COLMENA_RC -eq 0 ]]; then
+    deferred_report=""
+    for node in "${DRIFTED[@]}"; do
+        host="$(jq -r --arg n "$node" '.[$n].targetHost // ""' <<<"$DEPLOY_JSON")"
+        port="$(jq -r --arg n "$node" '.[$n].targetPort // 22' <<<"$DEPLOY_JSON")"
+        user="$(jq -r --arg n "$node" '.[$n].targetUser // "root"' <<<"$DEPLOY_JSON")"
+        [[ -n "$host" ]] || continue
+
+        # shellcheck disable=SC2016
+        # Single-quoted deliberately: these expansions belong to the remote
+        # shell. Expanding them here would compare the remote units against
+        # THIS machine's closure, which is meaningless.
+        stale="$(
+            timeout 30 ssh \
+                -o BatchMode=yes \
+                -o ConnectTimeout=10 \
+                -o StrictHostKeyChecking=yes \
+                -p "$port" "${user}@${host}" '
+                  req=$(nix-store -q --requisites /run/current-system 2>/dev/null) || exit 0
+                  for unit in NetworkManager.service wpa_supplicant.service \
+                              systemd-networkd.service dhcpcd.service; do
+                    [ "$(systemctl show -p ActiveState --value "$unit" 2>/dev/null)" = active ] || continue
+                    pid=$(systemctl show -p MainPID --value "$unit" 2>/dev/null)
+                    [ -n "$pid" ] && [ "$pid" != 0 ] || continue
+                    exe=$(readlink -f "/proc/$pid/exe" 2>/dev/null) || continue
+                    sp=$(printf "%s" "$exe" | grep -oE "/nix/store/[a-z0-9]{32}-[^/]+" | head -1)
+                    [ -n "$sp" ] || continue
+                    printf "%s\n" "$req" | grep -qxF "$sp" || printf "%s (%s)\n" "$unit" "$sp"
+                  done
+                ' 2>/dev/null || true
+        )"
+
+        [[ -n "$stale" ]] || continue
+        deferred_report+="  ${node}:"$'\n'
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && deferred_report+="    ${line}"$'\n'
+        done <<<"$stale"
+    done
+
+    if [[ -n "$deferred_report" ]]; then
+        cat >&2 <<EOF
+
+NOTE: these nodes have network units that changed but were reloaded rather
+than restarted, so they are still running the previous binary:
+
+${deferred_report}
+  Activation deliberately does not restart them -- that is what keeps the
+  network up across a systemd re-exec. But the update is NOT live yet; if it
+  was a security fix those nodes are not patched.
+
+  Clear it per node with a brief network blip:
+    ssh <node> systemctl restart NetworkManager
+  or on the next reboot.
+EOF
+    fi
+fi
+
+exit "$COLMENA_RC"
