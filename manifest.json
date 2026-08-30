@@ -1,5 +1,5 @@
 {
-  "generated_at": 1788065499,
+  "generated_at": 1788065619,
   "hosts": {
     "Daytona": {
       "history": [
@@ -391,6 +391,11 @@
     "fredvps": {
       "history": [
         {
+          "at": 1788065619,
+          "rev": "fd218801112429ec698341963cf1ec329081488a",
+          "toplevel": "/nix/store/y16pvgbils3px58s724jfkbkyz83xbn3-nixos-system-fredvps-26.05.20260827.d57af92"
+        },
+        {
           "at": 1788065499,
           "rev": "3db0921a10b8db212a372e60537ddb6651290ff1",
           "toplevel": "/nix/store/xkdmcq3j3x302jpc11msxykpf9k4j6mb-nixos-system-fredvps-26.05.20260827.d57af92"
@@ -509,11 +514,6 @@
           "at": 1787108221,
           "rev": "f41bf448a98b4b17de9d3bb488df1e830a1c7858",
           "toplevel": "/nix/store/1dn61a6k5c9mqv80b0ngg5cb63lfdk8w-nixos-system-fredvps-26.05.20260817.0dd31db"
-        },
-        {
-          "at": 1787079195,
-          "rev": "e45e1811986eb3f1823533cb2b0db23c8d1fdf17",
-          "toplevel": "/nix/store/q6xvqwj7c3671rczfpgni38r0mmxbf6r-nixos-system-fredvps-26.05.20260817.0dd31db"
         }
       ]
     },
@@ -1036,6 +1036,11 @@
     "sdrhub": {
       "history": [
         {
+          "at": 1788065619,
+          "rev": "fd218801112429ec698341963cf1ec329081488a",
+          "toplevel": "/nix/store/zalnz0y1lk4c5j054va2n83d013m284y-nixos-system-sdrhub-26.05.20260827.d57af92"
+        },
+        {
           "at": 1788065499,
           "rev": "3db0921a10b8db212a372e60537ddb6651290ff1",
           "toplevel": "/nix/store/bp3xdamyb764i13xcszkmrry1l1326ib-nixos-system-sdrhub-26.05.20260827.d57af92"
@@ -1154,11 +1159,6 @@
           "at": 1787516430,
           "rev": "9b642f8e65301de135d9d6f965182deeb665d75c",
           "toplevel": "/nix/store/sqllp0r3s6naa5zgs0xsv981mccrypb8-nixos-system-sdrhub-26.05.20260820.5880666"
-        },
-        {
-          "at": 1787456956,
-          "rev": "da53346c1acaba51dcfc76cb6857d19d823dc2ae",
-          "toplevel": "/nix/store/p15f73bqqh8ipykd423fnl291j0iqfqi-nixos-system-sdrhub-26.05.20260820.5880666"
         }
       ]
     },
@@ -1292,6 +1292,6 @@
       ]
     }
   },
-  "rev": "3db0921a10b8db212a372e60537ddb6651290ff1",
+  "rev": "fd218801112429ec698341963cf1ec329081488a",
   "schema": 1
 }
