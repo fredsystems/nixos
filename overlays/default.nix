@@ -68,31 +68,6 @@ final: prev: {
     else
       prev.direnv;
 
-  # FIXME(nixpkgs-sbomnix-nix231-pin): WORKAROUND, not a fix.
-  #
-  # nixpkgs' sbomnix package wrapper hard-prepends `nixVersions.nix_2_31`
-  # to sbomnix's PATH (pkgs/by-name/sb/sbomnix/package.nix, with a stale
-  # `# TODO: remove once sbomnix support new JSON format` referencing
-  # https://github.com/tiiuae/sbomnix/issues/267).  That pin is now
-  # self-defeating: Nix 2.31 emits the LEGACY `nix derivation show` JSON
-  # (top-level `inputDrvs`/`inputSrcs`), but sbomnix 1.8.0 already parses
-  # the NEW format (`inputs.drvs`/`inputs.srcs`, schema `version` 4) AND
-  # explicitly rejects the legacy fields:
-  #
-  #   CRITICAL Unexpected JSON from `nix derivation show`: unsupported
-  #   legacy `inputDrvs` ... refusing to continue.
-  #
-  # So every sbomnix invocation aborts, which broke the entire weekly
-  # cve-scan.yaml (all hosts red).  sbomnix issue #267 is CLOSED (the
-  # parser was updated in 1.8.0); the remaining bug is purely the stale
-  # nixpkgs wrapper pin.  Re-point the wrapper's PATH at a Nix that emits
-  # the modern format (Nix >= 2.34 in our pin emits schema version 4).
-  #
-  # Revert: once nixpkgs' sbomnix wrapper stops pinning nix_2_31 (drops
-  # it or bumps it to a version emitting the new format), delete the
-  # makeWrapperArgs override and this FIXME.  See
-  # .github/workflows/track-upstream-fixes.yaml.
-  #
   # FIXME(sbomnix-substituted-deriver-drop): WORKAROUND, not a fix.
   #
   # sbomnix drops every runtime-closure path whose deriver `nix path-info`
@@ -169,43 +144,7 @@ final: prev: {
           ./sbomnix-recover-substituted-derivers.patch
           ./sbomnix-recover-pinned-version-cpes.patch
         ];
-        makeWrapperArgs = [
-          "--prefix PATH : ${
-            prev.lib.makeBinPath [
-              final.git
-              final.nixVersions.nix_2_34
-              final.python3.pkgs.graphviz
-              final.nix-visualize
-              final.vulnix
-              final.grype
-            ]
-          }"
-        ];
       });
-
-  # FIXME(nixpkgs-540439-dfdiskcache-pandas3): WORKAROUND, not a fix.
-  #
-  # nixpkgs bumped pandas to 3.0.4, which trips df-diskcache's pinned
-  # `pandas<3,>=1` runtime dependency check.  Upstream still pins
-  # `pandas<3` as of the v0.1.0 tag, but the package itself works fine
-  # against pandas 3.x.  df-diskcache is a transitive runtime dep of
-  # `sbomnix`, so the failed dependency check aborts the sbomnix build
-  # (both `nixpkgs#sbomnix` and this repo's `.#sbomnix` override, since
-  # the overlay only re-wraps sbomnix and does not rebuild dfdiskcache).
-  #
-  # The fix is a one-line `pythonRelaxDeps = [ "pandas" ];` on the
-  # dfdiskcache package, mirroring NixOS/nixpkgs PR #540439.
-  #
-  # Revert: once #540439 (or an equivalent upstream fix) lands in our
-  # pinned nixpkgs, delete this `pythonPackagesExtensions` block and
-  # its FIXME.  See .github/workflows/track-upstream-fixes.yaml.
-  pythonPackagesExtensions = prev.pythonPackagesExtensions or [ ] ++ [
-    (_pyFinal: pyPrev: {
-      dfdiskcache = pyPrev.dfdiskcache.overridePythonAttrs (old: {
-        pythonRelaxDeps = (old.pythonRelaxDeps or [ ]) ++ [ "pandas" ];
-      });
-    })
-  ];
 
   # Shadow the deprecated top-level `pkgs.hostPlatform` warnAlias (added
   # 2025-10-28 in nixpkgs aliases.nix) with the real value so that packages

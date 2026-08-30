@@ -112,7 +112,7 @@
     },
     {
       "id": "nixpkgs-sbomnix-nix231-pin",
-      "done": false,
+      "done": true,
       "summary": "nixpkgs' sbomnix wrapper hard-pins nixVersions.nix_2_31 (a stale TODO from sbomnix#267), whose legacy `inputDrvs` JSON the sbomnix 1.8.0 parser refuses to consume, aborting every CVE scan with `unsupported legacy inputDrvs`.",
       "repo": "NixOS/nixpkgs",
       "check": "pkgs-min-version",
@@ -125,7 +125,7 @@
         "https://github.com/NixOS/nixpkgs/blob/master/pkgs/by-name/sb/sbomnix/package.nix"
       ],
       "workaround": "overlays/default.nix -- `sbomnix` overlay overriding makeWrapperArgs to prepend nixVersions.nix_2_34 (emits schema version 4) instead of the upstream-pinned nix_2_31 (see FIXME(nixpkgs-sbomnix-nix231-pin)); flake/dev/packages.nix exposes it as `.#sbomnix`; cve-scan.yaml invokes `.#sbomnix` instead of `nixpkgs#sbomnix`.",
-      "revert_action": "sbomnix#267 is already CLOSED (the parser was fixed in 1.8.0); the residual bug is purely nixpkgs' stale wrapper pin, for which no upstream issue exists yet. `pkgs-min-version` with `min_version: null` keeps this BLOCKED (never falsely resolved) \u2014 it is a reminder to re-check manually. When a future nixpkgs sbomnix update drops the nix_2_31 PATH pin (verify pkgs/by-name/sb/sbomnix/package.nix in our pinned nixpkgs no longer references nixVersions.nix_2_31), delete the `sbomnix` overlay from overlays/default.nix and its FIXME, revert flake/dev/packages.nix to `import nixpkgs { inherit system; }` with no overlays and drop the `inherit (pkgs) sbomnix;` line, revert cve-scan.yaml to `nix shell --inputs-from . nixpkgs#sbomnix --command sbomnix`, confirm a manual `workflow_dispatch` CVE scan is green, then set `done: true`. If it becomes urgent, file a nixpkgs issue to establish a real `issue-closed`/`nixpkgs-pin-contains-commit` signal and retarget this entry."
+      "revert_action": "DONE. nixpkgs dropped the nix_2_31 PATH pin in df704e156dd583b8d9b6c93437785fb1f28e61bb (\"sbomnix: use the latest Nix version in $PATH again\", PR #538534, 2026-07-06), which is contained in our unstable pin. Verified on the file itself: the unstable pin's pkgs/by-name/sb/sbomnix/package.nix has 0 references to nix_2_31 (stable still has 1, but stable is irrelevant here -- see below). Removed ONLY the makeWrapperArgs override; the two source patches stay, since sbomnix-substituted-deriver-drop and sbomnix-pinned-version-cpe-drop are still unfixed upstream. Safety checked before removing: our wrapper and upstream's list an IDENTICAL tool set (git, nix, graphviz, nix-visualize, vulnix, grype), and `nix` and `nixVersions.nix_2_34` resolve to the byte-identical store path /nix/store/7vb637v8mqbycvmpwfl5q93ikr2xjpay-nix-2.34.8 in our pin, so dropping the override is provably a no-op. Rebuilt .#sbomnix and confirmed the wrapper still carries all six tools with nix 2.34.8 and that both patches are still applied. NOTE for the remaining sbomnix entries: `eval_host: fredhub` is misleading -- fredhub is stable, but .#sbomnix is built by flake/dev/packages.nix from the UNSTABLE nixpkgs input unconditionally, and cve-scan.yaml invokes .#sbomnix, so the unstable pin is the one that governs."
     },
     {
       "id": "sbomnix-substituted-deriver-drop",
@@ -161,11 +161,11 @@
     },
     {
       "id": "nixpkgs-536365-ld64-mac-notification-sys",
-      "done": false,
+      "done": true,
       "summary": "nixpkgs' classic ld64 (cctools-binutils-darwin-1010.6) crashes in its stubs pass with `Trace/BPT trap: 5` when linking any Rust binary that pulls `mac-notification-sys` via `notify-rust`. This kills the aarch64-darwin build of freminal 0.11.1 (and previously killed cargo-watch, since removed).",
       "repo": "NixOS/nixpkgs",
       "check": "nixpkgs-pin-contains-commit",
-      "fix_commit": "0000000000000000000000000000000000000000",
+      "fix_commit": "24de2af2c1c94772a72daa9abe6cef9cbcb0a49c",
       "pin_node": "nixpkgs",
       "tracking": [
         "https://github.com/NixOS/nixpkgs/pull/536365",
@@ -173,12 +173,12 @@
         "https://github.com/NixOS/nixpkgs/issues/540450"
       ],
       "workaround": "features/desktop/freminal/default.nix -- darwin-only `overrideAttrs` on the freminal flake package adding `llvmPackages.lld` to nativeBuildInputs and setting `env.NIX_CFLAGS_LINK = \"-fuse-ld=lld\"` (see FIXME(nixpkgs-536365-ld64-mac-notification-sys)). Mirrors the per-package hotfix nixpkgs applied to starship in PR #540463.",
-      "revert_action": "The root fix is nixpkgs#536365 (\"ld64: disable hardening again\"), still OPEN against `staging`. `fix_commit` is a zero placeholder because the merge commit is unknown until #536365 merges; `nixpkgs-pin-contains-commit` with a zero sha keeps this BLOCKED (never falsely resolved). Once #536365 (or an equivalent root ld64 fix) merges, update `fix_commit` to the merge commit sha; when a subsequent nixpkgs bump brings that commit into our pinned `nixpkgs` node, delete the freminal `overrideAttrs` block from features/desktop/freminal/default.nix and its FIXME, confirm the Darwin builds pass in CI (this repo has no local Darwin builder), then set `done: true`. NOTE: if nixpkgs ships a different, more targeted fix (e.g. widening the starship-style workaround to a stdenv hook) before #536365 lands, retarget this entry to that commit.",
+      "revert_action": "DONE. #536365 (\"ld64: disable hardening again\") merged 2026-07-15 as 24de2af2c1c94772a72daa9abe6cef9cbcb0a49c; the all-zero fix_commit placeholder is replaced with it. Contained in the unstable pin (compare reports `behind`) and NOT in the stable pin (`diverged`) -- which is correct and sufficient, because the Darwin hosts evaluate the unstable nixpkgs (verified: darwinConfigurations pkgs.lib.version = 26.11pre-git) and the override was gated darwin-only, so no server ever carried it. Verified beyond merge status: the pinned ld64/package.nix carries `hardeningDisable = [ \"libcxxhardeningfast\" ]`, and upstream DELETED its own equivalent starship lld hack in the same commit (0 matches for `fuse-ld=lld` in the pinned starship recipe) -- i.e. upstream considers the root fix sufficient to drop the identical workaround we were mirroring. Removed the overrideAttrs block from features/desktop/freminal/default.nix (and the now-unused `pkgs` module argument, which deadnix caught). Darwin toplevels evaluate clean locally; the actual freminal BUILD is verified by ci-darwin.yaml, as there is no local Darwin builder.",
       "$comment": "The upstream conversation on issue #540450 identifies #536365 as the root fix; #540463 is the starship-only hotfix we cargo-cult here for freminal."
     },
     {
       "id": "nixpkgs-540439-dfdiskcache-pandas3",
-      "done": false,
+      "done": true,
       "summary": "nixpkgs bumped pandas to 3.0.4 but df-diskcache still pins `pandas<3` in its v0.1.0 requirements, so the pythonRuntimeDepsCheckHook aborts the dfdiskcache build; this transitively breaks sbomnix (which depends on dfdiskcache), taking out the weekly CVE scan and the `.#sbomnix` dev-shell package.",
       "repo": "NixOS/nixpkgs",
       "check": "pkgs-min-version",
@@ -191,7 +191,7 @@
         "https://github.com/thombashi/df-diskcache/blob/v0.1.0/requirements/requirements.txt"
       ],
       "workaround": "overlays/default.nix -- `pythonPackagesExtensions` block that appends `pandas` to `dfdiskcache`'s `pythonRelaxDeps` (see FIXME(nixpkgs-540439-dfdiskcache-pandas3)). Applies globally since the overlay is imported by both mk-system.nix and flake/dev/packages.nix, so both `nixosConfigurations.*.pkgs.sbomnix` and the standalone `.#sbomnix` package build.",
-      "revert_action": "The dfdiskcache package version does not change with the fix -- it's a `pythonRelaxDeps` addition to the same v0.1.0 build -- so `pkgs-min-version` with `min_version: null` keeps this BLOCKED (never falsely resolved) and the checker will report when PR #540439 has merged upstream. Once #540439 (or an equivalent) is contained in our pinned nixpkgs, delete the `pythonPackagesExtensions` block from overlays/default.nix and its FIXME, run `nix build .#sbomnix` on fredhub to confirm the sbomnix build succeeds without the overlay, then set `done: true`.",
+      "revert_action": "DONE. PR #540439 merged 2026-07-21 as 9699a4042d6c963fb5b4e63d41cde65b3dd2b00f and is contained in our unstable pin. Verified on the file rather than on merge status: dfdiskcache/default.nix in the unstable pin carries `pythonRelaxDeps` (1 match) and the stable pin does not (0 matches). Stable is irrelevant here: dfdiskcache is only ever built as a transitive dep of .#sbomnix, which flake/dev/packages.nix builds from the UNSTABLE nixpkgs input, and neither sbomnix nor dfdiskcache appears in any host's systemPackages (checked fredhub, sdrhub, Daytona). Removed the pythonPackagesExtensions block from overlays/default.nix; .#sbomnix rebuilt green afterwards. Upstream df-diskcache still hard-pins pandas<3 on master, so the nixpkgs-side pythonRelaxDeps must remain a nixpkgs concern -- that is expected, not a regression.",
       "$comment": "`package` is `python3Packages.dfdiskcache` for diagnostic purposes only; the null `min_version` means pkg_version_in_pin is never actually evaluated against a target."
     },
     {
