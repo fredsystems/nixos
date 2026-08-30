@@ -279,7 +279,7 @@
     },
     {
       "id": "nixpkgs-549694-dwarfs-gcc",
-      "done": false,
+      "done": true,
       "summary": "dwarfs 0.14.0 fails to compile in the current nixpkgs. Its bundled folly-lite copy calls std::memset without including <cstring>, which the current GCC rejects (\"error: memset is not a member of std; did you mean wmemset?\" in folly/portability/Unistd.cpp, SysUio.cpp, io/IOBufQueue.cpp and json/dynamic.cpp). dwarfs is a build dependency of gearlever, so both desktops failed to build. Upstream fix is the 0.15.6 bump in NixOS/nixpkgs#549694.",
       "repo": "NixOS/nixpkgs",
       "check": "pkgs-min-version",
@@ -292,7 +292,7 @@
         "https://github.com/NixOS/nixpkgs/issues/549542"
       ],
       "workaround": "features/desktop/appimage/default.nix -- `gearlever` commented out of the per-user package list (see FIXME(nixpkgs-549694-dwarfs-gcc)). Deliberately scoped to gearlever alone: appimage-run and the boot.binfmt.registrations.appimage block in the same file are what actually provide AppImage support, and neither depends on dwarfs, so running AppImages still works. Only the GUI manager is gone.",
-      "revert_action": "Once nixpkgs#549694 (dwarfs 0.14.0 -> 0.15.6) merges and lands in our pinned nixpkgs, the checker resolves on dwarfs >= 0.15.6. Uncomment `gearlever` in features/desktop/appimage/default.nix, delete the FIXME, confirm a desktop toplevel BUILDS (not merely evaluates -- this was a compile failure, so eval alone will not catch a regression), and set `done: true`."
+      "revert_action": "DONE. #549694 merged 2026-08-28 as d7e1d8887d64 (dwarfs 0.14.0 -> 0.15.7, one patch above the 0.15.6 the issue asked for) and closed #549542; our unstable pin 83199d0d evaluates dwarfs at 0.15.7. gearlever is uncommented in features/desktop/appimage/default.nix and the FIXME is gone. Verified by BUILDING, not evaluating, because this was a compile failure: `dwarfs` 0.15.7 and `gearlever` 3.4.7 both realise from cache.nixos.org (so Hydra compiled them), and both desktop toplevels -- maranello and Daytona, the recorded eval_host -- build green with exactly one gearlever path in the closure. Scope note: gearlever is desktop-only, so only the unstable pin was ever relevant here."
     },
     {
       "id": "nixpkgs-375376-stc-network-freeze",

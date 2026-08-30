@@ -19,13 +19,7 @@ in
     users.users = lib.genAttrs allUsers (_: {
       packages = with pkgs; [
         appimage-run
-        # FIXME(nixpkgs-549694-dwarfs-gcc): see
-        # .github/tracked-upstream-fixes.json. gearlever pulls dwarfs 0.14.0,
-        # whose bundled folly-lite copy no longer compiles (std::memset used
-        # without <cstring>, which the current GCC rejects). AppImage support
-        # itself is unaffected -- appimage-run and the binfmt registration
-        # below are what provide it; gearlever is only a GUI manager.
-        # gearlever
+        gearlever
       ];
     });
 
