@@ -194,10 +194,49 @@ updatenix() {
             pushd "$nixos_dir" >/dev/null || return 2
             pushed=true
         fi
+
+        # Preflight before activating anything. This builds the closure and
+        # runs `dry-activate`, which applies nothing but reports exactly what
+        # the real switch would do. Exit 10 means the switch would re-exec
+        # PID 1 while our NFS mounts can stall it, which freezes PID 1 hard
+        # enough that the machine cannot even reboot (nixpkgs#375376). In that
+        # case take the `boot` path instead: everything is already built, and
+        # a reboot runs the shutdown under the current, healthy PID 1.
+        #
+        # Any other non-zero exit is a preflight failure, not a verdict, so
+        # fall through and let the normal switch report the real error.
+        sudo ./scripts/switch-preflight.sh --flake .#"$(hostname)"
+        local preflight_rc=$?
+
+        if [ "$preflight_rc" -eq 10 ]; then
+            echo
+            echo "╔══════════════════════════════════════════════════════════════╗"
+            echo "║  ⛔ NOT switching live -- staging for reboot instead          ║"
+            echo "╚══════════════════════════════════════════════════════════════╝"
+            echo
+            if ! sudo nixos-rebuild boot --flake .#"$(hostname)"; then
+                [ "$pushed" = true ] && popd >/dev/null 2>&1 || true
+                return 1
+            fi
+            echo
+            echo "  New generation staged as the boot default. Reboot to use it:"
+            echo "    sudo reboot"
+            echo
+            [ "$pushed" = true ] && popd >/dev/null 2>&1 || true
+            return 0
+        fi
+
         if ! sudo nixos-rebuild switch --flake .#"$(hostname)"; then
             [ "$pushed" = true ] && popd >/dev/null 2>&1 || true
             return 1
         fi
+
+        # NetworkManager is reloaded rather than restarted on activation (see
+        # features/common/system/default.nix), so after a switch that updated
+        # it the running daemon is still the old binary. Report that, because
+        # a silently-deferred security update is worse than a noisy one.
+        sudo ./scripts/switch-preflight.sh --deferred
+
         sudo nixos-needsreboot
 
         if [ -f /run/reboot-required ]; then

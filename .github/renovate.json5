@@ -41,17 +41,36 @@
       // modules/data/docker-image-pins.nix, keyed by a logical name
       // (dozzle, acarsdec, ...) rather than the literal attribute name
       // `image` -- host configs read config.shared.dockerImages.<name>
-      // instead of inlining the string. The regex therefore captures the
-      // leading attribute name generically (imageKey) and replays it
-      // unchanged in autoReplaceStringTemplate, rather than assuming the
-      // key is literally "image". Do not rename entries in that file
-      // without checking this manager still matches them.
+      // instead of inlining the string.
+      //
+      // The match is deliberately scoped to the QUOTED VALUE ONLY. It must
+      // not capture the leading attribute name, and the replacement must
+      // not try to reproduce it.
+      //
+      // This previously read `(?<imageKey>[a-zA-Z0-9]+) = "..."` with
+      // `{{{imageKey}}} = "..."` as the replacement, which broke every
+      // update in this file from the moment the pins were centralized.
+      // `imageKey` is not one of Renovate's validMatchFields (depName,
+      // packageName, currentValue, currentDigest, datasource, versioning,
+      // extractVersion, registryUrl, depType, indentation), so it never
+      // reaches the upgrade object and `{{{imageKey}}}` rendered as the
+      // EMPTY STRING. Renovate wrote ` = "amir20/dozzle:v10.7.5@sha256:..."`
+      // -- attribute name deleted -- which then no longer matched this
+      // regex, so the dep dropped out of the list, every later index
+      // shifted by one, and Renovate's own post-replacement sanity check
+      // reported `depName mismatch` (expected amir20/dozzle, re-extracted
+      // ghcr.io/sdr-enthusiasts/docker-acarsdec) and refused to commit.
+      // That check is the only reason the file was never corrupted.
+      //
+      // Matching just the value sidesteps the whole class of problem: the
+      // attribute name is left untouched by the rewrite, so it cannot be
+      // lost and entries can be renamed freely.
       customType: "regex",
       managerFilePatterns: ["/modules/data/docker-image-pins\\.nix$/"],
       matchStrings: [
-        '(?<imageKey>[a-zA-Z0-9]+) = "(?<depName>.*?):(?<currentValue>.*?)(?:@(?<currentDigest>sha256:[a-f0-9]+))?";',
+        '"(?<depName>[^"@\\s]+?):(?<currentValue>[^"@\\s]+?)(?:@(?<currentDigest>sha256:[a-f0-9]+))?";',
       ],
-      autoReplaceStringTemplate: '{{{imageKey}}} = "{{{depName}}}:{{{newValue}}}{{#if newDigest}}@{{{newDigest}}}{{/if}}";',
+      autoReplaceStringTemplate: '"{{{depName}}}:{{{newValue}}}{{#if newDigest}}@{{{newDigest}}}{{/if}}";',
       datasourceTemplate: "docker",
       depTypeTemplate: "container",
       depNameTemplate: "{{depName}}",
@@ -95,8 +114,30 @@
       enabled: false,
     },
     {
+      // sdr-enthusiasts images publish several parallel tag TRACKS in one
+      // repository -- `latest-build-N`, `telegraf-build-N`, `vX-latest-build-N`
+      // -- and the build counter restarts per track. docker-acarshub is pinned
+      // twice here for exactly that reason: `acarshub` follows
+      // latest-build-1510 and `acarshubV4` follows v4-latest-build-72.
+      //
+      // The track prefix is captured as `compatibility`, which Renovate
+      // documents as "a proposed update will never change the specified
+      // compatibility value". Without it the prefix was a plain
+      // non-capturing alternation, so every track collapsed into ONE version
+      // space keyed only on the build number: for the v4 dep (major 72) all
+      // 184 mainline `latest-build-*` tags (majors 1137-1510) looked like
+      // enormous upgrades. Today they are all rejected by maxMajorIncrement
+      // 500, which is why nothing has actually broken -- but that is an
+      // accident of the ~1065 gap between the two counters, not a guarantee.
+      // Once the v4 track passes build ~637, `latest-build-1137` enters the
+      // window, outranks any `v4-latest-build-638`, and Renovate would
+      // silently propose swapping the v4 pin onto a mainline image.
+      //
+      // Capturing the track removes the hazard outright, and as a side effect
+      // drops the ~184 "exceeds maxMajorIncrement" lines this produced in
+      // every single run.
       matchDatasources: ["docker"],
-      versioning: "regex:^(telegraf|v\\d+-latest|latest)-build-(?<major>\\d+)$",
+      versioning: "regex:^(?<compatibility>telegraf|v\\d+-latest|latest)-build-(?<major>\\d+)$",
       matchPackageNames: ["/^ghcr\\.io/sdr-enthusiasts/.+$/"],
       automerge: true,
     },

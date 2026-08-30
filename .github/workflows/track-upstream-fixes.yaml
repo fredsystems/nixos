@@ -18,12 +18,22 @@ on:
   workflow_dispatch:
   # Re-check whenever the manifest itself changes, so editing the tracker gives
   # immediate feedback.
+  #
+  # flake.lock is included because the channel-aware check types
+  # (`pkgs-min-version`, `nixpkgs-pin-contains-commit`) can only ever change
+  # their answer when the pin moves. Without it, an entry becomes revertable
+  # the moment an update PR merges but nothing looks until the next Sunday, so
+  # the sticky issue lags by up to a week. That is exactly what happened to
+  # `nixpkgs-549694-dwarfs-gcc`: dwarfs 0.15.7 landed in the pin on 2026-08-28,
+  # after the 08-23 scheduled run, so issue #2161 still listed only the fwupd
+  # entry days later.
   push:
     branches: [main]
     paths:
       - .github/tracked-upstream-fixes.json
       - .github/scripts/check-upstream-fixes.sh
       - .github/workflows/track-upstream-fixes.yaml
+      - flake.lock
 
 permissions:
   contents: read
