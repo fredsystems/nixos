@@ -77,11 +77,32 @@ pr_merge_commit() {
 }
 
 # The nixpkgs revision this repo currently pins, read from flake.lock.
-# `node` selects which nixpkgs input (e.g. "nixpkgs" for unstable,
-# "nixpkgs-stable" for stable). Echoes the rev or "".
+# `input` is the name of one of OUR root flake inputs (e.g. "nixpkgs" for
+# unstable, "nixpkgs-stable" for stable). Echoes the rev or "".
+#
+# Resolved through `.nodes.root.inputs`, NOT by looking up `.nodes[$input]`
+# directly. A flake.lock node name is not the input name: it is a globally
+# unique key, and the bare name is claimed by whichever input registered it
+# first, which is often a TRANSITIVE dependency. In this lock file
+# `.nodes.nixpkgs` is catppuccin's nixpkgs tarball
+# (044bfe75, a nixos release tarball), while our own unstable nixpkgs is
+# `.nodes.nixpkgs_12`. The direct lookup therefore answered "does the fix
+# exist in catppuccin's pinned nixpkgs", which drifts independently of ours
+# and is not what any revert decision depends on.
+#
+# It failed silently in both directions: a fix present in their pin but not
+# ours reads as ready to revert, and vice versa. `nixpkgs-stable` happened to
+# agree at the time this was found -- `nixpkgs-stable` and `nixpkgs-stable_2`
+# pointed at the same rev -- which is exactly the kind of coincidence that
+# makes this sort of bug survive review.
 pinned_nixpkgs_rev() {
-  local node="$1"
-  jq -r --arg n "$node" '.nodes[$n].locked.rev // empty' "$REPO_ROOT/flake.lock"
+  local input="$1"
+  jq -r --arg n "$input" '
+    .nodes.root.inputs[$n] as $node
+    | if $node == null then empty
+      else (.nodes[$node].locked.rev // empty)
+      end
+  ' "$REPO_ROOT/flake.lock"
 }
 
 results='[]'
