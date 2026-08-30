@@ -785,10 +785,18 @@ jobs:
           fi
           rm -f "$existing_id_err"
 
+          # NOTE: `-F/--field`, not `-f/--raw-field`. Only `-F` expands a
+          # leading `@` into the contents of that file; `-f` sends the
+          # literal string "@body.md". Getting this wrong is silent and
+          # only bites on the SECOND run of a PR (the create path below
+          # uses --body-file and is unaffected), so it reliably destroys
+          # the report on exactly the PRs that need it most -- relocked
+          # flake-update PRs. See PR #2339, whose report was overwritten
+          # with "@body.md" and hid a full glibc mass rebuild.
           if [ "$STATUS" = "unchanged" ]; then
             if [ -n "$existing_id" ]; then
               echo "No closure changes -- updating existing comment #${existing_id}."
-              gh api --method PATCH "repos/${REPO}/issues/comments/${existing_id}" -f body=@body.md >/dev/null
+              gh api --method PATCH "repos/${REPO}/issues/comments/${existing_id}" -F body=@body.md >/dev/null
             else
               echo "No closure changes and no existing comment -- nothing to do."
             fi
@@ -797,7 +805,7 @@ jobs:
 
           if [ -n "$existing_id" ]; then
             echo "Updating existing comment #${existing_id}."
-            gh api --method PATCH "repos/${REPO}/issues/comments/${existing_id}" -f body=@body.md >/dev/null
+            gh api --method PATCH "repos/${REPO}/issues/comments/${existing_id}" -F body=@body.md >/dev/null
           else
             echo "Creating new PR comment."
             gh pr comment "$PR_NUMBER" --repo "$REPO" --body-file body.md >/dev/null
