@@ -41,17 +41,36 @@
       // modules/data/docker-image-pins.nix, keyed by a logical name
       // (dozzle, acarsdec, ...) rather than the literal attribute name
       // `image` -- host configs read config.shared.dockerImages.<name>
-      // instead of inlining the string. The regex therefore captures the
-      // leading attribute name generically (imageKey) and replays it
-      // unchanged in autoReplaceStringTemplate, rather than assuming the
-      // key is literally "image". Do not rename entries in that file
-      // without checking this manager still matches them.
+      // instead of inlining the string.
+      //
+      // The match is deliberately scoped to the QUOTED VALUE ONLY. It must
+      // not capture the leading attribute name, and the replacement must
+      // not try to reproduce it.
+      //
+      // This previously read `(?<imageKey>[a-zA-Z0-9]+) = "..."` with
+      // `{{{imageKey}}} = "..."` as the replacement, which broke every
+      // update in this file from the moment the pins were centralized.
+      // `imageKey` is not one of Renovate's validMatchFields (depName,
+      // packageName, currentValue, currentDigest, datasource, versioning,
+      // extractVersion, registryUrl, depType, indentation), so it never
+      // reaches the upgrade object and `{{{imageKey}}}` rendered as the
+      // EMPTY STRING. Renovate wrote ` = "amir20/dozzle:v10.7.5@sha256:..."`
+      // -- attribute name deleted -- which then no longer matched this
+      // regex, so the dep dropped out of the list, every later index
+      // shifted by one, and Renovate's own post-replacement sanity check
+      // reported `depName mismatch` (expected amir20/dozzle, re-extracted
+      // ghcr.io/sdr-enthusiasts/docker-acarsdec) and refused to commit.
+      // That check is the only reason the file was never corrupted.
+      //
+      // Matching just the value sidesteps the whole class of problem: the
+      // attribute name is left untouched by the rewrite, so it cannot be
+      // lost and entries can be renamed freely.
       customType: "regex",
       managerFilePatterns: ["/modules/data/docker-image-pins\\.nix$/"],
       matchStrings: [
-        '(?<imageKey>[a-zA-Z0-9]+) = "(?<depName>.*?):(?<currentValue>.*?)(?:@(?<currentDigest>sha256:[a-f0-9]+))?";',
+        '"(?<depName>[^"@\\s]+?):(?<currentValue>[^"@\\s]+?)(?:@(?<currentDigest>sha256:[a-f0-9]+))?";',
       ],
-      autoReplaceStringTemplate: '{{{imageKey}}} = "{{{depName}}}:{{{newValue}}}{{#if newDigest}}@{{{newDigest}}}{{/if}}";',
+      autoReplaceStringTemplate: '"{{{depName}}}:{{{newValue}}}{{#if newDigest}}@{{{newDigest}}}{{/if}}";',
       datasourceTemplate: "docker",
       depTypeTemplate: "container",
       depNameTemplate: "{{depName}}",
