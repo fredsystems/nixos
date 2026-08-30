@@ -293,6 +293,17 @@
       ],
       "workaround": "features/desktop/appimage/default.nix -- `gearlever` commented out of the per-user package list (see FIXME(nixpkgs-549694-dwarfs-gcc)). Deliberately scoped to gearlever alone: appimage-run and the boot.binfmt.registrations.appimage block in the same file are what actually provide AppImage support, and neither depends on dwarfs, so running AppImages still works. Only the GUI manager is gone.",
       "revert_action": "Once nixpkgs#549694 (dwarfs 0.14.0 -> 0.15.6) merges and lands in our pinned nixpkgs, the checker resolves on dwarfs >= 0.15.6. Uncomment `gearlever` in features/desktop/appimage/default.nix, delete the FIXME, confirm a desktop toplevel BUILDS (not merely evaluates -- this was a compile failure, so eval alone will not catch a regression), and set `done: true`."
+    },
+    {
+      "id": "nixpkgs-375376-stc-network-freeze",
+      "done": false,
+      "summary": "switch-to-configuration stops the network daemon and then daemon-reexecs PID 1 (which it does whenever systemd's store path moves -- a glibc/stdenv mass rebuild is enough, the version need not change). On re-exec systemd-fstab-generator stat()s our `hard` NFS mounts with no network, blocks forever, the generator sandbox times out after 90s, safe_fork(FORK_WAIT) reports -EPROTO, and PID 1 executes `Freezing execution.` -- alive but deaf to D-Bus, so nothing starts or stops and `reboot` hangs too. Needs SysRq or a power cycle. Observed on maranello 2026-08-29 20:21:59 and repeatedly on Daytona.",
+      "repo": "NixOS/nixpkgs",
+      "check": "issue-closed",
+      "issue": 375376,
+      "tracking": ["https://github.com/NixOS/nixpkgs/issues/375376"],
+      "workaround": "Three parts, all keyed to FIXME(nixpkgs-375376-stc-network-freeze). (1) features/common/system/default.nix sets `systemd.services.NetworkManager.reloadIfChanged = true`, so activation reloads NetworkManager instead of restarting it and the network survives the re-exec. (2) scripts/switch-preflight.sh refuses a live switch (exit 10) when dry-activate reports `would restart systemd` AND live NFS/CIFS mounts exist AND the network is going away under them (a watched unit is in the stop/restart set, or the fileserver is already unreachable); it also reports units left running a superseded binary as a consequence of (1). Wired into `updatenix` in dotfiles/shell/40-functions.sh, which falls back to `nixos-rebuild boot` + reboot. (3) scripts/colmena-apply-drifted.sh refuses to switch remote nodes whose deploy moves systemd's store path while they have network filesystems mounted, since recovering a frozen remote node means physically visiting it.",
+      "revert_action": "Once #375376 is fixed so a hung generator can no longer freeze PID 1 (or NixOS reloads network daemons by default), remove the reloadIfChanged block and its FIXME from features/common/system/default.nix, and drop the freeze guards from scripts/switch-preflight.sh, scripts/colmena-apply-drifted.sh and updatenix. Note the deferred-restart reporting exists only because of reloadIfChanged and goes away with it. Verify by running a switch that bumps systemd with NFS mounts active and confirming the machine still answers systemctl and reboots normally afterwards -- eval alone cannot catch this, it is a runtime activation failure. Beware that `issue-closed` fires when the report closes, which may precede the fix reaching our pin; re-test before setting `done: true`."
     }
   ]
 }
