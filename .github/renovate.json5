@@ -114,8 +114,30 @@
       enabled: false,
     },
     {
+      // sdr-enthusiasts images publish several parallel tag TRACKS in one
+      // repository -- `latest-build-N`, `telegraf-build-N`, `vX-latest-build-N`
+      // -- and the build counter restarts per track. docker-acarshub is pinned
+      // twice here for exactly that reason: `acarshub` follows
+      // latest-build-1510 and `acarshubV4` follows v4-latest-build-72.
+      //
+      // The track prefix is captured as `compatibility`, which Renovate
+      // documents as "a proposed update will never change the specified
+      // compatibility value". Without it the prefix was a plain
+      // non-capturing alternation, so every track collapsed into ONE version
+      // space keyed only on the build number: for the v4 dep (major 72) all
+      // 184 mainline `latest-build-*` tags (majors 1137-1510) looked like
+      // enormous upgrades. Today they are all rejected by maxMajorIncrement
+      // 500, which is why nothing has actually broken -- but that is an
+      // accident of the ~1065 gap between the two counters, not a guarantee.
+      // Once the v4 track passes build ~637, `latest-build-1137` enters the
+      // window, outranks any `v4-latest-build-638`, and Renovate would
+      // silently propose swapping the v4 pin onto a mainline image.
+      //
+      // Capturing the track removes the hazard outright, and as a side effect
+      // drops the ~184 "exceeds maxMajorIncrement" lines this produced in
+      // every single run.
       matchDatasources: ["docker"],
-      versioning: "regex:^(telegraf|v\\d+-latest|latest)-build-(?<major>\\d+)$",
+      versioning: "regex:^(?<compatibility>telegraf|v\\d+-latest|latest)-build-(?<major>\\d+)$",
       matchPackageNames: ["/^ghcr\\.io/sdr-enthusiasts/.+$/"],
       automerge: true,
     },
