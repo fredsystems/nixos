@@ -38,8 +38,12 @@
     # something restarts it, so a NetworkManager update (including a security
     # fix) is not live until `systemctl restart NetworkManager` or a reboot.
     # scripts/switch-preflight.sh detects and reports that deferred restart by
-    # comparing the unit's ExecStart against /proc/$MAINPID/exe, so it is a
-    # visible, verified state rather than a silent one.
+    # asking whether the binary the running MainPID actually has open is still
+    # part of /run/current-system's closure, so it is a visible, verified state
+    # rather than a silent one. (It deliberately does NOT compare ExecStart
+    # against /proc/$MAINPID/exe: units whose ExecStart is a generated
+    # unit-script-*-start wrapper never match their own binary and would report
+    # as permanently stale -- wpa_supplicant.service is one.)
     #
     # Deliberately NOT applied to wpa_supplicant.service: it reports
     # CanReload=no, and the 2026-08-29 journal shows it was never stopped by

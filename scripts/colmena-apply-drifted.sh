@@ -63,7 +63,7 @@
 # triggers the re-exec, and which a glibc/stdenv mass rebuild causes even at an
 # unchanged systemd version), and whether the node has live NFS/CIFS mounts.
 # Nodes with both are refused rather than warned about, because recovering a
-# frozen remote node means physically visiting it. `--goal boot` plus a reboot
+# frozen remote node means physically visiting it. The `boot` goal plus a reboot
 # reaches the same generation without re-execing a running PID 1.
 #
 # Usage:
@@ -71,7 +71,7 @@
 #   scripts/colmena-apply-drifted.sh --dry-run       # report only
 #   scripts/colmena-apply-drifted.sh --wait          # poll for the manifest
 #   scripts/colmena-apply-drifted.sh --force         # deploy despite the guard
-#   scripts/colmena-apply-drifted.sh -- --goal boot  # stage; reboot to apply
+#   scripts/colmena-apply-drifted.sh -- boot        # stage; reboot to apply
 #   scripts/colmena-apply-drifted.sh --allow-unsafe-switch
 #   scripts/colmena-apply-drifted.sh -- --verbose    # pass args to colmena
 
@@ -260,7 +260,22 @@ for node in "${NODES[@]}"; do
                 -p "$port" "${user}@${host}" '
                   printf "toplevel=%s\n" "$(readlink -f /run/current-system)"
                   printf "systemd=%s\n" "$(readlink -f /run/current-system/systemd 2>/dev/null)"
-                  printf "netfs=%s\n" "$(findmnt -t nfs,nfs4,cifs -n -o TARGET 2>/dev/null | wc -l)"
+                  # findmnt exits 1 for "no matches" and >1 for real errors
+                  # (including not being installed). Piping straight into
+                  # `wc -l` discards that distinction and reports 0 for both,
+                  # which would tell the guard there are no network mounts on a
+                  # node we simply failed to inspect -- a false negative in the
+                  # one direction that matters. Emit "?" for a genuine failure
+                  # so the caller records it as UNKNOWN instead.
+                  netfs_out=$(findmnt -t nfs,nfs4,cifs -n -o TARGET 2>/dev/null)
+                  netfs_rc=$?
+                  if [ "$netfs_rc" -eq 0 ]; then
+                    printf "netfs=%s\n" "$(printf "%s\n" "$netfs_out" | grep -c .)"
+                  elif [ "$netfs_rc" -eq 1 ]; then
+                    printf "netfs=0\n"
+                  else
+                    printf "netfs=?\n"
+                  fi
                 ' 2>/dev/null
         )"; then
             probe_ok=1
@@ -456,18 +471,48 @@ TARGETS="$(
 #
 # Locally that costs a walk to the power button. On a remote node it costs a
 # trip to wherever the box lives, so the default here is to refuse rather than
-# to warn. Deploying with `--goal boot` and rebooting reaches the same
+# to warn. Deploying with the `boot` goal and rebooting reaches the same
 # generation without ever re-execing PID 1 on the running system.
 #
-# Skipped when the caller already chose a goal: passing `-- --goal boot` is the
+# Skipped when the caller already chose a non-activating goal: `-- boot` is the
 # recommended remedy, and `-- --goal build`/`push`/`dry-activate` do not
 # activate anything, so none of them can trip this.
-caller_set_goal=0
+# colmena takes the goal as a POSITIONAL argument -- `colmena apply [OPTIONS]
+# [GOAL]` -- not as `--goal <x>`. There is no `--goal` flag at all, so looking
+# for one (as this did originally) never matched: passing `-- boot` was still
+# refused, and the error message told the caller to run a `--goal boot` that
+# colmena would reject outright.
+#
+# Only `switch` and `test` activate the new configuration on the running
+# system, which is what triggers the daemon-reexec. `boot`, `build`, `push`,
+# `dry-activate` and `upload-keys` cannot freeze PID 1, so the guard steps
+# aside for them.
+#
+# `--reboot` makes `boot` the default goal instead of `switch`, so it is safe
+# on its own too.
+colmena_goal=""
+colmena_reboot=0
 for arg in ${COLMENA_ARGS[@]+"${COLMENA_ARGS[@]}"}; do
-    [[ "$arg" == "--goal" || "$arg" == --goal=* ]] && caller_set_goal=1
+    case "$arg" in
+        build | push | switch | boot | test | dry-activate | upload-keys)
+            [[ -z "$colmena_goal" ]] && colmena_goal="$arg"
+            ;;
+        --reboot) colmena_reboot=1 ;;
+        *) ;;
+    esac
 done
 
-if [[ ${#FREEZE_RISK[@]} -gt 0 && $ALLOW_UNSAFE_SWITCH -eq 0 && $caller_set_goal -eq 0 ]]; then
+if [[ -z "$colmena_goal" ]]; then
+    colmena_goal=$([[ "$colmena_reboot" -eq 1 ]] && echo boot || echo switch)
+fi
+
+goal_activates=0
+case "$colmena_goal" in
+    switch | test) goal_activates=1 ;;
+    *) ;;
+esac
+
+if [[ ${#FREEZE_RISK[@]} -gt 0 && $ALLOW_UNSAFE_SWITCH -eq 0 && $goal_activates -eq 1 ]]; then
     {
         echo "error: refusing to switch nodes that could freeze PID 1."
         echo
@@ -484,7 +529,7 @@ if [[ ${#FREEZE_RISK[@]} -gt 0 && $ALLOW_UNSAFE_SWITCH -eq 0 && $caller_set_goal
   Stage the closure and reboot into it instead -- same generation, no re-exec
   of a running PID 1:
 
-    scripts/colmena-apply-drifted.sh -- --goal boot
+    scripts/colmena-apply-drifted.sh -- boot
     # then reboot those nodes
 
   To deploy anyway, knowing the node may need physical access:
@@ -512,7 +557,7 @@ if [[ ${#FREEZE_UNKNOWN[@]} -gt 0 ]]; then
             echo "  $entry"
         done
         echo "  They are NOT known to be safe -- the guard simply has no answer"
-        echo "  for them. Deploying with --goal boot avoids the question entirely."
+        echo "  for them. Deploying with the \`boot\` goal avoids the question entirely."
         echo
     } >&2
 fi
