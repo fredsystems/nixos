@@ -64,7 +64,7 @@ in
         # unifont
         # unifont_upper
         joypixels
-        font-manager
+        #font-manager
         corefonts
         vista-fonts
       ];
