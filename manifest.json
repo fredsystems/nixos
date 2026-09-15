@@ -1,8 +1,13 @@
 {
-  "generated_at": 1789448367,
+  "generated_at": 1789463659,
   "hosts": {
     "Daytona": {
       "history": [
+        {
+          "at": 1789463659,
+          "rev": "92bb651f1e8a39b7fb9a6c1216518f3cdcb15508",
+          "toplevel": "/nix/store/fs48w545cwdw2qrlvlmf4cb4wiwz3rhi-nixos-system-Daytona-26.11.20260828.83199d0"
+        },
         {
           "at": 1789295826,
           "rev": "211cec810f1aa04f4b6f328f0f160c7242799897",
@@ -122,11 +127,6 @@
           "at": 1787773156,
           "rev": "23ca812d8bbfbd3720e2bf17c0ace1759180ffbb",
           "toplevel": "/nix/store/9p66108rxshl3pi2yadb520jv6g9wkij-nixos-system-Daytona-26.11.20260823.56c02bc"
-        },
-        {
-          "at": 1787773006,
-          "rev": "e3247bb6900957373eb2ee9bbcfdba2e6019a118",
-          "toplevel": "/nix/store/dwwqx3p3p270r0r875xgw2lg1xrbzj27-nixos-system-Daytona-26.11.20260823.56c02bc"
         }
       ]
     },
@@ -778,6 +778,11 @@
     "maranello": {
       "history": [
         {
+          "at": 1789463659,
+          "rev": "92bb651f1e8a39b7fb9a6c1216518f3cdcb15508",
+          "toplevel": "/nix/store/3bjpsy121ji6gkqsnjz5lhdiim8na1n6-nixos-system-maranello-26.11.20260828.83199d0"
+        },
+        {
           "at": 1789295826,
           "rev": "211cec810f1aa04f4b6f328f0f160c7242799897",
           "toplevel": "/nix/store/30kmip4fhdmn0i1zdalsfc918rscg6kg-nixos-system-maranello-26.11.20260828.83199d0"
@@ -896,11 +901,6 @@
           "at": 1787773156,
           "rev": "23ca812d8bbfbd3720e2bf17c0ace1759180ffbb",
           "toplevel": "/nix/store/gaib89m9qrsh5jaf8ky7vm2cbj2f54k8-nixos-system-maranello-26.11.20260823.56c02bc"
-        },
-        {
-          "at": 1787773006,
-          "rev": "e3247bb6900957373eb2ee9bbcfdba2e6019a118",
-          "toplevel": "/nix/store/niwjyqzc0kwhsdn3nspa46qih48i61q5-nixos-system-maranello-26.11.20260823.56c02bc"
         }
       ]
     },
@@ -1292,6 +1292,6 @@
       ]
     }
   },
-  "rev": "42dc111e7f8b7cd495a5890e41a5ae0939e8faee",
+  "rev": "92bb651f1e8a39b7fb9a6c1216518f3cdcb15508",
   "schema": 1
 }
