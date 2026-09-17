@@ -21,7 +21,8 @@ in
   ++ lib.optional isLinux ../../features
   ++ lib.optional isLinux ../../modules/base/user.nix
   ++ lib.optional isLinux ../../modules/system/kernel-pin.nix
-  ++ lib.optional isLinux ./catppuccin.nix;
+  ++ lib.optional isLinux ./catppuccin.nix
+  ++ lib.optional isLinux ./journald.nix;
 
   nix = {
     extraOptions = lib.mkIf isLinux ''
@@ -118,74 +119,6 @@ in
 
   sops.templates."nix-access-tokens.conf".content = ''
     access-tokens = github.com=${config.sops.placeholder.github_pat}
-  '';
-
-  # Explicit journal retention. Previously unset everywhere, which meant every
-  # host silently inherited journald's defaults -- and those defaults are the
-  # reason all seven servers sat at the same ~4G: SystemMaxUse defaults to 10%
-  # of the filesystem but is hard-capped at 4G, so a 74G root resolved to
-  # 7.4G -> clamped to 4G. Nothing was leaking; the cap was simply doing its
-  # job invisibly, and the only way to find that out was to go read journald's
-  # source-level defaults. Stating the policy here makes it reviewable and
-  # per-host overridable via lib.mkForce.
-  #
-  # Compression is NOT configured because it is already active -- journal
-  # headers report COMPRESSED-ZSTD, so there is no win available there.
-  services.journald.extraConfig = ''
-    # Total on-disk journal budget. 1G is ~20 days at fredvps's (post
-    # --no-access-log) rate and far more on the quieter decoder hubs, while
-    # returning ~3G per host versus the implicit 4G default.
-    SystemMaxUse=1G
-
-    # Cap per-file size so vacuuming is fine-grained. Files were landing at
-    # 50-67M, meaning journald could only ever reclaim space in chunks that
-    # coarse; 64M keeps rotation predictable rather than lumpy.
-    SystemMaxFileSize=64M
-
-    # Time ceiling, which was previously unbounded -- fredvps was holding 82
-    # days purely because 4G happened to span that long. Retention should be a
-    # decision, not a side effect of volume: a quiet host keeping a year and a
-    # noisy one keeping a week is exactly the inconsistency that makes
-    # cross-host incident correlation unreliable. Loki (sdrhub) is the
-    # long-term store at retention_period=30d, so the local journal only needs
-    # to cover the window where you would log into the box directly.
-    MaxRetentionSec=30day
-
-    # Force rotation by age so a low-traffic host still produces file
-    # boundaries, keeping MaxRetentionSec able to expire whole files.
-    MaxFileSec=1day
-
-    # Write amplification control. This is about SSD wear, not disk space --
-    # the settings above already bound the latter.
-    #
-    # Measured on sdrhub 2026-08-18: journald was issuing 56.8 GB/day to the
-    # block layer while the journal files themselves only rotated 0.8 GB/day
-    # and the actual log content was 2.1 GB/day. Its /proc/<pid>/io showed
-    # wchar=2.18 MiB against write_bytes=236 GiB -- five orders of magnitude
-    # apart.
-    #
-    # That gap is not log volume, it is mmap page dirtying. journald mmaps the
-    # journal and writes records into mapped pages, so the bytes never pass
-    # through write() and never appear in wchar; but every page the kernel
-    # flushes counts in write_bytes. A journal file's hash tables and indices
-    # live in a small number of pages that get re-dirtied by almost every
-    # record, so each sync rewrites the same pages again. At the default
-    # 5-minute interval that is 288 flush cycles a day, each one re-writing
-    # metadata pages that mostly did not need to move.
-    #
-    # 15 minutes cuts those cycles to 96. The cost is the window of entries
-    # that would be lost on an unclean shutdown, and it is smaller than it
-    # sounds: journald syncs unconditionally and immediately on CRIT, ALERT and
-    # EMERG regardless of this value, so the messages that matter during a
-    # crash are already durable. What is at risk is up to 15 minutes of INFO
-    # and WARNING on a host that lost power without flushing -- and on this
-    # fleet those are already shipped off-box to Loki by alloy, which is the
-    # copy used for incident correlation anyway.
-    #
-    # Note this does NOT fix a chatty service, it only makes each flush cycle
-    # cheaper. Log line rate is the other half and is dealt with per-service
-    # (see the acars2pos and Loki log-level changes on sdrhub).
-    SyncIntervalSec=15min
   '';
 
   # The goModules fixed-output derivation in nixpkgs includes "GOPROXY" in
