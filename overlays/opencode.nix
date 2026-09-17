@@ -48,7 +48,7 @@ opencode.overrideAttrs (
 
     passthru = prevAttrs.passthru // {
       node_modules = prevAttrs.passthru.node_modules.overrideAttrs (_: {
-        outputHash = "sha256-3BXy+zxgav8IZCBtMS3cUZc3Vq/1WPQ8msGriwxUXmw=";
+        outputHash = "sha256-qWZuOpolZAr7EZlAgfVx8nw8axoOMauoXwcqiJUGu24=";
       });
     };
   }
