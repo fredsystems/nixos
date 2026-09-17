@@ -113,8 +113,23 @@ jobs:
         run: |
           set -uo pipefail
 
-          ./scripts/sync-opencode-hash.sh
-          rc=$?
+          # `|| rc=$?` rather than a bare call followed by `rc=$?`.
+          #
+          # Actions runs `run:` blocks as `bash -e {0}`, so errexit is ALREADY
+          # on before this script's first line, and `set -uo pipefail` does not
+          # clear it. A bare call therefore aborts the step the instant
+          # sync-opencode-hash.sh exits non-zero -- including its exit 2, which
+          # is not a failure but the documented "I corrected the hash" signal.
+          # That is exactly what happened on the b1b87598 nixpkgs bump: the
+          # guard correctly detected the stale hash, rewrote the overlay, exited
+          # 2, and then died one line before recording `changed=true`, so the
+          # push step never ran and the correction was thrown away.
+          #
+          # A command on the left of `||` is exempt from errexit, so this
+          # reaches the case statement for every exit code and lets the
+          # genuinely-failed codes be re-raised explicitly below.
+          rc=0
+          ./scripts/sync-opencode-hash.sh || rc=$?
 
           case "$rc" in
             0) echo "changed=false" >> "$GITHUB_OUTPUT" ;;
