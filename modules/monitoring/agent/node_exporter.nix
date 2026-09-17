@@ -74,36 +74,52 @@ let
   #
   # WHY THIS IS READ FROM THE NIXOS OPTION RATHER THAN PARSED AT RUNTIME
   #
-  # modules/base/system.nix sets this via services.journald.extraConfig,
-  # which NixOS renders into /etc/systemd/journald.conf.d/. Two ways exist to
-  # recover the value: parse the rendered drop-in file at runtime, or read
-  # config.services.journald.extraConfig here at eval time. The rendered
-  # file's exact shape (drop-in filename, comment/whitespace placement,
-  # whether a future NixOS release changes how extraConfig is emitted) is an
-  # implementation detail of the module system, not a stable interface worth
-  # depending on from a shell script. config.services.journald.extraConfig is
-  # the actual value this repo sets, already resolved for whichever host is
-  # being built -- including any per-host mkForce/mkMerge override, though
-  # none exists today: modules/base/system.nix is the only place in this
-  # repo that touches services.journald.extraConfig.
+  # modules/base/journald.nix sets this, and NixOS renders it into
+  # /etc/systemd/journald.conf{,.d/}. Two ways exist to recover the value:
+  # parse the rendered file at runtime, or read the NixOS option here at eval
+  # time. The rendered file's exact shape (drop-in filename, section ordering,
+  # comment/whitespace placement, whether a future NixOS release changes how
+  # the settings are emitted) is an implementation detail of the module
+  # system, not a stable interface worth depending on from a shell script. The
+  # option is the actual value this repo sets, already resolved for whichever
+  # host is being built -- including any per-host mkForce/mkMerge override,
+  # though none exists today: modules/base/journald.nix is the only place in
+  # this repo that touches services.journald.
   #
-  # If the line is missing or its value doesn't parse, this evaluates to
-  # null and the systemd unit below simply omits node_journal_max_bytes
-  # rather than emitting a hardcoded/wrong constant.
-  journaldExtraConfigLines = lib.splitString "\n" config.services.journald.extraConfig;
+  # WHY IT READS TWO DIFFERENT OPTIONS
+  #
+  # For the same reason modules/base/journald.nix writes two: nixpkgs replaced
+  # the freeform `services.journald.extraConfig` string with the structured
+  # `services.journald.settings.Journal` attrset, and this fleet currently
+  # spans both sides of that rename (servers on stable 26.05, desktops on
+  # unstable 26.11 -- and profiles/desktop.nix imports this file, so both
+  # dialects really are evaluated). The structured option is tried first and
+  # the legacy string is the fallback, so whichever one the host's nixpkgs
+  # declares is the one that answers. Delete the fallback, and the regex
+  # parsing it needs, once stable has `settings`.
+  #
+  # `or` rather than a `hasStructuredSettings`-style option-tree probe: a
+  # missing attribute on `config` is an ordinary attrset miss, so the default
+  # arm already selects the right dialect without a second mechanism.
+  #
+  # If neither is set, or the value doesn't parse, this evaluates to null and
+  # the systemd unit below simply omits node_journal_max_bytes rather than
+  # emitting a hardcoded/wrong constant.
+  structuredSystemMaxUse = config.services.journald.settings.Journal.SystemMaxUse or null;
 
-  systemMaxUseLine = lib.findFirst (
-    line: builtins.match "[[:space:]]*SystemMaxUse=.*" line != null
-  ) null journaldExtraConfigLines;
+  legacySystemMaxUse =
+    let
+      lines = lib.splitString "\n" (config.services.journald.extraConfig or "");
+      line = lib.findFirst (l: builtins.match "[[:space:]]*SystemMaxUse=.*" l != null) null lines;
+      match = if line == null then null else builtins.match "[[:space:]]*SystemMaxUse=(.*)" line;
+    in
+    if match == null then null else builtins.elemAt match 0;
 
-  systemMaxUseMatch =
-    if systemMaxUseLine == null then
-      null
-    else
-      builtins.match "[[:space:]]*SystemMaxUse=([0-9]+)([KMGT]?)[[:space:]]*" systemMaxUseLine;
+  systemMaxUse =
+    if structuredSystemMaxUse != null then structuredSystemMaxUse else legacySystemMaxUse;
 
-  # journald's parse_size() treats these suffixes as IEC (1024-based), same
-  # as SystemMaxFileSize and the other size settings in modules/base/system.nix.
+  # journald's parse_size() treats these suffixes as IEC (1024-based), same as
+  # SystemMaxFileSize and the other size settings in modules/base/journald.nix.
   sizeSuffixMultiplier = {
     "" = 1;
     "K" = 1024;
@@ -112,8 +128,19 @@ let
     "T" = 1024 * 1024 * 1024 * 1024;
   };
 
+  # The structured option's freeform type accepts an int as well as a string,
+  # so a bare byte count is a legal way to write this and must not be treated
+  # as a parse failure.
+  systemMaxUseMatch =
+    if builtins.isString systemMaxUse then
+      builtins.match "[[:space:]]*([0-9]+)([KMGT]?)[[:space:]]*" systemMaxUse
+    else
+      null;
+
   systemMaxUseBytes =
-    if systemMaxUseMatch == null then
+    if builtins.isInt systemMaxUse then
+      systemMaxUse
+    else if systemMaxUseMatch == null then
       null
     else
       let
