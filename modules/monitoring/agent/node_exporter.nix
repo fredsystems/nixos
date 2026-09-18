@@ -169,6 +169,45 @@ in
 {
   systemd = {
     services = {
+      # Outlast tailscaled when it loses the boot race.
+      #
+      # On an internet-facing host `bindAddress` is the tailnet address, which
+      # does not exist until tailscaled has configured tailscale0. node_exporter
+      # exits non-zero on a failed bind, and the upstream unit sets neither
+      # RestartSec nor StartLimit*, so systemd's defaults apply: five restarts
+      # 100ms apart. All five are spent within ~1.2s and the unit then sits in
+      # start-limit-hit permanently -- it never retries once the address lands.
+      #
+      # Observed on fredvps 2026-09-17: five `bind: cannot assign requested
+      # address` failures between 17:17:12.303 and 17:17:13.516, systemd gave up
+      # at 17:17:13.816, and tailscale0 received the address at 17:17:14.798 --
+      # about a second after the final attempt. The exporter stayed down for 14
+      # hours, taking NodeDown, PrometheusTargetDown, and both textfile-derived
+      # alerts (backup freshness, fail2ban bans) with it. The textfile writers
+      # kept working the whole time; nothing was left to serve their output.
+      #
+      # Ordering on tailscaled.service does NOT fix this. tailscaled's main
+      # process had already started at 17:17:12, ~2.5s before it assigned the
+      # address, so the ordering constraint was already satisfied at the time of
+      # the first failure. Nothing upstream means "the tailnet address is
+      # assigned", so the retry window has to outlast tailscaled's setup instead.
+      #
+      # Twelve attempts 5s apart is a ~60s window against an observed need of
+      # ~2.5s. Deliberately still bounded rather than infinite: a genuinely
+      # wrong deployment.tailscaleAddress should come to rest in a failed state
+      # and be reported by tailscale-address-drift (modules/base/deployment-meta.nix),
+      # not retry in the journal forever.
+      #
+      # Scoped to internet-facing hosts because LAN hosts bind 0.0.0.0, which
+      # cannot fail with EADDRNOTAVAIL -- there the retry policy would be inert.
+      prometheus-node-exporter = lib.mkIf config.deployment.internetFacing {
+        serviceConfig.RestartSec = 5;
+        unitConfig = {
+          StartLimitBurst = 12;
+          StartLimitIntervalSec = 120;
+        };
+      };
+
       nixos-needs-reboot-metric = {
         description = "Emit reboot-needed metric for Prometheus";
         serviceConfig = {
