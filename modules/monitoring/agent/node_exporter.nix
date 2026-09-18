@@ -703,6 +703,91 @@ in
           '';
         };
       };
+
+      # Report the firmware's UEFI variable store so exhaustion is visible
+      # before it blocks something.
+      #
+      # fredhub (Framework Desktop, Insyde 0.774) sat at 5,923 B free of a
+      # 151,464 B store with nothing in the fleet saying so. The only symptom
+      # was fwupd refusing the dbx update with "Not enough efivarfs space,
+      # requested 30.7 kB and got 5.9 kB" -- an error that names fwupd rather
+      # than the variable store, and which surfaces only when someone runs
+      # `fwupdmgr update` by hand. FwupdUpdatesAvailable did fire, but it says
+      # "an update is available", which is indistinguishable from the ordinary
+      # case of nobody having applied one yet.
+      #
+      # That firmware never garbage-collects stale variable records on its own:
+      # the 2026-06-30 dbx write consumed 24,629 B and not a byte came back
+      # across any reboot or the 2026-08-04 capsule update. It reclaims only
+      # when a write provokes a real EFI_OUT_OF_RESOURCES, which is what
+      # scripts/efivars-force-gc.sh does deliberately (84,819 B recovered on
+      # fredhub, 2026-09-18). Because each dbx append rewrites the entire
+      # record, the store refills on every firmware update, so this needs a
+      # standing signal rather than a one-time cleanup.
+      #
+      # Not gated on a Nix-level predicate: whether efivarfs exists is a
+      # runtime property, and `boot.loader.*` does not answer it -- fredvps
+      # runs grub, and a UEFI machine booted in legacy mode has no efivarfs at
+      # all. A host without the directory deletes its textfile so a stale
+      # reading cannot outlive the condition it described.
+      efivars-space-metric = {
+        description = "Emit UEFI variable store (efivarfs) capacity metrics";
+        serviceConfig = {
+          Type = "oneshot";
+          ExecStart = pkgs.writeShellScript "efivars-space-metric.sh" ''
+            set -u
+
+            HOST="${config.networking.hostName}"
+            EFIVARS=/sys/firmware/efi/efivars
+            TEXTFILE_DIR=/var/lib/node_exporter/textfiles
+            OUT="$TEXTFILE_DIR/efivars_space.prom"
+            TMP="$OUT.tmp"
+
+            mkdir -p "$TEXTFILE_DIR"
+
+            if [ ! -d "$EFIVARS" ]; then
+              rm -f "$OUT"
+              exit 0
+            fi
+
+            # efivarfs answers statfs from the firmware's QueryVariableInfo()
+            # with a fundamental block size of 1, so these counts are already
+            # bytes: %b is total variable storage, %f the remaining size. %f is
+            # deliberately the reported figure rather than %a, because %f is
+            # what fwupd compares against and what the kernel's own headroom
+            # check in efi_query_variable_store() reads.
+            TOTAL=$(stat -f -c %b "$EFIVARS" 2>/dev/null || echo "")
+            FREE=$(stat -f -c %f "$EFIVARS" 2>/dev/null || echo "")
+
+            # Firmware whose QueryVariableInfo() returns EFI_UNSUPPORTED, and
+            # the alternative efivars backends that implement no statfs at all,
+            # yield empty or zero here. Emitting free=0 in that case would be
+            # indistinguishable from a genuinely full store and would raise
+            # EfivarsSpaceLow forever on a host that has no such problem.
+            VALID=1
+            for value in "$TOTAL" "$FREE"; do
+              case "$value" in
+                "" | *[!0-9]*) VALID=0 ;;
+              esac
+            done
+
+            if [ "$VALID" -eq 0 ] || [ "$TOTAL" -eq 0 ]; then
+              rm -f "$OUT"
+              exit 0
+            fi
+
+            {
+              echo "# HELP efivars_total_bytes Total UEFI variable storage reported by the firmware, in bytes."
+              echo "# TYPE efivars_total_bytes gauge"
+              echo "efivars_total_bytes{host=\"$HOST\"} $TOTAL"
+              echo "# HELP efivars_free_bytes Remaining UEFI variable storage reported by the firmware, in bytes."
+              echo "# TYPE efivars_free_bytes gauge"
+              echo "efivars_free_bytes{host=\"$HOST\"} $FREE"
+            } > "$TMP"
+            mv "$TMP" "$OUT"
+          '';
+        };
+      };
     }
     // lib.optionalAttrs config.services.fwupd.enable {
       fwupd-updates-metric = {
@@ -796,6 +881,19 @@ in
           # a reason to go coarser, and retention drift is a slow-moving
           # signal that doesn't need finer resolution than that.
           OnCalendar = "*:0/15";
+          Persistent = true;
+        };
+      };
+
+      efivars-space-metric = {
+        wantedBy = [ "timers.target" ];
+        timerConfig = {
+          # Every 30 minutes. The value only moves when something writes an EFI
+          # variable, which is a firmware-update-frequency event, so this is
+          # already far finer than the signal warrants -- it is cheap (two
+          # statfs calls) and matches fwupd-updates-metric below so the two
+          # firmware signals stay in step.
+          OnCalendar = "*:0/30";
           Persistent = true;
         };
       };
