@@ -12,6 +12,26 @@ groups:
           summary: "Firmware updates available on {{ $labels.host }}"
           description: "{{ $value }} firmware update(s) available via fwupd on {{ $labels.host }}. Run `fwupdmgr update` to apply."
 
+      - alert: EfivarsSpaceLow
+        # 40 KiB, measured against the largest write this store is actually
+        # asked to accept. fwupd's dbx precondition on fredhub was 30.7 kB of
+        # payload plus the 5,120 B the kernel holds back in
+        # efi_query_variable_store(), i.e. ~35.8 kB; below 40 KiB the next
+        # Secure Boot database update starts failing. Warning rather than info
+        # because on firmware that does not garbage-collect stale records this
+        # only moves one direction, and the fix may need physical access.
+        expr: efivars_free_bytes < 40960
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "UEFI variable store nearly full on {{ $labels.host }}"
+          # Raw bytes, deliberately not humanize1024: the whole budget lives in
+          # the 5-40 kB range, where the difference between 5,923 free and the
+          # 35,820 a dbx update needs is the entire point, and humanize1024
+          # renders 40,959 as "40kiB" -- indistinguishable from the threshold.
+          description: "Only {{ $value }} bytes free in the firmware variable store on {{ $labels.host }}. Firmware and Secure Boot database updates will start failing for lack of space, reported by fwupd as an efivarfs error rather than as a full store. Some firmware reclaims stale records only when a write provokes it; see scripts/efivars-force-gc.sh."
+
       - alert: FwupdCriticalUpdate
         # Critical / high urgency firmware (per LVFS metadata) should not
         # sit for a full day before notification.

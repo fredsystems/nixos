@@ -1,0 +1,88 @@
+# promtool unit tests for the firmware / UEFI variable store rules.
+#
+# Gotcha, learned the hard way in this directory: rules evaluate at the
+# top-level evaluation_interval, but samples are spaced at each test's own
+# `interval`. If `interval` exceeds Prometheus' 5m lookback delta the series is
+# stale at most evaluation steps and a `for:` clause never accumulates a
+# continuous pending period. Keep every interval <= 5m and make input_series
+# long enough to cover the rule's `for:` plus eval_time.
+#
+# Only EfivarsSpaceLow is covered here. FwupdUpdatesAvailable and
+# FwupdCriticalUpdate predate this file and remain untested.
+rule_files:
+  - ../firmware-alerts.yaml
+
+evaluation_interval: 1m
+
+tests:
+  # The real fredhub reading on 2026-09-18, before the store was reclaimed:
+  # 5,923 B free of a 151,464 B store, which is what made fwupd refuse the dbx
+  # update. This is the case that had no signal at all.
+  - interval: 1m
+    name: EfivarsSpaceLow fires on an exhausted variable store
+    input_series:
+      - series: 'efivars_free_bytes{host="fredhub"}'
+        values: "5923+0x120"
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: EfivarsSpaceLow
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              host: fredhub
+            exp_annotations:
+              summary: "UEFI variable store nearly full on fredhub"
+              description: "Only 5923 bytes free in the firmware variable store on fredhub. Firmware and Secure Boot database updates will start failing for lack of space, reported by fwupd as an efivarfs error rather than as a full store. Some firmware reclaims stale records only when a write provokes it; see scripts/efivars-force-gc.sh."
+
+  # The post-reclaim reading on the same host: 90,742 B free, which is enough
+  # for the dbx write plus the kernel's 5,120 B reserve several times over.
+  - interval: 1m
+    name: EfivarsSpaceLow silent on a healthy variable store
+    input_series:
+      - series: 'efivars_free_bytes{host="fredhub"}'
+        values: "90742+0x120"
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: EfivarsSpaceLow
+        exp_alerts: []
+
+  # Threshold boundary. 40960 must not fire (the expression is strictly less
+  # than), 40959 must, so an off-by-one in either direction is caught.
+  - interval: 1m
+    name: EfivarsSpaceLow silent exactly at the threshold
+    input_series:
+      - series: 'efivars_free_bytes{host="daytona"}'
+        values: "40960+0x120"
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: EfivarsSpaceLow
+        exp_alerts: []
+
+  - interval: 1m
+    name: EfivarsSpaceLow fires one byte below the threshold
+    input_series:
+      - series: 'efivars_free_bytes{host="daytona"}'
+        values: "40959+0x120"
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: EfivarsSpaceLow
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              host: daytona
+            exp_annotations:
+              summary: "UEFI variable store nearly full on daytona"
+              description: "Only 40959 bytes free in the firmware variable store on daytona. Firmware and Secure Boot database updates will start failing for lack of space, reported by fwupd as an efivarfs error rather than as a full store. Some firmware reclaims stale records only when a write provokes it; see scripts/efivars-force-gc.sh."
+
+  # A store that dips below the threshold but recovers before the hour is up
+  # must not fire. This is the shape of a firmware update in progress: the
+  # write consumes the store, the firmware compacts, and free space returns.
+  - interval: 1m
+    name: EfivarsSpaceLow does not fire on a transient dip
+    input_series:
+      - series: 'efivars_free_bytes{host="fredhub"}'
+        values: "5923+0x30 90742+0x90"
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: EfivarsSpaceLow
+        exp_alerts: []
