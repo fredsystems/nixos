@@ -66,6 +66,14 @@
 # provocation ran but the firmware gave nothing back, 1 on error.
 set -euo pipefail
 
+# The probe write is expected to be refused for lack of space, and that
+# refusal has to be told apart from a refusal for any other reason (see the
+# classification after the dd below). The only channel dd offers for that is
+# its stderr text, so the locale is pinned to keep that text the literal
+# English the match depends on. Same reasoning as the LC_ALL=C in
+# node-journal-metrics in modules/monitoring/agent/node_exporter.nix.
+export LC_ALL=C
+
 EFIVARS=/sys/firmware/efi/efivars
 
 # The kernel's own headroom constant, from EFI_MIN_RESERVE in
@@ -177,6 +185,38 @@ if [[ ${EUID} -ne 0 ]]; then
     exit 1
 fi
 
+# Everything below writes to NVRAM, so the conditions that would make the
+# write fail for a reason unrelated to space, or make the probe impossible to
+# remove afterwards, are checked here rather than discovered halfway through.
+
+# efivarfs marks its files immutable, so removing the probe requires chattr.
+# Without it the unlink fails, and a probe whose write SUCCEEDED would be left
+# behind as a live EFI variable -- consuming the very space this script exists
+# to recover, while reporting success. Raised by Copilot on PR #2391.
+if ! command -v chattr >/dev/null 2>&1; then
+    echo "error: chattr not found; refusing to write a probe that could not be removed" >&2
+    echo "       (chattr ships in e2fsprogs)" >&2
+    exit 1
+fi
+
+# A read-only efivarfs (mounted ro, or remounted so by a hardening unit) fails
+# the write with EROFS, which looks nothing like the out-of-space refusal this
+# script is trying to provoke.
+if findmnt --noheadings --output OPTIONS --target "${EFIVARS}" 2>/dev/null |
+    grep --quiet --word-regexp ro; then
+    echo "error: ${EFIVARS} is mounted read-only; the probe could not be written" >&2
+    exit 1
+fi
+
+# Kernel lockdown in integrity or confidentiality mode blocks writes to
+# efivarfs outright, for the same EPERM that a dozen unrelated causes produce.
+lockdown=/sys/kernel/security/lockdown
+if [[ -r ${lockdown} ]] && ! grep --quiet '\[none\]' "${lockdown}"; then
+    echo "error: kernel lockdown is active, which blocks efivarfs writes:" >&2
+    echo "       $(cat "${lockdown}")" >&2
+    exit 1
+fi
+
 # The probe has to be large enough that the kernel's reserve check fails,
 # i.e. free - size < EFI_MIN_RESERVE, which means size > free - EFI_MIN_RESERVE.
 # Overshoot by 1 kB, with a 2 kB floor so the write is never so small that a
@@ -190,17 +230,33 @@ guid="$(cat /proc/sys/kernel/random/uuid)"
 target="${EFIVARS}/GcProbe-${guid}"
 payload="$(mktemp)"
 
+probe_orphaned=0
+
 # Idempotent by construction: called explicitly once the probe has served its
 # purpose, and again from the EXIT trap, which is what covers the abnormal
 # paths (a signal, or a firmware that wedges the write).
+#
+# Never exits: it runs from a trap, where an exit would replace whatever status
+# the script was already reporting. A probe it cannot remove is recorded in
+# probe_orphaned and acted on by the caller instead.
 cleanup() {
     rm -f "${payload}"
-    # A probe that unexpectedly succeeded is a live EFI variable and must not
-    # be left behind. efivarfs sets the immutable bit on its files, so the
-    # chattr is required before the unlink.
+
+    # A probe whose write succeeded is a live EFI variable and must not be left
+    # behind: it occupies the space this script exists to recover. efivarfs
+    # marks its files immutable, hence the chattr, which the preflight has
+    # already established is present.
     if [[ -e ${target} ]]; then
-        command -v chattr >/dev/null 2>&1 && chattr -i "${target}" 2>/dev/null || true
+        chattr -i "${target}" 2>/dev/null || true
         rm -f "${target}" 2>/dev/null || true
+    fi
+
+    if [[ -e ${target} ]]; then
+        probe_orphaned=1
+        printf 'error: could not remove the probe variable %s\n' "${target##*/}" >&2
+        printf '       It is now a live EFI variable holding %s bytes. Remove it with:\n' \
+            "${payload_size:-?}" >&2
+        printf '         chattr -i %s && rm %s\n' "${target}" "${target}" >&2
     fi
 }
 trap cleanup EXIT
@@ -220,13 +276,27 @@ echo "(a firmware that compacts synchronously will make this write take seconds)
 # so a buffered multi-write would be a malformed request rather than a large
 # one. dd with bs=<exact size> count=1 guarantees the single call.
 write_status=0
-dd if="${payload}" of="${target}" bs="${payload_size}" count=1 status=none 2>/dev/null ||
+write_error="$(dd if="${payload}" of="${target}" bs="${payload_size}" count=1 status=none 2>&1)" ||
     write_status=$?
 
+# A nonzero dd is the EXPECTED outcome here -- provoking the refusal is the
+# entire point -- but only when the refusal is for lack of space. The
+# preflight above rules out the causes that are knowable in advance; anything
+# still failing for another reason (EPERM from an LSM, EIO from the firmware,
+# a variable name the kernel rejects) must not be reported as a successful
+# provocation, because the "no space was reclaimed" conclusion below would
+# then be describing a write that never reached the firmware's allocator.
+# Raised by CodeRabbit on PR #2391.
 if ((write_status == 0)); then
     echo "  write succeeded (the firmware found room mid-call); probe will be removed"
+elif [[ ${write_error} == *"No space left on device"* ]]; then
+    echo "  write refused for lack of space, as intended -- the refusal is the provocation"
 else
-    echo "  write rejected, as expected -- the provocation is the point, not the write"
+    cleanup
+    printf 'error: the probe write failed for a reason other than lack of space, so\n' >&2
+    printf '       no conclusion can be drawn about garbage collection:\n' >&2
+    printf '       %s\n' "${write_error}" >&2
+    exit 1
 fi
 
 # Remove the probe BEFORE measuring, so the store holds the same set of live
@@ -235,6 +305,11 @@ fi
 # firmware that does not reclaim on delete this understates the gain by the
 # probe's size, which is the direction to err in.
 cleanup
+
+if ((probe_orphaned)); then
+    echo "Refusing to report a space delta while the probe is still resident." >&2
+    exit 1
+fi
 
 free_after="$(read_free)"
 reclaimed=$((free_after - free_before))
@@ -250,6 +325,27 @@ if ((reclaimed > 0)); then
         echo "  systemctl restart fwupd.service && fwupdmgr get-updates"
     fi
     exit 0
+fi
+
+# A net loss is a distinct outcome from "nothing happened" and must not be
+# folded into the message below. It means the probe write succeeded and the
+# firmware did not give the allocation back when the variable was deleted --
+# i.e. this store leaks on every write, which is the same pathology that
+# filled fredhub in the first place. Re-running would leak again.
+# Raised by CodeRabbit on PR #2391.
+if ((reclaimed < 0)); then
+    printf 'lost: %s bytes\n\n' "$((-reclaimed))"
+    cat <<'EOF'
+The probe write succeeded and the firmware did not return that space when the
+variable was deleted, so this run cost the store rather than recovering it. Do
+not re-run: each attempt leaks another probe's worth.
+
+This store leaks on every write, which is the pathology that exhausts it in
+the first place. Reclaiming it needs a firmware-menu NVRAM reset (physical
+access; on an unsigned boot chain, check whether it re-enables Secure Boot
+before you reboot) or a firmware fix from the vendor.
+EOF
+    exit 2
 fi
 
 cat <<EOF
