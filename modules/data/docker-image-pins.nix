@@ -81,7 +81,7 @@
       sdrmap = "ghcr.io/sdr-enthusiasts/docker-sdrmap:latest-build-101@sha256:5b36751e73c9b6bdb3bba1ce888a3efafc92d5dca556e8630ea4ca3ce957fcee";
       acarshubV4 = "ghcr.io/sdr-enthusiasts/docker-acarshub:v4-latest-build-72@sha256:44e2e8f29e456dcc3d9316dab2b8169c6b5f4b46885eb307673790d970908e5b";
       acars2posAlt = "ghcr.io/rpatel3001/docker-acars2pos:latest-build-31@sha256:229f6ee8a65a25989aacf62e2f93b30dff86066a9684396e599a95ccb049b834"; # inactive (commented-out alternative)
-      acars2pos = "ghcr.io/fredclausen/docker-acars2pos:latest-build-2@sha256:44f0ed37ddc9f4fac092d905088d7b0b25e364b1453929125e76322e54b2bad2";
+      acars2pos = "ghcr.io/fredclausen/docker-acars2pos:latest-build-3@sha256:320fc96ab5b1698f7ce881b0af2fe6efe2cdd9385f4bc508b5080574b934132d";
       degoog = "ghcr.io/fccview/degoog:0.24.0@sha256:79409f76137734baa0516a58def96e4d3842f6db26d813e75365dea8a00974e9";
       syncclipboard = "jericx/syncclipboard-server:v3.2.0@sha256:3f2d9c6ce4fbefca769e40d79ed2cac2ad8fc3adf962c0599ba9176b502a3b6d";
     };
