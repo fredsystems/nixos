@@ -48,14 +48,14 @@ let
     sf-pro = {
       file = "SF-Pro.dmg";
       pkgName = "SF Pro Fonts.pkg";
-      hash = "sha256-qQlPDem3idc1RO5Q/FKgiE1Kn3/PYt5Sl04yBPOnSmI=";
+      hash = "sha256-loqzuLH5LC2K9h6waA9cIiTE541ZuYa/AEUCp/wBKRg=";
       description = "Apple SF Pro, the San Francisco system typeface";
     };
 
     sf-compact = {
       file = "SF-Compact.dmg";
       pkgName = "SF Compact Fonts.pkg";
-      hash = "sha256-LIkAOWe+WaaGeqXeEgZjUtmmtEt4XPK5/4jvDXf/KPw=";
+      hash = "sha256-wdDjROut1m62LwP4I3hMzknxeH9WVj+wmPygH8VUE1w=";
       description = "Apple SF Compact, the narrow San Francisco variant";
     };
 
