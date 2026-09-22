@@ -34,6 +34,7 @@
   lib,
   stdenvNoCC,
   fetchurl,
+  cpio,
   p7zip,
   parallel,
   nerd-font-patcher,
@@ -88,6 +89,7 @@ let
       };
 
       nativeBuildInputs = [
+        cpio
         p7zip
       ]
       ++ lib.optionals nerd [
@@ -95,13 +97,31 @@ let
         nerd-font-patcher
       ];
 
-      # The dmg contains an installer .pkg, which in turn contains a cpio
-      # archive named `Payload~`. Three unpacks to reach the font files.
+      # The dmg holds an installer .pkg, which holds a gzipped cpio
+      # archive that 7z writes out as `Payload~`. Apple ships two dmg
+      # layouts and we have to cope with both:
+      #
+      #   * HFS (SF-Mono, NY): the volume contains
+      #     `<Family>/<pkgName>`, so the .pkg needs a second unpack.
+      #   * APFS (SF-Pro, SF-Compact since 2026-09-11): 7z has no APFS
+      #     reader, falls back to a signature scan, finds the installer
+      #     xar directly and descends dmg -> xar -> gzip in one go, so
+      #     `Payload~` already exists and `<Family>/<pkgName>` does not.
+      #     Running the second unpack there fails with 7z exit code 7
+      #     ("Cannot find archive").
+      #
+      # The cpio is then unpacked with cpio(1) rather than 7z: Apple's
+      # newer payloads carry `nlink == 0` in the odc headers, which
+      # p7zip's cpio reader rejects outright ("Can not open the file as
+      # archive"). cpio(1) reads both the old and the new payloads.
       unpackPhase = ''
         runHook preUnpack
         7z x "$src"
-        7z x './*/${family.pkgName}'
-        7z x 'Payload~'
+        if [ ! -e 'Payload~' ]; then
+          7z x './*/${family.pkgName}'
+        fi
+        cpio -idm --no-absolute-filenames < 'Payload~'
+        rm 'Payload~'
         runHook postUnpack
       '';
 
