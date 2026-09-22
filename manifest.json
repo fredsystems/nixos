@@ -1,8 +1,13 @@
 {
-  "generated_at": 1790113030,
+  "generated_at": 1790113378,
   "hosts": {
     "Daytona": {
       "history": [
+        {
+          "at": 1790113378,
+          "rev": "64c6427f580a73445a91b848a7d7c387bf311937",
+          "toplevel": "/nix/store/3p58n1c2p1zipn2xqgnvgbxnxvqfdihv-nixos-system-Daytona-26.11.20260922.6774f7b"
+        },
         {
           "at": 1790113030,
           "rev": "c62cbb3100217212b297adf1d5dc23fb3b1d760b",
@@ -122,11 +127,6 @@
           "at": 1788052586,
           "rev": "9342f89f04c01a2280224b60e158c47942e46653",
           "toplevel": "/nix/store/xknbb5x40klhr034sh0j70194a4kdbxg-nixos-system-Daytona-26.11.20260823.56c02bc"
-        },
-        {
-          "at": 1788039904,
-          "rev": "675c3db4f65c2004fffa7f3f255cb325cde31605",
-          "toplevel": "/nix/store/818i0rqig4zzy1c7vl3y91dyzngwlnzn-nixos-system-Daytona-26.11.20260823.56c02bc"
         }
       ]
     },
@@ -262,6 +262,11 @@
     "fredhub": {
       "history": [
         {
+          "at": 1790113378,
+          "rev": "64c6427f580a73445a91b848a7d7c387bf311937",
+          "toplevel": "/nix/store/fnp7xzya15xfgfnfzq2lp572g2q2i5c5-nixos-system-fredhub-26.05.20260918.cf9d2fb"
+        },
+        {
           "at": 1789897487,
           "rev": "231d597f9fb9a4895d12900698ec7236172c1518",
           "toplevel": "/nix/store/k16as7qxfvf04g587j3r5l0karw9c7ws-nixos-system-fredhub-26.05.20260918.cf9d2fb"
@@ -380,11 +385,6 @@
           "at": 1787709402,
           "rev": "6c701c4529c21a4b0e72974834dbbcb1c829ac18",
           "toplevel": "/nix/store/x8qzs1czx45j1apdbzh2m22a8jra2pz0-nixos-system-fredhub-26.05.20260825.f4f6986"
-        },
-        {
-          "at": 1787692514,
-          "rev": "11d9afdded045f3dd4c16d8c1cd9863b1f6222d9",
-          "toplevel": "/nix/store/7hpmf8hzjkn8k2fgc32cv96bpjak5gp0-nixos-system-fredhub-26.05.20260825.f4f6986"
         }
       ]
     },
@@ -778,6 +778,11 @@
     "maranello": {
       "history": [
         {
+          "at": 1790113378,
+          "rev": "64c6427f580a73445a91b848a7d7c387bf311937",
+          "toplevel": "/nix/store/ynlrmkaxc8nbazx39p2dry52sih8s80a-nixos-system-maranello-26.11.20260922.6774f7b"
+        },
+        {
           "at": 1790113030,
           "rev": "c62cbb3100217212b297adf1d5dc23fb3b1d760b",
           "toplevel": "/nix/store/v6nn91d0a4zqjnfzlnmw09paqycjj509-nixos-system-maranello-26.11.20260919.20b1ddd"
@@ -896,11 +901,6 @@
           "at": 1788052586,
           "rev": "9342f89f04c01a2280224b60e158c47942e46653",
           "toplevel": "/nix/store/rrgzaapknq0ibgbmysja7hggh6l04j35-nixos-system-maranello-26.11.20260823.56c02bc"
-        },
-        {
-          "at": 1788039904,
-          "rev": "675c3db4f65c2004fffa7f3f255cb325cde31605",
-          "toplevel": "/nix/store/p2lhn60p0szkxk3phvi9fsgwj0wcw10q-nixos-system-maranello-26.11.20260823.56c02bc"
         }
       ]
     },
@@ -1036,6 +1036,11 @@
     "sdrhub": {
       "history": [
         {
+          "at": 1790113378,
+          "rev": "64c6427f580a73445a91b848a7d7c387bf311937",
+          "toplevel": "/nix/store/hc6gp6y48wq2girhv5w9xw6mlhp4wa55-nixos-system-sdrhub-26.05.20260918.cf9d2fb"
+        },
+        {
           "at": 1789845388,
           "rev": "1c59500b06c07178bb7c0c761fa92c2b4a1230c8",
           "toplevel": "/nix/store/6pwd8hsbhxfglddk5asy76alnrvyydy6-nixos-system-sdrhub-26.05.20260918.cf9d2fb"
@@ -1154,11 +1159,6 @@
           "at": 1789295304,
           "rev": "e4f62aa67cb70a16b6cc967216e9860e00754c06",
           "toplevel": "/nix/store/64pvrkbwgsgdky4avl71fsl0i3lhwgx4-nixos-system-sdrhub-26.05.20260905.6713828"
-        },
-        {
-          "at": 1788688822,
-          "rev": "77f3bab2f7cbb4b92a1deb4bbd05e135e06b2f81",
-          "toplevel": "/nix/store/0685l0gv61p8688kqj6n2w48ad92z726-nixos-system-sdrhub-26.05.20260905.6713828"
         }
       ]
     },
@@ -1292,6 +1292,6 @@
       ]
     }
   },
-  "rev": "c62cbb3100217212b297adf1d5dc23fb3b1d760b",
+  "rev": "64c6427f580a73445a91b848a7d7c387bf311937",
   "schema": 1
 }
