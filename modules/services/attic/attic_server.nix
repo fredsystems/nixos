@@ -57,6 +57,20 @@
     };
   };
 
+  # Hold this host back from a live `switch` whenever atticd itself changes.
+  #
+  # atticd is the binary cache the whole fleet substitutes from, including the
+  # machine running `colmena apply`. Restarting it during activation while
+  # closures for seven other nodes are being fetched fails those fetches --
+  # and the node being deployed at that moment is the one that took the cache
+  # down, so the failure looks like an unrelated network fault.
+  #
+  # Declared here rather than by hostname in the deploy script so that moving
+  # atticd to another host moves this with it. See
+  # modules/base/deployment-meta.nix for the mechanism.
+  deployment.criticalUnits."atticd.service" =
+    "the binary cache every other node's deploy substitutes from";
+
   services.atticd = {
     enable = true;
 

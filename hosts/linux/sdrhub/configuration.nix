@@ -742,6 +742,23 @@ in
     };
   };
 
+  # Hold this host back from a live `switch` whenever the DNS chain changes.
+  #
+  # AdGuard answers :53 for the entire LAN and Unbound is its only upstream,
+  # so a restart of either takes name resolution away from every other host
+  # -- including the machine running `colmena apply`, whose remaining SSH
+  # connections resolve `<node>.local` and `fredclausen.com` through it. A
+  # deploy that bounces DNS mid-run therefore breaks the deploys that have not
+  # happened yet, and the failures surface on innocent nodes.
+  #
+  # Declared here rather than by hostname in the deploy script so that moving
+  # DNS to another host moves this with it. See
+  # modules/base/deployment-meta.nix for the mechanism.
+  deployment.criticalUnits = {
+    "adguardhome.service" = "the LAN's DNS server on :53";
+    "unbound.service" = "AdGuard's only upstream resolver";
+  };
+
   services = {
     ###########################################
     # Unbound DNS Resolver

@@ -53,6 +53,53 @@ in
       '';
     };
 
+    criticalUnits = lib.mkOption {
+      type = lib.types.attrsOf lib.types.str;
+      default = { };
+      example = lib.literalExpression ''
+        {
+          "atticd.service" = "the binary cache every other node substitutes from";
+        }
+      '';
+      description = ''
+        systemd units on this node that must not be bounced as a side effect
+        of a routine deploy. Keys are unit names; values are the reason,
+        which is what scripts/colmena-apply-drifted.sh prints when it holds
+        the node back.
+
+        ## What this changes
+
+        colmena-apply-drifted.sh compares each listed unit's unit-file store
+        path on the running node against the one the target closure
+        evaluates to. A change there is exactly what makes
+        switch-to-configuration restart the unit, so it is a decision rather
+        than a guess. Any node with such a change is deployed with the
+        `boot` goal -- closure staged and bootloader updated, nothing
+        activated -- instead of `switch`, and the restart happens at a
+        reboot you choose (`--reboot`) rather than mid-run.
+
+        ## Why it is declared here and not in the script
+
+        The hazard is fleet-wide, not host-local, and both known instances
+        are single points of failure for OTHER nodes' deploys:
+
+          * atticd is the binary cache. Restarting it while colmena is
+            substituting closures for seven other nodes fails those builds.
+          * AdGuard/Unbound are the LAN's DNS. Restarting them mid-run
+            breaks name resolution for every subsequent SSH the deploy makes.
+
+        Naming the hosts in the script would encode where those services
+        happen to live today. Declaring it next to the service definition
+        means moving atticd to another host moves the protection with it,
+        with no script edit and nothing to forget.
+
+        ## Scope
+
+        Linux only -- the assertion below and the whole mechanism are
+        systemd-specific, and this module is also imported on Darwin.
+      '';
+    };
+
     tailscaleAddress = lib.mkOption {
       type = lib.types.nullOr lib.types.str;
       default = null;
@@ -114,6 +161,13 @@ in
             assertion = cfg.internetFacing -> cfg.tailscaleAddress != null;
             message = "deployment.internetFacing requires deployment.tailscaleAddress to be set.";
           }
+          {
+            assertion = isDarwin -> cfg.criticalUnits == { };
+            message = ''
+              deployment.criticalUnits is systemd-specific and does nothing on Darwin.
+              Declared here: ${lib.concatStringsSep ", " (lib.attrNames cfg.criticalUnits)}
+            '';
+          }
         ];
 
         # Unlike the assertion above, a missing scrapeAddress does not break
@@ -143,6 +197,26 @@ in
         '';
       }
     ]
+    ++ lib.optional (!isDarwin) {
+      # Every declared critical unit must actually exist on this node.
+      #
+      # A typo -- "adguard.service" for "adguardhome.service", say -- would
+      # otherwise be silently inert: colmena-apply-drifted.sh would find no
+      # unit-file path to compare, conclude nothing critical changed, and
+      # switch the node live. That is a protection that reports itself as
+      # working while protecting nothing, which is worse than not having it.
+      #
+      # Failing evaluation is the right severity because the manifest, CI and
+      # the deploy script all evaluate these configurations, so a typo cannot
+      # reach a deploy.
+      assertions = lib.mapAttrsToList (unit: _: {
+        assertion = config.systemd.units ? ${unit};
+        message = ''
+          deployment.criticalUnits names "${unit}", which is not a unit on this host.
+          Check the spelling and that the service defining it is actually enabled here.
+        '';
+      }) cfg.criticalUnits;
+    }
     ++
       lib.optional (!isDarwin)
         # Detect a stale deployment.tailscaleAddress.
