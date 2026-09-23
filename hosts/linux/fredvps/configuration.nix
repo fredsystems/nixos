@@ -96,7 +96,7 @@ let
   # assertion below enforcing that). The risk is a port some remote party
   # still dials out of habit after we stopped serving it. This host has real
   # history there: :30005 and :7007 were publicly reachable for months and had
-  # actual clients, and the home Comcast address had to be added to ignoreIP
+  # actual clients, and the home public address had to be added to ignoreIP
   # after a live test banned it. So a formerly-public port is exactly the wrong
   # thing to put in this list, and every entry below is a port this host has
   # never served.
@@ -939,7 +939,8 @@ in
       # Tailscale management path or ban sdrhub's monitoring, which probes
       # every vhost on a schedule.
       #
-      # 73.26.160.99 is the home Comcast address. It is listed because a live
+      # shared.homePublicIPv4 is the home public address, currently an Ezee
+      # Fiber residential assignment. It is listed because a live
       # test of the nginx-probe jail banned it within seconds -- three
       # deliberate requests to /.env from a workstation behind that address
       # were enough. The ADS-B feeds themselves now run over Tailscale and
@@ -951,8 +952,8 @@ in
       # NOT FAIL SAFE, in either direction, and this comment previously claimed
       # it did.
       #
-      # If Comcast moves us, the entry stops protecting the address we actually
-      # use and any jail can then ban home. If Comcast hands 73.26.160.99 to
+      # If the ISP moves us, the entry stops protecting the address we actually
+      # use and any jail can then ban home. If the ISP hands the old address to
       # someone else, the entry whitelists a stranger across EVERY jail here --
       # sshd, nginx-probe, nginx-bad-request, recidive. The second case is the
       # nastier one, because nothing about it is visible from this host.

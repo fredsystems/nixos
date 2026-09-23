@@ -12,7 +12,7 @@ groups:
   #   * The address we now use is unprotected, so ordinary interactive traffic
   #     from home can lock itself out of every vhost and out of sshd on 2269
   #     simultaneously.
-  #   * The address we vacated stays whitelisted, so whoever Comcast hands it to
+  #   * The address we vacated stays whitelisted, so whoever the ISP hands it to
   #     next is exempt from every jail on the only internet-facing host in the
   #     fleet -- sshd, nginx-probe, nginx-bad-request, recidive.
   #

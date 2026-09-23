@@ -15,10 +15,11 @@ in
   # fredvps's fail2ban ignoreIP list contains the home address, and its decoy
   # jails run maxretry = 1. A single SYN to any of the 27 watched ports from an
   # address not on that list is an immediate host-wide DROP ban that escalates
-  # to a week on repeat. Comcast rotates residential addresses, so the day the
-  # address changes, that list silently stops protecting us -- and the reverse
-  # is worse: the address we vacate gets handed to a stranger who is then
-  # whitelisted across every jail on the internet-facing host.
+  # to a week on repeat. The ISP can rotate the residential address at any
+  # time, so the day the address changes, that list silently stops protecting
+  # us -- and the reverse is worse: the address we vacate gets handed to a
+  # stranger who is then whitelisted across every jail on the internet-facing
+  # host.
   #
   # Neither failure is visible from fredvps. This makes it visible.
   #

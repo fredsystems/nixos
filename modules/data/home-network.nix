@@ -25,11 +25,13 @@
   #
   # COST OF LIVING HERE
   #
-  # This is imported by mk-system.nix, so it is in every host's module set and
-  # `modules/` matches CI's broad rebuild pattern. Changing the address triggers
-  # a full-fleet rebuild. That is the right trade for a value that moves every
-  # few months and whose staleness is an outage: cheap to change, expensive to
-  # get wrong.
+  # This is imported by mk-system.nix, so the option is in every host's module
+  # set, but only fredvps and sdrhub actually read it. CI decides impact from a
+  # real per-host derivation diff rather than from path patterns, so changing
+  # the address rebuilds exactly those two hosts and leaves the other eight
+  # untouched. Cheap to change, expensive to get wrong -- which is the right
+  # trade for a value that moves on the ISP's schedule rather than ours and
+  # whose staleness is an outage.
   options.shared.homePublicIPv4 = lib.mkOption {
     # strMatching rather than plain str, so a typo is an eval error rather than
     # a silently non-matching ignoreIP entry -- which would look exactly like
@@ -44,13 +46,14 @@
         octet = "(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])";
       in
       lib.types.strMatching "^${octet}(\\.${octet}){3}$";
-    default = "73.26.160.99";
+    default = "168.93.60.23";
     description = ''
       Current public IPv4 address of the home network, as observed by an
       off-site host.
 
-      This is a Comcast residential address and therefore rotates. Two things
-      depend on it being accurate:
+      This is an Ezee Fiber residential address (168.93.0.0/18) and is not
+      guaranteed stable, so treat it as rotating until proven otherwise. Two
+      things depend on it being accurate:
 
         * fredvps's fail2ban ignoreIP list. The decoy jails run maxretry = 1,
           so a single SYN to any watched port from an address not on that list
