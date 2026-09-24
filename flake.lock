@@ -696,11 +696,11 @@
         "rust-overlay": "rust-overlay_7"
       },
       "locked": {
-        "lastModified": 1789988195,
-        "narHash": "sha256-Igu/6lMeFH09e/ac6L8xKnhZ6NuSbpw+rbmx8T2AU+E=",
+        "lastModified": 1790151420,
+        "narHash": "sha256-VKUBX/UUZfALZudf+ypG/QTcdpbmNNf5N05i/7geTPo=",
         "owner": "feschber",
         "repo": "lan-mouse",
-        "rev": "7441c081b2276917bad1f04130c9e4fab091a4f6",
+        "rev": "2789a465163ec32016929e7f392d663169ef7b69",
         "type": "github"
       },
       "original": {
