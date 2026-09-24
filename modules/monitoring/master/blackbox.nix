@@ -165,16 +165,45 @@ let
     "https://jellyfin.int.fredsystems.org/" # -> fredhub 192.168.31.14:8096
     "https://karma.int.fredsystems.org/" # -> 127.0.0.1 (karma.nix)
 
-    # Synology DSM on the NAS. Verified 200 on `/` over both :5000 and :5001,
-    # so there is no redirect to follow -- this job's module follows them
-    # regardless, for dump978's sake.
+    # ── nas: TEMPORARILY REMOVED 2026-09-23 ─────────────────────────────
     #
-    # This one earns its probe for a reason the others do not have: its upstream
-    # is the only service behind this nginx that is NOT managed by this flake. A
-    # DSM update that moves a port, or an admin toggle that turns off the HTTPS
-    # listener, changes the proxy target with no commit in this repository to
-    # review and no `up` metric to drop. Nothing else here would report it.
-    "https://nas.int.fredsystems.org/" # -> NAS 192.168.31.16:5001 (DSM, TLS upstream)
+    # The Synology RackStation at 192.168.31.16 is dead -- hardware, not a
+    # service fault -- so this probe had been firing BlackboxProbeFailed
+    # (critical) continuously. To restore it once a replacement NAS is
+    # serving DSM over TLS at that address, re-add:
+    #
+    #   "https://nas.int.fredsystems.org/" # -> NAS 192.168.31.16:5001
+    #
+    # and re-verify 200 on `/` before doing so, per the "never add an
+    # unverified target" rule above.
+    #
+    # WHY THE TARGET IS REMOVED RATHER THAN SILENCED
+    #
+    # A target list has no `enabled = false`; leaving the URL here and
+    # muting it in Alertmanager or exempting it in blackbox-alerts.yaml
+    # would both leave a permanently-red probe_success = 0 series behind,
+    # which is the failure mode this file argues against everywhere else --
+    # a red that everyone learns to ignore is worse than no signal.
+    #
+    # WHAT IS LOST IN THE MEANTIME
+    #
+    # This target earned its probe for a reason none of the others have:
+    # its upstream is the only service behind this nginx NOT managed by
+    # this flake. A DSM update that moves a port, or an admin toggle that
+    # turns off the HTTPS listener, changes the proxy target with no commit
+    # in this repository to review and no `up` metric to drop -- nothing
+    # else here would report it. That gap is reopened for as long as this
+    # target stays out, so restoring it is part of bringing the replacement
+    # online, not an optional follow-up.
+    #
+    # No certificate coverage is lost: this job is `-secondary`, so the
+    # int.fredsystems.org wildcard's expiry alerting is carried by
+    # blackbox-https-internal-authed, not by this entry.
+    #
+    # The nas.int.fredsystems.org nginx vhost in
+    # hosts/linux/sdrhub/configuration.nix is deliberately left in place --
+    # it is the thing being restored to, and it costs nothing while the
+    # upstream is down.
 
     # AdGuard Home's admin UI, which answers 200 on / directly (verified from
     # sdrhub). Worth probing beyond the DNS probes above: those prove resolution
