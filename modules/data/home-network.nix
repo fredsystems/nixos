@@ -46,14 +46,17 @@
         octet = "(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])";
       in
       lib.types.strMatching "^${octet}(\\.${octet}){3}$";
-    default = "168.93.60.23";
+    default = "168.93.60.16";
     description = ''
       Current public IPv4 address of the home network, as observed by an
       off-site host.
 
-      This is an Ezee Fiber residential address (168.93.0.0/18) and is not
-      guaranteed stable, so treat it as rotating until proven otherwise. Two
-      things depend on it being accurate:
+      This is an Ezee Fiber residential address (168.93.0.0/18). It rotates:
+      the previous value, 168.93.60.23, lasted a matter of hours on
+      2026-09-23 -- the same day the ISP changed -- before drifting to the
+      current one. So this is not a "set it at install and forget it" value
+      on this ISP any more than it was on the last one. Two things depend on
+      it being accurate:
 
         * fredvps's fail2ban ignoreIP list. The decoy jails run maxretry = 1,
           so a single SYN to any watched port from an address not on that list
