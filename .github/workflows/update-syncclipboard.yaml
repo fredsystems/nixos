@@ -109,15 +109,31 @@ jobs:
           set -euo pipefail
 
           branch="update-syncclipboard-${NEW_VERSION}"
-          if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
-            echo "branch $branch already exists upstream; nothing to do"
+
+          # Ask "have I already filed this?", not "does a branch exist?".
+          # Those two diverge precisely when a step between `git push` and
+          # `gh pr create` fails: the branch is left behind with no PR
+          # attached, and a branch-existence guard would then report
+          # "nothing to do" -- exit 0, green -- on every subsequent run,
+          # so the bump would never be filed and the failure would be
+          # silent. Any PR for this branch (open, closed, or merged) means
+          # the workflow has done its job or a human has ruled on the bump,
+          # so a deliberately closed PR is not reopened daily. No PR means
+          # we still owe one, whether or not a branch is lying around.
+          existing="$(gh pr list --head "$branch" --state all --json number --jq '.[0].number // empty')"
+          if [ -n "$existing" ]; then
+            echo "PR #${existing} already exists for $branch; nothing to do"
             exit 0
           fi
 
           git checkout -b "$branch"
           git add overlays/syncclipboard.nix modules/data/docker-image-pins.nix
           git commit -m "chore(syncclipboard): update server and client to v${NEW_VERSION}"
-          git push -u origin "$branch"
+
+          # --force is reachable only when no PR exists for this branch, so
+          # there is nothing under review to clobber: either the branch is
+          # new, or it is the orphan left behind by an earlier partial run.
+          git push --force -u origin "$branch"
 
           gh pr create \
             --title "chore(syncclipboard): update server and client to v${NEW_VERSION}" \
@@ -138,5 +154,4 @@ jobs:
           could do the same.
           BODY
           )" \
-            --label dependencies \
-            --label automated
+            --label dependencies
