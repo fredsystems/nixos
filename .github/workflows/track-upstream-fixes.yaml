@@ -9,6 +9,15 @@ name: track-upstream-fixes
 # action to take. When the checker resolves an entry, this workflow opens (or
 # updates) a single sticky issue listing everything that is now ready to
 # "unfuck", so the config can be cleaned up.
+#
+# The sticky issue is fully driven by the checker in BOTH directions: when the
+# resolved set becomes empty again -- because every listed workaround has been
+# reverted and its manifest entry set `done: true` -- the issue is closed.
+# Without that, the issue is only ever written on the way up and silently
+# outlives the work it describes, which is what happened to #2161: the single
+# fwupd item it listed was reverted in 9d8ab1e4, the next run resolved nothing,
+# every step was skipped by the `count != 0` guard, and the issue sat open for
+# weeks advertising finished work.
 
 on:
   schedule:
@@ -67,6 +76,27 @@ jobs:
           echo "count=$count" >> "$GITHUB_OUTPUT"
           echo "Resolved $count tracked fix(es)." >&2
 
+      # Looked up unconditionally: both the open/update path and the close
+      # path need the same number, and resolving it once keeps the two
+      # branches from drifting apart.
+      - name: Find sticky issue
+        id: sticky
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          existing="$(gh issue list \
+            --repo "$REPO" \
+            --state open \
+            --search 'in:body "track-upstream-fixes:sticky"' \
+            --json number \
+            --jq '.[0].number' || true)"
+          if [[ "$existing" == "null" ]]; then
+            existing=""
+          fi
+          echo "number=$existing" >> "$GITHUB_OUTPUT"
+          echo "Sticky issue: ${existing:-none}" >&2
+
       - name: Build issue body
         if: steps.check.outputs.count != '0'
         env:
@@ -99,24 +129,49 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
+          EXISTING: ${{ steps.sticky.outputs.number }}
         run: |
           title="Upstream fix(es) landed - revert local workaround(s)"
           body_file="$RUNNER_TEMP/issue-body.md"
-          # Find an existing open sticky issue (idempotent: update rather than
-          # spam a new one each run).
-          existing="$(gh issue list \
-            --repo "$REPO" \
-            --state open \
-            --search 'in:body "track-upstream-fixes:sticky"' \
-            --json number \
-            --jq '.[0].number' || true)"
-
-          if [[ -n "$existing" && "$existing" != "null" ]]; then
-            echo "Updating existing tracking issue #$existing" >&2
-            gh issue edit "$existing" --repo "$REPO" \
+          # Idempotent: update the existing sticky issue rather than spamming
+          # a new one each run.
+          if [[ -n "$EXISTING" ]]; then
+            echo "Updating existing tracking issue #$EXISTING" >&2
+            gh issue edit "$EXISTING" --repo "$REPO" \
               --title "$title" --body-file "$body_file"
           else
             echo "Opening new tracking issue" >&2
             gh issue create --repo "$REPO" \
               --title "$title" --body-file "$body_file"
           fi
+
+      # The closing half of the sticky-issue lifecycle. Reaching zero resolved
+      # entries with an issue still open means every workaround it listed has
+      # been reverted, so the issue describes nothing outstanding. Comment
+      # before closing so the audit trail says why it closed rather than
+      # leaving a bare state change.
+      - name: Close tracking issue
+        if: >-
+          steps.check.outputs.count == '0'
+          && steps.sticky.outputs.number != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          EXISTING: ${{ steps.sticky.outputs.number }}
+        run: |
+          echo "Closing tracking issue #$EXISTING (nothing left to revert)" >&2
+          run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          {
+            echo "Every workaround this issue listed has been reverted and"
+            echo "its manifest entry in \`.github/tracked-upstream-fixes.json\`"
+            echo "set \`\"done\": true\`, so \`check-upstream-fixes.sh\` now"
+            echo "resolves zero entries. Closing automatically."
+            echo
+            echo "Run: $run_url"
+            echo
+            echo "A new sticky issue will be opened the next time an upstream"
+            echo "fix we are waiting on lands."
+          } > "$RUNNER_TEMP/close-comment.md"
+          gh issue comment "$EXISTING" --repo "$REPO" \
+            --body-file "$RUNNER_TEMP/close-comment.md"
+          gh issue close "$EXISTING" --repo "$REPO" --reason completed
