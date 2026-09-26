@@ -51,7 +51,7 @@
       # fredvps host
       fredSite = "ghcr.io/fredsystems/fred-site:latest-build-8@sha256:53659b897364c139dc504e6824ae999febdfe96616fbf306b8681a493510ed81";
       sdreImageApi = "ghcr.io/sdr-enthusiasts/sdre-image-api:latest-build-7@sha256:38df445fe37101648032e849a477ee3221ce8517cebd72983e21d9e1ba8dfbff";
-      tar1090 = "ghcr.io/sdr-enthusiasts/docker-tar1090:telegraf-build-1483@sha256:78d684af64b99d17b966579cf9ac5c23c36a29c8ee8aedcaba76665596dcb853";
+      tar1090 = "ghcr.io/sdr-enthusiasts/docker-tar1090:telegraf-build-1484@sha256:8304cdaed2642bc2c67c0d61308b2ec7537a17fbdd1d098d8a041442321dbe1c";
 
       # Shared verbatim: sdrhub + fredvps.
       acarsRouter = "ghcr.io/sdr-enthusiasts/acars_router:latest-build-589@sha256:3d1c6f8195dcf475fc82eeb51a6f63ef74152356dc1e68a0e9a5a65072e19177";
