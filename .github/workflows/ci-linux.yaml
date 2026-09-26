@@ -714,8 +714,15 @@ jobs:
 
           # --max-jobs 0: jq must only ever be substituted here, never
           # built locally -- see the cost-model note on this job above.
-          status="$(nix shell --max-jobs 0 --inputs-from . nixpkgs#jq --command ./scripts/diff-closures-comment.sh)"
-          rc=$?
+          #
+          # `|| rc=$?` rather than a bare assignment followed by `rc=$?`:
+          # GitHub runs `run:` blocks under `bash -e {0}`, which the
+          # `set -uo pipefail` above does not clear, and a simple assignment
+          # takes the exit status of its command substitution. A bare
+          # assignment would therefore abort the step and make the degrade
+          # path below dead code -- the opposite of what this guard is for.
+          rc=0
+          status="$(nix shell --max-jobs 0 --inputs-from . nixpkgs#jq --command ./scripts/diff-closures-comment.sh)" || rc=$?
 
           if [ "$rc" -ne 0 ] || [ -z "$status" ]; then
             echo "diff-closures-comment.sh exited abnormally (rc=$rc) -- treating as nothing to report"
