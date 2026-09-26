@@ -66,8 +66,18 @@ jobs:
         run: |
           set -uo pipefail
 
-          nix shell nixpkgs#skopeo nixpkgs#jq -c ./scripts/sync-syncclipboard.sh
-          rc=$?
+          # GitHub Actions runs `run:` blocks under `bash -e {0}`, and the
+          # `set -uo pipefail` above does not clear that inherited -e. A plain
+          # command is NOT exempt from it -- only the condition of an
+          # if/while/until is. sync-syncclipboard.sh exits 2 to mean "changed,
+          # not an error", and that must not abort this step before the case
+          # below translates it, so the invocation has to BE the `if`
+          # condition rather than a statement preceding `rc=$?`.
+          if nix shell nixpkgs#skopeo nixpkgs#jq -c ./scripts/sync-syncclipboard.sh; then
+            rc=0
+          else
+            rc=$?
+          fi
 
           # 0 = already correct, 2 = pins were updated, anything else = error.
           case "$rc" in
