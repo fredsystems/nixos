@@ -163,12 +163,35 @@ jobs:
           git commit -m "$title"
           git push origin "$branch" --force
 
-          gh pr create \
-            --title "$title" \
-            --body "$body" \
-            --base main \
-            --head "$branch" \
-          || echo "PR already open for this branch"
+          # Ask whether a PR exists rather than papering over `gh pr create`
+          # with `|| echo "PR already open"`. That `||` swallowed every
+          # failure mode -- a nonexistent label, an auth failure, an API
+          # outage -- and printed the same reassuring message regardless, so
+          # a version that had never been filed looked exactly like one that
+          # had, and the step stayed green either way. Branch names here are
+          # version- or date-stamped, so a persistent failure would skip that
+          # version silently and forever.
+          #
+          # The force-push above is unconditional, so if a PR does already
+          # exist its head is updated in place and there is nothing to do.
+          # `--state all` rather than `--state open`: a PR a human closed on
+          # purpose is a decision not to take this version, and should not be
+          # reopened every morning. Re-filing after a close is never needed
+          # here because the branch name embeds the version or the date.
+          existing="$(gh pr list --head "$branch" --state all --json number --jq '.[0].number // empty')"
+          if [ -n "$existing" ]; then
+            echo "PR #${existing} already exists for $branch; the force-push updated it in place."
+          else
+            gh pr create \
+              --title "$title" \
+              --body "$body" \
+              --base main \
+              --head "$branch"
+          fi
 
+          # This `||` stays. Unlike `gh pr create`, a failure here is benign
+          # and self-announcing: auto-merge may simply not be available yet,
+          # and the outcome is an open PR sitting in the queue for a human --
+          # visible, not silent.
           gh pr merge "$branch" --auto --squash \
           || echo "auto-merge not enabled or not mergeable yet; leaving PR for manual merge"
