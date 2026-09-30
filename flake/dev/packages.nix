@@ -101,21 +101,21 @@ in
 
           ##################################################################
           # 2. zhichaoh/catppuccin-wallpapers
-          #    Preserve the 11 category subdirs.  Drop repo metadata
-          #    files so only image content lands in the output.
+          #    Preserve the 11 category subdirs.  Repo metadata files
+          #    (.editorconfig, LICENSE, README.md) and Dolphin
+          #    ".comments/*.xml" sidecars are dropped by the global
+          #    non-image sweep in step 5.
           ##################################################################
           mkdir -p "$out_bg/catppuccin"
           cp -r ${walls-zhichaoh}/. "$out_bg/catppuccin/"
-          rm -f \
-            "$out_bg/catppuccin/.editorconfig" \
-            "$out_bg/catppuccin/LICENSE" \
-            "$out_bg/catppuccin/README.md"
 
           ##################################################################
           # 3. SleepyCatHey/CozyPixels — Catppuccin/ subtree only.
           #    The upstream subdirs use spaces and ampersands (e.g.
           #    "Anime & Gaming") which are awkward in shell paths.
           #    Rename to lowercase-with-hyphens during install.
+          #    Upstream also ships per-category README.md files; those
+          #    are dropped by the global non-image sweep in step 5.
           ##################################################################
           mkdir -p "$out_bg/cozypixels"
           cp -r "${walls-cozypixels}/Catppuccin/." "$out_bg/cozypixels/"
@@ -142,15 +142,6 @@ in
             | while IFS= read -r -d "" f; do
                 mv "$f" "''${f%.WEB}.webp"
               done
-          # Drop any non-image stragglers (e.g. Dolphin ".comments"
-          # metadata, hidden dotfiles) that may slip in from upstream.
-          find "$out_bg/cozypixels" -type f \
-            ! -iname '*.png' \
-            ! -iname '*.jpg' \
-            ! -iname '*.jpeg' \
-            ! -iname '*.webp' \
-            ! -iname '*.gif' \
-            -delete
 
           ##################################################################
           # 4. daylinmorgan/catppuccin-wallpapers release tarball.
@@ -166,24 +157,79 @@ in
               done
 
           ##################################################################
-          # 5. Flat mirror for the wayle wallpaper cycler.
+          # 5. Global non-image sweep.
+          #    Every upstream here is a human-curated wallpaper repo, so
+          #    each one ships some amount of non-image cruft: repo
+          #    metadata (README.md, LICENSE, .editorconfig,
+          #    .gitattributes), Dolphin ".comments/*.xml" sidecars, and
+          #    — as of CozyPixels e5eec737 — a per-category README.md in
+          #    every Catppuccin/ subdir.  Sweeping ONCE over the whole
+          #    tree, after all four sources are laid out, is the only way
+          #    to keep that cruft out of the output without a
+          #    hand-maintained deny-list per source that silently goes
+          #    stale on the next input bump.
+          #
+          #    Must run AFTER step 3's ".WEB" -> ".webp" rename and AFTER
+          #    step 4's gunzip, or it would delete those files instead of
+          #    keeping the images they become.
+          ##################################################################
+          # Files copied out of a store path are read-only, and so are
+          # the directories cp created to hold them; make the whole tree
+          # writable so the sweep can unlink nested entries.  Nix
+          # canonicalises store output permissions afterwards, so this
+          # does not leak into the result.
+          chmod -R u+w "$out_bg"
+          find "$out_bg" -type f \
+            ! -iname '*.png' \
+            ! -iname '*.jpg' \
+            ! -iname '*.jpeg' \
+            ! -iname '*.webp' \
+            ! -iname '*.gif' \
+            -delete
+          # Remove directories left empty by the sweep (e.g. the
+          # ".comments" sidecar dirs).  -delete implies -depth, so nested
+          # empties are pruned bottom-up in one pass.
+          find "$out_bg" -mindepth 1 -type d -empty -delete
+
+          ##################################################################
+          # 6. Flat mirror for the wayle wallpaper cycler.
           #    wayle scans its cycling-directory non-recursively, so it
           #    cannot see images nested under the source-attributed subdirs
           #    above.  Copy every image into one flat directory with a
-          #    collision-safe name derived from its path relative to
-          #    backgrounds/ (slashes -> hyphens).  e.g.
+          #    name derived from its path relative to backgrounds/
+          #    (slashes -> hyphens).  e.g.
           #      catppuccin/waves/foo.png -> catppuccin-waves-foo.png
+          #
+          #    That mapping is NOT injective -- "a/b-c.png" and
+          #    "a-b/c.png" both flatten to "a-b-c.png" -- and cp
+          #    overwrites silently, so a colliding pair would drop a
+          #    wallpaper with no signal at all.  Assert the counts match
+          #    instead.  No collisions exist today (1247/1247); this
+          #    exists to fail the build rather than lose an image on
+          #    some future input bump.
+          #
+          #    Step 5 already removed every non-image, so this can copy
+          #    plain -type f rather than repeat the extension allowlist.
           ##################################################################
           out_flat="$out/share/backgrounds-flat"
           mkdir -p "$out_flat"
-          find "$out_bg" -type f \
-            \( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' \
-               -o -iname '*.webp' -o -iname '*.gif' \) -print0 \
+          find "$out_bg" -type f -print0 \
             | while IFS= read -r -d "" img; do
                 rel="''${img#"$out_bg"/}"
                 flat="''${rel//\//-}"
                 cp "$img" "$out_flat/$flat"
               done
+
+          n_src="$(find "$out_bg" -type f -printf 'x' | wc -c)"
+          n_flat="$(find "$out_flat" -type f -printf 'x' | wc -c)"
+          if [ "$n_src" -ne "$n_flat" ]; then
+            echo "ERROR: flat mirror lost $((n_src - n_flat)) image(s)." >&2
+            echo "  $n_src under backgrounds/, $n_flat in backgrounds-flat/." >&2
+            echo "  Two source paths flattened to the same name and one" >&2
+            echo "  overwrote the other.  Rename the offending upstream" >&2
+            echo "  directory in its install step above." >&2
+            exit 1
+          fi
 
           runHook postInstall
         '';
