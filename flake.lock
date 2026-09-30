@@ -1637,11 +1637,11 @@
     "walls-cozypixels": {
       "flake": false,
       "locked": {
-        "lastModified": 1772560259,
-        "narHash": "sha256-xbDUXJ/EpLc7fipKg92NM9t2j8lRulre6ja9EjubndI=",
+        "lastModified": 1790695150,
+        "narHash": "sha256-fkZxLR0iF0dVYgKGTsl42MDTiO1UJPkwsmu/9piJoGc=",
         "owner": "SleepyCatHey",
         "repo": "CozyPixels",
-        "rev": "a6063c135e16d66f24e0f5bb4146247cc7904cd1",
+        "rev": "e5eec73772ee690fccbbf279cf5a2dff15887bda",
         "type": "github"
       },
       "original": {
