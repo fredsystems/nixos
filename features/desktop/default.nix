@@ -79,13 +79,7 @@ in
       ghostty.enable = true;
       githubdesktop.enable = true;
       kitty.enable = true;
-      # FIXME(nixpkgs-ladybird-cve-2026-58592): see
-      # .github/tracked-upstream-fixes.json. nixpkgs marks
-      # ladybird-0-unstable-2026-06-05 insecure, which is a hard eval failure
-      # on both desktops. Disabled rather than added to
-      # permittedInsecurePackages: this is a browser, so the CVE is directly
-      # reachable by untrusted input.
-      ladybird.enable = false;
+      ladybird.enable = true;
       # No `lan-mouse.enable` line here on purpose, unlike every other entry
       # in this block. It pairs one specific machine with one specific peer
       # sitting at one specific edge of that machine's monitor layout, so
