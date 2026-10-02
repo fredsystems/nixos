@@ -83,7 +83,7 @@
       acars2posAlt = "ghcr.io/rpatel3001/docker-acars2pos:latest-build-32@sha256:79eef9eaaa123f79a350e466452d577e71a6f11cedebad59ff91ebf97a6b6ea8"; # inactive (commented-out alternative)
       acars2pos = "ghcr.io/fredclausen/docker-acars2pos:latest-build-3@sha256:320fc96ab5b1698f7ce881b0af2fe6efe2cdd9385f4bc508b5080574b934132d";
       degoog = "ghcr.io/fccview/degoog:0.24.0@sha256:79409f76137734baa0516a58def96e4d3842f6db26d813e75365dea8a00974e9";
-      syncclipboard = "jericx/syncclipboard-server:v3.3.0@sha256:fb6f65aa8bd4804346c54d588f5c81ba970a5505a09dbe11fce60f3bf6d02bb3";
+      syncclipboard = "jericx/syncclipboard-server:v3.3.1@sha256:0d5db11ddcb8d6d7f88c8419a73101ad29298f08114d5a1f75503a81a194e3e5";
     };
     description = "Every container image this fleet runs, keyed by logical name. See the module header for why every image is here, not just the ones shared across hosts.";
   };
