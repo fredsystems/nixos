@@ -1,8 +1,13 @@
 {
-  "generated_at": 1791179340,
+  "generated_at": 1791210121,
   "hosts": {
     "Daytona": {
       "history": [
+        {
+          "at": 1791210121,
+          "rev": "e0ec6bed9eb900d156670b22af86addb36c51692",
+          "toplevel": "/nix/store/gpqclxwi6x2z4w6a3xsm4xncq25sfiz9-nixos-system-Daytona-26.11.20261001.c59305b"
+        },
         {
           "at": 1791050042,
           "rev": "ae01505590d79d13a1a0adfe2afa1bace5e1c4de",
@@ -122,11 +127,6 @@
           "at": 1789844247,
           "rev": "85be7727eef809ab8bd477cfffeb61063e2fcca5",
           "toplevel": "/nix/store/rsbaanwki3i6rd4731skpznji6xss5hv-nixos-system-Daytona-26.11.20260917.e554fab"
-        },
-        {
-          "at": 1789844120,
-          "rev": "08478b44ace6b7af76d06e7b7f5ba5fb96ad166f",
-          "toplevel": "/nix/store/chka5ri7acjrmsmqqim4zzsk20afvzsd-nixos-system-Daytona-26.11.20260917.e554fab"
         }
       ]
     },
@@ -778,6 +778,11 @@
     "maranello": {
       "history": [
         {
+          "at": 1791210121,
+          "rev": "e0ec6bed9eb900d156670b22af86addb36c51692",
+          "toplevel": "/nix/store/81si4l22m28abm28z0bfxzcrq0674y94-nixos-system-maranello-26.11.20261001.c59305b"
+        },
+        {
           "at": 1791050042,
           "rev": "ae01505590d79d13a1a0adfe2afa1bace5e1c4de",
           "toplevel": "/nix/store/vc6199i64rz48d010p90i0qyb66jzlmf-nixos-system-maranello-26.11.20261001.c59305b"
@@ -896,11 +901,6 @@
           "at": 1789844247,
           "rev": "85be7727eef809ab8bd477cfffeb61063e2fcca5",
           "toplevel": "/nix/store/nwwsxkkn715rsrnblxk4kgh0ba5ks78q-nixos-system-maranello-26.11.20260917.e554fab"
-        },
-        {
-          "at": 1789844120,
-          "rev": "08478b44ace6b7af76d06e7b7f5ba5fb96ad166f",
-          "toplevel": "/nix/store/qkcsqw5zika63cngdl87wnis6a302052-nixos-system-maranello-26.11.20260917.e554fab"
         }
       ]
     },
@@ -1292,6 +1292,6 @@
       ]
     }
   },
-  "rev": "fd3107a3ae096ef782a9d519be23bafb6b8742f1",
+  "rev": "e0ec6bed9eb900d156670b22af86addb36c51692",
   "schema": 1
 }
