@@ -78,7 +78,7 @@
       radarvirtuel = "ghcr.io/sdr-enthusiasts/docker-radarvirtuel:latest-build-804@sha256:ed1457e9f096b574cfe8e4a4a0e5a2af180aa23fc01d1224b81643f490cdf63d";
       airnavradar = "ghcr.io/sdr-enthusiasts/docker-airnavradar:latest-build-886@sha256:55a6cb84b78ce85924e407006dcf4d460f101e1689affcab50de407c89e963bb";
       openskyNetwork = "ghcr.io/sdr-enthusiasts/docker-opensky-network:latest-build-848@sha256:05b949ea8af0f1cd27195682cd680df1ea9420ce6e7f7f7cdeb33c057fa0e370";
-      sdrmap = "ghcr.io/sdr-enthusiasts/docker-sdrmap:latest-build-102@sha256:e0b8537a185fd0c7b7fd5de145e031a5c74a96895bb8bcb07ad7a6e64188fa8e";
+      sdrmap = "ghcr.io/sdr-enthusiasts/docker-sdrmap:latest-build-103@sha256:c09de2e1877277d2dcba6d8b15cfd682828f7d667c21436fba5bab42e4724f2d";
       acarshubV4 = "ghcr.io/sdr-enthusiasts/docker-acarshub:v4-latest-build-72@sha256:44e2e8f29e456dcc3d9316dab2b8169c6b5f4b46885eb307673790d970908e5b";
       acars2posAlt = "ghcr.io/rpatel3001/docker-acars2pos:latest-build-32@sha256:79eef9eaaa123f79a350e466452d577e71a6f11cedebad59ff91ebf97a6b6ea8"; # inactive (commented-out alternative)
       acars2pos = "ghcr.io/fredclausen/docker-acars2pos:latest-build-3@sha256:320fc96ab5b1698f7ce881b0af2fe6efe2cdd9385f4bc508b5080574b934132d";
