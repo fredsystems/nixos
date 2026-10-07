@@ -1,5 +1,5 @@
 {
-  "generated_at": 1791405819,
+  "generated_at": 1791405962,
   "hosts": {
     "Daytona": {
       "history": [
@@ -391,6 +391,11 @@
     "fredvps": {
       "history": [
         {
+          "at": 1791405962,
+          "rev": "68615852aca3a5bc1c76d08c3f672787015acb2e",
+          "toplevel": "/nix/store/vm89argyy35rrwrb2lnb5rj09i63j1vj-nixos-system-fredvps-26.05.20261007.2efa67f"
+        },
+        {
           "at": 1791400374,
           "rev": "713b61ede62952b7ff5a9d36819110fd279532cf",
           "toplevel": "/nix/store/kbrn6gsys1m4cd77w1d5cy9s8xmlr3bn-nixos-system-fredvps-26.05.20261007.2efa67f"
@@ -509,11 +514,6 @@
           "at": 1789844247,
           "rev": "85be7727eef809ab8bd477cfffeb61063e2fcca5",
           "toplevel": "/nix/store/x4wiz1blrknnhwj6qjqvib99ak78v7sm-nixos-system-fredvps-26.05.20260918.cf9d2fb"
-        },
-        {
-          "at": 1789842908,
-          "rev": "77885f5dc88f3b21904d233da65c8529df404a30",
-          "toplevel": "/nix/store/78digvkdbk7cvmf21whawgj9s8w74378-nixos-system-fredvps-26.05.20260918.cf9d2fb"
         }
       ]
     },
@@ -1036,6 +1036,11 @@
     "sdrhub": {
       "history": [
         {
+          "at": 1791405962,
+          "rev": "68615852aca3a5bc1c76d08c3f672787015acb2e",
+          "toplevel": "/nix/store/95kxh82i6naf6llhd045ikrjvqdziscq-nixos-system-sdrhub-26.05.20261007.2efa67f"
+        },
+        {
           "at": 1791405819,
           "rev": "b7e99650a475b33e4e1866153d50af9c0dc3f680",
           "toplevel": "/nix/store/6zggpn5fk8x85mrabpbnn8vjf4kg0imn-nixos-system-sdrhub-26.05.20261007.2efa67f"
@@ -1154,11 +1159,6 @@
           "at": 1790454077,
           "rev": "532da4a1dbeb31358a956fccbac303715d7fc72d",
           "toplevel": "/nix/store/s0nh16qbrpzwzp5nlrjijzycwwzp1m87-nixos-system-sdrhub-26.05.20260925.f5c082a"
-        },
-        {
-          "at": 1790453939,
-          "rev": "267a9221f681b56399640f9d9659898344ceac67",
-          "toplevel": "/nix/store/fglksv7yvnvdci865s3w7h8pd9y5bal1-nixos-system-sdrhub-26.05.20260925.f5c082a"
         }
       ]
     },
@@ -1292,6 +1292,6 @@
       ]
     }
   },
-  "rev": "b7e99650a475b33e4e1866153d50af9c0dc3f680",
+  "rev": "68615852aca3a5bc1c76d08c3f672787015acb2e",
   "schema": 1
 }
