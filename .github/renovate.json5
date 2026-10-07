@@ -150,6 +150,12 @@
     {
       matchDatasources: ["docker"],
       versioning: "regex:^(trixie-)?latest-build-(?<major>\\d+)?$",
+      matchPackageNames: ["ghcr.io/fredclausen/{/,}**"],
+      automerge: true,
+    },
+    {
+      matchDatasources: ["docker"],
+      versioning: "regex:^(trixie-)?latest-build-(?<major>\\d+)?$",
       matchPackageNames: ["ghcr.io/rpatel3001/{/,}**"],
       automerge: true,
     },
