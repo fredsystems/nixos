@@ -23,7 +23,7 @@ in
           "$schema" = "https://starship.rs/config-schema.json";
 
           format = ''
-            [](surface0)$os$username[](bg:sapphire fg:surface0)$hostname[](bg:peach fg:sapphire)$directory[](fg:peach bg:green)$git_branch$git_status[](fg:green bg:teal)$c$rust$golang$nodejs$php$java$kotlin$haskell$python[](fg:teal bg:blue)$docker_context[](fg:blue bg:purple)$time[ ](fg:purple)$line_break$character
+            [](surface0)$os$shell$username[](bg:sapphire fg:surface0)$hostname[](bg:peach fg:sapphire)$directory[](fg:peach bg:green)$git_branch$git_status[](fg:green bg:teal)$c$rust$golang$nodejs$php$java$kotlin$haskell$python[](fg:teal bg:blue)$docker_context[](fg:blue bg:purple)$time[ ](fg:purple)$line_break$character
           '';
 
           palette = "catppuccin_mocha";
@@ -97,6 +97,21 @@ in
               Redhat = "󱄛";
               RedHatEnterprise = "󱄛";
             };
+          };
+
+          # Glyphs are from Nerd Fonts 3.5.0 (Caskaydia Cove). Nushell has no
+          # dedicated logo glyph, so it uses a generic console-prompt icon.
+          shell = {
+            disabled = false;
+            style = "bold bg:surface0 fg:yellow";
+            format = "[$indicator ]($style)";
+            bash_indicator = ""; # nf-dev-bash
+            zsh_indicator = ""; # nf-dev-zsh
+            fish_indicator = "󰈺"; # nf-md-fish
+            nu_indicator = "󰞷"; # nf-md-console_line
+            powershell_indicator = ""; # nf-dev-powershell
+            cmd_indicator = ""; # nf-cod-terminal_cmd
+            unknown_indicator = ""; # nf-dev-terminal
           };
 
           username = {
