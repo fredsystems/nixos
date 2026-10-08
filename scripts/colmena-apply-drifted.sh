@@ -50,8 +50,9 @@
 #
 # PER-NODE GOALS: WHY THERE ARE TWO DEPLOY PHASES
 #
-# Two independent hazards below (PID 1 freeze, critical-unit restart) make a
-# live `switch` unsafe for SOME nodes in a run, not all of them. A single
+# Three independent reasons below (systemd changes, kernel changes, critical-
+# unit restart) make a live `switch` wrong for SOME nodes in a run, not all of
+# them. A single
 # `colmena apply` takes one goal for every target, so the only way to respect
 # a per-node verdict is to invoke colmena twice:
 #
@@ -69,22 +70,53 @@
 # phase 2; running it second would mean a phase-2 failure left the risky nodes
 # with nothing staged at all.
 #
-# THE PID 1 FREEZE HAZARD
+# SYSTEMD CHANGES: NEVER RE-EXEC PID 1 ON A REMOTE NODE
 #
-# A `switch` that re-execs PID 1 while the node has network filesystems mounted
-# can leave systemd frozen -- alive but deaf to D-Bus, so nothing starts or
-# stops and `reboot` hangs too, because reboot is itself a D-Bus call to PID 1.
-# The mechanism is NixOS/nixpkgs#375376: on re-exec PID 1 re-runs its
-# generators, systemd-fstab-generator stat()s every fstab entry, a `hard` NFS
-# mount whose server is unreachable blocks forever, the generator sandbox times
-# out after 90s, and PID 1 gives up and freezes.
+# A deploy that changes systemd's own package -- the PID 1 binary, not any
+# unit -- is staged with `boot`, unconditionally. Unit changes are not part of
+# this rule; they are routine and handled by activation (and, for the few that
+# matter to other nodes, by the critical-unit check below).
 #
-# The probe below collects both preconditions per node while it is already
-# connected: whether the deploy changes systemd's store path (which is what
-# triggers the re-exec, and which a glibc/stdenv mass rebuild causes even at an
-# unchanged systemd version), and whether the node has live NFS/CIFS mounts.
-# Nodes with both are held back rather than warned about, because recovering a
-# frozen remote node means physically visiting it.
+# The reason is that `switch` answers a systemd change by re-execing PID 1 in
+# place, and a failed re-exec leaves systemd frozen -- alive but deaf to D-Bus,
+# so nothing starts or stops and `reboot` hangs too, because reboot is itself a
+# D-Bus call to PID 1. Recovering a frozen remote node means physically
+# visiting it. The known mechanism is NixOS/nixpkgs#375376: on re-exec PID 1
+# re-runs its generators, systemd-fstab-generator stat()s every fstab entry, a
+# `hard` NFS mount whose server is unreachable blocks forever, the generator
+# sandbox times out after 90s, and PID 1 gives up and freezes.
+#
+# This used to hold a node back only when it ALSO had live NFS/CIFS mounts.
+# That second condition was both fragile and blind: it ran `findmnt -t nfs`,
+# which does not see an `x-systemd.automount` share that is currently idle
+# (findmnt reports it as `autofs`), so fredhub's /mnt/media -- still in fstab,
+# still visited by the generator -- read as "no network mounts" and a systemd
+# bump was switched live. A reboot reaches the new systemd with no re-exec at
+# all, so the rule is now simply: systemd moves, the node is staged.
+#
+# "Changes" means the store path, which a glibc/stdenv mass rebuild moves even
+# at an unchanged systemd version. That is deliberate: PID 1 re-execs either
+# way, so it is the same risk.
+#
+# THE KERNEL
+#
+# A kernel cannot be switched into at all; `switch` installs it, reports
+# success, and leaves the old one running -- so the node looks deployed while
+# the kernel bump (often the whole point of the deploy, given the kernel is
+# pinned to its own monthly cadence) is not live. The reboot is owed either
+# way, so a node whose kernel or module tree changes is staged with `boot` and
+# the reboot is made explicit rather than silently outstanding.
+#
+# The comparison is against /run/booted-system, not /run/current-system: the
+# question is "what is the kernel actually running", and an earlier plain
+# `switch` may already have moved current-system's kernel without a reboot.
+# Modules are included because they change on their own when an out-of-tree
+# module (nvrhub's NVIDIA driver) is rebuilt at the same kernel. What is
+# compared is the SET of module packages the tree is assembled from -- the
+# store references of /run/booted-system/kernel-modules -- not the tree's own
+# store path. The tree is a buildEnv + depmod wrapper, so a mass rebuild moves
+# its hash while every .ko inside stays byte-identical; comparing that hash
+# flagged six nodes as owing a reboot with nothing to boot into.
 #
 # THE CRITICAL-UNIT HAZARD
 #
@@ -108,11 +140,12 @@
 #
 # REBOOT MODE
 #
-# `--reboot` is the other half of the `boot` goal: it finds every node whose
-# system profile points somewhere other than /run/current-system -- the exact
-# signature of a staged-but-not-activated generation -- and reboots them one at
-# a time, waiting for each to come back on the new closure before touching the
-# next. Nodes with critical units go first, so the cache and DNS are settled
+# `--reboot` is the other half of the `boot` goal: it finds every node that
+# owes a reboot -- its system profile points somewhere other than
+# /run/current-system (a staged-but-not-activated generation), or the running
+# generation carries a kernel other than the one the node booted (a kernel that
+# was switched into live) -- and reboots them one at a time, waiting for each
+# to come back BOOTED into its profile before touching the next. Nodes with critical units go first, so the cache and DNS are settled
 # before anything else moves, and a node that fails to return aborts the rest
 # rather than taking more of the fleet down with it.
 #
@@ -124,7 +157,8 @@
 #   scripts/colmena-apply-drifted.sh --wait          # poll for the manifest
 #   scripts/colmena-apply-drifted.sh --force         # deploy despite the manifest guard
 #   scripts/colmena-apply-drifted.sh -- boot         # stage every node; reboot to apply
-#   scripts/colmena-apply-drifted.sh --allow-unsafe-switch     # ignore the freeze hazard
+#   scripts/colmena-apply-drifted.sh --allow-unsafe-switch     # switch despite a systemd change
+#   scripts/colmena-apply-drifted.sh --allow-kernel-switch     # switch despite a kernel change
 #   scripts/colmena-apply-drifted.sh --allow-critical-restart  # ignore the critical-unit hazard
 #   scripts/colmena-apply-drifted.sh -- --verbose    # pass args to colmena
 #
@@ -151,6 +185,7 @@ DRY_RUN=0
 FORCE=0
 WAIT=0
 ALLOW_UNSAFE_SWITCH=0
+ALLOW_KERNEL_SWITCH=0
 ALLOW_CRITICAL_RESTART=0
 REBOOT_MODE=0
 ASSUME_YES=0
@@ -162,6 +197,7 @@ while [[ $# -gt 0 ]]; do
         --force) FORCE=1 ;;
         --wait) WAIT=1 ;;
         --allow-unsafe-switch) ALLOW_UNSAFE_SWITCH=1 ;;
+        --allow-kernel-switch) ALLOW_KERNEL_SWITCH=1 ;;
         --allow-critical-restart) ALLOW_CRITICAL_RESTART=1 ;;
         --reboot) REBOOT_MODE=1 ;;
         --yes | -y) ASSUME_YES=1 ;;
@@ -190,6 +226,7 @@ if [[ $REBOOT_MODE -eq 1 ]]; then
     [[ $FORCE -eq 1 ]] && reboot_conflict="--force"
     [[ $WAIT -eq 1 ]] && reboot_conflict="--wait"
     [[ $ALLOW_UNSAFE_SWITCH -eq 1 ]] && reboot_conflict="--allow-unsafe-switch"
+    [[ $ALLOW_KERNEL_SWITCH -eq 1 ]] && reboot_conflict="--allow-kernel-switch"
     [[ $ALLOW_CRITICAL_RESTART -eq 1 ]] && reboot_conflict="--allow-critical-restart"
     if [[ -n "$reboot_conflict" ]]; then
         echo "error: $reboot_conflict has no meaning with --reboot (nothing is built or deployed)" >&2
@@ -244,7 +281,7 @@ source_identity() {
 }
 SOURCE_ID_AT_EVAL="$(source_identity)"
 
-# All three maps come out of ONE evaluation. Evaluating the hive is the
+# All four maps come out of ONE evaluation. Evaluating the hive is the
 # expensive part of this script -- it is a full module-system evaluation per
 # node -- and asking for systemd.package or the critical units separately would
 # multiply the run time for a handful of extra store paths. The result is then
@@ -258,6 +295,11 @@ SOURCE_ID_AT_EVAL="$(source_identity)"
 # modules/base/deployment-meta.nix asserts every declared unit exists -- a typo
 # fails evaluation there rather than silently producing an empty map here, which
 # would read as "nothing critical changed".
+#
+# `kernel` carries exactly the two paths the target toplevel's `kernel` and
+# `kernel-modules` symlinks resolve to (nixos/modules/system/boot/kernel.nix
+# builds them from these same expressions), so the probe can compare them to
+# /run/booted-system with a plain `readlink -f` and no path surgery.
 echo "Evaluating what colmena would deploy..." >&2
 # shellcheck disable=SC2016
 # Single-quoted on purpose: this is a Nix expression, and `${unit}` below is
@@ -268,6 +310,17 @@ if ! COMBINED_JSON="$(
         --apply 'ns: {
           toplevel = builtins.mapAttrs (_: n: n.config.system.build.toplevel.outPath) ns;
           systemd = builtins.mapAttrs (_: n: n.config.systemd.package.outPath) ns;
+          kernel = builtins.mapAttrs (_: n: {
+            image = "${n.config.boot.kernelPackages.kernel}/${n.config.system.boot.loader.kernelFile}";
+            modules = builtins.concatStringsSep " " (
+              builtins.sort builtins.lessThan (
+                map (p: p.outPath) (
+                  [ (n.pkgs.lib.getOutput "modules" n.config.boot.kernelPackages.kernel) ]
+                  ++ n.config.boot.extraModulePackages
+                )
+              )
+            );
+          }) ns;
           critical = builtins.mapAttrs (
             _: n:
               builtins.mapAttrs (unit: reason: {
@@ -283,6 +336,7 @@ if ! COMBINED_JSON="$(
 fi
 EXPECTED_JSON="$(jq -c '.toplevel' <<<"$COMBINED_JSON")"
 SYSTEMD_JSON="$(jq -c '.systemd' <<<"$COMBINED_JSON")"
+KERNEL_JSON="$(jq -c '.kernel' <<<"$COMBINED_JSON")"
 CRITICAL_JSON="$(jq -c '.critical' <<<"$COMBINED_JSON")"
 
 # Unit names are interpolated into the remote probe script, so they are checked
@@ -318,14 +372,14 @@ echo "Evaluated ${#NODES[@]} node(s)." >&2
 #
 # One SSH session per node collects everything any later stage needs, rather
 # than each guard opening its own round of connections: what the node is
-# running, the two preconditions of the PID 1 freeze (nixpkgs#375376), the
+# running, the systemd package it is running, the kernel it booted, the
 # unit-file store path of each of its critical units, and whether it already
 # has a staged generation waiting for a reboot.
 #
 # Emitted as key=value lines so adding a field later cannot silently shift the
 # meaning of an existing one, the way positional lines would. `unit:<name>=` is
-# namespaced for the same reason -- a unit called `netfs` cannot collide with
-# the netfs field.
+# namespaced for the same reason -- a unit called `kernel` cannot collide with
+# the kernel field.
 #
 # A field that could not be READ is deliberately distinguishable from a field
 # that says "no": every guard downstream treats "?" as unknown and reports it,
@@ -339,6 +393,8 @@ echo "Evaluated ${#NODES[@]} node(s)." >&2
 # probe_node as a separate assignment prepended to this body.
 PROBE_BODY='
   printf "toplevel=%s\n" "$(readlink -f /run/current-system)"
+  printf "booted=%s\n" "$(readlink -f /run/booted-system 2>/dev/null)"
+  printf "booted_systemd=%s\n" "$(readlink -f /run/booted-system/systemd 2>/dev/null)"
   printf "systemd=%s\n" "$(readlink -f /run/current-system/systemd 2>/dev/null)"
 
   # The system profile is what `boot` updates and `switch` also updates: it
@@ -349,21 +405,27 @@ PROBE_BODY='
   # bootloader and per generation-limit setting.
   printf "profile=%s\n" "$(readlink -f /nix/var/nix/profiles/system 2>/dev/null)"
 
-  # findmnt exits 1 for "no matches" and >1 for real errors (including not
-  # being installed). Piping straight into `wc -l` discards that distinction
-  # and reports 0 for both, which would tell the guard there are no network
-  # mounts on a node we simply failed to inspect -- a false negative in the
-  # one direction that matters. Emit "?" for a genuine failure so the caller
-  # records it as UNKNOWN instead.
-  netfs_out=$(findmnt -t nfs,nfs4,cifs -n -o TARGET 2>/dev/null)
-  netfs_rc=$?
-  if [ "$netfs_rc" -eq 0 ]; then
-    printf "netfs=%s\n" "$(printf "%s\n" "$netfs_out" | grep -c .)"
-  elif [ "$netfs_rc" -eq 1 ]; then
-    printf "netfs=0\n"
-  else
-    printf "netfs=?\n"
-  fi
+  # What the KERNEL is running, which is a question about the booted
+  # generation, not the current one: `switch` moves current-system/kernel
+  # without the running kernel changing at all. Empty on failure, which the
+  # caller reports as unknown rather than as "unchanged".
+  #
+  # Modules are reported as the sorted, space-joined store references of the
+  # module tree: the packages it was assembled from, which is exactly the list
+  # the caller evaluates (`[ kernel.modules ] ++ boot.extraModulePackages`, the
+  # same expression nixos/modules/system/boot/kernel.nix builds the tree
+  # from). LC_ALL=C so the order is byte order, matching builtins.lessThan.
+  # Empty if nix-store fails, never a partial list.
+  mod_refs() {
+    t=$(readlink -f "$1" 2>/dev/null) || return 0
+    [ -n "$t" ] || return 0
+    r=$(nix-store -q --references "$t" 2>/dev/null) || return 0
+    printf "%s\n" "$r" | grep . | LC_ALL=C sort | paste -sd " " -
+  }
+  printf "kernel=%s\n" "$(readlink -f /run/booted-system/kernel 2>/dev/null)"
+  printf "modules=%s\n" "$(mod_refs /run/booted-system/kernel-modules)"
+  printf "current_kernel=%s\n" "$(readlink -f /run/current-system/kernel 2>/dev/null)"
+  printf "current_modules=%s\n" "$(mod_refs /run/current-system/kernel-modules)"
 
   # The unit DERIVATION path, not the file inside it: /etc/systemd/system/<u>
   # resolves to /nix/store/<hash>-unit-<u>/<u>, and the caller compares against
@@ -479,18 +541,20 @@ node_critical_units() {
 DRIFTED=()
 CURRENT=()
 UNREACHABLE=()
-FREEZE_RISK=()
-FREEZE_UNKNOWN=()
+SYSTEMD_HOLD=()
+KERNEL_HOLD=()
 CRITICAL_HOLD=()
 CRITICAL_UNKNOWN=()
 STAGED=()
+STAGED_WHY=()
 
 # The *_NODES arrays carry bare node names for the bucketing below, while the
 # arrays above carry the human-readable explanation. Kept separate rather than
 # parsing the node name back out of a message: the message format is for
 # people and is expected to change, and re-parsing it would turn a wording
 # tweak into a silent mis-bucketing.
-FREEZE_RISK_NODES=()
+SYSTEMD_HOLD_NODES=()
+KERNEL_HOLD_NODES=()
 CRITICAL_HOLD_NODES=()
 
 # Parallel arrays indexed alongside NODES, so later stages (the reboot flow in
@@ -500,6 +564,30 @@ CRITICAL_HOLD_NODES=()
 PROBE_NODES=()
 PROBE_RUNNING=()
 PROBE_PROFILE=()
+
+# "systemd-260.5" out of "/nix/store/<hash>-systemd-260.5", and
+# "linux-6.18.54" out of ".../<hash>-linux-6.18.54/bzImage". Display only --
+# every decision compares full store paths, because a rebuild at the same
+# version is a different path with the same name.
+store_name() {
+    local p="${1#/nix/store/}"
+    p="${p#*-}"
+    printf '%s' "${p%%/*}"
+}
+
+# "a -> b", or "a (rebuilt, same version)" when only the hash moved. Without
+# the second form a mass-rebuild hold reads "systemd-260.5 -> systemd-260.5",
+# which looks like a bug in this script rather than the reason for the hold.
+describe_change() {
+    local from to
+    from="$(store_name "$1")"
+    to="$(store_name "$2")"
+    if [[ "$from" == "$to" ]]; then
+        printf '%s (rebuilt, same version)' "$to"
+    else
+        printf '%s -> %s' "$from" "$to"
+    fi
+}
 
 for node in "${NODES[@]}"; do
     expected="$(jq -r --arg n "$node" '.[$n]' <<<"$EXPECTED_JSON")"
@@ -520,8 +608,12 @@ for node in "${NODES[@]}"; do
 
     running="$(probe_field "$probe_out" toplevel)"
     running_systemd="$(probe_field "$probe_out" systemd)"
-    running_netfs="$(probe_field "$probe_out" netfs)"
+    booted_kernel="$(probe_field "$probe_out" kernel)"
+    booted_modules="$(probe_field "$probe_out" modules)"
+    current_kernel="$(probe_field "$probe_out" current_kernel)"
+    current_modules="$(probe_field "$probe_out" current_modules)"
     running_profile="$(probe_field "$probe_out" profile)"
+    booted_systemd="$(probe_field "$probe_out" booted_systemd)"
 
     # An empty toplevel means the remote command ran but produced nothing
     # usable. Treating that as drift would deploy on the strength of a failed
@@ -540,8 +632,34 @@ for node in "${NODES[@]}"; do
     # `nixos-rebuild boot` on the node. Recorded regardless of drift, because a
     # node whose staged closure IS the expected one looks perfectly current to
     # the profile comparison while still owing a reboot.
+    #
+    # The other tests are the other way a reboot can be owed: the generation IS
+    # running, but it was switched into live and carries a kernel or a systemd
+    # the node did not boot. That is what any `switch` across a kernel or
+    # systemd bump leaves behind -- including every one made before this
+    # script held those changes back -- and the profile comparison cannot see
+    # it, because profile and current-system agree. It is also exactly what
+    # nixos-needsreboot (the nixos_needs_reboot metric) flags, so the two agree
+    # on which nodes owe a reboot. systemd is compared by store path, the same
+    # rule the deploy side uses, so a same-version rebuild counts too.
+    #
+    # Each comparison runs only when both of its paths were read, so a partial
+    # probe cannot schedule a reboot on its own.
+    owed=""
     if [[ -n "$running_profile" && "$running_profile" != "$running" ]]; then
+        owed="staged generation"
+    else
+        if [[ -n "$booted_kernel" && -n "$current_kernel" && "$booted_kernel" != "$current_kernel" ]] ||
+            [[ -n "$booted_modules" && -n "$current_modules" && "$booted_modules" != "$current_modules" ]]; then
+            owed="kernel"
+        fi
+        if [[ -n "$booted_systemd" && -n "$running_systemd" && "$booted_systemd" != "$running_systemd" ]]; then
+            owed="${owed:+$owed, }systemd $(describe_change "$booted_systemd" "$running_systemd")"
+        fi
+    fi
+    if [[ -n "$owed" ]]; then
         STAGED+=("$node")
+        STAGED_WHY+=("$node: $owed")
     fi
 
     if [[ "$running" == "$expected" ]]; then
@@ -551,21 +669,42 @@ for node in "${NODES[@]}"; do
 
     DRIFTED+=("$node")
 
-    # Danger = the deploy re-execs PID 1 AND there is something for the
-    # generators to hang on. Both must hold; either alone is routine.
+    # systemd: does the deploy move PID 1's package? If so `switch` would
+    # re-exec it in place, so the node is staged instead. See SYSTEMD CHANGES
+    # in the header.
     #
-    # A field we could not read is NOT the same as a field that says "no". If
-    # the probe came back partial, falling through to the risk test would
-    # evaluate it as safe and silently disable the guard for that node -- the
-    # one direction that matters here, since the cost of a false negative is a
-    # frozen box that needs physically visiting. Unknowns are split out and
-    # reported instead of being folded into either answer.
+    # A field we could not read is NOT the same as a field that says "no".
+    # Unreadable is held, not waved through: wrongly staging costs a reboot,
+    # wrongly switching can cost a frozen box that needs physically visiting.
     target_systemd="$(jq -r --arg n "$node" '.[$n] // ""' <<<"$SYSTEMD_JSON")"
-    if [[ -z "$running_systemd" || -z "$target_systemd" || ! "$running_netfs" =~ ^[0-9]+$ ]]; then
-        FREEZE_UNKNOWN+=("$node ($host): incomplete probe (systemd='${running_systemd:-?}' netfs='${running_netfs:-?}')")
-    elif [[ "$running_systemd" != "$target_systemd" && "$running_netfs" -gt 0 ]]; then
-        FREEZE_RISK+=("$node ($host): systemd changes and $running_netfs network mount(s) live")
-        FREEZE_RISK_NODES+=("$node")
+    if [[ -z "$running_systemd" || -z "$target_systemd" ]]; then
+        SYSTEMD_HOLD+=("$node ($host): running systemd unreadable, treated as changed")
+        SYSTEMD_HOLD_NODES+=("$node")
+    elif [[ "$running_systemd" != "$target_systemd" ]]; then
+        SYSTEMD_HOLD+=("$node ($host): systemd $(describe_change "$running_systemd" "$target_systemd")")
+        SYSTEMD_HOLD_NODES+=("$node")
+    fi
+
+    # Kernel: does the deploy install a kernel or module tree other than the
+    # one the node BOOTED? Then a reboot is owed whatever goal is used, so it
+    # is staged and the reboot made explicit. Same unreadable-is-held rule.
+    target_kernel="$(jq -r --arg n "$node" '.[$n].image // ""' <<<"$KERNEL_JSON")"
+    target_modules="$(jq -r --arg n "$node" '.[$n].modules // ""' <<<"$KERNEL_JSON")"
+    if [[ -z "$booted_kernel" || -z "$booted_modules" || -z "$target_kernel" || -z "$target_modules" ]]; then
+        KERNEL_HOLD+=("$node ($host): booted kernel unreadable, treated as changed")
+        KERNEL_HOLD_NODES+=("$node")
+    elif [[ "$booted_kernel" != "$target_kernel" ]]; then
+        KERNEL_HOLD+=("$node ($host): kernel $(describe_change "$booted_kernel" "$target_kernel")")
+        KERNEL_HOLD_NODES+=("$node")
+    elif [[ "$booted_modules" != "$target_modules" ]]; then
+        # Name only what is new: listing both full sets would be two lines of
+        # store paths that differ in one entry.
+        added=""
+        for m in $target_modules; do
+            [[ " $booted_modules " == *" $m "* ]] || added+=" $(store_name "$m")"
+        done
+        KERNEL_HOLD+=("$node ($host): kernel modules change:${added:- (removed only)}")
+        KERNEL_HOLD_NODES+=("$node")
     fi
 
     # Critical units: would activation restart one?
@@ -574,7 +713,9 @@ for node in "${NODES[@]}"; do
     # changed, so comparing the unit derivation the node is running against the
     # one the target closure installs is a decision, not an estimate.
     #
-    # Same unknown-is-not-no rule as above. "absent" IS an answer: the unit does
+    # Unknown is not "no" here either, but it is reported rather than held:
+    # a missed critical restart breaks the rest of this run, which is loud and
+    # recoverable, not a frozen node. "absent" IS an answer: the unit does
     # not exist in the running generation, so activation starts it rather than
     # restarting it, and there is nothing running to disrupt.
     for unit in $units; do
@@ -599,7 +740,10 @@ if [[ ${#STAGED[@]} -gt 0 ]]; then
     # Not a warning: this is the normal state between a held-back deploy and the
     # reboot that applies it. Reported because the alternative is a node sitting
     # on an unactivated generation indefinitely with nothing saying so.
-    printf '%-12s %s\n' "staged:" "${STAGED[*]} (awaiting reboot)"
+    printf '%-12s %s\n' "reboot owed:" "${STAGED[*]}"
+    for why in "${STAGED_WHY[@]}"; do
+        printf '%-12s   %s\n' "" "$why"
+    done
 fi
 if [[ ${#UNREACHABLE[@]} -gt 0 ]]; then
     # Reported rather than silently skipped: an unreachable node is one colmena
@@ -729,11 +873,17 @@ if [[ $REBOOT_MODE -eq 1 ]]; then
             # One attempt, no retry: failures are expected while the node is
             # down, and probe_node's own retry would only slow the poll.
             if out="$(probe_node "$host" "$port" "$user" "$units" 1)"; then
-                now="$(probe_field "$out" toplevel)"
-                # The node must be up AND running the closure it was staged
+                now="$(probe_field "$out" booted)"
+                # The node must be up AND have BOOTED the closure it was staged
                 # with. Reachability alone is not enough: sshd answers well
                 # before the check is meaningful, and if the node came back on
                 # the OLD generation the reboot did not do what was asked.
+                #
+                # booted-system rather than current-system, because for a node
+                # that owes a reboot only for its kernel, current-system
+                # already equals the profile -- a check against it would pass
+                # on the first poll, before the node had even gone down.
+                # booted-system differs from the profile until a real boot.
                 if [[ "$now" == "$target" ]]; then
                     back=1
                     break
@@ -946,7 +1096,7 @@ fi
 #
 # Only `switch` and `test` activate on the running system. `boot`, `build`,
 # `push`, `dry-activate` and `upload-keys` restart nothing and re-exec nothing,
-# so neither hazard can fire and every node goes in one bucket.
+# so no hold reason applies and every node goes in one bucket.
 #
 # `test` is treated as activating, but it is NOT auto-split: `test` means
 # "activate without touching the bootloader", and quietly answering that with a
@@ -968,19 +1118,29 @@ contains() {
     return 1
 }
 
+# The hold reasons in force for this run: the goal activates and the reason's
+# override flag is NOT set. Used both to decide the buckets and to explain
+# them, so the explanation can never cite a reason the caller already
+# overrode -- which would send the reader after the wrong flag.
+SYSTEMD_ACTIVE=$((goal_activates == 1 && ALLOW_UNSAFE_SWITCH == 0))
+KERNEL_ACTIVE=$((goal_activates == 1 && ALLOW_KERNEL_SWITCH == 0))
+CRITICAL_ACTIVE=$((goal_activates == 1 && ALLOW_CRITICAL_RESTART == 0))
+
 STAGE_BUCKET=()
 SWITCH_BUCKET=()
 for node in "${DRIFTED[@]}"; do
     hold=0
-    if [[ $goal_activates -eq 1 ]]; then
-        if [[ $ALLOW_UNSAFE_SWITCH -eq 0 ]] &&
-            contains "$node" ${FREEZE_RISK_NODES[@]+"${FREEZE_RISK_NODES[@]}"}; then
-            hold=1
-        fi
-        if [[ $ALLOW_CRITICAL_RESTART -eq 0 ]] &&
-            contains "$node" ${CRITICAL_HOLD_NODES[@]+"${CRITICAL_HOLD_NODES[@]}"}; then
-            hold=1
-        fi
+    if [[ $SYSTEMD_ACTIVE -eq 1 ]] &&
+        contains "$node" ${SYSTEMD_HOLD_NODES[@]+"${SYSTEMD_HOLD_NODES[@]}"}; then
+        hold=1
+    fi
+    if [[ $KERNEL_ACTIVE -eq 1 ]] &&
+        contains "$node" ${KERNEL_HOLD_NODES[@]+"${KERNEL_HOLD_NODES[@]}"}; then
+        hold=1
+    fi
+    if [[ $CRITICAL_ACTIVE -eq 1 ]] &&
+        contains "$node" ${CRITICAL_HOLD_NODES[@]+"${CRITICAL_HOLD_NODES[@]}"}; then
+        hold=1
     fi
     if [[ $hold -eq 1 ]]; then
         STAGE_BUCKET+=("$node")
@@ -989,18 +1149,34 @@ for node in "${DRIFTED[@]}"; do
     fi
 done
 
+# Print the in-force reasons for the nodes in STAGE_BUCKET, one per line.
+print_hold_reasons() {
+    local entry
+    if [[ $SYSTEMD_ACTIVE -eq 1 ]]; then
+        for entry in ${SYSTEMD_HOLD[@]+"${SYSTEMD_HOLD[@]}"}; do
+            contains "${entry%% *}" "${STAGE_BUCKET[@]}" && echo "  $entry"
+        done
+    fi
+    if [[ $KERNEL_ACTIVE -eq 1 ]]; then
+        for entry in ${KERNEL_HOLD[@]+"${KERNEL_HOLD[@]}"}; do
+            contains "${entry%% *}" "${STAGE_BUCKET[@]}" && echo "  $entry"
+        done
+    fi
+    if [[ $CRITICAL_ACTIVE -eq 1 ]]; then
+        for entry in ${CRITICAL_HOLD[@]+"${CRITICAL_HOLD[@]}"}; do
+            contains "${entry%% *}" "${STAGE_BUCKET[@]}" && echo "  $entry"
+        done
+    fi
+    return 0
+}
+
 # `test` cannot be auto-split (see above), so a held node under `test` is a
 # refusal, not a staging.
 if [[ "$colmena_goal" == "test" && ${#STAGE_BUCKET[@]} -gt 0 ]]; then
     {
         echo "error: refusing to \`test\` nodes that are held back: ${STAGE_BUCKET[*]}"
         echo
-        # Filtered to the held nodes: an override may already have cleared a
-        # hazard for some other node, and listing it here as a reason for this
-        # refusal would send the reader after the wrong flag.
-        for entry in ${FREEZE_RISK[@]+"${FREEZE_RISK[@]}"} ${CRITICAL_HOLD[@]+"${CRITICAL_HOLD[@]}"}; do
-            contains "${entry%% *}" "${STAGE_BUCKET[@]}" && echo "  $entry"
-        done
+        print_hold_reasons
         cat <<EOF
 
   \`test\` activates without touching the bootloader, so this script will not
@@ -1010,9 +1186,10 @@ if [[ "$colmena_goal" == "test" && ${#STAGE_BUCKET[@]} -gt 0 ]]; then
 
     scripts/colmena-apply-drifted.sh
 
-  or override the specific hazard you have judged acceptable:
+  or override the specific reason you have judged acceptable:
 
     scripts/colmena-apply-drifted.sh --allow-unsafe-switch -- test
+    scripts/colmena-apply-drifted.sh --allow-kernel-switch -- test
     scripts/colmena-apply-drifted.sh --allow-critical-restart -- test
 EOF
     } >&2
@@ -1026,26 +1203,35 @@ if [[ ${#STAGE_BUCKET[@]} -gt 0 ]]; then
         echo "These nodes will be STAGED (\`boot\`), not switched -- they keep running"
         echo "their current generation until you reboot them:"
         echo
-        for entry in ${FREEZE_RISK[@]+"${FREEZE_RISK[@]}"}; do
-            contains "${entry%% *}" "${STAGE_BUCKET[@]}" && echo "  $entry"
-        done
-        for entry in ${CRITICAL_HOLD[@]+"${CRITICAL_HOLD[@]}"}; do
-            contains "${entry%% *}" "${STAGE_BUCKET[@]}" && echo "  $entry"
-        done
+        print_hold_reasons
         echo
     } >&2
 fi
 
-# Overridden hazards are still reported. The override says "I accept this", not
+# Overridden reasons are still reported. The override says "I accept this", not
 # "do not tell me".
-if [[ $ALLOW_UNSAFE_SWITCH -eq 1 && ${#FREEZE_RISK[@]} -gt 0 && $goal_activates -eq 1 ]]; then
+if [[ $ALLOW_UNSAFE_SWITCH -eq 1 && ${#SYSTEMD_HOLD[@]} -gt 0 && $goal_activates -eq 1 ]]; then
     {
-        echo "warning: proceeding despite PID 1 freeze risk on (--allow-unsafe-switch):"
-        for entry in "${FREEZE_RISK[@]}"; do
+        echo "warning: switching despite a systemd change (--allow-unsafe-switch):"
+        for entry in "${SYSTEMD_HOLD[@]}"; do
             echo "  $entry"
         done
-        echo "  A node that freezes this way stops answering both systemctl AND reboot,"
-        echo "  and needs physical access. See NixOS/nixpkgs#375376."
+        echo "  PID 1 will be re-exec'd in place. A node that freezes on re-exec stops"
+        echo "  answering both systemctl AND reboot, and needs physical access."
+        echo "  See NixOS/nixpkgs#375376."
+        echo
+    } >&2
+fi
+
+if [[ $ALLOW_KERNEL_SWITCH -eq 1 && ${#KERNEL_HOLD[@]} -gt 0 && $goal_activates -eq 1 ]]; then
+    {
+        echo "warning: switching despite a kernel change (--allow-kernel-switch):"
+        for entry in "${KERNEL_HOLD[@]}"; do
+            echo "  $entry"
+        done
+        echo "  The new kernel is NOT live until these nodes reboot. They will be"
+        echo "  reported as staged (booted kernel differs from the running"
+        echo "  generation's), so \`$0 --reboot\` picks them up."
         echo
     } >&2
 fi
@@ -1059,18 +1245,6 @@ if [[ $ALLOW_CRITICAL_RESTART -eq 1 && ${#CRITICAL_HOLD[@]} -gt 0 && $goal_activ
         echo "  Other nodes in this same run substitute closures and resolve names"
         echo "  through those units. Failures on unrelated nodes are the expected"
         echo "  symptom if the restart lands mid-run."
-        echo
-    } >&2
-fi
-
-if [[ ${#FREEZE_UNKNOWN[@]} -gt 0 ]]; then
-    {
-        echo "warning: the PID 1 freeze guard could not evaluate these nodes:"
-        for entry in "${FREEZE_UNKNOWN[@]}"; do
-            echo "  $entry"
-        done
-        echo "  They are NOT known to be safe -- the guard simply has no answer"
-        echo "  for them. Deploying with the \`boot\` goal avoids the question entirely."
         echo
     } >&2
 fi
