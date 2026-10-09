@@ -160,7 +160,10 @@ in
   };
 
   networking = {
-    firewall.allowedTCPPorts = [ 3000 ];
+    firewall.allowedTCPPorts = [
+      3000
+      6969
+    ];
     hostName = "maranello";
   };
 }
