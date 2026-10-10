@@ -76,9 +76,9 @@ pr_merge_commit() {
     --jq 'if .merged then .merge_commit_sha else "" end' 2>/dev/null || true
 }
 
-# The nixpkgs revision this repo currently pins, read from flake.lock.
-# `input` is the name of one of OUR root flake inputs (e.g. "nixpkgs" for
-# unstable, "nixpkgs-stable" for stable). Echoes the rev or "".
+# The revision this repo currently pins for one of OUR root flake inputs,
+# read from flake.lock. `input` is the root input name (e.g. "nixpkgs" for
+# unstable, "nixpkgs-stable" for stable, "catppuccin"). Echoes the rev or "".
 #
 # Resolved through `.nodes.root.inputs`, NOT by looking up `.nodes[$input]`
 # directly. A flake.lock node name is not the input name: it is a globally
@@ -95,7 +95,7 @@ pr_merge_commit() {
 # agree at the time this was found -- `nixpkgs-stable` and `nixpkgs-stable_2`
 # pointed at the same rev -- which is exactly the kind of coincidence that
 # makes this sort of bug survive review.
-pinned_nixpkgs_rev() {
+pinned_input_rev() {
   local input="$1"
   jq -r --arg n "$input" '
     .nodes.root.inputs[$n] as $node
@@ -204,7 +204,7 @@ while IFS= read -r entry; do
       # servers need, gate on the stable node.
       fix_commit="$(jq -r '.fix_commit' <<<"$entry")"
       pin_node="$(jq -r '.pin_node // "nixpkgs"' <<<"$entry")"
-      pin_rev="$(pinned_nixpkgs_rev "$pin_node")"
+      pin_rev="$(pinned_input_rev "$pin_node")"
       if [[ -z "$pin_rev" ]]; then
         echo "  could not read $pin_node rev from flake.lock; skipping" >&2
       elif commit_contained "$repo" "$fix_commit" "$pin_rev"; then
@@ -212,6 +212,39 @@ while IFS= read -r entry; do
         evidence="pinned \`$pin_node\` (\`${pin_rev:0:12}\`) contains fix commit \`${fix_commit:0:12}\`"
       else
         echo "  pinned $pin_node (${pin_rev:0:12}) does NOT yet contain ${fix_commit:0:12}" >&2
+      fi
+      ;;
+
+    flake-input-port-contains-commit)
+      # For inputs that vendor OTHER repos via a pinned sources file rather
+      # than a flake input of their own -- e.g. catppuccin/nix, which pins
+      # every theme port (catppuccin/<port>) in pkgs/sources.json. Resolved
+      # when the port rev recorded in that file, AT THE REV OUR flake.lock
+      # PINS for `pin_node`, contains `fix_commit` (a commit in `repo`, the
+      # port's own repository). A fix merged to the port's main is not enough:
+      # it only reaches us once the input bumps its sources file AND we bump
+      # our lock. Any missing piece leaves the entry BLOCKED, never resolved.
+      fix_commit="$(jq -r '.fix_commit' <<<"$entry")"
+      pin_node="$(jq -r '.pin_node' <<<"$entry")"
+      sources_repo="$(jq -r '.sources_repo' <<<"$entry")"
+      sources_path="$(jq -r '.sources_path' <<<"$entry")"
+      port="$(jq -r '.port' <<<"$entry")"
+      pin_rev="$(pinned_input_rev "$pin_node")"
+      port_rev=""
+      if [[ -n "$pin_rev" ]]; then
+        port_rev="$(gh api "repos/$sources_repo/contents/$sources_path?ref=$pin_rev" \
+          --jq '.content' 2>/dev/null | base64 -d 2>/dev/null |
+          jq -r --arg p "$port" '.[$p].rev // empty' 2>/dev/null || true)"
+      fi
+      if [[ -z "$pin_rev" ]]; then
+        echo "  could not read $pin_node rev from flake.lock; skipping" >&2
+      elif [[ -z "$port_rev" ]]; then
+        echo "  could not read $port rev from $sources_repo:$sources_path@${pin_rev:0:12}; skipping" >&2
+      elif commit_contained "$repo" "$fix_commit" "$port_rev"; then
+        resolved=true
+        evidence="pinned \`$pin_node\` (\`${pin_rev:0:12}\`) pins \`$port\` at \`${port_rev:0:12}\`, which contains fix commit \`${fix_commit:0:12}\`"
+      else
+        echo "  pinned $pin_node (${pin_rev:0:12}) pins $port at ${port_rev:0:12}, which does NOT yet contain ${fix_commit:0:12}" >&2
       fi
       ;;
 
