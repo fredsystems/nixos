@@ -99,7 +99,7 @@
 
     # renovate: datasource=git-refs depName=nix-flatpak packageName=https://github.com/gmodena/nix-flatpak versioning=semver
     nix-flatpak = {
-      url = "github:gmodena/nix-flatpak/v0.7.0"; # unstable branch. Use github:gmodena/nix-flatpak/<tag> to pin releases.
+      url = "github:gmodena/nix-flatpak/v0.8.0"; # unstable branch. Use github:gmodena/nix-flatpak/<tag> to pin releases.
     };
 
     # Imported for its home-manager module ONLY -- the package comes from
