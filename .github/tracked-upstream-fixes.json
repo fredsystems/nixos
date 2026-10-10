@@ -312,6 +312,24 @@
       "tracking": ["https://github.com/NixOS/nixpkgs/issues/375376"],
       "workaround": "Three parts, all keyed to FIXME(nixpkgs-375376-stc-network-freeze). (1) features/common/system/default.nix sets `systemd.services.NetworkManager.reloadIfChanged = true`, so activation reloads NetworkManager instead of restarting it and the network survives the re-exec. (2) scripts/switch-preflight.sh refuses a live switch (exit 10) when dry-activate reports `would restart systemd` AND live NFS/CIFS mounts exist AND the network is going away under them (a watched unit is in the stop/restart set, or the fileserver is already unreachable); it also reports units left running a superseded binary as a consequence of (1). Wired into `updatenix` in dotfiles/shell/40-functions.sh, which falls back to `nixos-rebuild boot` + reboot. (3) scripts/colmena-apply-drifted.sh used to hold remote nodes back only when systemd moved AND live NFS/CIFS mounts existed; it now stages every systemd store-path change with `boot` unconditionally. That is standing deploy policy (never re-exec PID 1 on a remote node), not part of this workaround, and is NOT reverted with it.",
       "revert_action": "Once #375376 is fixed so a hung generator can no longer freeze PID 1 (or NixOS reloads network daemons by default), remove the reloadIfChanged block and its FIXME from features/common/system/default.nix, and drop the freeze guards from scripts/switch-preflight.sh and updatenix. Leave scripts/colmena-apply-drifted.sh's systemd staging in place: it is policy, see the workaround note. Note the deferred-restart reporting exists only because of reloadIfChanged and goes away with it. Verify by running a switch that bumps systemd with NFS mounts active and confirming the machine still answers systemctl and reboots normally afterwards -- eval alone cannot catch this, it is a runtime activation failure. Beware that `issue-closed` fires when the report closes, which may precede the fix reaching our pin; re-test before setting `done: true`."
+    },
+    {
+      "id": "catppuccin-lazygit-65-author-colors",
+      "done": false,
+      "summary": "lazygit 0.66 refuses the catppuccin theme file because it still uses gui.authorColors (moved to gui.theme.authorColors); catppuccin/nix's port pin predates the fix",
+      "repo": "catppuccin/lazygit",
+      "check": "flake-input-port-contains-commit",
+      "fix_commit": "f50a723711ccb524691652cd870c94415aaa4669",
+      "pin_node": "catppuccin",
+      "sources_repo": "catppuccin/nix",
+      "sources_path": "pkgs/sources.json",
+      "port": "lazygit",
+      "tracking": [
+        "https://github.com/catppuccin/lazygit/pull/65",
+        "https://github.com/catppuccin/lazygit/issues/66"
+      ],
+      "workaround": "features/shell/lazygit/default.nix -- FIXME(catppuccin-lazygit-65-author-colors): fixedLazygitTheme overrides catppuccin.sources.lazygit to catppuccin/lazygit f50a723 when lazygit >= 0.66",
+      "revert_action": "Delete the fixedLazygitTheme binding, the catppuccinInput arg and the catppuccin.sources override in features/shell/lazygit/default.nix. Confirm `nix eval .#nixosConfigurations.Daytona.config.home-manager.users.fred.home.sessionVariables.LG_CONFIG_FILE` points at a theme whose YAML nests authorColors under gui.theme, and that lazygit starts without a migration error."
     }
   ]
 }
