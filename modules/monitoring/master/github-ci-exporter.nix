@@ -142,6 +142,13 @@
     # blind the exporter to all of it.
     ignorePulls = [
       "sdr-enthusiasts/docker-vesselalert#32"
+      "sdr-enthusiasts/docker-jareo#6"
+      "sdr-enthusiasts/docker-planefence#385"
+      "sdr-enthusiasts/docker-planefence#386"
+      "sdr-enthusiasts/docker-planefence#387"
+      "sdr-enthusiasts/docker-planefence#381"
+      "sdr-enthusiasts/docker-shipfeeder#320"
+      "sdr-enthusiasts/docker-shipfeeder#230"
     ];
 
     tokenFile = config.sops.secrets.github_pat_public_ro.path;
