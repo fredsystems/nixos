@@ -330,6 +330,24 @@
       ],
       "workaround": "features/shell/lazygit/default.nix -- FIXME(catppuccin-lazygit-65-author-colors): fixedLazygitTheme overrides catppuccin.sources.lazygit to catppuccin/lazygit f50a723 when lazygit >= 0.66",
       "revert_action": "Delete the fixedLazygitTheme binding, the catppuccinInput arg and the catppuccin.sources override in features/shell/lazygit/default.nix. Confirm `nix eval .#nixosConfigurations.Daytona.config.home-manager.users.fred.home.sessionVariables.LG_CONFIG_FILE` points at a theme whose YAML nests authorColors under gui.theme, and that lazygit starts without a migration error."
+    },
+    {
+      "id": "toybox-0.8.15-darwin-readahead",
+      "done": false,
+      "summary": "toybox 0.8.15 switched readahead to posix_fadvise(), which macOS lacks, so toybox fails to build on Darwin and breaks every Darwin host (profiles/darwin.nix installs it). Fixed upstream in landley/toybox@6a0c0ef5ee, after the 0.8.15 tag.",
+      "repo": "landley/toybox",
+      "check": "pkgs-min-version",
+      "package": "toybox",
+      "eval_host": "Daytona",
+      "min_version": "0.8.16",
+      "upstream_pr": null,
+      "tracking": [
+        "https://github.com/landley/toybox/commit/6a0c0ef5ee",
+        "https://github.com/landley/toybox/commit/9bd9d7dad5",
+        "https://github.com/NixOS/nixpkgs/pull/571304"
+      ],
+      "workaround": "overlays/default.nix -- Darwin-only `toybox` override whose postPatch drops CONFIG_READAHEAD=y from scripts/macos_miniconfig (search FIXME(toybox-0.8.15-darwin-readahead)).",
+      "revert_action": "Once our pinned nixpkgs ships toybox >= 0.8.16 (which contains 6a0c0ef5ee), delete the `toybox` override and its FIXME from overlays/default.nix, confirm ci-darwin.yaml builds both Darwin hosts green, then set `done: true`. eval_host is Daytona because the checker only evaluates nixosConfigurations; Daytona follows the same unstable nixpkgs as the Darwin hosts, so the toybox version is identical."
     }
   ]
 }
