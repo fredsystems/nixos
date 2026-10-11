@@ -68,6 +68,34 @@ final: prev: {
     else
       prev.direnv;
 
+  # FIXME(toybox-0.8.15-darwin-readahead): WORKAROUND, not a fix.
+  #
+  # toybox 0.8.15 switched `readahead` to posix_fadvise(POSIX_FADV_WILLNEED)
+  # (landley/toybox@9bd9d7dad5), which macOS does not provide, so the
+  # Darwin build fails in toys/other/readahead.c.  Fixed upstream in
+  # https://github.com/landley/toybox/commit/6a0c0ef5ee by dropping
+  # CONFIG_READAHEAD from scripts/macos_miniconfig (which nixpkgs'
+  # `make macos_defconfig` reads), but that landed after the 0.8.15 tag.
+  # We apply the same one-line change here.  `extraConfig` cannot do this:
+  # nixpkgs prepends it, so the generated CONFIG_READAHEAD=y would win.
+  #
+  # Darwin-only so the Linux toybox derivation is untouched.
+  #
+  # Revert: once nixpkgs ships toybox >= 0.8.16, delete this override and
+  # FIXME.  See .github/workflows/track-upstream-fixes.yaml.
+  toybox =
+    if prev.stdenv.hostPlatform.isDarwin then
+      prev.toybox.overrideAttrs (old: {
+        # Leading newline: nixpkgs' postPatch ("patchShebangs .") has no
+        # trailing newline, so plain concatenation would fuse the commands.
+        postPatch = (old.postPatch or "") + ''
+
+          sed -i '/^CONFIG_READAHEAD=y$/d' scripts/macos_miniconfig
+        '';
+      })
+    else
+      prev.toybox;
+
   # FIXME(sbomnix-substituted-deriver-drop): WORKAROUND, not a fix.
   #
   # sbomnix drops every runtime-closure path whose deriver `nix path-info`
