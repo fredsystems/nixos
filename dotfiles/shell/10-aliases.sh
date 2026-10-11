@@ -40,3 +40,5 @@ alias tm="tmux new-session -A -s main"
 
 alias ca="colmena apply"
 alias dv="update_dev"
+
+alias dev='nix develop ~/GitHub/fred-dev-tools#tools -c zsh'
