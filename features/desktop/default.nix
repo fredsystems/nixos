@@ -45,6 +45,7 @@ in
     ./missioncenter
     ./multiviewer
     ./music
+    ./nix-ld
     ./obs
     ./pinta
     ./print
@@ -92,6 +93,7 @@ in
       missioncenter.enable = true;
       multiviewer.enable = true;
       music.enable = cfg.enable_extra;
+      nix-ld.enable = true;
       obs.enable = cfg.enable_streaming;
       onepassword.enable = true;
       pinta.enable = true;
