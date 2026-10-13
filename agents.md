@@ -67,7 +67,8 @@ and HFDL decoders.
 │       ├── shared/        # Cross-repo policies (precommit, commits,
 │       │                  # testing, no-summary-documents, flaky tests,
 │       │                  # performance benchmarks, flake dev-shell,
-│       │                  # markdown-lint-discipline) plus the
+│       │                  # markdown-lint-discipline,
+│       │                  # shebang-env-discipline) plus the
 │       │                  # orchestration model: agent-orchestration-
 │       │                  # protocol, autonomy-boundaries, plan-
 │       │                  # decomposition, plan-sequencing-discipline,
@@ -163,6 +164,7 @@ the task. The full bodies live under `.opencode/skills/`.
 | `no-summary-documents`      | Before creating any new markdown file.                                                             |
 | `markdown-lint-discipline`  | Before writing or editing any `.md` file. MD031, MD040, table widths, no emojis in tables.         |
 | `nix-best-practices`        | When editing any `.nix` file. Codifies the active strict lint stack (nixfmt + statix + deadnix).   |
+| `shebang-env-discipline`    | Writing/editing any script with a `#!` line. Must be `#!/usr/bin/env <exec>`, never a fixed path.  |
 | `nixos-track-upstream-fix`  | When adding/reverting a temporary workaround for an unfixed upstream bug (overlay, disabled feat). |
 
 If the skill doesn't fire automatically and you think it should, that
