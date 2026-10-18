@@ -4,6 +4,7 @@
   system,
   stateVersion,
   lib,
+  pkgs,
   ...
 }:
 let
@@ -64,5 +65,60 @@ in
     # available; an idle runner costs ~65 MiB, so the runners themselves are
     # free. See the max-jobs note below before raising this further.
     runnerCount = 8;
+  };
+
+  # Self-hosted runner for fredsystems/freminal's nightly fuzzing
+  # (.github/workflows/fuzz-nightly.yml in that repo, label `freminal-fuzz`).
+  #
+  # Defined directly, not through `ci.githubRunners`: that wrapper can express
+  # neither labels nor serviceOverrides, and its stale-registration cleanup is
+  # hard-wired to `ci.githubRunners.repo` (this repo). `replace = true` covers
+  # re-registration instead.
+  #
+  # Non-ephemeral on purpose: the work dir (cargo's target/ and fuzz/target/)
+  # then survives between nightly jobs and spares a cold build. The fuzz
+  # corpus does NOT live here -- the job pulls it from and pushes it back to
+  # the private fredsystems/freminal-fuzz-corpus repo -- so a wiped work dir or
+  # a rebuilt host only costs one cold build.
+  #
+  # Only maintainer-triggered code reaches it: the freminal workflow runs on
+  # schedule / workflow_dispatch only, never pull_request (public repo).
+  #
+  # Scheduling: the job runs inside a quiet window (01:07 UTC start, hard
+  # 07:30 UTC end, enforced by the workflow) chosen to avoid this fleet's CI
+  # load. As a second layer the unit runs at the lowest CPU and I/O priority,
+  # so the fleet's ci-linux builds (runner-1..8 above) win the CPU if anything
+  # still overlaps.
+  services.github-runners.freminal-fuzz = {
+    enable = true;
+    name = "nixos-fredhub-freminal-fuzz";
+    url = "https://github.com/fredsystems/freminal";
+    # Same PAT as the fleet runners; it must be allowed to manage self-hosted
+    # runners on fredsystems/freminal.
+    tokenFile = config.sops.secrets."github-token".path;
+    extraLabels = [ "freminal-fuzz" ];
+    replace = true;
+    ephemeral = false;
+    # Tools the workflow's own shell steps use (the runner's default PATH is
+    # only bash, coreutils, git, gnutar, gzip and nix): `gh` / `jq` for the
+    # findings tracking issue, `hostname` for the corpus commit message.
+    extraPackages = with pkgs; [
+      gawk
+      findutils
+      gh
+      gnugrep
+      gnused
+      hostname
+      jq
+    ];
+    serviceOverrides = {
+      Nice = 19;
+      CPUWeight = 10;
+      IOSchedulingClass = "idle";
+      # Each fuzz target runs up to 8 libFuzzer workers capped at 2 GiB RSS
+      # each; leave headroom for cargo builds without letting a runaway job
+      # take the whole box.
+      MemoryMax = "40G";
+    };
   };
 }

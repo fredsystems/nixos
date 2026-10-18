@@ -61,22 +61,23 @@ groups:
 
   - name: systemd-alerts
     rules:
-      # github-runner-runner-* is excluded and handled by GitHubRunnerFailed
-      # below instead. Those units are self-healing: modules/services/
+      # The runner units -- the fleet's github-runner-runner-* and fredhub's
+      # github-runner-freminal-fuzz -- are excluded and handled by
+      # GitHubRunnerFailed below instead. Those units are self-healing: modules/services/
       # github-runners.nix runs a watchdog timer every 15 minutes that
       # restarts any runner sitting in `failed`. Paging critical at 2
       # minutes for a condition that repairs itself within 15 is noise --
       # which is precisely what the 2026-08-06 GitHub outage produced.
       #
-      # Note the exclusion is `github-runner-runner-.*`, not
-      # `github-runner-.*`: github-runner-watchdog.service deliberately
+      # Note the exclusion names the runner units, not `github-runner-.*`:
+      # github-runner-watchdog.service deliberately
       # stays covered by this rule, because nothing else would notice the
       # watchdog itself dying.
       - alert: SystemdUnitFailed
         expr: |
           node_systemd_unit_state{
             state="failed",
-            name!~"docker-.*|github-runner-runner-.*",
+            name!~"docker-.*|github-runner-(runner-.*|freminal-fuzz.*)",
             role!="desktop"
           } == 1
         for: 2m
@@ -87,7 +88,7 @@ groups:
           description: "The unit {{ $labels.name }} has been in a failed state for >2 minutes."
 
       - alert: SystemdUnitFlapping
-        expr: changes(node_systemd_unit_state{state="active", name!~"docker-.*|github-runner-runner-.*", role!="desktop"}[10m]) > 3
+        expr: changes(node_systemd_unit_state{state="active", name!~"docker-.*|github-runner-(runner-.*|freminal-fuzz.*)", role!="desktop"}[10m]) > 3
         for: 5m
         labels:
           severity: warning
@@ -96,7 +97,7 @@ groups:
           description: "The unit {{ $labels.name }} changed state more than 3 times in the last 10 minutes."
 
       - alert: GithubRunnerCrashLoop
-        expr: changes(node_systemd_unit_state{state="active", name=~"github-runner-runner-.*"}[5m]) > 6
+        expr: changes(node_systemd_unit_state{state="active", name=~"github-runner-(runner-.*|freminal-fuzz.*)"}[5m]) > 6
         for: 2m
         labels:
           severity: warning
@@ -118,7 +119,7 @@ groups:
         expr: |
           node_systemd_unit_state{
             state="failed",
-            name=~"github-runner-runner-.*",
+            name=~"github-runner-(runner-.*|freminal-fuzz.*)",
             role!="desktop"
           } == 1
         for: 20m
@@ -141,6 +142,10 @@ groups:
       # with a 0/1 value, so the active series still exists (as 0) for a
       # down runner. A `count(... == 1) == 0` formulation would produce an
       # empty result and could never fire.
+      #
+      # Deliberately only the fleet's CI runners (github-runner-runner-*): a
+      # live github-runner-freminal-fuzz must not mask the fleet's CI being
+      # stalled.
       - alert: GitHubRunnersAllDown
         expr: |
           sum by (hostname) (
