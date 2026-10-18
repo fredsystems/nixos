@@ -23,11 +23,11 @@
 }:
 let
   pname = "syncclipboard";
-  version = "3.3.1";
+  version = "3.3.3";
 
   src = fetchurl {
     url = "https://github.com/Jeric-X/SyncClipboard/releases/download/v${version}/SyncClipboard_linux_x64.AppImage";
-    hash = "sha256-fHRs/RxwPTIreiPohNnUYh6wBrVKcrg9HUA+3I1rqDU=";
+    hash = "sha256-SeCvB7MAGZ3MkttZNu0cAcHPdWlk/fIIS37y0SaCZGc=";
   };
 
   appimageContents = appimageTools.extract { inherit pname version src; };
@@ -64,14 +64,25 @@ appimageTools.wrapType2 {
     xclip
   ];
 
+  # The AppImage's internal layout is not a stable interface: v3.3.3 dropped
+  # usr/share/icons and changed the desktop entry from an absolute
+  # /usr/bin/... Exec to a bare command name. Both edits here therefore fail
+  # loudly (--replace-fail, top-level icon per the AppImage spec) so the next
+  # layout change breaks update-syncclipboard.yaml's build step instead of
+  # silently shipping a launcher that points at nothing.
+  #
+  # TryExec is replaced before Exec on purpose: "Exec=SyncClipboard..." is a
+  # substring of "TryExec=SyncClipboard...", so the other order would rewrite
+  # both lines in the first pass and the second --replace-fail would abort.
   extraInstallCommands = ''
     install -m 444 -D ${appimageContents}/xyz.jericx.desktop.syncclipboard.desktop \
       $out/share/applications/${pname}.desktop
 
     substituteInPlace $out/share/applications/${pname}.desktop \
-      --replace-warn 'Exec=/usr/bin/SyncClipboard.Desktop.Default' "Exec=$out/bin/${pname}" \
-      --replace-warn 'TryExec=/usr/bin/SyncClipboard.Desktop.Default' "TryExec=$out/bin/${pname}"
+      --replace-fail 'TryExec=SyncClipboard.Desktop.Default' "TryExec=$out/bin/${pname}" \
+      --replace-fail 'Exec=SyncClipboard.Desktop.Default' "Exec=$out/bin/${pname}"
 
-    cp -r ${appimageContents}/usr/share/icons $out/share/icons
+    install -m 444 -D ${appimageContents}/xyz.jericx.desktop.syncclipboard.svg \
+      $out/share/icons/hicolor/scalable/apps/xyz.jericx.desktop.syncclipboard.svg
   '';
 }
