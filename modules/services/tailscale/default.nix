@@ -23,7 +23,7 @@ let
   # A plain binding rather than a NixOS option: there is one key in secrets.yaml
   # shared by every tailnet host, so there is nothing to override per host and an
   # option would only put the declaration and its single value in the same file.
-  authKeyExpires = "2026-11-02";
+  authKeyExpires = "2027-01-16";
 in
 {
   sops.secrets."tailscale/authkey" = {
