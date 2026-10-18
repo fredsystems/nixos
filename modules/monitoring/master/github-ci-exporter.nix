@@ -126,6 +126,9 @@
       "airframesio/data"
       "airframesio/data-archiver"
       "airframesio/acars-decoder"
+      "airframesio/airwaves-flasher"
+      "airframesio/airwaves-os"
+      "airframesio/install.airframes.sh"
     ];
 
     # Individual pull requests that are stuck and are not ours to unstick.
