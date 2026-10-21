@@ -52,6 +52,13 @@
             name = "sdrhub";
             uri = "http://127.0.0.1:9093";
             timeout = "10s";
+            # Required for silences to work at all. Without proxy mode Karma
+            # has the BROWSER send silence create/expire requests directly to
+            # `uri`, i.e. to 127.0.0.1:9093 on the viewer's own machine, which
+            # fails with "Failed to fetch". With it, the browser posts to Karma
+            # (same origin, through nginx) and Karma forwards to Alertmanager
+            # over loopback, so Alertmanager stays unexposed.
+            proxy = true;
           }
         ];
       };
