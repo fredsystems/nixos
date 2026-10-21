@@ -34,11 +34,6 @@ final: prev: {
   # not in nixpkgs; see overlays/syncclipboard.nix for the ICU caveat.
   syncclipboard = final.callPackage ./syncclipboard.nix { };
 
-  # Pin opencode to the latest upstream release rather than nixpkgs'
-  # (frequently stale) pin. See overlays/opencode.nix for the bump
-  # procedure.
-  opencode = final.callPackage ./opencode.nix { inherit (prev) opencode; };
-
   # github-runner ≥ 2.333.1 has __noChroot = true set on its derivation
   # (nixpkgs commit 40231286, added as a darwin sandbox workaround).  On any
   # system with sandbox = true (the NixOS default), Nix refuses to even

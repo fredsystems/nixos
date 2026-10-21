@@ -74,32 +74,32 @@ SCHEMA_URL="https://opencode.ai/config.json"
 
 OFFLINE=0
 for arg in "$@"; do
-  case "$arg" in
-    --offline) OFFLINE=1 ;;
-    *)
-      echo "error: unknown argument '$arg'" >&2
-      exit 1
-      ;;
-  esac
+	case "$arg" in
+	--offline) OFFLINE=1 ;;
+	*)
+		echo "error: unknown argument '$arg'" >&2
+		exit 1
+		;;
+	esac
 done
 
 if [[ ! -f $CONFIG_FILE ]]; then
-  echo "error: $CONFIG_FILE not found (run from the repository root)" >&2
-  exit 1
+	echo "error: $CONFIG_FILE not found (run from the repository root)" >&2
+	exit 1
 fi
 
 # Snapshot of opencode's `$defs.Config.properties` keys from
-# https://opencode.ai/config.json, taken 2026-08-17 against the opencode
-# version pinned in overlays/opencode.nix (1.18.18). Re-sync this list (and
-# bump the date) whenever overlays/opencode.nix's `version` is bumped AND
-# a legitimate new top-level key is intentionally added to opencode.jsonc.
+# https://opencode.ai/config.json, taken 2026-08-17 against opencode 1.18.18.
+# OpenCode 2 (the `opencode` flake input) still accepts this V1 format. Re-sync
+# this list (and bump the date) whenever a legitimate new top-level key is
+# intentionally added to opencode.jsonc.
 # shellcheck disable=SC2016 # '$schema' is a literal array element, not shell interpolation
 KNOWN_TOP_LEVEL_KEYS=(
-  '$schema' agent attachment autoshare autoupdate command compaction
-  default_agent disabled_providers enabled_providers enterprise experimental
-  formatter instructions layout logLevel lsp mcp mode model permission plugin
-  provider reference references server share shell skills small_model
-  snapshot subagent_depth tool_output tools username watcher
+	'$schema' agent attachment autoshare autoupdate command compaction
+	default_agent disabled_providers enabled_providers enterprise experimental
+	formatter instructions layout logLevel lsp mcp mode model permission plugin
+	provider reference references server share shell skills small_model
+	snapshot subagent_depth tool_output tools username watcher
 )
 
 # Fail on a missing dependency with an actionable message. This is separate
@@ -109,16 +109,16 @@ KNOWN_TOP_LEVEL_KEYS=(
 # prevent. The flake check and pre-commit hook supply these via
 # runtimeInputs; a human running this bare needs `nix develop`.
 command -v python3 >/dev/null 2>&1 || {
-  echo "error: required tool not on PATH: python3" >&2
-  echo "hint: run inside 'nix develop', or via 'nix build .#checks.\${system}.opencode-jsonc-schema'" >&2
-  exit 1
+	echo "error: required tool not on PATH: python3" >&2
+	echo "hint: run inside 'nix develop', or via 'nix build .#checks.\${system}.opencode-jsonc-schema'" >&2
+	exit 1
 }
 
 if ! python3 -c 'import json5' 2>/dev/null; then
-  echo "error: the python 'json5' module is not available" >&2
-  echo "note: this is a MISSING DEPENDENCY, not a problem with $CONFIG_FILE" >&2
-  echo "hint: run inside 'nix develop', or via 'nix build .#checks.\${system}.opencode-jsonc-schema'" >&2
-  exit 1
+	echo "error: the python 'json5' module is not available" >&2
+	echo "note: this is a MISSING DEPENDENCY, not a problem with $CONFIG_FILE" >&2
+	echo "hint: run inside 'nix develop', or via 'nix build .#checks.\${system}.opencode-jsonc-schema'" >&2
+	exit 1
 fi
 
 workdir="$(mktemp -d)"
@@ -140,10 +140,10 @@ with open(sys.argv[1]) as f:
 with open(sys.argv[2], "w") as f:
     json.dump(data, f)
 ' "$CONFIG_FILE" "$canonical_json" 2>"${workdir}/parse-error.log"; then
-  echo "error: $CONFIG_FILE is not valid JSONC (failed to parse)" >&2
-  echo "" >&2
-  cat "${workdir}/parse-error.log" >&2
-  exit 1
+	echo "error: $CONFIG_FILE is not valid JSONC (failed to parse)" >&2
+	echo "" >&2
+	cat "${workdir}/parse-error.log" >&2
+	exit 1
 fi
 
 errors=()
@@ -152,13 +152,13 @@ errors=()
 
 mapfile -t actual_keys < <(jq -r 'keys[]' "$canonical_json" | sort -u)
 mapfile -t unknown_keys < <(comm -23 \
-  <(printf '%s\n' "${actual_keys[@]}") \
-  <(printf '%s\n' "${KNOWN_TOP_LEVEL_KEYS[@]}" | sort -u))
+	<(printf '%s\n' "${actual_keys[@]}") \
+	<(printf '%s\n' "${KNOWN_TOP_LEVEL_KEYS[@]}" | sort -u))
 
 for k in "${unknown_keys[@]}"; do
-  [[ -n $k ]] && errors+=(
-    "${CONFIG_FILE}: unknown top-level key '${k}' -- opencode's Config schema sets additionalProperties: false, so this key alone makes the ENTIRE config fail to load (ConfigInvalidError). Remove it, fix the typo, or add it to KNOWN_TOP_LEVEL_KEYS in $(basename "$0") if it is a legitimately new opencode option."
-  )
+	[[ -n $k ]] && errors+=(
+		"${CONFIG_FILE}: unknown top-level key '${k}' -- opencode's Config schema sets additionalProperties: false, so this key alone makes the ENTIRE config fail to load (ConfigInvalidError). Remove it, fix the typo, or add it to KNOWN_TOP_LEVEL_KEYS in $(basename "$0") if it is a legitimately new opencode option."
+	)
 done
 
 # --- structural check: every `command.*` entry requires `template` -------
@@ -183,55 +183,55 @@ command_type="$(jq -r 'if has("command") then (.command | type) else "absent" en
 command_count=0
 
 case "$command_type" in
-  absent | 'null') ;; # no `command` block at all is fine
-  object)
-    command_count="$(jq -r '.command | length' "$canonical_json")"
+absent | 'null') ;; # no `command` block at all is fine
+object)
+	command_count="$(jq -r '.command | length' "$canonical_json")"
 
-    # Reject non-object entries explicitly, before anything indexes into them.
-    mapfile -t non_object_commands < <(
-      jq -r '.command | to_entries[] | select((.value | type) != "object") | "\(.key) (\(.value | type))"' \
-        "$canonical_json"
-    )
-    for c in "${non_object_commands[@]}"; do
-      [[ -n $c ]] && errors+=(
-        "${CONFIG_FILE}: command '${c%% *}' is a ${c#* }, not an object -- opencode's schema requires each command entry to be an object with a 'template' field."
-      )
-    done
+	# Reject non-object entries explicitly, before anything indexes into them.
+	mapfile -t non_object_commands < <(
+		jq -r '.command | to_entries[] | select((.value | type) != "object") | "\(.key) (\(.value | type))"' \
+			"$canonical_json"
+	)
+	for c in "${non_object_commands[@]}"; do
+		[[ -n $c ]] && errors+=(
+			"${CONFIG_FILE}: command '${c%% *}' is a ${c#* }, not an object -- opencode's schema requires each command entry to be an object with a 'template' field."
+		)
+	done
 
-    # Only now is it safe to read .template. Capture jq's status via a temp
-    # file rather than process substitution, so a failure is actually seen.
-    if ! jq -r '.command | to_entries[] | select((.value | type) == "object") | select(.value.template == null) | .key' \
-      "$canonical_json" >"${workdir}/missing-template.txt" 2>"${workdir}/missing-template.err"; then
-      echo "error: failed to inspect 'command' entries in $CONFIG_FILE" >&2
-      cat "${workdir}/missing-template.err" >&2
-      exit 1
-    fi
-    while IFS= read -r c; do
-      [[ -n $c ]] && errors+=(
-        "${CONFIG_FILE}: command '${c}' has no 'template' field, which opencode's schema requires for every command entry."
-      )
-    done <"${workdir}/missing-template.txt"
-    ;;
-  *)
-    errors+=(
-      "${CONFIG_FILE}: top-level 'command' is a ${command_type}, not an object -- opencode's schema expects a map of command name to command object."
-    )
-    ;;
+	# Only now is it safe to read .template. Capture jq's status via a temp
+	# file rather than process substitution, so a failure is actually seen.
+	if ! jq -r '.command | to_entries[] | select((.value | type) == "object") | select(.value.template == null) | .key' \
+		"$canonical_json" >"${workdir}/missing-template.txt" 2>"${workdir}/missing-template.err"; then
+		echo "error: failed to inspect 'command' entries in $CONFIG_FILE" >&2
+		cat "${workdir}/missing-template.err" >&2
+		exit 1
+	fi
+	while IFS= read -r c; do
+		[[ -n $c ]] && errors+=(
+			"${CONFIG_FILE}: command '${c}' has no 'template' field, which opencode's schema requires for every command entry."
+		)
+	done <"${workdir}/missing-template.txt"
+	;;
+*)
+	errors+=(
+		"${CONFIG_FILE}: top-level 'command' is a ${command_type}, not an object -- opencode's schema expects a map of command name to command object."
+	)
+	;;
 esac
 
 if [[ ${#errors[@]} -gt 0 ]]; then
-  echo "opencode.jsonc structural check FAILED:" >&2
-  echo "" >&2
-  for e in "${errors[@]}"; do
-    echo "  - ${e}" >&2
-  done
-  exit 1
+	echo "opencode.jsonc structural check FAILED:" >&2
+	echo "" >&2
+	for e in "${errors[@]}"; do
+		echo "  - ${e}" >&2
+	done
+	exit 1
 fi
 
 echo "opencode.jsonc structural check OK (${#actual_keys[@]} top-level keys, ${command_count} command entr$([[ $command_count -eq 1 ]] && echo y || echo ies) validated)"
 
 if [[ $OFFLINE -eq 1 ]]; then
-  exit 0
+	exit 0
 fi
 
 # --- full schema validation (network) -------------------------------------

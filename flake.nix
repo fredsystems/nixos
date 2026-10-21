@@ -158,6 +158,20 @@
       url = "github:zhaofengli/colmena";
     };
 
+    # OpenCode 2, built from upstream's own flake (nix/opencode.nix). Pinned
+    # to a release tag: v2 releases are tags, `dev` is not a release.
+    #
+    # NOTE: deliberately NOT following our nixpkgs. Upstream keeps the
+    # node_modules fixed-output hash per release in nix/hashes.json, and that
+    # hash is only valid for the bun in upstream's pinned nixpkgs. Following
+    # ours would let a bun bump invalidate it, which is exactly the
+    # hash-maintenance loop the old overlays/opencode.nix needed a daily
+    # workflow for.
+    # renovate: datasource=git-refs depName=opencode packageName=https://github.com/anomalyco/opencode versioning=semver
+    opencode = {
+      url = "github:anomalyco/opencode/v2.1.2";
+    };
+
     freminal = {
       url = "github:FredSystems/freminal";
       #path on disk

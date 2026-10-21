@@ -225,6 +225,11 @@ wired both into `flake.nix`'s `nixConfig` (for ad-hoc builds) and into
 during normal `nixos-rebuild` / `nix develop`). Following our `nixpkgs`
 would change their derivation hashes and force local source builds.
 
+`opencode` does not follow our `nixpkgs` either, for a different reason:
+upstream pins its `node_modules` fixed-output hash per release, and that
+hash is only valid for the bun in upstream's own `nixpkgs`. It is pinned
+to a release tag that Renovate bumps.
+
 ## Update workflows
 
 - **`update-flakes.yaml`** runs weekly, opens one PR per input via
