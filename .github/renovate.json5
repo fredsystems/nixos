@@ -176,6 +176,16 @@
       automerge: true,
     },
     {
+      // opencode is pinned to a release tag in flake.nix. Minor and patch
+      // releases automerge like everything else; a major release (V1 -> V2
+      // replaced the plugin API, server API, and CLI config file) needs a
+      // human to read the migration notes first.
+      matchManagers: ["custom.regex"],
+      matchDepNames: ["opencode"],
+      matchUpdateTypes: ["major"],
+      automerge: false,
+    },
+    {
       // Group the stable-channel flake inputs into a single PR so the
       // NixOS release bump (e.g. 25.11 → 26.05) lands atomically.
       // Major bumps are NOT auto-merged — a NixOS release is a planned

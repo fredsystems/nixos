@@ -47,9 +47,6 @@
 #   0  already in sync, nothing written
 #   2  files were updated
 #   1  error
-#
-# Deliberately mirrors sync-opencode-hash.sh so workflows can treat both the
-# same way.
 
 set -uo pipefail
 
@@ -62,14 +59,14 @@ pins_key="syncclipboard"
 appimage_url_base="https://github.com/Jeric-X/SyncClipboard/releases/download"
 
 die() {
-  echo "sync-syncclipboard: $*" >&2
-  exit 1
+	echo "sync-syncclipboard: $*" >&2
+	exit 1
 }
 
 target_version="${1:-}"
 if [ -z "$target_version" ]; then
-  target_version="$(gh api repos/Jeric-X/SyncClipboard/releases/latest --jq .tag_name)" ||
-    die "could not resolve the latest upstream release"
+	target_version="$(gh api repos/Jeric-X/SyncClipboard/releases/latest --jq .tag_name)" ||
+		die "could not resolve the latest upstream release"
 fi
 # Accept either "v3.2.0" or "3.2.0" from the caller; the overlay stores the
 # bare version and the image tag carries the v.
@@ -92,15 +89,15 @@ echo "target:          $tag"
 appimage_url="${appimage_url_base}/${tag}/SyncClipboard_linux_x64.AppImage"
 echo "fetching AppImage hash..."
 appimage_hash="$(nix store prefetch-file --json --hash-type sha256 "$appimage_url" | jq -r .hash)" ||
-  die "could not prefetch $appimage_url"
+	die "could not prefetch $appimage_url"
 
 echo "fetching image digest..."
 digest="$(skopeo inspect --no-tags "docker://docker.io/${image_name}:${tag}" --format '{{.Digest}}')" ||
-  die "could not inspect docker://docker.io/${image_name}:${tag}"
+	die "could not inspect docker://docker.io/${image_name}:${tag}"
 
 case "$digest" in
-  sha256:*) ;;
-  *) die "unexpected digest format: $digest" ;;
+sha256:*) ;;
+*) die "unexpected digest format: $digest" ;;
 esac
 
 new_image="${tag}@${digest}"
@@ -111,22 +108,22 @@ changed=0
 
 # Overlay: version and hash.
 if [ "$current_version" != "$version" ] || ! grep -qF "$appimage_hash" "$overlay"; then
-  sed -i \
-    -e "s|^\(\s*version = \"\).*\(\";\)$|\1${version}\2|" \
-    -e "s|^\(\s*hash = \"\).*\(\";\)$|\1${appimage_hash}\2|" \
-    "$overlay"
-  changed=1
+	sed -i \
+		-e "s|^\(\s*version = \"\).*\(\";\)$|\1${version}\2|" \
+		-e "s|^\(\s*hash = \"\).*\(\";\)$|\1${appimage_hash}\2|" \
+		"$overlay"
+	changed=1
 fi
 
 # Host config: image tag and digest.
 if [ "$current_image" != "$new_image" ]; then
-  sed -i "s|${pins_key} = \"${image_name}:[^\"]*\";|${pins_key} = \"${image_name}:${new_image}\";|" "$pins_file"
-  changed=1
+	sed -i "s|${pins_key} = \"${image_name}:[^\"]*\";|${pins_key} = \"${image_name}:${new_image}\";|" "$pins_file"
+	changed=1
 fi
 
 if [ "$changed" -eq 0 ]; then
-  echo "already in sync"
-  exit 0
+	echo "already in sync"
+	exit 0
 fi
 
 # Re-read rather than trusting the sed, so a silently non-matching pattern is
