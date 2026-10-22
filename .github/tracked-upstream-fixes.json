@@ -348,6 +348,18 @@
       ],
       "workaround": "overlays/default.nix -- Darwin-only `toybox` override whose postPatch drops CONFIG_READAHEAD=y from scripts/macos_miniconfig (search FIXME(toybox-0.8.15-darwin-readahead)).",
       "revert_action": "Once our pinned nixpkgs ships toybox >= 0.8.16 (which contains 6a0c0ef5ee), delete the `toybox` override and its FIXME from overlays/default.nix, confirm ci-darwin.yaml builds both Darwin hosts green, then set `done: true`. eval_host is Daytona because the checker only evaluates nixosConfigurations; Daytona follows the same unstable nixpkgs as the Darwin hosts, so the toybox version is identical."
+    },
+    {
+      "id": "nixpkgs-576893-open-webui-structured-attrs",
+      "done": false,
+      "summary": "open-webui 0.12.3 fails to build under buildPythonApplication's new __structuredAttrs: its makeWrapperArgs passes \"--set FRONTEND_BUILD_DIR <path>\" as ONE list element, which makeWrapper now receives as a single unknown argument and dies on in fixupPhase. Breaks Daytona, maranello and fredhub (unstable open-webui).",
+      "repo": "NixOS/nixpkgs",
+      "check": "nixpkgs-pin-contains-commit",
+      "fix_commit": "964e075e1e2ed2e5db36d2c8bcc62c82b5863f72",
+      "pin_node": "nixpkgs",
+      "tracking": ["https://github.com/NixOS/nixpkgs/pull/576893"],
+      "workaround": "features/ai/lammacpp/default.nix -- `openwebPackage` let-binding that overridePythonAttrs-splits makeWrapperArgs into three elements, gated on the exact broken value (see FIXME(nixpkgs-576893-open-webui-structured-attrs)). Lives in the feature module, not overlays/, because fredhub supplies the package from its own `import inputs.nixpkgs { }` which overlays never reach.",
+      "revert_action": "Delete the `openwebPackage` let-binding and its FIXME in features/ai/lammacpp/default.nix and point ExecStart back at cfg.openwebPackage. pin_node nixpkgs is the right gate: every consumer (desktops via pkgs, fredhub via unstablePkgs) uses unstable nixpkgs. Confirm safe: the gate should already be a no-op, i.e. `nix eval .#nixosConfigurations.fredhub.config.ai.local-llm.openwebPackage.makeWrapperArgs` shows three elements, and the open-webui ExecStart store path is unchanged by the revert on fredhub and maranello."
     }
   ]
 }
