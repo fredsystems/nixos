@@ -35,6 +35,12 @@ in
           # (most GTK/libadwaita apps) drop the close/minimize/maximize bar.
           prefer-no-csd = true;
 
+          # Focus the target window when an app hands it an xdg-activation
+          # token (e.g. the browser after a link is clicked in freminal or
+          # Discord). Many launchers create the token without a valid input
+          # serial, which niri ignores by default.
+          debug.honor-xdg-activation-with-invalid-serial = [ ];
+
           input = {
             mod-key = "Super";
             focus-follows-mouse = {

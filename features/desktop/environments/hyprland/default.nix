@@ -141,6 +141,10 @@ in
             misc = {
               disable_splash_rendering = true,
               disable_hyprland_logo = true,
+              -- Focus a window when it sends an xdg-activation (or X11
+              -- _NET_ACTIVE_WINDOW) request, e.g. the browser after a link
+              -- is clicked in another app. The default only marks it urgent.
+              focus_on_activate = true,
             },
 
             general = {
