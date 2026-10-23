@@ -212,25 +212,12 @@ final: prev: {
     else
       prev.toybox;
 
-  # FIXME(sbomnix-substituted-deriver-drop): WORKAROUND, not a fix.
-  #
-  # sbomnix drops every runtime-closure path whose deriver `nix path-info`
-  # reports as unknown.  That is every substituter-fetched path, because the
-  # deriver pointer is only recorded for locally-built outputs.  On our
-  # runners the result was an SBOM covering 418 of 3242 paths (13%), missing
-  # openssl, bash and glibc while keeping unit-*.service and etc-* glue --
-  # i.e. it silently scanned almost nothing and reported success.  Coverage
-  # tracked cache warmth, so the CVE count swung per-runner and per-week, and
-  # occasionally hit zero matches, which then tripped cve-scan.yaml's
-  # "grype output has no .vulnerabilities key" guard and turned hosts red.
-  #
-  # The patch reconstructs output -> deriver by inverting `outputs.<name>.path`
-  # over the local .drv graph, which does not depend on the store's deriver
-  # pointers.  Restores 98.9% coverage (408 -> 2835 components) in ~2s.
-  #
-  # Revert: once sbomnix recovers derivers itself (no upstream issue filed
-  # yet), delete the `patches` attribute, the patch file, and this FIXME.
-  # See .github/workflows/track-upstream-fixes.yaml.
+  # sbomnix source patches.  (The deriver-recovery patch that used to live
+  # here, FIXME(sbomnix-substituted-deriver-drop), was retired at 1.9.0:
+  # upstream now keeps substituted paths itself, and an unpatched 1.9.0
+  # covers the same 88% of sdrhub's closure, component for component, as
+  # one carrying the patch.  See its entry in
+  # .github/tracked-upstream-fixes.json.)
   #
   # FIXME(sbomnix-pinned-version-cpe-drop): WORKAROUND, not a fix.
   #
@@ -249,35 +236,43 @@ final: prev: {
   #
   # The patch adds a lowest-priority pname fallback that carries over
   # only the CPE, retargeted to the version actually in the closure.
-  # Takes a server closure from 59 to 97 scannable components.
+  # Still needed on 1.9.0, whose new canonical-CPE mapping only covers
+  # components it infers when metadata cannot be loaded at all: on sdrhub
+  # it takes scannable components from 61 to 100, and restores CPEs for
+  # glibc, openssl, bash, curl, xz, zlib, sqlite and the kernel.
   #
   # Revert: once sbomnix matches metadata for pinned versions itself (no
   # upstream issue filed yet), delete the patch and this FIXME.  See
   # .github/workflows/track-upstream-fixes.yaml.
   #
-  # All three workarounds above are only meaningful on Linux (cve-scan
-  # runs on the self-hosted Linux runners); guarded to no-op on darwin.
+  # Only meaningful on Linux (cve-scan runs on the self-hosted Linux
+  # runners); guarded to no-op on darwin.
   #
-  # The two source patches are additionally version-gated to exactly
-  # 1.8.0, the version they were written against.  Two reasons:
+  # The patch is additionally version-gated to exactly 1.9.0, the version
+  # it was last verified against.  Two reasons:
   #
-  #   * `nixpkgs-stable` currently ships 1.7.6, whose tree predates
-  #     builder.py/runtime.py/package_meta.py entirely.  Applying the
-  #     patches there fails the build ("4 out of 4 hunks ignored").
+  #   * `nixpkgs-stable` ships an older sbomnix whose tree predates the
+  #     code the patch touches; applying it there fails the build.
   #     Nothing consumes the stable sbomnix today, so this is latent
   #     rather than broken -- but it would break the moment something
   #     did.
   #   * A patch that silently stops applying is worse than one that
-  #     fails: the scan would keep running and quietly go back to
-  #     reporting 3% of each closure as clean.
+  #     fails: the scan would keep running and quietly lose its CPEs.
   #
-  # An exact-version gate means a bump to 1.8.1 drops the patches, the
-  # scannable-component assertion in cve-scan.yaml trips, and the scan
-  # fails loudly instead of under-reporting.  The `sbomnix-patch-version`
-  # flake check (flake/dev/checks.nix) fires at eval time so the bump is
-  # caught before it ever reaches a scan.  On a bump: re-verify both
-  # patches against the new tree, then widen this bound.
-  sbomnixPatchedVersion = "1.8.0";
+  # An exact-version gate means a bump drops the patch.  The
+  # `sbomnix-patch-version` flake check (flake/dev/checks.nix) is meant to
+  # catch that at eval time, and the scannable-component floor in
+  # cve-scan.yaml at scan time.  On a bump: re-verify the patch against
+  # the new tree, then move this bound.
+  #
+  # The bound was 1.8.0 until nixpkgs moved to 1.9.0, which silently
+  # dropped both patches on main: the check above was not run by any
+  # workflow, and the scan's floor (then 50) sat below the unpatched 61.
+  # Re-verified at 1.9.0: the CPE patch applies with small offsets (each
+  # hunk confirmed to land in the intended function), sbomnix's own test
+  # suite passes with it, and an SBOM of sdrhub is identical with and
+  # without the retired deriver patch.
+  sbomnixPatchedVersion = "1.9.0";
 
   sbomnix =
     let
@@ -320,7 +315,6 @@ final: prev: {
     else
       wrapperFixed.overrideAttrs (old: {
         patches = (old.patches or [ ]) ++ [
-          ./sbomnix-recover-substituted-derivers.patch
           ./sbomnix-recover-pinned-version-cpes.patch
         ];
       });
