@@ -401,6 +401,20 @@
       ],
       "workaround": "overlays/default.nix -- pythonPackagesExtensions `reuse` override setting __structuredAttrs = false, gated on reuse using structured attrs AND sphinx-hook.sh (read from the nixpkgs source at eval time) still lacking `concatTo __sphinxBuilders` (see FIXME(nixpkgs-573479-sphinxhook-structured-attrs)).",
       "revert_action": "fix_commit is #576194 (561cf47f), the later of the two staging hook fixes; it is a descendant of #573479's 0608057d, so containing it implies both. Both are on `staging`, so this resolves once staging reaches nixpkgs-unstable. The gate already self-disables when the hook gains `concatTo __sphinxBuilders`, so to revert: confirm reuse's drvPath is unchanged with the override removed, delete the `reuse` override, the `sphinxHookFixed` binding and the FIXME, then rebuild `.#sbomnix` and check reuse's man output contains share/man/man1/reuse.1.gz."
+    },
+    {
+      "id": "nixpkgs-575801-sbomnix-structured-attrs",
+      "done": false,
+      "summary": "sbomnix 1.9.0 fails to build under buildPythonApplication's new __structuredAttrs: its makeWrapperArgs passes \"--prefix PATH : <bins>\" as ONE element, which makeWrapper rejects in fixupPhase. Breaks the `.#sbomnix` dev-shell package and the CVE scan.",
+      "repo": "NixOS/nixpkgs",
+      "check": "pkgs-min-version",
+      "package": "sbomnix",
+      "eval_host": "Daytona",
+      "min_version": null,
+      "upstream_pr": 575801,
+      "tracking": ["https://github.com/NixOS/nixpkgs/pull/575801"],
+      "workaround": "overlays/default.nix -- `wrapperFixed` binding inside the `sbomnix` overlay that overridePythonAttrs-splits the PATH prefix into separate makeWrapperArgs elements, gated on structured attrs plus the exact broken shape (see FIXME(nixpkgs-575801-sbomnix-structured-attrs)). The version-gated source patches are layered on top of it.",
+      "revert_action": "BLOCKED until #575801 (treewide; the same PR as nixpkgs-575801-gearlever-structured-attrs) merges. min_version stays null because the fix is not a version bump; once it merges, retarget to `nixpkgs-pin-contains-commit` with the merge commit and pin_node `nixpkgs` (.#sbomnix is built from the unstable input by flake/dev/packages.nix). To revert: confirm the gate is already a no-op (`nix eval .#packages.x86_64-linux.sbomnix.makeWrapperArgs` has more than one element without the override), delete `wrapperFixed` and the FIXME so the patches apply to prev.sbomnix again, then rebuild `.#sbomnix` and confirm the wrapper PATH still carries git, nix, graphviz, nix-visualize, vulnix and grype."
     }
   ]
 }

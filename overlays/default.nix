@@ -280,10 +280,45 @@ final: prev: {
   sbomnixPatchedVersion = "1.8.0";
 
   sbomnix =
+    let
+      inherit (prev) lib;
+
+      # FIXME(nixpkgs-575801-sbomnix-structured-attrs): WORKAROUND, not a fix.
+      #
+      # Same structured-attrs breakage as gearlever above: sbomnix passes
+      # "--prefix PATH : <bins>" as ONE makeWrapperArgs element, which
+      # makeWrapper rejects ("doesn't understand the arg"). Also fixed by
+      # the not-yet-merged https://github.com/NixOS/nixpkgs/pull/575801;
+      # this applies the same split. Gated on structured attrs plus the
+      # exact broken shape, so it is a no-op before the switch and once the
+      # fix lands.
+      #
+      # Revert: once our nixpkgs pin contains the fix, delete `wrapperFixed`
+      # and this FIXME and use prev.sbomnix directly. See
+      # .github/workflows/track-upstream-fixes.yaml.
+      pathPrefix = "--prefix PATH : ";
+      args = prev.sbomnix.makeWrapperArgs or [ ];
+      wrapperFixed =
+        if
+          (prev.sbomnix.__structuredAttrs or false)
+          && builtins.length args == 1
+          && lib.hasPrefix pathPrefix (builtins.head args)
+        then
+          prev.sbomnix.overridePythonAttrs (_: {
+            makeWrapperArgs = [
+              "--prefix"
+              "PATH"
+              ":"
+              (lib.removePrefix pathPrefix (builtins.head args))
+            ];
+          })
+        else
+          prev.sbomnix;
+    in
     if prev.stdenv.hostPlatform.isDarwin || prev.sbomnix.version != final.sbomnixPatchedVersion then
-      prev.sbomnix
+      wrapperFixed
     else
-      prev.sbomnix.overrideAttrs (old: {
+      wrapperFixed.overrideAttrs (old: {
         patches = (old.patches or [ ]) ++ [
           ./sbomnix-recover-substituted-derivers.patch
           ./sbomnix-recover-pinned-version-cpes.patch
