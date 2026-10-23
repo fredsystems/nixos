@@ -63,6 +63,51 @@ final: prev: {
     else
       prev.direnv;
 
+  # FIXME(nixpkgs-575801-gearlever-structured-attrs): WORKAROUND, not a fix.
+  #
+  # buildPythonApplication now builds with __structuredAttrs, so each
+  # makeWrapperArgs element reaches makeWrapper as ONE argument and is no
+  # longer shell-expanded. gearlever 3.4.7 passes the literal string
+  # "${gappsWrapperArgs[@]}" (meant to expand to the GTK wrapper args) and a
+  # single "--prefix PATH : <bins>" string, so the build dies in fixupPhase
+  # ("makeCWrapper: Unknown argument"). Upstream fix is the treewide
+  # https://github.com/NixOS/nixpkgs/pull/575801 (not yet merged), which we
+  # mirror: append the GTK args from preFixup, where the array exists, and
+  # split the PATH prefix into separate elements.
+  #
+  # Gated on structured attrs plus the exact broken shape, so it is a no-op
+  # before the switch and once the fix lands, and never drops args upstream
+  # adds later.
+  #
+  # Revert: once our nixpkgs pin contains the fix, delete this override and
+  # FIXME. See .github/workflows/track-upstream-fixes.yaml.
+  gearlever =
+    let
+      inherit (prev) lib;
+      gappsArg = "\${gappsWrapperArgs[@]}";
+      pathPrefix = "--prefix PATH : ";
+      args = prev.gearlever.makeWrapperArgs or [ ];
+    in
+    if
+      (prev.gearlever.__structuredAttrs or false)
+      && builtins.length args == 2
+      && builtins.elemAt args 0 == gappsArg
+      && lib.hasPrefix pathPrefix (builtins.elemAt args 1)
+    then
+      prev.gearlever.overridePythonAttrs (old: {
+        preFixup = (old.preFixup or "") + ''
+          makeWrapperArgs+=("''${gappsWrapperArgs[@]}")
+        '';
+        makeWrapperArgs = [
+          "--prefix"
+          "PATH"
+          ":"
+          (lib.removePrefix pathPrefix (builtins.elemAt args 1))
+        ];
+      })
+    else
+      prev.gearlever;
+
   # FIXME(toybox-0.8.15-darwin-readahead): WORKAROUND, not a fix.
   #
   # toybox 0.8.15 switched `readahead` to posix_fadvise(POSIX_FADV_WILLNEED)

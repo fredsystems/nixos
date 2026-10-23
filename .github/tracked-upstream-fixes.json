@@ -360,6 +360,20 @@
       "tracking": ["https://github.com/NixOS/nixpkgs/pull/576893"],
       "workaround": "features/ai/lammacpp/default.nix -- `openwebPackage` let-binding that overridePythonAttrs-splits makeWrapperArgs into three elements, gated on the exact broken value (see FIXME(nixpkgs-576893-open-webui-structured-attrs)). Lives in the feature module, not overlays/, because fredhub supplies the package from its own `import inputs.nixpkgs { }` which overlays never reach.",
       "revert_action": "Delete the `openwebPackage` let-binding and its FIXME in features/ai/lammacpp/default.nix and point ExecStart back at cfg.openwebPackage. pin_node nixpkgs is the right gate: every consumer (desktops via pkgs, fredhub via unstablePkgs) uses unstable nixpkgs. Confirm safe: the gate should already be a no-op, i.e. `nix eval .#nixosConfigurations.fredhub.config.ai.local-llm.openwebPackage.makeWrapperArgs` shows three elements, and the open-webui ExecStart store path is unchanged by the revert on fredhub and maranello."
+    },
+    {
+      "id": "nixpkgs-575801-gearlever-structured-attrs",
+      "done": false,
+      "summary": "gearlever 3.4.7 fails to build under buildPythonApplication's new __structuredAttrs: its makeWrapperArgs holds the literal \"${gappsWrapperArgs[@]}\" (no longer shell-expanded) and a single \"--prefix PATH : <bins>\" string, so makeCWrapper rejects both as unknown arguments in fixupPhase. Breaks Daytona (desktop.appimage).",
+      "repo": "NixOS/nixpkgs",
+      "check": "pkgs-min-version",
+      "package": "gearlever",
+      "eval_host": "Daytona",
+      "min_version": null,
+      "upstream_pr": 575801,
+      "tracking": ["https://github.com/NixOS/nixpkgs/pull/575801"],
+      "workaround": "overlays/default.nix -- `gearlever` overridePythonAttrs that appends gappsWrapperArgs from preFixup and splits the PATH prefix into separate makeWrapperArgs elements, mirroring #575801 and gated on structured attrs plus the exact broken shape (see FIXME(nixpkgs-575801-gearlever-structured-attrs)).",
+      "revert_action": "BLOCKED until #575801 (treewide, not yet merged) lands. min_version stays null because the fix is not a version bump; once it merges, retarget this entry to `nixpkgs-pin-contains-commit` with the merge commit as fix_commit and pin_node `nixpkgs` (gearlever is desktop-only, so only the unstable pin matters). To revert: confirm the gate is already a no-op (`nix eval .#nixosConfigurations.Daytona.pkgs.gearlever.makeWrapperArgs` no longer starts with the literal gappsWrapperArgs string), delete the override and FIXME from overlays/default.nix, and check the rebuilt bin/gearlever wrapper still sets GI_TYPELIB_PATH, XDG_DATA_DIRS, GDK_PIXBUF_MODULE_FILE, GIO_EXTRA_MODULES and the PATH prefix (dwarfs, squashfs-tools, appimage-run, ...)."
     }
   ]
 }
