@@ -169,7 +169,7 @@
     # workflow for.
     # renovate: datasource=git-refs depName=opencode packageName=https://github.com/anomalyco/opencode versioning=semver
     opencode = {
-      url = "github:anomalyco/opencode/v2.1.2";
+      url = "github:anomalyco/opencode/v2.1.4";
     };
 
     freminal = {
