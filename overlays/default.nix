@@ -108,6 +108,51 @@ final: prev: {
     else
       prev.gearlever;
 
+  pythonPackagesExtensions = prev.pythonPackagesExtensions ++ [
+    (
+      _: pyprev:
+      let
+        inherit (prev) lib;
+
+        # FIXME(nixpkgs-573108-typepy2-relax): WORKAROUND, not a fix.
+        #
+        # nixpkgs bumped typepy to 2.0.0, but sqliteschema and simplesqlite
+        # still declare `typepy<2`, so pythonRuntimeDepsCheckHook fails
+        # their builds. That transitively breaks sbomnix (via df-diskcache)
+        # and with it the `.#sbomnix` dev-shell package and the CVE scan.
+        # Fixed by https://github.com/NixOS/nixpkgs/pull/573108, which
+        # landed on `staging` and has not reached the channel yet; this
+        # adds the same pythonRelaxDeps entry.
+        #
+        # Gated on typepy >= 2 and the entry not being present already, so
+        # it is a no-op before the bump and once the fix lands.
+        #
+        # Revert: once our nixpkgs pin contains the fix, delete
+        # relaxTypepy, its two uses, and this FIXME. See
+        # .github/workflows/track-upstream-fixes.yaml.
+        relaxTypepy =
+          pkg:
+          let
+            relaxed = pkg.pythonRelaxDeps or [ ];
+          in
+          if
+            lib.versionAtLeast pyprev.typepy.version "2"
+            && builtins.isList relaxed
+            && !(builtins.elem "typepy" relaxed)
+          then
+            pkg.overridePythonAttrs (_: {
+              pythonRelaxDeps = relaxed ++ [ "typepy" ];
+            })
+          else
+            pkg;
+      in
+      {
+        sqliteschema = relaxTypepy pyprev.sqliteschema;
+        simplesqlite = relaxTypepy pyprev.simplesqlite;
+      }
+    )
+  ];
+
   # FIXME(toybox-0.8.15-darwin-readahead): WORKAROUND, not a fix.
   #
   # toybox 0.8.15 switched `readahead` to posix_fadvise(POSIX_FADV_WILLNEED)

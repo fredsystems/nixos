@@ -374,6 +374,18 @@
       "tracking": ["https://github.com/NixOS/nixpkgs/pull/575801"],
       "workaround": "overlays/default.nix -- `gearlever` overridePythonAttrs that appends gappsWrapperArgs from preFixup and splits the PATH prefix into separate makeWrapperArgs elements, mirroring #575801 and gated on structured attrs plus the exact broken shape (see FIXME(nixpkgs-575801-gearlever-structured-attrs)).",
       "revert_action": "BLOCKED until #575801 (treewide, not yet merged) lands. min_version stays null because the fix is not a version bump; once it merges, retarget this entry to `nixpkgs-pin-contains-commit` with the merge commit as fix_commit and pin_node `nixpkgs` (gearlever is desktop-only, so only the unstable pin matters). To revert: confirm the gate is already a no-op (`nix eval .#nixosConfigurations.Daytona.pkgs.gearlever.makeWrapperArgs` no longer starts with the literal gappsWrapperArgs string), delete the override and FIXME from overlays/default.nix, and check the rebuilt bin/gearlever wrapper still sets GI_TYPELIB_PATH, XDG_DATA_DIRS, GDK_PIXBUF_MODULE_FILE, GIO_EXTRA_MODULES and the PATH prefix (dwarfs, squashfs-tools, appimage-run, ...)."
+    },
+    {
+      "id": "nixpkgs-573108-typepy2-relax",
+      "done": false,
+      "summary": "nixpkgs bumped typepy to 2.0.0 (9a8f4407e1, 2026-10-08) without relaxing its dependents: sqliteschema and simplesqlite still declare `typepy<2`, so pythonRuntimeDepsCheckHook fails them. That breaks sbomnix (via df-diskcache), taking out the `.#sbomnix` dev-shell package and the weekly CVE scan.",
+      "repo": "NixOS/nixpkgs",
+      "check": "nixpkgs-pin-contains-commit",
+      "fix_commit": "f14b19bbb7df21de44c76bf2afd4d600a8a361dc",
+      "pin_node": "nixpkgs",
+      "tracking": ["https://github.com/NixOS/nixpkgs/pull/573108"],
+      "workaround": "overlays/default.nix -- `relaxTypepy` in the pythonPackagesExtensions block, appending \"typepy\" to pythonRelaxDeps of sqliteschema and simplesqlite (see FIXME(nixpkgs-573108-typepy2-relax)). Gated on typepy >= 2 and the entry not already being present.",
+      "revert_action": "#573108 merged into `staging`, not master, so fix_commit only becomes an ancestor of our pin once staging -> staging-next -> master -> nixpkgs-unstable has flowed through; that is exactly the signal wanted. pin_node `nixpkgs` is the right gate: sbomnix and its python deps are only built from the unstable input (flake/dev/packages.nix and the desktops); the stable pin keeps typepy 1.x and the gate makes the override a no-op there. To revert: confirm `nix eval .#nixosConfigurations.Daytona.pkgs.python3Packages.sqliteschema.pythonRelaxDeps` shows typepy WITHOUT the override (the override is then already a no-op), delete relaxTypepy, its two uses and the FIXME, and rebuild `.#sbomnix`."
     }
   ]
 }
