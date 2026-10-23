@@ -145,10 +145,41 @@ final: prev: {
             })
           else
             pkg;
+
+        # FIXME(nixpkgs-573479-sphinxhook-structured-attrs): WORKAROUND, not a fix.
+        #
+        # Under __structuredAttrs `sphinxBuilders` is a bash array, but
+        # sphinx-hook.sh still does `eval "__sphinxBuilders=($sphinxBuilders)"`,
+        # and an unindexed array expands to its FIRST element only. reuse
+        # asks for [ "html" "man" ], gets html alone, and fails because its
+        # `man` output is never produced. reuse is a dependency of sbomnix
+        # 1.9.0. Fixed in the hook by https://github.com/NixOS/nixpkgs/pull/573479
+        # (plus #576194), both still on `staging`.
+        #
+        # Building reuse without structured attrs is exactly how it built
+        # before the switch, where the hook works. Patching the hook itself
+        # would rebuild every sphinx-documented package. Gated on reuse
+        # actually using structured attrs and on the hook still lacking the
+        # fix (read from the nixpkgs source tree, a plain eval-time read,
+        # not import-from-derivation), so it switches itself off.
+        #
+        # Revert: once our nixpkgs pin contains the fix, delete this
+        # override and FIXME. See .github/workflows/track-upstream-fixes.yaml.
+        sphinxHookFixed = lib.hasInfix "concatTo __sphinxBuilders" (
+          builtins.readFile "${prev.path}/pkgs/development/interpreters/python/hooks/sphinx-hook.sh"
+        );
       in
       {
         sqliteschema = relaxTypepy pyprev.sqliteschema;
         simplesqlite = relaxTypepy pyprev.simplesqlite;
+
+        reuse =
+          if (pyprev.reuse.__structuredAttrs or false) && !sphinxHookFixed then
+            pyprev.reuse.overridePythonAttrs (_: {
+              __structuredAttrs = false;
+            })
+          else
+            pyprev.reuse;
       }
     )
   ];

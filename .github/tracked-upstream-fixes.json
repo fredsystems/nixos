@@ -386,6 +386,21 @@
       "tracking": ["https://github.com/NixOS/nixpkgs/pull/573108"],
       "workaround": "overlays/default.nix -- `relaxTypepy` in the pythonPackagesExtensions block, appending \"typepy\" to pythonRelaxDeps of sqliteschema and simplesqlite (see FIXME(nixpkgs-573108-typepy2-relax)). Gated on typepy >= 2 and the entry not already being present.",
       "revert_action": "#573108 merged into `staging`, not master, so fix_commit only becomes an ancestor of our pin once staging -> staging-next -> master -> nixpkgs-unstable has flowed through; that is exactly the signal wanted. pin_node `nixpkgs` is the right gate: sbomnix and its python deps are only built from the unstable input (flake/dev/packages.nix and the desktops); the stable pin keeps typepy 1.x and the gate makes the override a no-op there. To revert: confirm `nix eval .#nixosConfigurations.Daytona.pkgs.python3Packages.sqliteschema.pythonRelaxDeps` shows typepy WITHOUT the override (the override is then already a no-op), delete relaxTypepy, its two uses and the FIXME, and rebuild `.#sbomnix`."
+    },
+    {
+      "id": "nixpkgs-573479-sphinxhook-structured-attrs",
+      "done": false,
+      "summary": "Under __structuredAttrs, sphinx-hook.sh's `eval \"__sphinxBuilders=($sphinxBuilders)\"` expands the sphinxBuilders bash array to its first element only. reuse (a dependency of sbomnix 1.9.0) asks for [ \"html\" \"man\" ], builds html alone, and fails because its `man` output is never produced.",
+      "repo": "NixOS/nixpkgs",
+      "check": "nixpkgs-pin-contains-commit",
+      "fix_commit": "561cf47fc2a3e0bc25666cd65f1236892ade280a",
+      "pin_node": "nixpkgs",
+      "tracking": [
+        "https://github.com/NixOS/nixpkgs/pull/573479",
+        "https://github.com/NixOS/nixpkgs/pull/576194"
+      ],
+      "workaround": "overlays/default.nix -- pythonPackagesExtensions `reuse` override setting __structuredAttrs = false, gated on reuse using structured attrs AND sphinx-hook.sh (read from the nixpkgs source at eval time) still lacking `concatTo __sphinxBuilders` (see FIXME(nixpkgs-573479-sphinxhook-structured-attrs)).",
+      "revert_action": "fix_commit is #576194 (561cf47f), the later of the two staging hook fixes; it is a descendant of #573479's 0608057d, so containing it implies both. Both are on `staging`, so this resolves once staging reaches nixpkgs-unstable. The gate already self-disables when the hook gains `concatTo __sphinxBuilders`, so to revert: confirm reuse's drvPath is unchanged with the override removed, delete the `reuse` override, the `sphinxHookFixed` binding and the FIXME, then rebuild `.#sbomnix` and check reuse's man output contains share/man/man1/reuse.1.gz."
     }
   ]
 }
