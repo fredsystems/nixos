@@ -100,9 +100,14 @@
       automerge: true,
     },
     {
-      matchCategories: ["docker"],
+      // Container bumps bypass the weekly schedule above and open a PR as
+      // soon as Renovate sees the new tag. Matched by datasource, not
+      // category: the pins are extracted by custom.regex, which carries no
+      // "docker" category, so matchCategories never applied to them.
+      matchDatasources: ["docker"],
       enabled: true,
       automerge: true,
+      schedule: ["at any time"],
     },
     {
       // Owned by update-syncclipboard.yaml, which bumps this image and the
