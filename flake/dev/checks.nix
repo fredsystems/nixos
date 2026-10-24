@@ -610,30 +610,28 @@
           '';
 
       # Fails when nixpkgs moves sbomnix off the version our source
-      # patches were written against.
+      # patch was verified against.
       #
-      # The `sbomnix` overlay carries two patches against sbomnix
-      # internals (overlays/default.nix, FIXMEs
-      # sbomnix-substituted-deriver-drop and
-      # sbomnix-pinned-version-cpe-drop). They are gated to an exact
-      # version, so a bump silently drops them rather than failing to
-      # apply -- and the CVE scan would keep running while quietly
-      # reverting to reporting ~3% of each closure, which reads as
-      # "clean" rather than "broken". That is the precise failure this
-      # PR exists to remove, so it must not be reintroduced by a routine
-      # flake update.
+      # The `sbomnix` overlay carries a patch against sbomnix internals
+      # (overlays/default.nix, FIXME sbomnix-pinned-version-cpe-drop).
+      # It is gated to an exact version, so a bump silently drops it
+      # rather than failing to apply -- and the CVE scan would keep
+      # running while quietly losing the CPEs of most core packages
+      # (glibc, openssl, the kernel, ...), which reads as "clean" rather
+      # than "broken". That happened for real at the 1.8.0 -> 1.9.0 bump,
+      # so it must not be reintroduced by a routine flake update.
       #
       # cve-scan.yaml's scannable-component assertion is the runtime
       # backstop; this check is the eval-time one, so a bump is caught by
       # `nix flake check` in CI on the update PR instead of a week later
       # by the Monday scan.
       #
-      # On a bump: re-verify both patches against the new sbomnix tree
-      # (they touch builder.py, runtime.py and package_meta.py), refresh
-      # them if the surrounding code moved, confirm a manual scan still
-      # reports a healthy scannable-component count, then update
+      # On a bump: re-verify the patch against the new sbomnix tree (it
+      # touches builder.py and package_meta.py), refresh it if the
+      # surrounding code moved, confirm a manual scan still reports a
+      # healthy scannable-component count, then update
       # `sbomnixPatchedVersion` in overlays/default.nix. If upstream has
-      # fixed either bug, drop that patch and close out its entry in
+      # fixed the bug, drop the patch and close out its entry in
       # .github/tracked-upstream-fixes.json instead.
       sbomnix-patch-version =
         let
@@ -647,22 +645,22 @@
         pkgs.runCommand "sbomnix-patch-version-check" { } (
           if actual == expected then
             ''
-              echo "sbomnix ${actual} matches the patched version; overlay patches apply"
+              echo "sbomnix ${actual} matches the patched version; overlay patch applies"
               touch "$out"
             ''
           else
             ''
-              echo "sbomnix is ${actual}, but the overlay patches target ${expected}." >&2
+              echo "sbomnix is ${actual}, but the overlay patch targets ${expected}." >&2
               echo "" >&2
-              echo "The patches are version-gated, so they are NOT being applied." >&2
-              echo "Left as-is the CVE scan still runs but silently loses most of" >&2
-              echo "its closure coverage and reports near-empty results as clean." >&2
+              echo "The patch is version-gated, so it is NOT being applied." >&2
+              echo "Left as-is the CVE scan still runs but silently loses the CPEs" >&2
+              echo "of most core packages and reports them as clean." >&2
               echo "" >&2
-              echo "Re-verify overlays/sbomnix-recover-substituted-derivers.patch and" >&2
-              echo "overlays/sbomnix-recover-pinned-version-cpes.patch against the new" >&2
-              echo "tree, then set sbomnixPatchedVersion in overlays/default.nix to" >&2
-              echo "${actual}. If upstream fixed either bug, drop that patch and" >&2
-              echo "resolve its entry in .github/tracked-upstream-fixes.json." >&2
+              echo "Re-verify overlays/sbomnix-recover-pinned-version-cpes.patch" >&2
+              echo "against the new tree, then set sbomnixPatchedVersion in" >&2
+              echo "overlays/default.nix to ${actual}. If upstream fixed the bug," >&2
+              echo "drop the patch and resolve its entry in" >&2
+              echo ".github/tracked-upstream-fixes.json." >&2
               exit 1
             ''
         );

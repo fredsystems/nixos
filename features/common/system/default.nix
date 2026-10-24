@@ -1,5 +1,6 @@
 {
   config,
+  options,
   pkgs,
   lib,
   inputs,
@@ -105,15 +106,34 @@
       # and responders ignore off-link unicast queries), and a query sent
       # to fredvps's public address from off-net got no reply. This is
       # removing surface that serves no purpose, not closing a live hole.
+      #
+      # Unstable nixpkgs replaced `services.avahi.publish.*` with a freeform
+      # `services.avahi.settings` (the old names now emit evaluation
+      # warnings, which fail CI); nixos-26.05 only has the old names. This
+      # module is shared by both channels, so pick whichever exists. Once the
+      # stable channel has `settings` too, drop the `else` branch.
       avahi = {
         enable = !config.deployment.internetFacing;
         nssmdns4 = true;
-        publish = {
-          enable = true;
-          addresses = true;
-          workstation = true;
-        };
-      };
+      }
+      // (
+        if options.services.avahi ? settings then
+          {
+            settings.publish = {
+              disable-publishing = false;
+              publish-addresses = true;
+              publish-workstation = true;
+            };
+          }
+        else
+          {
+            publish = {
+              enable = true;
+              addresses = true;
+              workstation = true;
+            };
+          }
+      );
       fwupd.enable = true;
 
       udev.packages = with pkgs; [

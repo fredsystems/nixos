@@ -137,7 +137,7 @@
     },
     {
       "id": "sbomnix-substituted-deriver-drop",
-      "done": false,
+      "done": true,
       "summary": "sbomnix drops every runtime-closure path whose deriver `nix path-info` reports as unknown, which is every substituter-fetched path; the SBOM covered 418 of 3242 paths (13%) and silently omitted openssl, bash and glibc while keeping unit-*.service glue, so CVE scans reported near-empty results as clean successes.",
       "repo": "tiiuae/sbomnix",
       "check": "pkgs-min-version",
@@ -148,8 +148,8 @@
       "tracking": [
         "https://github.com/tiiuae/sbomnix/blob/main/src/sbomnix/runtime.py"
       ],
-      "workaround": "overlays/default.nix -- the `sbomnix` overlay applies overlays/sbomnix-recover-substituted-derivers.patch, which reconstructs output -> deriver by inverting `outputs.<name>.path` over the local .drv graph instead of trusting the store's deriver pointers (see FIXME(sbomnix-substituted-deriver-drop)). Restores 98.9% closure coverage (408 -> 2835 components on Daytona). cve-scan.yaml additionally asserts >= 60% coverage so a future regression fails loudly instead of silently reporting an empty scan.",
-      "revert_action": "No upstream issue is filed yet, so `min_version: null` keeps this BLOCKED (never falsely resolved) as a manual re-check reminder. File an upstream issue against tiiuae/sbomnix describing the substituted-deriver drop, then retarget this entry to `issue-closed` (or to `pkgs-min-version` once a carrying sbomnix release is known). To revert: confirm the pinned sbomnix recovers derivers itself by running sbomnix against a flakeref and checking the component count is within ~15% of `nix path-info --recursive <out> | wc -l`; then delete overlays/sbomnix-recover-substituted-derivers.patch, drop the `patches` attribute from the sbomnix overlay along with its FIXME, confirm a manual `workflow_dispatch` CVE scan is green and the coverage assertion still passes, then set `done: true`. Keep the coverage assertion in cve-scan.yaml regardless -- it guards the class of bug, not this instance."
+      "workaround": "REMOVED. overlays/sbomnix-recover-substituted-derivers.patch and its FIXME(sbomnix-substituted-deriver-drop) were deleted from overlays/default.nix when the sbomnix patch gate moved to 1.9.0.",
+      "revert_action": "DONE (2026-10-23). Fixed upstream in sbomnix 1.9.0 without a filed issue. Discovered because nixpkgs moved main to 1.9.0, which silently dropped our version-gated patches (the sbomnix-patch-version flake check was not run by any workflow), yet the 2026-10-19 cve-scan still reported 87-90% coverage on every host -- versus 13% unpatched at 1.8.0. Verified directly rather than inferred from that: SBOMs of sdrhub (.#nixosConfigurations.sdrhub.config.system.build.toplevel, run exactly as cve-scan.yaml does) from sbomnix 1.9.0 with (a) no patches, (b) both patches, (c) the CPE patch only gave 1965/2229 components (88%) in all three, and (b) and (c) were identical component for component (name, version, cpe). Deleted the patch and its FIXME, kept cve-scan.yaml's 60% coverage assertion (it guards the class of bug, not this instance) and its drvPath instantiation step (cheap, and the verification ran with the graph present)."
     },
     {
       "id": "sbomnix-pinned-version-cpe-drop",
@@ -164,7 +164,7 @@
       "tracking": [
         "https://github.com/tiiuae/sbomnix/blob/main/src/sbomnix/package_meta.py"
       ],
-      "workaround": "overlays/default.nix -- the `sbomnix` overlay applies overlays/sbomnix-recover-pinned-version-cpes.patch, adding a lowest-priority pname fallback in match_package_metadata_to_components() that carries over only the CPE, plus _retarget_cpe_version() in builder.py which rewrites the CPE version to the version actually present in the closure, strips nixpkgs-only revision suffixes (glibc 2.42-67 -> 2.42) and preserves an accurate CPE version/update split (bash 5.3p9 = version 5.3, update 9). See FIXME(sbomnix-pinned-version-cpe-drop). cve-scan.yaml additionally asserts a floor on the number of components carrying a CPE so a future regression fails loudly.",
+      "workaround": "overlays/default.nix -- the `sbomnix` overlay applies overlays/sbomnix-recover-pinned-version-cpes.patch, adding a lowest-priority pname fallback in match_package_metadata_to_components() that carries over only the CPE, plus _retarget_cpe_version() in builder.py which rewrites the CPE version to the version actually present in the closure, strips nixpkgs-only revision suffixes (glibc 2.42-67 -> 2.42) and preserves an accurate CPE version/update split (bash 5.3p9 = version 5.3, update 9). See FIXME(sbomnix-pinned-version-cpe-drop). cve-scan.yaml additionally asserts a floor on the number of components carrying a CPE so a future regression fails loudly. Re-verified at sbomnix 1.9.0 (gate moved from 1.8.0): applies with small offsets, each hunk confirmed in the intended function, and on sdrhub it takes scannable components from 61 to 100, restoring CPEs for glibc, openssl, bash, curl, xz, zlib, sqlite and linux 6.18.54. 1.9.0's own new canonical-CPE mapping does not cover this: it only applies to components inferred when metadata cannot be loaded at all.",
       "revert_action": "No upstream issue is filed yet, so `min_version: null` keeps this BLOCKED (never falsely resolved) as a manual re-check reminder. File an upstream issue against tiiuae/sbomnix describing the path-only metadata match, then retarget this entry to `issue-closed` or to `pkgs-min-version` once a carrying release is known. To revert: run the pinned sbomnix against a host whose kernel version differs from `pkgs.linux` and confirm the emitted `linux` component carries a cpe matching the CLOSURE's version, not the attribute's; then delete overlays/sbomnix-recover-pinned-version-cpes.patch, drop it from the `patches` list along with its FIXME, confirm a manual workflow_dispatch CVE scan is green and the scannable-component assertion still passes, then set `done: true`. Keep that assertion regardless -- it guards the class of bug, not this instance."
     },
     {
@@ -348,6 +348,73 @@
       ],
       "workaround": "overlays/default.nix -- Darwin-only `toybox` override whose postPatch drops CONFIG_READAHEAD=y from scripts/macos_miniconfig (search FIXME(toybox-0.8.15-darwin-readahead)).",
       "revert_action": "Once our pinned nixpkgs ships toybox >= 0.8.16 (which contains 6a0c0ef5ee), delete the `toybox` override and its FIXME from overlays/default.nix, confirm ci-darwin.yaml builds both Darwin hosts green, then set `done: true`. eval_host is Daytona because the checker only evaluates nixosConfigurations; Daytona follows the same unstable nixpkgs as the Darwin hosts, so the toybox version is identical."
+    },
+    {
+      "id": "nixpkgs-576893-open-webui-structured-attrs",
+      "done": false,
+      "summary": "open-webui 0.12.3 fails to build under buildPythonApplication's new __structuredAttrs: its makeWrapperArgs passes \"--set FRONTEND_BUILD_DIR <path>\" as ONE list element, which makeWrapper now receives as a single unknown argument and dies on in fixupPhase. Breaks Daytona, maranello and fredhub (unstable open-webui).",
+      "repo": "NixOS/nixpkgs",
+      "check": "nixpkgs-pin-contains-commit",
+      "fix_commit": "964e075e1e2ed2e5db36d2c8bcc62c82b5863f72",
+      "pin_node": "nixpkgs",
+      "tracking": ["https://github.com/NixOS/nixpkgs/pull/576893"],
+      "workaround": "features/ai/lammacpp/default.nix -- `openwebPackage` let-binding that overridePythonAttrs-splits makeWrapperArgs into three elements, gated on the exact broken value (see FIXME(nixpkgs-576893-open-webui-structured-attrs)). Lives in the feature module, not overlays/, because fredhub supplies the package from its own `import inputs.nixpkgs { }` which overlays never reach.",
+      "revert_action": "Delete the `openwebPackage` let-binding and its FIXME in features/ai/lammacpp/default.nix and point ExecStart back at cfg.openwebPackage. pin_node nixpkgs is the right gate: every consumer (desktops via pkgs, fredhub via unstablePkgs) uses unstable nixpkgs. Confirm safe: the gate should already be a no-op, i.e. `nix eval .#nixosConfigurations.fredhub.config.ai.local-llm.openwebPackage.makeWrapperArgs` shows three elements, and the open-webui ExecStart store path is unchanged by the revert on fredhub and maranello."
+    },
+    {
+      "id": "nixpkgs-575801-gearlever-structured-attrs",
+      "done": false,
+      "summary": "gearlever 3.4.7 fails to build under buildPythonApplication's new __structuredAttrs: its makeWrapperArgs holds the literal \"${gappsWrapperArgs[@]}\" (no longer shell-expanded) and a single \"--prefix PATH : <bins>\" string, so makeCWrapper rejects both as unknown arguments in fixupPhase. Breaks Daytona (desktop.appimage).",
+      "repo": "NixOS/nixpkgs",
+      "check": "pkgs-min-version",
+      "package": "gearlever",
+      "eval_host": "Daytona",
+      "min_version": null,
+      "upstream_pr": 575801,
+      "tracking": ["https://github.com/NixOS/nixpkgs/pull/575801"],
+      "workaround": "overlays/default.nix -- `gearlever` overridePythonAttrs that appends gappsWrapperArgs from preFixup and splits the PATH prefix into separate makeWrapperArgs elements, mirroring #575801 and gated on structured attrs plus the exact broken shape (see FIXME(nixpkgs-575801-gearlever-structured-attrs)).",
+      "revert_action": "BLOCKED until #575801 (treewide, not yet merged) lands. min_version stays null because the fix is not a version bump; once it merges, retarget this entry to `nixpkgs-pin-contains-commit` with the merge commit as fix_commit and pin_node `nixpkgs` (gearlever is desktop-only, so only the unstable pin matters). To revert: confirm the gate is already a no-op (`nix eval .#nixosConfigurations.Daytona.pkgs.gearlever.makeWrapperArgs` no longer starts with the literal gappsWrapperArgs string), delete the override and FIXME from overlays/default.nix, and check the rebuilt bin/gearlever wrapper still sets GI_TYPELIB_PATH, XDG_DATA_DIRS, GDK_PIXBUF_MODULE_FILE, GIO_EXTRA_MODULES and the PATH prefix (dwarfs, squashfs-tools, appimage-run, ...)."
+    },
+    {
+      "id": "nixpkgs-573108-typepy2-relax",
+      "done": false,
+      "summary": "nixpkgs bumped typepy to 2.0.0 (9a8f4407e1, 2026-10-08) without relaxing its dependents: sqliteschema and simplesqlite still declare `typepy<2`, so pythonRuntimeDepsCheckHook fails them. That breaks sbomnix (via df-diskcache), taking out the `.#sbomnix` dev-shell package and the weekly CVE scan.",
+      "repo": "NixOS/nixpkgs",
+      "check": "nixpkgs-pin-contains-commit",
+      "fix_commit": "f14b19bbb7df21de44c76bf2afd4d600a8a361dc",
+      "pin_node": "nixpkgs",
+      "tracking": ["https://github.com/NixOS/nixpkgs/pull/573108"],
+      "workaround": "overlays/default.nix -- `relaxTypepy` in the pythonPackagesExtensions block, appending \"typepy\" to pythonRelaxDeps of sqliteschema and simplesqlite (see FIXME(nixpkgs-573108-typepy2-relax)). Gated on typepy >= 2 and the entry not already being present.",
+      "revert_action": "#573108 merged into `staging`, not master, so fix_commit only becomes an ancestor of our pin once staging -> staging-next -> master -> nixpkgs-unstable has flowed through; that is exactly the signal wanted. pin_node `nixpkgs` is the right gate: sbomnix and its python deps are only built from the unstable input (flake/dev/packages.nix and the desktops); the stable pin keeps typepy 1.x and the gate makes the override a no-op there. To revert: confirm `nix eval .#nixosConfigurations.Daytona.pkgs.python3Packages.sqliteschema.pythonRelaxDeps` shows typepy WITHOUT the override (the override is then already a no-op), delete relaxTypepy, its two uses and the FIXME, and rebuild `.#sbomnix`."
+    },
+    {
+      "id": "nixpkgs-573479-sphinxhook-structured-attrs",
+      "done": false,
+      "summary": "Under __structuredAttrs, sphinx-hook.sh's `eval \"__sphinxBuilders=($sphinxBuilders)\"` expands the sphinxBuilders bash array to its first element only. reuse (a dependency of sbomnix 1.9.0) asks for [ \"html\" \"man\" ], builds html alone, and fails because its `man` output is never produced.",
+      "repo": "NixOS/nixpkgs",
+      "check": "nixpkgs-pin-contains-commit",
+      "fix_commit": "561cf47fc2a3e0bc25666cd65f1236892ade280a",
+      "pin_node": "nixpkgs",
+      "tracking": [
+        "https://github.com/NixOS/nixpkgs/pull/573479",
+        "https://github.com/NixOS/nixpkgs/pull/576194"
+      ],
+      "workaround": "overlays/default.nix -- pythonPackagesExtensions `reuse` override setting __structuredAttrs = false, gated on reuse using structured attrs AND sphinx-hook.sh (read from the nixpkgs source at eval time) still lacking `concatTo __sphinxBuilders` (see FIXME(nixpkgs-573479-sphinxhook-structured-attrs)).",
+      "revert_action": "fix_commit is #576194 (561cf47f), the later of the two staging hook fixes; it is a descendant of #573479's 0608057d, so containing it implies both. Both are on `staging`, so this resolves once staging reaches nixpkgs-unstable. The gate already self-disables when the hook gains `concatTo __sphinxBuilders`, so to revert: confirm reuse's drvPath is unchanged with the override removed, delete the `reuse` override, the `sphinxHookFixed` binding and the FIXME, then rebuild `.#sbomnix` and check reuse's man output contains share/man/man1/reuse.1.gz."
+    },
+    {
+      "id": "nixpkgs-575801-sbomnix-structured-attrs",
+      "done": false,
+      "summary": "sbomnix 1.9.0 fails to build under buildPythonApplication's new __structuredAttrs: its makeWrapperArgs passes \"--prefix PATH : <bins>\" as ONE element, which makeWrapper rejects in fixupPhase. Breaks the `.#sbomnix` dev-shell package and the CVE scan.",
+      "repo": "NixOS/nixpkgs",
+      "check": "pkgs-min-version",
+      "package": "sbomnix",
+      "eval_host": "Daytona",
+      "min_version": null,
+      "upstream_pr": 575801,
+      "tracking": ["https://github.com/NixOS/nixpkgs/pull/575801"],
+      "workaround": "overlays/default.nix -- `wrapperFixed` binding inside the `sbomnix` overlay that overridePythonAttrs-splits the PATH prefix into separate makeWrapperArgs elements, gated on structured attrs plus the exact broken shape (see FIXME(nixpkgs-575801-sbomnix-structured-attrs)). The version-gated source patches are layered on top of it.",
+      "revert_action": "BLOCKED until #575801 (treewide; the same PR as nixpkgs-575801-gearlever-structured-attrs) merges. min_version stays null because the fix is not a version bump; once it merges, retarget to `nixpkgs-pin-contains-commit` with the merge commit and pin_node `nixpkgs` (.#sbomnix is built from the unstable input by flake/dev/packages.nix). To revert: confirm the gate is already a no-op (`nix eval .#packages.x86_64-linux.sbomnix.makeWrapperArgs` has more than one element without the override), delete `wrapperFixed` and the FIXME so the patches apply to prev.sbomnix again, then rebuild `.#sbomnix` and confirm the wrapper PATH still carries git, nix, graphviz, nix-visualize, vulnix and grype."
     }
   ]
 }
