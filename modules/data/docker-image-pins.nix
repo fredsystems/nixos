@@ -72,7 +72,7 @@
       dump978 = "ghcr.io/sdr-enthusiasts/docker-dump978:telegraf-build-805@sha256:0e29f96fb26f61a22b04773870187bb2913d5c11d9fdcb9a43eaf8ac9f67c49e";
       adsbhub = "ghcr.io/sdr-enthusiasts/docker-adsbhub:latest-build-533@sha256:6fdf14faf7512358530a22de85326ac4a3b044d1448c226f82b6f39e6549fedd";
       flightradar24 = "ghcr.io/sdr-enthusiasts/docker-flightradar24:latest-build-863@sha256:1de9e501bdf48a863652c165681313d8463312e28a1ae5f6c83c5b4f684119d5";
-      piaware = "ghcr.io/sdr-enthusiasts/docker-piaware:latest-build-670@sha256:576da5db3f82a9153c64b1aff856a1e3da9040a8d9999e0c19e4b4f3362bfebe";
+      piaware = "ghcr.io/sdr-enthusiasts/docker-piaware:latest-build-671@sha256:97293c1cb5dbbdb4ccc6d56e163c1677ff0662e7e0c43c71af315d7340603fb6";
       planefinder = "ghcr.io/sdr-enthusiasts/docker-planefinder:latest-build-545@sha256:7abd0bf5583c71185093d6ff1dbe2fa000104c72ec651270f829519bc9867f5a";
       planewatch = "ghcr.io/plane-watch/docker-plane-watch:v0.0.11@sha256:24562527ff8ecd1b99f439646596bb9d4e2ee575d8dc09cafb663180767695d6";
       radarvirtuel = "ghcr.io/sdr-enthusiasts/docker-radarvirtuel:latest-build-805@sha256:4d69f3b943f29c4695365d399936aa2b9552cc850d5ed6801e49ab876b32ccf3";
