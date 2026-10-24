@@ -1,5 +1,5 @@
 {
-  "generated_at": 1792861952,
+  "generated_at": 1792862172,
   "hosts": {
     "Daytona": {
       "history": [
@@ -1036,6 +1036,11 @@
     "sdrhub": {
       "history": [
         {
+          "at": 1792862172,
+          "rev": "ba0fab4deb305c3d532feac950cb19b4389b135a",
+          "toplevel": "/nix/store/cqv1vws70dv0v46jq2rfdh42f91amhrk-nixos-system-sdrhub-26.05.20261021.da6dc0e"
+        },
+        {
           "at": 1792856907,
           "rev": "71b9ebc758317f3db978eb067ac868bd971c110f",
           "toplevel": "/nix/store/xfvmvskprw5n2scvzfdmdf96k40n913m-nixos-system-sdrhub-26.05.20261021.da6dc0e"
@@ -1154,16 +1159,16 @@
           "at": 1791582693,
           "rev": "8411b2bd5030991618704b6698ee11afe09a0943",
           "toplevel": "/nix/store/h5x4hxg029b88vn2np5v6p7qnak83kdg-nixos-system-sdrhub-26.05.20261008.7c8764b"
-        },
-        {
-          "at": 1791582417,
-          "rev": "8b80bbf973f83de00baa38359fcdf06dda897768",
-          "toplevel": "/nix/store/j13nnfwk0xzbf9zxkqv95s5lzjjp8m3l-nixos-system-sdrhub-26.05.20261007.2efa67f"
         }
       ]
     },
     "vdlmhub": {
       "history": [
+        {
+          "at": 1792862172,
+          "rev": "ba0fab4deb305c3d532feac950cb19b4389b135a",
+          "toplevel": "/nix/store/h3v9xhmigwzgr07c7mszqsn9zrkr9ds1-nixos-system-vdlmhub-26.05.20261021.da6dc0e"
+        },
         {
           "at": 1792856907,
           "rev": "71b9ebc758317f3db978eb067ac868bd971c110f",
@@ -1283,15 +1288,10 @@
           "at": 1791048611,
           "rev": "300042a5a384062fb87ad52548d3a210cf25057a",
           "toplevel": "/nix/store/lc6h8vcd2vw8i9m452gv754hv2qfiqga-nixos-system-vdlmhub-26.05.20261002.774debe"
-        },
-        {
-          "at": 1790960740,
-          "rev": "0051eb93a6aa58cce38128fcbd9b9ec84cb6b960",
-          "toplevel": "/nix/store/94r0mi8ffp8835jmv4b2fi4xcpw2qkdi-nixos-system-vdlmhub-26.05.20260928.7fc6f2c"
         }
       ]
     }
   },
-  "rev": "58d39c2252f824525f9b41b7e5ff2e102c05302e",
+  "rev": "ba0fab4deb305c3d532feac950cb19b4389b135a",
   "schema": 1
 }
