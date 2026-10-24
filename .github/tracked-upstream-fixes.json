@@ -415,6 +415,22 @@
       "tracking": ["https://github.com/NixOS/nixpkgs/pull/575801"],
       "workaround": "overlays/default.nix -- `wrapperFixed` binding inside the `sbomnix` overlay that overridePythonAttrs-splits the PATH prefix into separate makeWrapperArgs elements, gated on structured attrs plus the exact broken shape (see FIXME(nixpkgs-575801-sbomnix-structured-attrs)). The version-gated source patches are layered on top of it.",
       "revert_action": "BLOCKED until #575801 (treewide; the same PR as nixpkgs-575801-gearlever-structured-attrs) merges. min_version stays null because the fix is not a version bump; once it merges, retarget to `nixpkgs-pin-contains-commit` with the merge commit and pin_node `nixpkgs` (.#sbomnix is built from the unstable input by flake/dev/packages.nix). To revert: confirm the gate is already a no-op (`nix eval .#packages.x86_64-linux.sbomnix.makeWrapperArgs` has more than one element without the override), delete `wrapperFixed` and the FIXME so the patches apply to prev.sbomnix again, then rebuild `.#sbomnix` and confirm the wrapper PATH still carries git, nix, graphviz, nix-visualize, vulnix and grype."
+    },
+    {
+      "id": "nixpkgs-576716-ladybird-rust-dwarnings",
+      "done": false,
+      "summary": "ladybird-0-unstable-2026-10-14 fails to build under rustc 1.99: its Rust crates compile with -Dwarnings and the snapshot (written for Rust 1.98) uses APIs 1.99 deprecates, so libweb_bindings_rust dies and breaks both desktop toplevels (Daytona, maranello).",
+      "repo": "NixOS/nixpkgs",
+      "check": "nixpkgs-pin-contains-commit",
+      "fix_commit": "d3b8a6a94228ce893f3e57aeb6c84f4079ba9284",
+      "pin_node": "nixpkgs",
+      "tracking": [
+        "https://github.com/NixOS/nixpkgs/issues/576691",
+        "https://github.com/NixOS/nixpkgs/pull/576716",
+        "https://github.com/LadybirdBrowser/ladybird/pull/12751"
+      ],
+      "workaround": "overlays/default.nix -- `ladybird` overrideAttrs appending a postPatch substituteInPlace that drops `-Dwarnings` from Meta/CMake/rust_crate.cmake, gated on upstream's postPatch not already mentioning rust_crate.cmake (see FIXME(nixpkgs-576716-ladybird-rust-dwarnings)).",
+      "revert_action": "fix_commit is #576716's merge commit on master; resolves once nixpkgs-unstable (pin_node `nixpkgs`, which the desktops use) contains it. The gate self-disables at that point, so to revert: confirm ladybird's drvPath on Daytona is unchanged with the override removed, delete the `ladybird` override and the FIXME, and let ci-linux.yaml build both desktops."
     }
   ]
 }
