@@ -1,117 +1,119 @@
 #!/usr/bin/env bash
 #
 # switch-preflight.sh -- decide whether `nixos-rebuild switch` is safe to run
-# live on this machine, or whether the new generation must be reached by
+# live on THIS machine, or whether the new generation must be reached with
 # `boot` + reboot instead.
 #
-# WHY THIS EXISTS
+# This is the local half of the fleet's one deploy policy. Every rule lives in
+# scripts/lib/deploy-guard.sh, which scripts/colmena-apply-drifted.sh sources
+# for the servers; the target side is flake/lib/deploy-facts.nix, which both
+# evaluate. This script only gathers the facts for the local machine and turns
+# the verdict into an exit code for `updatenix` (dotfiles/shell/40-functions.sh).
 #
-# switch-to-configuration can wedge PID 1 hard enough that the machine cannot
-# even reboot. The sequence, observed on maranello 2026-08-29 20:21:59 and
-# repeatedly on Daytona:
+# WHAT HOLDS A LIVE SWITCH
 #
-#   1. s-t-c stops a network daemon in its stop pass, so the LAN goes away.
-#   2. s-t-c asks PID 1 to `daemon-reexec`, which it does whenever systemd's
-#      store path changed -- a glibc/stdenv mass rebuild is enough, the systemd
-#      version does not have to move at all.
-#   3. On re-exec PID 1 re-runs its generators. systemd-fstab-generator calls
-#      chase()/stat() on every fstab entry, including NFS mounts.
-#   4. Those mounts are `hard`, the server is now unreachable, and stat()
-#      blocks forever. The generator sandbox times out after 90s and
-#      safe_fork(FORK_WAIT) reports it as -EPROTO ("Protocol error").
-#   5. Generators are mandatory, so PID 1 prints `Freezing execution.` and
-#      stops. It is alive but deaf: no D-Bus, nothing starts or stops, and
-#      `reboot` is itself a D-Bus call to PID 1, so it hangs too. The box
-#      needs SysRq or the power button.
+#   systemd    systemd's store path moves, so `switch` would re-exec PID 1.
+#              A re-exec whose fstab generator stalls on an NFS mount freezes
+#              PID 1 so hard that `reboot` hangs too (NixOS/nixpkgs#375376,
+#              observed on maranello 2026-08-29 and repeatedly on Daytona).
+#              This used to also require a live NFS mount and a network unit
+#              going down, but `findmnt -t nfs` cannot see an idle
+#              x-systemd.automount share -- and that is how every NAS mount
+#              here is declared (modules/services/nas-system.nix) -- so it
+#              waved through exactly the case it existed to stop.
+#   kernel     the kernel or its module set differs from what was BOOTED.
+#              `switch` cannot load it; the reboot is owed either way.
+#   critical   a deployment.criticalUnits unit would be restarted.
+#   process    a deployment.criticalProcesses package -- the compositor you
+#              are logged into -- would move to a different VERSION. Config
+#              changes and same-version rebuilds are not held; compositors
+#              that are installed but not running are not held.
 #
-# Upstream: https://github.com/NixOS/nixpkgs/issues/375376 (open).
+# Anything that cannot be read is held, not waved through. Wrongly holding
+# costs a reboot; wrongly switching can cost a frozen machine.
 #
-# The point of this script is that all three preconditions are knowable BEFORE
-# anything is activated, so this is a decision, not a guess. `nixos-rebuild
-# dry-activate` reports exactly what the real switch would do, including the
-# literal line `would restart systemd` for the daemon-reexec.
+# Nothing is built or activated: the target is EVALUATED (seconds), and the
+# running system is read through /run and /proc. `nixos-rebuild` does the
+# build afterwards.
 #
-# THE PREDICATE
+# AFTER THE SWITCH: --deferred
 #
-# Blocks the switch when ALL of these hold:
-#
-#   REEXEC   dry-activate says `would restart systemd`
-#   NETFS    there are live NFS/CIFS mounts whose stat() could block
-#   HANG     the network is going to disappear under those mounts, either
-#            because a watched network unit is in the stop/restart set, or
-#            because the fileserver is ALREADY unreachable right now
-#
-# Any one of these missing and the deadlock cannot form, so the switch is
-# allowed. That is deliberate: a predicate that fires on every mass rebuild
-# would be ignored within a week.
-#
-# DEFERRED RESTARTS
-#
-# features/common/system/default.nix sets `reloadIfChanged` on NetworkManager
-# so activation stops taking the network down. The cost is that the running
-# NetworkManager stays on the OLD store path until something restarts it, so a
-# NetworkManager update -- including a security fix -- is not live yet. That is
-# not inferred: `--deferred` compares each watched unit's configured ExecStart
-# against the binary the running MainPID actually has open via /proc, and
-# reports the mismatch. A reboot clears it; so does `systemctl restart <unit>`,
-# which picks up the new ExecStart because activation already ran
-# `daemon-reload` regardless of whether it reloaded or restarted the unit.
+# Lists every process still running a binary from before the switch: system
+# daemons activation reloaded instead of restarting (NetworkManager, by
+# design -- features/common/system/default.nix), and the apps open in your
+# session that are now behind the installed version. Nothing is held for
+# these; it is the list of what to restart when convenient.
 #
 # Usage:
-#   scripts/switch-preflight.sh                    # build + dry-activate + verdict
-#   scripts/switch-preflight.sh --flake .#maranello
-#   scripts/switch-preflight.sh --deferred         # only the deferred-restart report
-#   scripts/switch-preflight.sh --plan-file FILE   # classify an existing dry-activate log
-#   scripts/switch-preflight.sh --quiet            # verdict only, no explanation
+#   sudo scripts/switch-preflight.sh                        # verdict for .#<hostname>
+#   sudo scripts/switch-preflight.sh --flake ~/nixos#maranello
+#   sudo scripts/switch-preflight.sh --deferred             # after a switch
+#   scripts/switch-preflight.sh --facts-file F --probe-file P   # classify captured data
+#   scripts/switch-preflight.sh --quiet                     # verdict only
+#   ... --allow-unsafe-switch      # switch despite a systemd change
+#   ... --allow-kernel-switch      # switch despite a kernel change
+#   ... --allow-critical-restart   # switch despite a critical-unit restart
+#   ... --allow-process-change     # switch despite a critical-process version change
+#
+# --facts-file takes one node's object from `.#lib.deployFacts.nixos.<host>`;
+# --probe-file takes the output of the probe (DG_PROBE_BODY). Together they
+# classify without root and without touching the running system, which is
+# what the test suite uses.
 #
 # Exit codes:
-#   0   safe to `switch`
-#   10  UNSAFE to switch live -- use `nixos-rebuild boot` and reboot
-#   1   error
+#   0   safe to `switch` (or: nothing to do -- already running the target)
+#   10  do NOT switch live -- use `nixos-rebuild boot` and reboot
+#   1   error: the verdict is unknown, so do neither blindly
 
 set -euo pipefail
 
-# Units whose stop/restart takes the LAN away. Anything here appearing in
-# dry-activate's stop or restart set means the NFS mounts lose their server
-# mid-activation. wpa_supplicant is on the list even though the 2026-08-29
-# journal shows s-t-c did not stop it -- if that ever changes, this catches it
-# rather than us rediscovering the deadlock the hard way.
-WATCHED_NET_UNITS=(
-    NetworkManager.service
-    wpa_supplicant.service
-    systemd-networkd.service
-    dhcpcd.service
-)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/lib/deploy-guard.sh
+source "$SCRIPT_DIR/lib/deploy-guard.sh"
 
 FLAKE_REF=""
-PLAN_FILE=""
+FACTS_FILE=""
+PROBE_FILE=""
 DEFERRED_ONLY=0
 QUIET=0
+ALLOW_UNSAFE_SWITCH=0
+ALLOW_KERNEL_SWITCH=0
+ALLOW_CRITICAL_RESTART=0
+ALLOW_PROCESS_CHANGE=0
+
+need_value() {
+    [[ $2 -ge 2 ]] || {
+        echo "error: $1 needs a value" >&2
+        exit 1
+    }
+}
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --flake)
-            [[ $# -ge 2 ]] || {
-                echo "error: --flake needs a value" >&2
-                exit 1
-            }
+            need_value "$1" "$#"
             FLAKE_REF="$2"
             shift
             ;;
-        --plan-file)
-            [[ $# -ge 2 ]] || {
-                echo "error: --plan-file needs a value" >&2
-                exit 1
-            }
-            PLAN_FILE="$2"
+        --facts-file)
+            need_value "$1" "$#"
+            FACTS_FILE="$2"
+            shift
+            ;;
+        --probe-file)
+            need_value "$1" "$#"
+            PROBE_FILE="$2"
             shift
             ;;
         --deferred) DEFERRED_ONLY=1 ;;
         --quiet) QUIET=1 ;;
+        --allow-unsafe-switch) ALLOW_UNSAFE_SWITCH=1 ;;
+        --allow-kernel-switch) ALLOW_KERNEL_SWITCH=1 ;;
+        --allow-critical-restart) ALLOW_CRITICAL_RESTART=1 ;;
+        --allow-process-change) ALLOW_PROCESS_CHANGE=1 ;;
         -h | --help)
             # Print the header block by structure, not by line number, so it
-            # cannot silently truncate as the header grows. Same trick as
-            # colmena-apply-drifted.sh.
+            # cannot silently truncate as the header grows.
             awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "$0"
             exit 0
             ;;
@@ -127,232 +129,175 @@ say() {
     [[ "$QUIET" -eq 1 ]] || printf '%s\n' "$*"
 }
 
-# Extract the `/nix/store/<hash>-<name>` prefix from a path, discarding
-# anything below it. Two paths sharing this prefix are the same build.
-store_prefix() {
-    grep -oE '/nix/store/[a-z0-9]{32}-[^/]+' <<<"${1:-}" | head -1 || true
-}
-
 # ---------------------------------------------------------------------------
-# Deferred restarts: configured ExecStart vs the binary the process really has
+# --deferred: what is still running from before the switch
 # ---------------------------------------------------------------------------
-#
-# Prints one line per unit still running a superseded binary. Returns 0 if any
-# were found, 1 if everything is current, so callers can branch on it.
-DEFERRED_STALE=()
-DEFERRED_UNREADABLE=()
-
-# Populates the two arrays above. Deliberately NOT written to be called in a
-# command substitution: `$(...)` runs the function in a subshell, so the arrays
-# would be assigned in a child and silently discarded, and the caller would see
-# an empty "unreadable" list and report a false all-clear. Call it directly and
-# read the globals.
-#
-# The staleness test is "is the binary this process actually has open still part
-# of /run/current-system's closure?", NOT "does ExecStart match /proc/exe".
-# The latter looks obvious and is wrong: many NixOS units have a generated
-# `unit-script-<name>-start` wrapper as their ExecStart, which then execs the
-# real binary, so the two paths never match and every such unit reports as
-# permanently stale. wpa_supplicant.service is one of them.
-scan_deferred_restarts() {
-    local unit state pid have requisites
-
-    DEFERRED_STALE=()
-    DEFERRED_UNREADABLE=()
-
-    requisites="$(mktemp)" || return 0
-    if ! nix-store -q --requisites /run/current-system >"$requisites" 2>/dev/null; then
-        rm -f "$requisites"
-        return 0
-    fi
-
-    for unit in "${WATCHED_NET_UNITS[@]}"; do
-        state="$(systemctl show -p ActiveState --value "$unit" 2>/dev/null || true)"
-        [[ "$state" == "active" ]] || continue
-
-        pid="$(systemctl show -p MainPID --value "$unit" 2>/dev/null || true)"
-        [[ -n "$pid" && "$pid" != "0" ]] || continue
-
-        # /proc/<pid>/exe is only readable for another user's process as root.
-        # If we cannot read it we do NOT know whether the unit is current, and
-        # staying silent would read as an all-clear. Record it instead.
-        have="$(store_prefix "$(readlink -f "/proc/$pid/exe" 2>/dev/null || true)")"
-
-        if [[ -z "$have" ]]; then
-            DEFERRED_UNREADABLE+=("$unit")
-            continue
-        fi
-
-        # Still in the current generation's closure => running current code.
-        grep -qxF "$have" "$requisites" && continue
-
-        DEFERRED_STALE+=("$(printf '  %s (pid %s)\n    still running: %s\n    which is not part of the current generation' "$unit" "$pid" "$have")")
-    done
-
-    rm -f "$requisites"
-}
-
-print_deferred_section() {
-    [[ ${#DEFERRED_STALE[@]} -gt 0 ]] || return 0
-    say ""
-    say "NOTE: these units changed but were reloaded, not restarted, so they are"
-    say "still running the previous binary:"
-    say ""
-    printf '%s\n' "${DEFERRED_STALE[@]}"
-    say ""
-    say "  This is features/common/system/default.nix's reloadIfChanged doing its"
-    say "  job -- activation no longer drops the network. But the update is NOT"
-    say "  live yet; if it was a security fix you are not patched."
-    say ""
-    say "  Pick one up when convenient (both briefly bounce the link):"
-    say "    sudo systemctl restart NetworkManager"
-    say "    sudo reboot"
-}
-
-warn_if_deferred_unknown() {
-    [[ ${#DEFERRED_UNREADABLE[@]} -gt 0 ]] || return 0
-    say ""
-    say "WARNING: could not read /proc/<pid>/exe for: ${DEFERRED_UNREADABLE[*]}"
-    say "  Deferred-restart state for those units is UNKNOWN, not clean."
-    say "  Re-run with sudo for an authoritative answer."
-}
-
 if [[ "$DEFERRED_ONLY" -eq 1 ]]; then
-    scan_deferred_restarts
-    if [[ ${#DEFERRED_STALE[@]} -eq 0 && ${#DEFERRED_UNREADABLE[@]} -eq 0 ]]; then
-        say "No deferred restarts: every watched network unit is running its configured binary."
+    scan_file="$(mktemp)"
+    trap 'rm -f "$scan_file"' EXIT
+    # Straight to a file; see dg_scan_report for why it is never a variable.
+    dg_scan_script | /bin/sh -s >"$scan_file" 2>/dev/null || true
+    if [[ "$(id -u)" -ne 0 ]]; then
+        say "note: not root, so other users' processes (every system daemon) cannot be read."
     fi
-    print_deferred_section
-    warn_if_deferred_unknown
+    # Informational: the switch already happened, so there is no verdict to
+    # return. dg_scan_report says itself when the answer is incomplete.
+    dg_scan_report "$scan_file" || true
     exit 0
 fi
 
-# dry-activate applies nothing, but switch-to-configuration still requires
-# root to inspect the running system. Refuse early rather than fail deep in
-# the build with a confusing error. --plan-file classifies an already-captured
-# log and does not invoke nixos-rebuild, so it is exempt.
-if [[ -z "$PLAN_FILE" && "$(id -u)" -ne 0 ]]; then
-    echo "error: preflight must run as root (dry-activate activates nothing, but needs root)" >&2
+# ---------------------------------------------------------------------------
+# Facts: the target (evaluated) and the running system (probed)
+# ---------------------------------------------------------------------------
+fixture_mode=0
+if [[ -n "$FACTS_FILE" || -n "$PROBE_FILE" ]]; then
+    if [[ -z "$FACTS_FILE" || -z "$PROBE_FILE" ]]; then
+        echo "error: --facts-file and --probe-file go together" >&2
+        exit 1
+    fi
+    fixture_mode=1
+fi
+
+# Reading /proc/<pid>/exe for other users' processes -- and for a
+# non-dumpable compositor even of your own -- needs root. Without it the
+# process rule cannot rule out a running compositor and holds, which is the
+# correct answer to an unreadable system but a useless one.
+if [[ "$fixture_mode" -eq 0 && "$(id -u)" -ne 0 ]]; then
+    echo "error: preflight must run as root (it reads /proc of every process; it changes nothing)" >&2
     echo "  try: sudo $0${FLAKE_REF:+ --flake $FLAKE_REF}" >&2
     exit 1
 fi
 
-# ---------------------------------------------------------------------------
-# NETFS: live network filesystems whose stat() can block PID 1's generators
-# ---------------------------------------------------------------------------
-netfs_targets=()
-netfs_servers=()
-
-if command -v findmnt >/dev/null 2>&1; then
-    while IFS=$'\t' read -r target _source options; do
-        [[ -n "$target" ]] || continue
-        netfs_targets+=("$target")
-        # `addr=` is the resolved server address the kernel is actually using,
-        # which is what will time out. Prefer it over parsing the source spec.
-        addr="$(grep -oE '(^|,)addr=[^,]+' <<<"$options" | head -1 | cut -d= -f2 || true)"
-        [[ -n "$addr" ]] && netfs_servers+=("$addr")
-    done < <(findmnt -t nfs,nfs4,cifs -o TARGET,SOURCE,OPTIONS --noheadings --pairs 2>/dev/null |
-        sed -n 's/^TARGET="\([^"]*\)" SOURCE="\([^"]*\)" OPTIONS="\([^"]*\)"$/\1\t\2\t\3/p')
-fi
-
-# Deduplicate servers without requiring bash 4 associative arrays.
-if [[ ${#netfs_servers[@]} -gt 0 ]]; then
-    mapfile -t netfs_servers < <(printf '%s\n' "${netfs_servers[@]}" | sort -u)
-fi
-
-# A server we cannot reach RIGHT NOW is already the hang condition: the
-# generator will block on it during the re-exec no matter what activation does
-# to the network. 2049 is NFS; 445 is SMB. Two seconds is generous for a LAN.
-unreachable_servers=()
-for srv in ${netfs_servers[@]+"${netfs_servers[@]}"}; do
-    reachable=1
-    for port in 2049 445; do
-        if timeout 2 bash -c "exec 3<>/dev/tcp/${srv}/${port}" 2>/dev/null; then
-            reachable=0
-            break
-        fi
+if [[ "$fixture_mode" -eq 1 ]]; then
+    for f in "$FACTS_FILE" "$PROBE_FILE"; do
+        [[ -r "$f" ]] || {
+            echo "error: cannot read $f" >&2
+            exit 1
+        }
     done
-    [[ "$reachable" -eq 0 ]] || unreachable_servers+=("$srv")
-done
-
-# ---------------------------------------------------------------------------
-# The activation plan
-# ---------------------------------------------------------------------------
-if [[ -n "$PLAN_FILE" ]]; then
-    [[ -r "$PLAN_FILE" ]] || {
-        echo "error: cannot read plan file: $PLAN_FILE" >&2
-        exit 1
-    }
-    plan="$(cat "$PLAN_FILE")"
+    facts="$(cat "$FACTS_FILE")"
+    probe="$(cat "$PROBE_FILE")"
+    node="$(jq -r '.toplevel | sub("^/nix/store/[a-z0-9]+-nixos-system-"; "") | sub("-[0-9].*$"; "")' <<<"$facts")"
 else
-    if [[ -z "$FLAKE_REF" ]]; then
-        FLAKE_REF=".#$(hostname)"
-    fi
-    command -v nixos-rebuild >/dev/null 2>&1 || {
-        echo "error: nixos-rebuild not on PATH" >&2
-        exit 1
-    }
-    say "Preflight: building and dry-activating ${FLAKE_REF} (nothing is applied)..."
-    plan_err="$(mktemp)"
-    trap 'rm -f "$plan_err"' EXIT
-    if ! plan="$(nixos-rebuild dry-activate --flake "$FLAKE_REF" 2>"$plan_err")"; then
-        echo "error: dry-activate failed:" >&2
-        sed 's/^/  /' "$plan_err" >&2
+    # `<path>#<host>`. The default is THIS checkout, not the caller's cwd, so
+    # it means the same thing from anywhere.
+    [[ -n "$FLAKE_REF" ]] || FLAKE_REF="$(cd "$SCRIPT_DIR/.." && pwd)#$(hostname)"
+    if [[ "$FLAKE_REF" != *"#"* ]]; then
+        echo "error: --flake must be <path>#<host>, got: $FLAKE_REF" >&2
         exit 1
     fi
-    # nixos-rebuild puts the build log on stderr and the plan on stdout, but
-    # switch-to-configuration's own "would ..." lines go to stderr. Consider
-    # both so the predicate cannot silently see an empty plan.
-    plan="${plan}"$'\n'"$(cat "$plan_err")"
+    flake_path="${FLAKE_REF%%#*}"
+    node="${FLAKE_REF#*#}"
+
+    # A dirty tree evaluates to a closure no commit produced, so the fleet
+    # manifest cannot contain it and this host will report deploy state
+    # 'unmanaged' until the next switch from a clean tree. Expected while
+    # iterating; worth knowing. safe.directory because this runs as root
+    # against a checkout owned by the user, which git otherwise refuses.
+    if dirty="$(git -c safe.directory='*' -C "$flake_path" status --porcelain 2>/dev/null)" && [[ -n "$dirty" ]]; then
+        say "warning: $flake_path has uncommitted changes; after this switch the host will"
+        say "  report deploy state 'unmanaged' until it is switched from a clean tree."
+        say ""
+    fi
+
+    say "Preflight: evaluating ${FLAKE_REF} (nothing is built or applied)..."
+    eval_err="$(mktemp)"
+    trap 'rm -f "$eval_err"' EXIT
+    if ! facts="$(nix eval --json "${flake_path}#lib.deployFacts.nixos.\"${node}\"" 2>"$eval_err")"; then
+        echo "error: could not evaluate the target:" >&2
+        sed 's/^/  /' "$eval_err" >&2
+        exit 1
+    fi
+
+    # Validated before the names are interpolated into the probe below.
+    if ! why="$(dg_validate_facts "$facts")"; then
+        echo "error: $why" >&2
+        exit 1
+    fi
+
+    want_procs=0
+    [[ "$(jq '.processes | length' <<<"$facts")" -gt 0 ]] && want_procs=1
+    # The exact bytes colmena-apply-drifted.sh sends over SSH, run here.
+    if ! probe="$(dg_probe_script "$(dg_fact_units "$facts")" "$want_procs" | /bin/sh -s 2>/dev/null)"; then
+        echo "error: the local probe failed" >&2
+        exit 1
+    fi
 fi
 
+dg_classify "$facts" "$probe"
+
 # ---------------------------------------------------------------------------
-# Classify
+# Verdict
 # ---------------------------------------------------------------------------
-reexec=1
-grep -qE '^would restart systemd$' <<<"$plan" && reexec=0
-
-# Only the stop and restart sets take the daemon down. A reload does not, which
-# is the entire point of the reloadIfChanged change, so it must not count here.
-disruptive_units="$(grep -E '^would (stop|restart) the following units: ' <<<"$plan" |
-    sed 's/^would \(stop\|restart\) the following units: //' | tr ',' '\n' | sed 's/^ *//;s/ *$//' || true)"
-
-net_at_risk=()
-for unit in "${WATCHED_NET_UNITS[@]}"; do
-    grep -qxF "$unit" <<<"$disruptive_units" && net_at_risk+=("$unit")
-done
-
-has_netfs=$([[ ${#netfs_targets[@]} -gt 0 ]] && echo 0 || echo 1)
-has_netrisk=$([[ ${#net_at_risk[@]} -gt 0 ]] && echo 0 || echo 1)
-has_unreachable=$([[ ${#unreachable_servers[@]} -gt 0 ]] && echo 0 || echo 1)
+if [[ "$DG_STATE" == noprobe ]]; then
+    echo "error: could not read /run/current-system; the verdict is unknown" >&2
+    exit 1
+fi
 
 say ""
-say "Preflight result"
-say "  systemd daemon-reexec:      $([[ "$reexec" -eq 0 ]] && echo "YES (would restart systemd)" || echo "no")"
-say "  live NFS/CIFS mounts:       $([[ "$has_netfs" -eq 0 ]] && echo "${#netfs_targets[@]}" || echo "none")"
-say "  network units stopped:      $([[ "$has_netrisk" -eq 0 ]] && printf '%s' "${net_at_risk[*]}" || echo "none")"
-say "  fileservers unreachable:    $([[ "$has_unreachable" -eq 0 ]] && printf '%s' "${unreachable_servers[*]}" || echo "none")"
+say "Preflight result for ${node}"
 
-if [[ "$reexec" -eq 0 && "$has_netfs" -eq 0 && ("$has_netrisk" -eq 0 || "$has_unreachable" -eq 0) ]]; then
+if [[ "$DG_STATE" == current ]]; then
+    say "  already running the target generation; a switch has nothing to do."
+    [[ -n "$DG_OWED" ]] && say "  reboot owed: $DG_OWED"
+    say ""
+    say "VERDICT: safe to switch."
+    exit 0
+fi
+
+# Each rule: what it found, and whether the caller overrode it. An override is
+# still reported -- it says "I accept this", not "do not tell me".
+held=()
+overridden=()
+rule() {
+    local flag="$1" allow="$2"
+    shift 2
+    local entry
+    for entry in "$@"; do
+        [[ -n "$entry" ]] || continue
+        if [[ "$allow" -eq 1 ]]; then
+            overridden+=("$entry (overridden by $flag)")
+        else
+            held+=("$entry")
+        fi
+    done
+}
+rule --allow-unsafe-switch "$ALLOW_UNSAFE_SWITCH" "$DG_HOLD_SYSTEMD"
+rule --allow-kernel-switch "$ALLOW_KERNEL_SWITCH" "$DG_HOLD_KERNEL"
+rule --allow-critical-restart "$ALLOW_CRITICAL_RESTART" ${DG_HOLD_CRITICAL[@]+"${DG_HOLD_CRITICAL[@]}"}
+rule --allow-process-change "$ALLOW_PROCESS_CHANGE" ${DG_HOLD_PROCESS[@]+"${DG_HOLD_PROCESS[@]}"}
+
+for entry in ${held[@]+"${held[@]}"}; do
+    say "  HOLD      $entry"
+done
+for entry in ${overridden[@]+"${overridden[@]}"}; do
+    say "  ALLOWED   $entry"
+done
+for entry in ${DG_CRITICAL_UNKNOWN[@]+"${DG_CRITICAL_UNKNOWN[@]}"}; do
+    say "  UNKNOWN   $entry"
+done
+for entry in ${DG_INFO[@]+"${DG_INFO[@]}"}; do
+    say "  note      $entry"
+done
+if [[ ${#held[@]} -eq 0 && ${#overridden[@]} -eq 0 ]]; then
+    say "  nothing holds: systemd, the booted kernel, critical units and running"
+    say "  critical processes are all unchanged by this generation."
+fi
+[[ -n "$DG_OWED" ]] && say "  reboot owed already: $DG_OWED"
+
+if [[ ${#held[@]} -gt 0 ]]; then
     say ""
     say "VERDICT: do NOT switch live."
     say ""
-    say "  This activation re-execs PID 1 while the network filesystems above can"
-    say "  stall. That is the exact combination that freezes PID 1 (nixpkgs#375376):"
-    say "  the machine would survive the switch only to become unresponsive to"
-    say "  systemctl AND to reboot, needing SysRq or a power cycle."
+    say "  Stage it and reboot instead; the reboot reaches the new generation"
+    say "  without re-execing a running PID 1 or swapping software under a live"
+    say "  session:"
     say ""
-    say "  Everything is already built. Reach the new generation via a reboot,"
-    say "  which runs the shutdown under the current healthy PID 1:"
-    say ""
-    say "    sudo nixos-rebuild boot --flake ${FLAKE_REF:-.#$(hostname)}"
+    say "    sudo nixos-rebuild boot --flake ${FLAKE_REF:-.#${node}}"
     say "    sudo reboot"
     exit 10
 fi
 
 say ""
 say "VERDICT: safe to switch."
-scan_deferred_restarts
-print_deferred_section
-warn_if_deferred_unknown
 exit 0

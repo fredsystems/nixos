@@ -223,6 +223,26 @@
         '';
       };
 
+      # Hermetic tests for the deploy guard shared by switch-preflight.sh and
+      # colmena-apply-drifted.sh (scripts/lib/deploy-guard.sh): every
+      # switch-vs-boot rule, the probe and scan scripts run against a fixture
+      # /run + /proc tree, and the preflight's exit codes. A wrong answer
+      # there is either a needless reboot or a frozen PID 1, so the rules are
+      # tested rather than reviewed.
+      deployGuardCheck = pkgs.writeShellApplication {
+        name = "check-deploy-guard";
+        runtimeInputs = [
+          pkgs.jq
+          pkgs.gawk
+          pkgs.gnugrep
+          pkgs.gnused
+          pkgs.coreutils
+        ];
+        text = ''
+          bash scripts/tests/deploy-guard-test.sh
+        '';
+      };
+
       # Validates opencode.jsonc: a structural check (offline, default --
       # unknown top-level keys and command entries missing `template`,
       # wired into both the hook and the standalone check below via
@@ -292,6 +312,17 @@
                 # itself, since the checker cross-references all of these
                 # against the FORCE_ALL_FILES arrays in that script.
                 files = "^(\\.github/workflows/ci-(linux|darwin)\\.yaml|\\.github/merge-queue-ci-skipper/action\\.yaml|scripts/(attic-push|check-colmena-parity|diff-closures-comment|impacted-hosts)\\.sh)$";
+                pass_filenames = false;
+              };
+
+              deploy-guard = {
+                enable = true;
+                name = "deploy guard tests (switch vs boot rules)";
+                entry = "${pkgs.lib.getExe deployGuardCheck}";
+
+                # The library, both scripts built on it, the tests, and the
+                # Nix half of the facts they compare against.
+                files = "^(scripts/(lib/deploy-guard|switch-preflight|colmena-apply-drifted|tests/deploy-guard-test)\\.sh|flake/lib/deploy-facts\\.nix)$";
                 pass_filenames = false;
               };
 
@@ -521,6 +552,19 @@
           ''
             cd ${self}
             check-ci-pipeline-files-sync
+            touch "$out"
+          '';
+
+      # Standalone so `nix flake check` and CI run the guard tests even on a
+      # route that never ran pre-commit hooks.
+      deploy-guard =
+        pkgs.runCommand "deploy-guard-check"
+          {
+            nativeBuildInputs = [ deployGuardCheck ];
+          }
+          ''
+            cd ${self}
+            check-deploy-guard
             touch "$out"
           '';
 

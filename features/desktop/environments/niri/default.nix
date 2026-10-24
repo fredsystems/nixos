@@ -23,6 +23,13 @@ in
     };
     programs.xwayland.enable = true;
 
+    # See the matching declaration in ../hyprland and
+    # deployment.criticalProcesses in modules/base/deployment-meta.nix.
+    deployment.criticalProcesses.niri = {
+      inherit (config.programs.niri) package;
+      reason = "the running compositor; activation never restarts it, so a version bump leaves the session on the old niri with a new `niri msg` and portals talking to it";
+    };
+
     home-manager.users = lib.genAttrs allUsers (uname: {
 
       programs.niri = {

@@ -38,21 +38,24 @@
     # Tradeoff: the running NetworkManager stays on the OLD store path until
     # something restarts it, so a NetworkManager update (including a security
     # fix) is not live until `systemctl restart NetworkManager` or a reboot.
-    # scripts/switch-preflight.sh detects and reports that deferred restart by
-    # asking whether the binary the running MainPID actually has open is still
-    # part of /run/current-system's closure, so it is a visible, verified state
-    # rather than a silent one. (It deliberately does NOT compare ExecStart
-    # against /proc/$MAINPID/exe: units whose ExecStart is a generated
-    # unit-script-*-start wrapper never match their own binary and would report
-    # as permanently stale -- wpa_supplicant.service is one.)
+    # The post-switch stale-process report (`switch-preflight.sh --deferred`
+    # locally, and after every colmena switch; scripts/lib/deploy-guard.sh)
+    # lists it, by asking whether the binary each running process actually
+    # has open is still part of /run/current-system's closure -- so it is a
+    # visible, verified state rather than a silent one. (Not ExecStart vs
+    # /proc/$MAINPID/exe: units whose ExecStart is a generated
+    # unit-script-*-start wrapper never match their own binary and would
+    # report as permanently stale -- wpa_supplicant.service is one.)
     #
     # Deliberately NOT applied to wpa_supplicant.service: it reports
     # CanReload=no, and the 2026-08-29 journal shows it was never stopped by
     # switch-to-configuration (its disconnect was NetworkManager tearing down
     # the supplicant interface during NM's own shutdown). Forcing a lifecycle
-    # change there would be speculative. switch-preflight.sh watches it, along
-    # with systemd-networkd and dhcpcd, and routes to `boot` if any of them
-    # ever does land in the stop/restart set.
+    # change there would be speculative. It no longer needs watching for the
+    # freeze: the deploy guard now stages EVERY systemd store-path change with
+    # `boot` (the re-exec is the precondition that cannot be ruled out), so
+    # whether a network unit is in the stop/restart set no longer decides
+    # anything.
     #
     # Revert: once #375376 is fixed such that a hung generator can no longer
     # freeze PID 1 (or NixOS reloads network daemons by default), delete this

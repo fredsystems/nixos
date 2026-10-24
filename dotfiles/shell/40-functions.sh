@@ -25,7 +25,8 @@ _shell_func_opts_off() {
 garbagecollect() {
     sudo nix-collect-garbage -d
     nix-collect-garbage -d
-    updatenix
+    # Forwarded so `garbagecollect --allow-process-change` reaches the preflight.
+    updatenix "$@"
 }
 
 rebase() {
@@ -195,18 +196,28 @@ updatenix() {
             pushed=true
         fi
 
-        # Preflight before activating anything. This builds the closure and
-        # runs `dry-activate`, which applies nothing but reports exactly what
-        # the real switch would do. Exit 10 means the switch would re-exec
-        # PID 1 while our NFS mounts can stall it, which freezes PID 1 hard
-        # enough that the machine cannot even reboot (nixpkgs#375376). In that
-        # case take the `boot` path instead: everything is already built, and
-        # a reboot runs the shutdown under the current, healthy PID 1.
+        # Preflight before activating anything. It evaluates the target and
+        # reads the running system; nothing is built or applied. The rules
+        # are the fleet's (scripts/lib/deploy-guard.sh, shared with
+        # colmena-apply-drifted.sh): exit 10 means this generation moves
+        # systemd (a live switch re-execs PID 1, which can freeze it so hard
+        # the machine cannot reboot -- nixpkgs#375376), the booted kernel, a
+        # critical unit, or the version of the compositor you are logged
+        # into. Take the `boot` path then: a reboot reaches it safely.
         #
-        # Any other non-zero exit is a preflight failure, not a verdict, so
-        # fall through and let the normal switch report the real error.
-        sudo ./scripts/switch-preflight.sh --flake .#"$(hostname)"
+        # Any other non-zero exit means the verdict is UNKNOWN. That is not
+        # permission to switch, so stop and show the error.
+        #
+        # Arguments are forwarded, so an override is explicit at the call:
+        #   updatenix --allow-process-change
+        sudo ./scripts/switch-preflight.sh --flake .#"$(hostname)" "$@"
         local preflight_rc=$?
+
+        if [ "$preflight_rc" -ne 0 ] && [ "$preflight_rc" -ne 10 ]; then
+            echo "Preflight failed (exit $preflight_rc); not switching." >&2
+            [ "$pushed" = true ] && popd >/dev/null 2>&1 || true
+            return 1
+        fi
 
         if [ "$preflight_rc" -eq 10 ]; then
             echo
@@ -231,10 +242,12 @@ updatenix() {
             return 1
         fi
 
-        # NetworkManager is reloaded rather than restarted on activation (see
-        # features/common/system/default.nix), so after a switch that updated
-        # it the running daemon is still the old binary. Report that, because
-        # a silently-deferred security update is worse than a noisy one.
+        # What is still running a binary from before the switch: daemons
+        # activation reloaded rather than restarted (NetworkManager, see
+        # features/common/system/default.nix) and open apps now behind the
+        # installed version. A silently-deferred update is worse than a
+        # noisy one.
+        echo
         sudo ./scripts/switch-preflight.sh --deferred
 
         sudo nixos-needsreboot
@@ -261,8 +274,6 @@ updatenix() {
         echo "║ 🚨🚨🚨 Don't forget to run pc if this build was not built on CI! 🚨🚨🚨 ║"
         echo "╚═════════════════════════════════════════════════════════════════════════╝"
         echo
-
-        pkill -RTMIN+8 waybar 2>/dev/null || true
     fi
 
     if [ "$pushed" = true ]; then
