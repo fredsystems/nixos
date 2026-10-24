@@ -69,7 +69,7 @@
       # sdrhub host
       airspyAdsb = "ghcr.io/sdr-enthusiasts/airspy_adsb:latest-build-319@sha256:b63ee3163dc38619b9cf23ee832e01ce46785dc7b255b6522fc5b0e98892ac38"; # inactive (commented-out container)
       adsbUltrafeeder = "ghcr.io/sdr-enthusiasts/docker-adsb-ultrafeeder:telegraf-build-975@sha256:1937a273d481760f2604d331c794a8553d4b5e211e5aa239ab8027f5efc9602d";
-      dump978 = "ghcr.io/sdr-enthusiasts/docker-dump978:telegraf-build-805@sha256:0e29f96fb26f61a22b04773870187bb2913d5c11d9fdcb9a43eaf8ac9f67c49e";
+      dump978 = "ghcr.io/sdr-enthusiasts/docker-dump978:telegraf-build-806@sha256:1af94d0ec7b225b8dcf2e3dda48e783c117551d794d1571bef2af8f3680ccfae";
       adsbhub = "ghcr.io/sdr-enthusiasts/docker-adsbhub:latest-build-534@sha256:fbfefa7b344b0468d269acdc79d58bda7f1803058fe5928b167114a9760acf59";
       flightradar24 = "ghcr.io/sdr-enthusiasts/docker-flightradar24:latest-build-863@sha256:1de9e501bdf48a863652c165681313d8463312e28a1ae5f6c83c5b4f684119d5";
       piaware = "ghcr.io/sdr-enthusiasts/docker-piaware:latest-build-671@sha256:97293c1cb5dbbdb4ccc6d56e163c1677ff0662e7e0c43c71af315d7340603fb6";
