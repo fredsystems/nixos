@@ -98,6 +98,18 @@
         '';
       };
 
+      # Verifies that no two image pins in modules/data/docker-image-pins.nix
+      # are on adjacent lines. Renovate opens one PR per image from the same
+      # base, and git conflicts on adjacent-line edits, so without the
+      # spacing the merge queue keeps ejecting bumps whose neighbour landed
+      # first. See scripts/check-docker-pin-spacing.sh's header.
+      dockerPinSpacingCheck = pkgs.writeShellApplication {
+        name = "check-docker-pin-spacing";
+        text = ''
+          bash scripts/check-docker-pin-spacing.sh
+        '';
+      };
+
       # Verifies the sops age-recipient set is consistent across
       # modules/secrets/.sops.yaml's `keys:` anchors, its creation_rules
       # entry for secrets.yaml, and the recipients actually embedded in
@@ -323,6 +335,14 @@
                 # The library, both scripts built on it, the tests, and the
                 # Nix half of the facts they compare against.
                 files = "^(scripts/(lib/deploy-guard|switch-preflight|colmena-apply-drifted|tests/deploy-guard-test)\\.sh|flake/lib/deploy-facts\\.nix)$";
+                pass_filenames = false;
+              };
+
+              docker-pin-spacing = {
+                enable = true;
+                name = "docker image pins are not on adjacent lines";
+                entry = "${pkgs.lib.getExe dockerPinSpacingCheck}";
+                files = "^modules/data/docker-image-pins\\.nix$";
                 pass_filenames = false;
               };
 
@@ -565,6 +585,19 @@
           ''
             cd ${self}
             check-deploy-guard
+            touch "$out"
+          '';
+
+      # Standalone so CI catches collapsed spacing on Renovate PRs and web
+      # edits, neither of which ever runs pre-commit hooks.
+      docker-pin-spacing =
+        pkgs.runCommand "docker-pin-spacing-check"
+          {
+            nativeBuildInputs = [ dockerPinSpacingCheck ];
+          }
+          ''
+            cd ${self}
+            check-docker-pin-spacing
             touch "$out"
           '';
 

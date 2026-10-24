@@ -32,6 +32,17 @@
   # like it previously updated inline `image = "...";` strings. See that
   # file's comments before changing the shape of entries below.
   #
+  # ONE BLANK LINE BETWEEN PINS
+  #
+  # Renovate opens one PR per image, often a dozen within a minute, each
+  # changing one line of this file from the same base. Git's three-way
+  # merge treats edits to ADJACENT lines as a conflict even when they touch
+  # different attributes, so with pins on consecutive lines the merge queue
+  # kept ejecting bumps whose neighbour had landed first. A single unchanged
+  # line between any two pins (blank or comment) is enough for git to merge
+  # them cleanly. Enforced by scripts/check-docker-pin-spacing.sh (pre-commit
+  # hook + `checks.docker-pin-spacing`); do not collapse the spacing.
+  #
   # `airspyAdsb` and `acars2posAlt` are pinned here even though sdrhub's
   # container blocks that would use them are currently commented out
   # (inactive/alternate configurations) -- kept so Renovate still tracks
@@ -46,15 +57,19 @@
 
       # acarshub host
       acarsdec = "ghcr.io/sdr-enthusiasts/docker-acarsdec:latest-build-508@sha256:724bcdb55104f9662a5788c66d123b90ffbe0627c7d2f57af59c7c2b09bfcf54";
+
       xng = "ghcr.io/sdr-enthusiasts/docker-xng:latest-build-7@sha256:fe570f72a6b920b8d6e1f4589c462c8fa7f9933727afc8ddd85f2d4b3c6f1afb";
 
       # fredvps host
       fredSite = "ghcr.io/fredsystems/fred-site:latest-build-8@sha256:53659b897364c139dc504e6824ae999febdfe96616fbf306b8681a493510ed81";
+
       sdreImageApi = "ghcr.io/sdr-enthusiasts/sdre-image-api:latest-build-7@sha256:38df445fe37101648032e849a477ee3221ce8517cebd72983e21d9e1ba8dfbff";
+
       tar1090 = "ghcr.io/sdr-enthusiasts/docker-tar1090:telegraf-build-1492@sha256:817067f464d3c1f8b25c8d8c7bc2c84b2cd8eb76ea791a74b59c95610d04c36a";
 
       # Shared verbatim: sdrhub + fredvps.
       acarsRouter = "ghcr.io/sdr-enthusiasts/acars_router:latest-build-591@sha256:9763e7c8d54a2bc258c1fa3d7dae6f4821502f6d7fbca82301adc15ad7e83425";
+
       acarshub = "ghcr.io/sdr-enthusiasts/docker-acarshub:latest-build-1513@sha256:522c7064779d35431abb10bffed523a040449f3c3a992db438050a5852cdc3ae";
 
       # hfdlhub1 host
@@ -68,21 +83,37 @@
 
       # sdrhub host
       airspyAdsb = "ghcr.io/sdr-enthusiasts/airspy_adsb:latest-build-319@sha256:b63ee3163dc38619b9cf23ee832e01ce46785dc7b255b6522fc5b0e98892ac38"; # inactive (commented-out container)
+
       adsbUltrafeeder = "ghcr.io/sdr-enthusiasts/docker-adsb-ultrafeeder:telegraf-build-975@sha256:1937a273d481760f2604d331c794a8553d4b5e211e5aa239ab8027f5efc9602d";
+
       dump978 = "ghcr.io/sdr-enthusiasts/docker-dump978:telegraf-build-806@sha256:1af94d0ec7b225b8dcf2e3dda48e783c117551d794d1571bef2af8f3680ccfae";
+
       adsbhub = "ghcr.io/sdr-enthusiasts/docker-adsbhub:latest-build-534@sha256:fbfefa7b344b0468d269acdc79d58bda7f1803058fe5928b167114a9760acf59";
+
       flightradar24 = "ghcr.io/sdr-enthusiasts/docker-flightradar24:latest-build-863@sha256:1de9e501bdf48a863652c165681313d8463312e28a1ae5f6c83c5b4f684119d5";
+
       piaware = "ghcr.io/sdr-enthusiasts/docker-piaware:latest-build-671@sha256:97293c1cb5dbbdb4ccc6d56e163c1677ff0662e7e0c43c71af315d7340603fb6";
+
       planefinder = "ghcr.io/sdr-enthusiasts/docker-planefinder:latest-build-545@sha256:7abd0bf5583c71185093d6ff1dbe2fa000104c72ec651270f829519bc9867f5a";
+
       planewatch = "ghcr.io/plane-watch/docker-plane-watch:v0.0.11@sha256:24562527ff8ecd1b99f439646596bb9d4e2ee575d8dc09cafb663180767695d6";
+
       radarvirtuel = "ghcr.io/sdr-enthusiasts/docker-radarvirtuel:latest-build-806@sha256:48bcd44b6da5da72a791689e8471d5ef0bdf76ca1d78288fca6b64107feec78f";
+
       airnavradar = "ghcr.io/sdr-enthusiasts/docker-airnavradar:latest-build-888@sha256:427762e746037063874b26d453fdb584ccd42480d7186fe6b7b1df837be7be78";
+
       openskyNetwork = "ghcr.io/sdr-enthusiasts/docker-opensky-network:latest-build-850@sha256:3411f0cb0f66e1da23f4bba60eb44d5bd83143acac070761771d0d4228e1bd52";
+
       sdrmap = "ghcr.io/sdr-enthusiasts/docker-sdrmap:latest-build-104@sha256:aea937c3b21f8193aff3c4265a85710e32186c319fa979a6a406ffc57cef3cb4";
+
       acarshubV4 = "ghcr.io/sdr-enthusiasts/docker-acarshub:v4-latest-build-72@sha256:44e2e8f29e456dcc3d9316dab2b8169c6b5f4b46885eb307673790d970908e5b";
+
       acars2posAlt = "ghcr.io/rpatel3001/docker-acars2pos:latest-build-32@sha256:79eef9eaaa123f79a350e466452d577e71a6f11cedebad59ff91ebf97a6b6ea8"; # inactive (commented-out alternative)
+
       acars2pos = "ghcr.io/fredclausen/docker-acars2pos:latest-build-6@sha256:69ef9c559d6e7f31ac740ebfc41e661cbe75d72d5a7cc544e1bcc1a2939d0f4d";
+
       degoog = "ghcr.io/fccview/degoog:0.24.0@sha256:79409f76137734baa0516a58def96e4d3842f6db26d813e75365dea8a00974e9";
+
       syncclipboard = "jericx/syncclipboard-server:v3.3.3@sha256:4fe1486f176679e18fbcd2d220d19d21c4d19ce76ef63d92c4a00e28e9314eca";
     };
     description = "Every container image this fleet runs, keyed by logical name. See the module header for why every image is here, not just the ones shared across hosts.";
