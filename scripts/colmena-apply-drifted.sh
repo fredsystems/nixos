@@ -50,9 +50,9 @@
 #
 # PER-NODE GOALS: WHY THERE ARE TWO DEPLOY PHASES
 #
-# Three independent reasons below (systemd changes, kernel changes, critical-
-# unit restart) make a live `switch` wrong for SOME nodes in a run, not all of
-# them. A single
+# Four independent reasons below (systemd changes, kernel changes, critical-
+# unit restart, critical-process version change) make a live `switch` wrong
+# for SOME nodes in a run, not all of them. A single
 # `colmena apply` takes one goal for every target, so the only way to respect
 # a per-node verdict is to invoke colmena twice:
 #
@@ -138,6 +138,22 @@
 # against the one the target closure evaluates to
 # (config.systemd.units.<unit>.unit). Equal means activation will not touch it.
 #
+# THE CRITICAL-PROCESS HAZARD
+#
+# deployment.criticalProcesses -- in practice the compositor on a desktop --
+# holds a node whose RUNNING instance of the package would move to a different
+# version. No server declares one today; the rule is here because it lives in
+# the shared library, not because this script special-cases it. See
+# modules/base/deployment-meta.nix.
+#
+# SHARED WITH THE DESKTOP PREFLIGHT
+#
+# The probe, every hold rule above and the post-switch stale-process report
+# live in scripts/lib/deploy-guard.sh, and the target side in
+# flake/lib/deploy-facts.nix. scripts/switch-preflight.sh sources the same
+# library for the local machine, so the two cannot drift apart. Change a rule
+# THERE, not here.
+#
 # REBOOT MODE
 #
 # `--reboot` is the other half of the `boot` goal: it finds every node that
@@ -160,6 +176,7 @@
 #   scripts/colmena-apply-drifted.sh --allow-unsafe-switch     # switch despite a systemd change
 #   scripts/colmena-apply-drifted.sh --allow-kernel-switch     # switch despite a kernel change
 #   scripts/colmena-apply-drifted.sh --allow-critical-restart  # ignore the critical-unit hazard
+#   scripts/colmena-apply-drifted.sh --allow-process-change    # switch despite a critical-process version change
 #   scripts/colmena-apply-drifted.sh -- --verbose    # pass args to colmena
 #
 # Note: `--reboot` before `--` is this script's reboot mode. Colmena's own
@@ -187,6 +204,7 @@ WAIT=0
 ALLOW_UNSAFE_SWITCH=0
 ALLOW_KERNEL_SWITCH=0
 ALLOW_CRITICAL_RESTART=0
+ALLOW_PROCESS_CHANGE=0
 REBOOT_MODE=0
 ASSUME_YES=0
 COLMENA_ARGS=()
@@ -199,6 +217,7 @@ while [[ $# -gt 0 ]]; do
         --allow-unsafe-switch) ALLOW_UNSAFE_SWITCH=1 ;;
         --allow-kernel-switch) ALLOW_KERNEL_SWITCH=1 ;;
         --allow-critical-restart) ALLOW_CRITICAL_RESTART=1 ;;
+        --allow-process-change) ALLOW_PROCESS_CHANGE=1 ;;
         --reboot) REBOOT_MODE=1 ;;
         --yes | -y) ASSUME_YES=1 ;;
         --) shift; COLMENA_ARGS=("$@"); break ;;
@@ -228,6 +247,7 @@ if [[ $REBOOT_MODE -eq 1 ]]; then
     [[ $ALLOW_UNSAFE_SWITCH -eq 1 ]] && reboot_conflict="--allow-unsafe-switch"
     [[ $ALLOW_KERNEL_SWITCH -eq 1 ]] && reboot_conflict="--allow-kernel-switch"
     [[ $ALLOW_CRITICAL_RESTART -eq 1 ]] && reboot_conflict="--allow-critical-restart"
+    [[ $ALLOW_PROCESS_CHANGE -eq 1 ]] && reboot_conflict="--allow-process-change"
     if [[ -n "$reboot_conflict" ]]; then
         echo "error: $reboot_conflict has no meaning with --reboot (nothing is built or deployed)" >&2
         exit 1
@@ -246,6 +266,9 @@ for tool in nix jq git ssh curl colmena timeout; do
 done
 
 cd "$(git rev-parse --show-toplevel)"
+
+# shellcheck source=scripts/lib/deploy-guard.sh
+source scripts/lib/deploy-guard.sh
 
 if [[ -n "$(git status --porcelain)" ]]; then
     cat >&2 <<'EOF'
@@ -281,80 +304,30 @@ source_identity() {
 }
 SOURCE_ID_AT_EVAL="$(source_identity)"
 
-# All four maps come out of ONE evaluation. Evaluating the hive is the
-# expensive part of this script -- it is a full module-system evaluation per
-# node -- and asking for systemd.package or the critical units separately would
-# multiply the run time for a handful of extra store paths. The result is then
-# split back out unchanged, so everything downstream (the probe loop, the
-# manifest guard's jq) still sees the flat {node: toplevel} shape it was written
-# against.
+# One evaluation for every node: flake/lib/deploy-facts.nix, the same
+# function the desktop preflight evaluates. Evaluating the hive is the
+# expensive part of this script (a full module-system evaluation per node), so
+# everything any guard needs comes out of this single call.
 #
-# `critical` is keyed by node, then by unit name, and carries both the reason
-# the unit is protected and the unit-file store path the target closure would
-# install. Indexing systemd.units.<unit> directly is safe because
-# modules/base/deployment-meta.nix asserts every declared unit exists -- a typo
-# fails evaluation there rather than silently producing an empty map here, which
-# would read as "nothing critical changed".
-#
-# `kernel` carries exactly the two paths the target toplevel's `kernel` and
-# `kernel-modules` symlinks resolve to (nixos/modules/system/boot/kernel.nix
-# builds them from these same expressions), so the probe can compare them to
-# /run/booted-system with a plain `readlink -f` and no path surgery.
+# The flat {node: toplevel} and {node: critical} views are derived from it for
+# the manifest guard's jq and the reboot ordering, which were written against
+# those shapes.
 echo "Evaluating what colmena would deploy..." >&2
-# shellcheck disable=SC2016
-# Single-quoted on purpose: this is a Nix expression, and `${unit}` below is
-# Nix string interpolation. Letting the shell touch it would substitute an
-# empty local variable and evaluate `systemd.units.""`.
-if ! COMBINED_JSON="$(
-    nix eval --json '.#colmenaHive.nodes' \
-        --apply 'ns: {
-          toplevel = builtins.mapAttrs (_: n: n.config.system.build.toplevel.outPath) ns;
-          systemd = builtins.mapAttrs (_: n: n.config.systemd.package.outPath) ns;
-          kernel = builtins.mapAttrs (_: n: {
-            image = "${n.config.boot.kernelPackages.kernel}/${n.config.system.boot.loader.kernelFile}";
-            modules = builtins.concatStringsSep " " (
-              builtins.sort builtins.lessThan (
-                map (p: p.outPath) (
-                  [ (n.pkgs.lib.getOutput "modules" n.config.boot.kernelPackages.kernel) ]
-                  ++ n.config.boot.extraModulePackages
-                )
-              )
-            );
-          }) ns;
-          critical = builtins.mapAttrs (
-            _: n:
-              builtins.mapAttrs (unit: reason: {
-                inherit reason;
-                path = n.config.systemd.units.${unit}.unit.outPath;
-              }) n.config.deployment.criticalUnits
-          ) ns;
-        }' \
-        2>"$EVAL_STDERR"
-)"; then
-    printf 'error: failed to evaluate colmenaHive nodes:\n%s\n' "$(cat "$EVAL_STDERR")" >&2
+if ! FACTS_JSON="$(nix eval --json '.#lib.deployFacts.colmena' 2>"$EVAL_STDERR")"; then
+    printf 'error: failed to evaluate .#lib.deployFacts.colmena:\n%s\n' "$(cat "$EVAL_STDERR")" >&2
     exit 1
 fi
-EXPECTED_JSON="$(jq -c '.toplevel' <<<"$COMBINED_JSON")"
-SYSTEMD_JSON="$(jq -c '.systemd' <<<"$COMBINED_JSON")"
-KERNEL_JSON="$(jq -c '.kernel' <<<"$COMBINED_JSON")"
-CRITICAL_JSON="$(jq -c '.critical' <<<"$COMBINED_JSON")"
+EXPECTED_JSON="$(jq -c 'map_values(.toplevel)' <<<"$FACTS_JSON")"
+CRITICAL_JSON="$(jq -c 'map_values(.critical)' <<<"$FACTS_JSON")"
 
-# Unit names are interpolated into the remote probe script, so they are checked
-# here rather than trusted. The set allowed is what systemd itself permits in a
-# unit name; anything else is a mistake or an injection attempt, and neither
-# should reach an `ssh` command line.
-if ! bad_units="$(
-    jq -r '[ .[] | keys[] ] | unique
-           | map(select(test("^[A-Za-z0-9@:._\\\\-]+\\.[a-z]+$") | not))
-           | join(" ")' <<<"$CRITICAL_JSON"
-)"; then
-    echo "error: could not validate deployment.criticalUnits names" >&2
-    exit 1
-fi
-if [[ -n "$bad_units" ]]; then
-    echo "error: deployment.criticalUnits contains unusable unit name(s): $bad_units" >&2
-    exit 1
-fi
+# Names are interpolated into the remote probe script, so they are checked
+# here rather than trusted.
+for node in $(jq -r 'keys[]' <<<"$FACTS_JSON"); do
+    if ! why="$(dg_validate_facts "$(jq -c --arg n "$node" '.[$n]' <<<"$FACTS_JSON")")"; then
+        echo "error: $node: $why" >&2
+        exit 1
+    fi
+done
 
 if ! DEPLOY_JSON="$(nix eval --json '.#colmenaHive.deploymentConfig' 2>>"$EVAL_STDERR")"; then
     printf 'error: failed to evaluate colmenaHive deploymentConfig:\n%s\n' "$(cat "$EVAL_STDERR")" >&2
@@ -370,90 +343,25 @@ echo "Evaluated ${#NODES[@]} node(s)." >&2
 
 # --- The remote probe -----------------------------------------------------
 #
-# One SSH session per node collects everything any later stage needs, rather
-# than each guard opening its own round of connections: what the node is
-# running, the systemd package it is running, the kernel it booted, the
-# unit-file store path of each of its critical units, and whether it already
-# has a staged generation waiting for a reboot.
-#
-# Emitted as key=value lines so adding a field later cannot silently shift the
-# meaning of an existing one, the way positional lines would. `unit:<name>=` is
-# namespaced for the same reason -- a unit called `kernel` cannot collide with
-# the kernel field.
-#
-# A field that could not be READ is deliberately distinguishable from a field
-# that says "no": every guard downstream treats "?" as unknown and reports it,
-# because a failed probe silently evaluating as "safe" is the one failure
-# direction that matters here.
-#
-# shellcheck disable=SC2016
-# The single quotes are the point: every $ in this block must expand on the
-# REMOTE host. Double quotes would expand them locally and ship a pre-evaluated
-# snapshot of this machine's state instead. CRITICAL_UNITS is supplied by
-# probe_node as a separate assignment prepended to this body.
-PROBE_BODY='
-  printf "toplevel=%s\n" "$(readlink -f /run/current-system)"
-  printf "booted=%s\n" "$(readlink -f /run/booted-system 2>/dev/null)"
-  printf "booted_systemd=%s\n" "$(readlink -f /run/booted-system/systemd 2>/dev/null)"
-  printf "systemd=%s\n" "$(readlink -f /run/current-system/systemd 2>/dev/null)"
+# One SSH session per node collects everything any later stage needs. The
+# script itself is DG_PROBE_BODY from scripts/lib/deploy-guard.sh -- the same
+# bytes switch-preflight.sh runs locally -- built per node by dg_probe_script.
 
-  # The system profile is what `boot` updates and `switch` also updates: it
-  # points at the generation the bootloader will start. Differing from
-  # /run/current-system is therefore the exact signature of a staged-but-not-
-  # activated closure, which is what --reboot looks for. Derived from the
-  # profile rather than by parsing bootloader entries, which differ per
-  # bootloader and per generation-limit setting.
-  printf "profile=%s\n" "$(readlink -f /nix/var/nix/profiles/system 2>/dev/null)"
-
-  # What the KERNEL is running, which is a question about the booted
-  # generation, not the current one: `switch` moves current-system/kernel
-  # without the running kernel changing at all. Empty on failure, which the
-  # caller reports as unknown rather than as "unchanged".
-  #
-  # Modules are reported as the sorted, space-joined store references of the
-  # module tree: the packages it was assembled from, which is exactly the list
-  # the caller evaluates (`[ kernel.modules ] ++ boot.extraModulePackages`, the
-  # same expression nixos/modules/system/boot/kernel.nix builds the tree
-  # from). LC_ALL=C so the order is byte order, matching builtins.lessThan.
-  # Empty if nix-store fails, never a partial list.
-  mod_refs() {
-    t=$(readlink -f "$1" 2>/dev/null) || return 0
-    [ -n "$t" ] || return 0
-    r=$(nix-store -q --references "$t" 2>/dev/null) || return 0
-    printf "%s\n" "$r" | grep . | LC_ALL=C sort | paste -sd " " -
-  }
-  printf "kernel=%s\n" "$(readlink -f /run/booted-system/kernel 2>/dev/null)"
-  printf "modules=%s\n" "$(mod_refs /run/booted-system/kernel-modules)"
-  printf "current_kernel=%s\n" "$(readlink -f /run/current-system/kernel 2>/dev/null)"
-  printf "current_modules=%s\n" "$(mod_refs /run/current-system/kernel-modules)"
-
-  # The unit DERIVATION path, not the file inside it: /etc/systemd/system/<u>
-  # resolves to /nix/store/<hash>-unit-<u>/<u>, and the caller compares against
-  # config.systemd.units.<u>.unit, which is the directory. Stripping the last
-  # component makes the two directly comparable.
-  #
-  # "absent" is not "?": a critical unit the running generation does not have
-  # yet will be STARTED by activation, not restarted, so there is no running
-  # process to disrupt and no reason to hold the node back.
-  for u in $CRITICAL_UNITS; do
-    f="/run/current-system/etc/systemd/system/$u"
-    if [ -L "$f" ] || [ -e "$f" ]; then
-      p=$(readlink -f "$f" 2>/dev/null)
-      if [ -n "$p" ]; then
-        printf "unit:%s=%s\n" "$u" "${p%/*}"
-      else
-        printf "unit:%s=?\n" "$u"
-      fi
-    else
-      printf "unit:%s=absent\n" "$u"
-    fi
-  done
-'
+# Facts object and probe script for one node.
+node_facts() {
+    jq -c --arg n "$1" '.[$n]' <<<"$FACTS_JSON"
+}
+node_probe_script() {
+    local facts want=0
+    facts="$(node_facts "$1")"
+    [[ "$(jq '.processes | length' <<<"$facts")" -gt 0 ]] && want=1
+    dg_probe_script "$(dg_fact_units "$facts")" "$want"
+}
 
 # Probe one node. Prints the key=value block on stdout; returns non-zero if the
 # node could not be reached at all.
 #
-#   $1 host   $2 port   $3 user   $4 space-separated critical unit names
+#   $1 host   $2 port   $3 user   $4 probe script (node_probe_script)
 #   $5 attempts (optional, default 2)
 #
 # StrictHostKeyChecking is pinned to yes rather than left to the caller's
@@ -482,7 +390,7 @@ PROBE_BODY='
 # practice, so this is not hypothetical. --reboot's wait loop passes 1 attempt
 # because it is already polling and expects failures while the node is down.
 probe_node() {
-    local host="$1" port="$2" user="$3" units="$4" attempts="${5:-2}"
+    local host="$1" port="$2" user="$3" script="$4" attempts="${5:-2}"
     local attempt out
 
     for ((attempt = 1; attempt <= attempts; attempt++)); do
@@ -507,8 +415,7 @@ probe_node() {
                 -o ConnectTimeout=10 \
                 -o StrictHostKeyChecking=yes \
                 -p "$port" "${user}@${host}" /bin/sh -s \
-                2>/dev/null <<<"CRITICAL_UNITS='${units}'
-${PROBE_BODY}"
+                2>/dev/null <<<"$script"
         )"; then
             printf '%s\n' "$out"
             return 0
@@ -516,14 +423,6 @@ ${PROBE_BODY}"
         [[ "$attempt" -lt "$attempts" ]] && sleep 3
     done
     return 1
-}
-
-# Read one key=value field out of a probe block. Named rather than inlined
-# because every field is read the same way and `unit:` keys contain a `.`,
-# which makes an ad-hoc sed expression easy to get subtly wrong.
-probe_field() {
-    local block="$1" key="$2"
-    awk -v k="$key" 'index($0, k "=") == 1 { print substr($0, length(k) + 2); exit }' <<<"$block"
 }
 
 # Space-separated critical unit names for a node, in a stable order.
@@ -556,6 +455,9 @@ STAGED_WHY=()
 SYSTEMD_HOLD_NODES=()
 KERNEL_HOLD_NODES=()
 CRITICAL_HOLD_NODES=()
+PROCESS_HOLD=()
+PROCESS_HOLD_NODES=()
+PROCESS_INFO=()
 
 # Parallel arrays indexed alongside NODES, so later stages (the reboot flow in
 # particular) do not need a second round of SSH or jq to recover what the probe
@@ -565,172 +467,68 @@ PROBE_NODES=()
 PROBE_RUNNING=()
 PROBE_PROFILE=()
 
-# "systemd-260.5" out of "/nix/store/<hash>-systemd-260.5", and
-# "linux-6.18.54" out of ".../<hash>-linux-6.18.54/bzImage". Display only --
-# every decision compares full store paths, because a rebuild at the same
-# version is a different path with the same name.
-store_name() {
-    local p="${1#/nix/store/}"
-    p="${p#*-}"
-    printf '%s' "${p%%/*}"
-}
-
-# "a -> b", or "a (rebuilt, same version)" when only the hash moved. Without
-# the second form a mass-rebuild hold reads "systemd-260.5 -> systemd-260.5",
-# which looks like a bug in this script rather than the reason for the hold.
-describe_change() {
-    local from to
-    from="$(store_name "$1")"
-    to="$(store_name "$2")"
-    if [[ "$from" == "$to" ]]; then
-        printf '%s (rebuilt, same version)' "$to"
-    else
-        printf '%s -> %s' "$from" "$to"
-    fi
-}
-
 for node in "${NODES[@]}"; do
-    expected="$(jq -r --arg n "$node" '.[$n]' <<<"$EXPECTED_JSON")"
     host="$(jq -r --arg n "$node" '.[$n].targetHost // ""' <<<"$DEPLOY_JSON")"
     port="$(jq -r --arg n "$node" '.[$n].targetPort // 22' <<<"$DEPLOY_JSON")"
     user="$(jq -r --arg n "$node" '.[$n].targetUser // "root"' <<<"$DEPLOY_JSON")"
-    units="$(node_critical_units "$node")"
 
     if [[ -z "$host" ]]; then
         UNREACHABLE+=("$node (no targetHost)")
         continue
     fi
 
-    if ! probe_out="$(probe_node "$host" "$port" "$user" "$units")"; then
+    if ! probe_out="$(probe_node "$host" "$port" "$user" "$(node_probe_script "$node")")"; then
         UNREACHABLE+=("$node ($host)")
         continue
     fi
 
-    running="$(probe_field "$probe_out" toplevel)"
-    running_systemd="$(probe_field "$probe_out" systemd)"
-    booted_kernel="$(probe_field "$probe_out" kernel)"
-    booted_modules="$(probe_field "$probe_out" modules)"
-    current_kernel="$(probe_field "$probe_out" current_kernel)"
-    current_modules="$(probe_field "$probe_out" current_modules)"
-    running_profile="$(probe_field "$probe_out" profile)"
-    booted_systemd="$(probe_field "$probe_out" booted_systemd)"
+    # Every rule lives in dg_classify (scripts/lib/deploy-guard.sh); this loop
+    # only files its verdict into the buckets the rest of the script uses.
+    dg_classify "$(node_facts "$node")" "$probe_out"
 
-    # An empty toplevel means the remote command ran but produced nothing
-    # usable. Treating that as drift would deploy on the strength of a failed
-    # probe; treating it as current would silently skip the node forever.
-    if [[ -z "$running" ]]; then
+    if [[ "$DG_STATE" == noprobe ]]; then
         UNREACHABLE+=("$node ($host: probe returned no toplevel)")
         continue
     fi
 
     PROBE_NODES+=("$node")
-    PROBE_RUNNING+=("$running")
-    PROBE_PROFILE+=("$running_profile")
+    PROBE_RUNNING+=("$DG_RUNNING")
+    PROBE_PROFILE+=("$DG_PROFILE")
 
-    # A generation the bootloader will start but that is not running: either an
-    # earlier `boot`-goal deploy that has not been rebooted into, or a local
-    # `nixos-rebuild boot` on the node. Recorded regardless of drift, because a
-    # node whose staged closure IS the expected one looks perfectly current to
-    # the profile comparison while still owing a reboot.
-    #
-    # The other tests are the other way a reboot can be owed: the generation IS
-    # running, but it was switched into live and carries a kernel or a systemd
-    # the node did not boot. That is what any `switch` across a kernel or
-    # systemd bump leaves behind -- including every one made before this
-    # script held those changes back -- and the profile comparison cannot see
-    # it, because profile and current-system agree. It is also exactly what
-    # nixos-needsreboot (the nixos_needs_reboot metric) flags, so the two agree
-    # on which nodes owe a reboot. systemd is compared by store path, the same
-    # rule the deploy side uses, so a same-version rebuild counts too.
-    #
-    # Each comparison runs only when both of its paths were read, so a partial
-    # probe cannot schedule a reboot on its own.
-    owed=""
-    if [[ -n "$running_profile" && "$running_profile" != "$running" ]]; then
-        owed="staged generation"
-    else
-        if [[ -n "$booted_kernel" && -n "$current_kernel" && "$booted_kernel" != "$current_kernel" ]] ||
-            [[ -n "$booted_modules" && -n "$current_modules" && "$booted_modules" != "$current_modules" ]]; then
-            owed="kernel"
-        fi
-        if [[ -n "$booted_systemd" && -n "$running_systemd" && "$booted_systemd" != "$running_systemd" ]]; then
-            owed="${owed:+$owed, }systemd $(describe_change "$booted_systemd" "$running_systemd")"
-        fi
-    fi
-    if [[ -n "$owed" ]]; then
+    # Recorded regardless of drift: a node whose staged closure IS the
+    # expected one looks current while still owing a reboot.
+    if [[ -n "$DG_OWED" ]]; then
         STAGED+=("$node")
-        STAGED_WHY+=("$node: $owed")
+        STAGED_WHY+=("$node: $DG_OWED")
     fi
 
-    if [[ "$running" == "$expected" ]]; then
+    if [[ "$DG_STATE" == current ]]; then
         CURRENT+=("$node")
         continue
     fi
-
     DRIFTED+=("$node")
 
-    # systemd: does the deploy move PID 1's package? If so `switch` would
-    # re-exec it in place, so the node is staged instead. See SYSTEMD CHANGES
-    # in the header.
-    #
-    # A field we could not read is NOT the same as a field that says "no".
-    # Unreadable is held, not waved through: wrongly staging costs a reboot,
-    # wrongly switching can cost a frozen box that needs physically visiting.
-    target_systemd="$(jq -r --arg n "$node" '.[$n] // ""' <<<"$SYSTEMD_JSON")"
-    if [[ -z "$running_systemd" || -z "$target_systemd" ]]; then
-        SYSTEMD_HOLD+=("$node ($host): running systemd unreadable, treated as changed")
-        SYSTEMD_HOLD_NODES+=("$node")
-    elif [[ "$running_systemd" != "$target_systemd" ]]; then
-        SYSTEMD_HOLD+=("$node ($host): systemd $(describe_change "$running_systemd" "$target_systemd")")
+    if [[ -n "$DG_HOLD_SYSTEMD" ]]; then
+        SYSTEMD_HOLD+=("$node ($host): $DG_HOLD_SYSTEMD")
         SYSTEMD_HOLD_NODES+=("$node")
     fi
-
-    # Kernel: does the deploy install a kernel or module tree other than the
-    # one the node BOOTED? Then a reboot is owed whatever goal is used, so it
-    # is staged and the reboot made explicit. Same unreadable-is-held rule.
-    target_kernel="$(jq -r --arg n "$node" '.[$n].image // ""' <<<"$KERNEL_JSON")"
-    target_modules="$(jq -r --arg n "$node" '.[$n].modules // ""' <<<"$KERNEL_JSON")"
-    if [[ -z "$booted_kernel" || -z "$booted_modules" || -z "$target_kernel" || -z "$target_modules" ]]; then
-        KERNEL_HOLD+=("$node ($host): booted kernel unreadable, treated as changed")
-        KERNEL_HOLD_NODES+=("$node")
-    elif [[ "$booted_kernel" != "$target_kernel" ]]; then
-        KERNEL_HOLD+=("$node ($host): kernel $(describe_change "$booted_kernel" "$target_kernel")")
-        KERNEL_HOLD_NODES+=("$node")
-    elif [[ "$booted_modules" != "$target_modules" ]]; then
-        # Name only what is new: listing both full sets would be two lines of
-        # store paths that differ in one entry.
-        added=""
-        for m in $target_modules; do
-            [[ " $booted_modules " == *" $m "* ]] || added+=" $(store_name "$m")"
-        done
-        KERNEL_HOLD+=("$node ($host): kernel modules change:${added:- (removed only)}")
+    if [[ -n "$DG_HOLD_KERNEL" ]]; then
+        KERNEL_HOLD+=("$node ($host): $DG_HOLD_KERNEL")
         KERNEL_HOLD_NODES+=("$node")
     fi
-
-    # Critical units: would activation restart one?
-    #
-    # switch-to-configuration restarts a unit exactly when its unit file
-    # changed, so comparing the unit derivation the node is running against the
-    # one the target closure installs is a decision, not an estimate.
-    #
-    # Unknown is not "no" here either, but it is reported rather than held:
-    # a missed critical restart breaks the rest of this run, which is loud and
-    # recoverable, not a frozen node. "absent" IS an answer: the unit does
-    # not exist in the running generation, so activation starts it rather than
-    # restarting it, and there is nothing running to disrupt.
-    for unit in $units; do
-        have="$(probe_field "$probe_out" "unit:${unit}")"
-        want="$(jq -r --arg n "$node" --arg u "$unit" '.[$n][$u].path // ""' <<<"$CRITICAL_JSON")"
-        reason="$(jq -r --arg n "$node" --arg u "$unit" '.[$n][$u].reason // "no reason recorded"' <<<"$CRITICAL_JSON")"
-
-        if [[ -z "$have" || "$have" == "?" || -z "$want" ]]; then
-            CRITICAL_UNKNOWN+=("$node ($host): could not compare $unit (running='${have:-?}')")
-        elif [[ "$have" == "absent" ]]; then
-            continue
-        elif [[ "$have" != "$want" ]]; then
-            CRITICAL_HOLD+=("$node ($host): $unit would restart -- $reason")
-            CRITICAL_HOLD_NODES+=("$node")
-        fi
+    for entry in ${DG_HOLD_CRITICAL[@]+"${DG_HOLD_CRITICAL[@]}"}; do
+        CRITICAL_HOLD+=("$node ($host): $entry")
+        CRITICAL_HOLD_NODES+=("$node")
+    done
+    for entry in ${DG_CRITICAL_UNKNOWN[@]+"${DG_CRITICAL_UNKNOWN[@]}"}; do
+        CRITICAL_UNKNOWN+=("$node ($host): $entry")
+    done
+    for entry in ${DG_HOLD_PROCESS[@]+"${DG_HOLD_PROCESS[@]}"}; do
+        PROCESS_HOLD+=("$node ($host): $entry")
+        PROCESS_HOLD_NODES+=("$node")
+    done
+    for entry in ${DG_INFO[@]+"${DG_INFO[@]}"}; do
+        PROCESS_INFO+=("$node ($host): $entry")
     done
 done
 
@@ -839,7 +637,7 @@ if [[ $REBOOT_MODE -eq 1 ]]; then
         host="$(jq -r --arg n "$node" '.[$n].targetHost // ""' <<<"$DEPLOY_JSON")"
         port="$(jq -r --arg n "$node" '.[$n].targetPort // 22' <<<"$DEPLOY_JSON")"
         user="$(jq -r --arg n "$node" '.[$n].targetUser // "root"' <<<"$DEPLOY_JSON")"
-        units="$(node_critical_units "$node")"
+        script="$(node_probe_script "$node")"
         target="$(probe_lookup "$node" profile)"
 
         # Rebooting the machine running this script kills the script, and with
@@ -872,8 +670,8 @@ if [[ $REBOOT_MODE -eq 1 ]]; then
             sleep "$REBOOT_INTERVAL"
             # One attempt, no retry: failures are expected while the node is
             # down, and probe_node's own retry would only slow the poll.
-            if out="$(probe_node "$host" "$port" "$user" "$units" 1)"; then
-                now="$(probe_field "$out" booted)"
+            if out="$(probe_node "$host" "$port" "$user" "$script" 1)"; then
+                now="$(dg_probe_field "$out" booted)"
                 # The node must be up AND have BOOTED the closure it was staged
                 # with. Reachability alone is not enough: sshd answers well
                 # before the check is meaningful, and if the node came back on
@@ -1125,6 +923,7 @@ contains() {
 SYSTEMD_ACTIVE=$((goal_activates == 1 && ALLOW_UNSAFE_SWITCH == 0))
 KERNEL_ACTIVE=$((goal_activates == 1 && ALLOW_KERNEL_SWITCH == 0))
 CRITICAL_ACTIVE=$((goal_activates == 1 && ALLOW_CRITICAL_RESTART == 0))
+PROCESS_ACTIVE=$((goal_activates == 1 && ALLOW_PROCESS_CHANGE == 0))
 
 STAGE_BUCKET=()
 SWITCH_BUCKET=()
@@ -1140,6 +939,10 @@ for node in "${DRIFTED[@]}"; do
     fi
     if [[ $CRITICAL_ACTIVE -eq 1 ]] &&
         contains "$node" ${CRITICAL_HOLD_NODES[@]+"${CRITICAL_HOLD_NODES[@]}"}; then
+        hold=1
+    fi
+    if [[ $PROCESS_ACTIVE -eq 1 ]] &&
+        contains "$node" ${PROCESS_HOLD_NODES[@]+"${PROCESS_HOLD_NODES[@]}"}; then
         hold=1
     fi
     if [[ $hold -eq 1 ]]; then
@@ -1167,6 +970,11 @@ print_hold_reasons() {
             contains "${entry%% *}" "${STAGE_BUCKET[@]}" && echo "  $entry"
         done
     fi
+    if [[ $PROCESS_ACTIVE -eq 1 ]]; then
+        for entry in ${PROCESS_HOLD[@]+"${PROCESS_HOLD[@]}"}; do
+            contains "${entry%% *}" "${STAGE_BUCKET[@]}" && echo "  $entry"
+        done
+    fi
     return 0
 }
 
@@ -1191,6 +999,7 @@ if [[ "$colmena_goal" == "test" && ${#STAGE_BUCKET[@]} -gt 0 ]]; then
     scripts/colmena-apply-drifted.sh --allow-unsafe-switch -- test
     scripts/colmena-apply-drifted.sh --allow-kernel-switch -- test
     scripts/colmena-apply-drifted.sh --allow-critical-restart -- test
+    scripts/colmena-apply-drifted.sh --allow-process-change -- test
 EOF
     } >&2
     exit 1
@@ -1245,6 +1054,26 @@ if [[ $ALLOW_CRITICAL_RESTART -eq 1 && ${#CRITICAL_HOLD[@]} -gt 0 && $goal_activ
         echo "  Other nodes in this same run substitute closures and resolve names"
         echo "  through those units. Failures on unrelated nodes are the expected"
         echo "  symptom if the restart lands mid-run."
+        echo
+    } >&2
+fi
+
+if [[ $ALLOW_PROCESS_CHANGE -eq 1 && ${#PROCESS_HOLD[@]} -gt 0 && $goal_activates -eq 1 ]]; then
+    {
+        echo "warning: switching despite a critical-process version change (--allow-process-change):"
+        for entry in "${PROCESS_HOLD[@]}"; do
+            echo "  $entry"
+        done
+        echo
+    } >&2
+fi
+
+if [[ ${#PROCESS_INFO[@]} -gt 0 ]]; then
+    {
+        echo "note:"
+        for entry in "${PROCESS_INFO[@]}"; do
+            echo "  $entry"
+        done
         echo
     } >&2
 fi
@@ -1325,83 +1154,60 @@ if [[ $DRY_RUN -eq 1 ]]; then
     exit 0
 fi
 
-# --- Deferred restarts on the deployed nodes ------------------------------
+# --- Stale processes on the deployed nodes -------------------------------
 #
-# NetworkManager is reloaded rather than restarted on activation
-# (features/common/system/default.nix), which is what keeps the network up
-# across a daemon-reexec. The cost is that the running daemon is still the old
-# binary afterwards, so a NetworkManager update -- including a security fix --
-# is not live until something restarts it or the node reboots.
-#
-# Detected the same way switch-preflight.sh does it locally: ask whether the
-# binary the process actually has open is still in /run/current-system's
-# closure. Comparing ExecStart against /proc/exe instead would false-positive on
-# every unit whose ExecStart is a generated unit-script-*-start wrapper.
+# What is still running a binary from before this switch: daemons activation
+# reloaded rather than restarted (NetworkManager, by design -- see
+# features/common/system/default.nix), and anything in a user session.
+# Nothing is held for these; they are what is left to restart. The scan and
+# the report are dg_scan_script / dg_scan_report, the same code
+# switch-preflight.sh --deferred runs locally.
 #
 # Scoped to the nodes that were actually activated. A staged node's
-# /run/current-system is untouched by definition, so every unit on it is
-# trivially consistent with it and the scan can only produce noise -- noise
-# that would read as an all-clear for a node whose update is not applied at all.
+# /run/current-system is untouched, so the scan could only produce noise --
+# noise that reads as an all-clear for a node whose update is not applied.
 if [[ $COLMENA_RC -eq 0 && ${#SWITCH_BUCKET[@]} -gt 0 && $goal_activates -eq 1 ]]; then
-    deferred_report=""
+    scan_file="$(mktemp)"
     for node in "${SWITCH_BUCKET[@]}"; do
         host="$(jq -r --arg n "$node" '.[$n].targetHost // ""' <<<"$DEPLOY_JSON")"
         port="$(jq -r --arg n "$node" '.[$n].targetPort // 22' <<<"$DEPLOY_JSON")"
         user="$(jq -r --arg n "$node" '.[$n].targetUser // "root"' <<<"$DEPLOY_JSON")"
         [[ -n "$host" ]] || continue
 
-        # shellcheck disable=SC2016
-        # Single-quoted deliberately: these expansions belong to the remote
-        # shell. Expanding them here would compare the remote units against
-        # THIS machine's closure, which is meaningless.
+        # Root on the node, via the same non-interactive sudo colmena's own
+        # activation already relies on: /proc/<pid>/exe of another user's
+        # process (every system daemon, for targetUser=fred) is unreadable
+        # otherwise, and the report would rightly call itself incomplete.
         #
-        # `/bin/sh -s` for the same reason as probe_node: the account's login
-        # shell is zsh, whose word-splitting rules differ from POSIX sh. This
-        # block happens not to depend on them, but pinning the interpreter
-        # costs nothing and keeps the next edit from having to know that.
-        stale="$(
-            timeout 30 ssh \
-                -o BatchMode=yes \
-                -o ConnectTimeout=10 \
-                -o StrictHostKeyChecking=yes \
-                -p "$port" "${user}@${host}" /bin/sh -s 2>/dev/null <<<'
-                  req=$(nix-store -q --requisites /run/current-system 2>/dev/null) || exit 0
-                  for unit in NetworkManager.service wpa_supplicant.service \
-                              systemd-networkd.service dhcpcd.service; do
-                    [ "$(systemctl show -p ActiveState --value "$unit" 2>/dev/null)" = active ] || continue
-                    pid=$(systemctl show -p MainPID --value "$unit" 2>/dev/null)
-                    [ -n "$pid" ] && [ "$pid" != 0 ] || continue
-                    exe=$(readlink -f "/proc/$pid/exe" 2>/dev/null) || continue
-                    sp=$(printf "%s" "$exe" | grep -oE "/nix/store/[a-z0-9]{32}-[^/]+" | head -1)
-                    [ -n "$sp" ] || continue
-                    printf "%s\n" "$req" | grep -qxF "$sp" || printf "%s (%s)\n" "$unit" "$sp"
-                  done
-' || true
-        )"
+        # Straight to a file: the scan carries the node's whole closure, and
+        # holding that in a shell variable trips "Argument list too long" on
+        # the next exec (see dg_scan_report). `|| true` because a failed
+        # session is reported by dg_scan_report as incomplete, not ignored.
+        as_root=(/bin/sh -s)
+        [[ "$user" == root ]] || as_root=(sudo -n /bin/sh -s)
+        : >"$scan_file"
+        timeout 60 ssh \
+            -o BatchMode=yes \
+            -o ConnectTimeout=10 \
+            -o StrictHostKeyChecking=yes \
+            -p "$port" "${user}@${host}" "${as_root[@]}" \
+            >"$scan_file" 2>/dev/null <<<"$(dg_scan_script)" || true
 
-        [[ -n "$stale" ]] || continue
-        deferred_report+="  ${node}:"$'\n'
-        while IFS= read -r line; do
-            [[ -n "$line" ]] && deferred_report+="    ${line}"$'\n'
-        done <<<"$stale"
+        set +e
+        report="$(dg_scan_report "$scan_file")"
+        scan_rc=$?
+        set -e
+        # 0 is "nothing stale": not worth a line per clean node.
+        [[ $scan_rc -eq 0 ]] && continue
+        {
+            echo
+            echo "==> $node:"
+            while IFS= read -r line; do
+                printf '  %s\n' "$line"
+            done <<<"$report"
+        } >&2
     done
-
-    if [[ -n "$deferred_report" ]]; then
-        cat >&2 <<EOF
-
-NOTE: these nodes have network units that changed but were reloaded rather
-than restarted, so they are still running the previous binary:
-
-${deferred_report}
-  Activation deliberately does not restart them -- that is what keeps the
-  network up across a systemd re-exec. But the update is NOT live yet; if it
-  was a security fix those nodes are not patched.
-
-  Clear it per node with a brief network blip:
-    ssh <node> systemctl restart NetworkManager
-  or on the next reboot.
-EOF
-    fi
+    rm -f "$scan_file"
 fi
 
 # --- What is still owed ---------------------------------------------------
