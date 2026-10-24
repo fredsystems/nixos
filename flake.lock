@@ -822,11 +822,11 @@
         "nixpkgs": "nixpkgs_11"
       },
       "locked": {
-        "lastModified": 1790813037,
-        "narHash": "sha256-Nvas7m307GAPDNI4a1bZC2fFGay8gjhuECOQCBx5Ov0=",
+        "lastModified": 1792861007,
+        "narHash": "sha256-0c4FhH5JCVfMnuPymKrSMJBDy+h7iK1ob3+Sro2Y6ss=",
         "owner": "fredclausen",
         "repo": "nixos-needsreboot",
-        "rev": "64edfc2cfdd3c9c151f6f49e5e392519fab66f2d",
+        "rev": "ef13d9ee41c092a255b8d0838ebb80673a10878b",
         "type": "github"
       },
       "original": {
