@@ -14,6 +14,7 @@ in
 
       programs.nushell = {
         enable = true;
+        loadSessionVariables = true;
       };
 
       catppuccin.nushell.enable = true;
