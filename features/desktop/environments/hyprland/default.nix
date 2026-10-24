@@ -26,6 +26,15 @@ in
       xwayland.enable = true;
     };
 
+    # Hold a live switch when it would move the RUNNING Hyprland to a new
+    # version. See deployment.criticalProcesses in
+    # modules/base/deployment-meta.nix: config edits hot-reload and are not
+    # held, and nothing is held unless Hyprland is the session actually in use.
+    deployment.criticalProcesses.hyprland = {
+      inherit (config.programs.hyprland) package;
+      reason = "the running compositor; activation never restarts it, so a version bump leaves the session on the old Hyprland with new plugins, portals and hyprctl talking to it";
+    };
+
     # hyprshutdown: graceful Hyprland exit utility. It asks each running app
     # to close (and waits) before quitting the compositor, instead of letting
     # apps die when the compositor exits. The wayle dashboard dropdown's

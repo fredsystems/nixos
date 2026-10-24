@@ -39,6 +39,12 @@ in
       desktopManager.gnome.enable = true;
     };
 
+    # See deployment.criticalProcesses in modules/base/deployment-meta.nix.
+    deployment.criticalProcesses.gnome-shell = {
+      package = pkgs.gnome-shell;
+      reason = "the running compositor; activation never restarts it, so a version bump leaves the session on the old gnome-shell with new extensions loading into it";
+    };
+
     environment.gnome.excludePackages = with pkgs; [
       atomix
       cheese

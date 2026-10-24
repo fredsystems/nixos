@@ -384,6 +384,20 @@
 
         # Build a nix-darwin system.
         mkDarwinSystem = import ./flake/lib/mk-darwin-system.nix sharedArgs;
+
+        # What the deploy guards (scripts/lib/deploy-guard.sh) compare a
+        # running node against. One function, evaluated over both node sets,
+        # so the desktop preflight and the colmena wrapper cannot disagree on
+        # what a target looks like. See flake/lib/deploy-facts.nix.
+        deployFacts =
+          let
+            facts = import ./flake/lib/deploy-facts.nix { inherit (nixpkgs) lib; };
+          in
+          {
+            inherit (facts) of;
+            nixos = facts.forNodes self.nixosConfigurations;
+            colmena = facts.forNodes self.colmenaHive.nodes;
+          };
       };
 
       ##########################################################################

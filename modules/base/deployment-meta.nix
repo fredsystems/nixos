@@ -64,7 +64,7 @@ in
       description = ''
         systemd units on this node that must not be bounced as a side effect
         of a routine deploy. Keys are unit names; values are the reason,
-        which is what scripts/colmena-apply-drifted.sh prints when it holds
+        which is what the deploy guard (scripts/lib/deploy-guard.sh) prints when it holds
         the node back.
 
         ## What this changes
@@ -97,6 +97,90 @@ in
 
         Linux only -- the assertion below and the whole mechanism are
         systemd-specific, and this module is also imported on Darwin.
+      '';
+    };
+
+    criticalProcesses = lib.mkOption {
+      type = lib.types.attrsOf (
+        lib.types.submodule (
+          { config, ... }:
+          {
+            options = {
+              package = lib.mkOption {
+                type = lib.types.package;
+                description = "The package whose binary the running process is expected to come from.";
+              };
+
+              pnames = lib.mkOption {
+                type = lib.types.listOf lib.types.str;
+                default = [ config.package.pname ];
+                defaultText = lib.literalExpression "[ package.pname ]";
+                description = ''
+                  Package names (the `pname` half of a store path's
+                  `pname-version`, split the way builtins.parseDrvName splits
+                  it) that identify a running instance of this process.
+
+                  A process is attributed to a package by the store path of
+                  its binary -- /proc/<pid>/exe, or argv[0] when exe cannot be
+                  read -- not by its name. Process names are unreliable here:
+                  the kernel's `comm` is truncated to 15 bytes and reads
+                  `.Hyprland-wrapp` for a wrapped binary, and Electron apps
+                  run out of opt/ under a capitalised name. List the unwrapped
+                  pname too when the process actually runs out of an
+                  `-unwrapped` package.
+                '';
+              };
+
+              reason = lib.mkOption {
+                type = lib.types.str;
+                description = "Why a version change of this process must not be switched into live. Printed when the node is held.";
+              };
+            };
+          }
+        )
+      );
+      default = { };
+      example = lib.literalExpression ''
+        {
+          hyprland = {
+            package = config.programs.hyprland.package;
+            reason = "the running compositor; a version bump strands the session on the old binary";
+          };
+        }
+      '';
+      description = ''
+        Long-lived processes that `switch` never restarts but whose VERSION
+        must not move underneath them -- in practice, the running Wayland
+        compositor. Keys are display labels.
+
+        ## What this changes
+
+        scripts/switch-preflight.sh and scripts/colmena-apply-drifted.sh find
+        every running process whose binary lives in a store path named for
+        one of `pnames`, and compare the VERSION it was started from against
+        this package's. A different version holds the node: it is reached
+        with `boot` + reboot instead of `switch`.
+
+        ## Why version and not store path
+
+        A compositor is a user-session process. Activation does not restart
+        it, so the live session keeps running the old binary either way; what
+        a switch changes is everything AROUND it -- portals, plugins, IPC
+        clients like hyprctl/niri msg, the bar -- which are all suddenly the
+        new version talking to the old compositor. That mismatch is a version
+        question. A same-version rebuild (a glibc/stdenv mass rebuild) changes
+        the hash without changing the protocol, so it is reported but not
+        held. Config changes do not touch the package at all, and every
+        compositor here hot-reloads its config on switch, so they are not
+        held either.
+
+        A process that is not running is not held: only the compositor you
+        are actually in matters, not the other ones that happen to be
+        installed.
+
+        ## Scope
+
+        Linux only (it reads /proc), and the assertion below enforces it.
       '';
     };
 
@@ -168,7 +252,24 @@ in
               Declared here: ${lib.concatStringsSep ", " (lib.attrNames cfg.criticalUnits)}
             '';
           }
-        ];
+          {
+            assertion = isDarwin -> cfg.criticalProcesses == { };
+            message = ''
+              deployment.criticalProcesses reads /proc and does nothing on Darwin.
+              Declared here: ${lib.concatStringsSep ", " (lib.attrNames cfg.criticalProcesses)}
+            '';
+          }
+        ]
+        # The deploy scripts interpolate these names into a shell probe and
+        # match them against /proc paths. They validate them again before
+        # use, but failing here names the module that declared the bad one.
+        ++ lib.mapAttrsToList (label: p: {
+          assertion = p.pnames != [ ] && lib.all (n: builtins.match "[A-Za-z0-9._+-]+" n != null) p.pnames;
+          message = ''
+            deployment.criticalProcesses.${label}.pnames must be a non-empty list of plain
+            package names (allowed: letters, digits, . _ + -); got: ${builtins.toJSON p.pnames}
+          '';
+        }) cfg.criticalProcesses;
 
         # Unlike the assertion above, a missing scrapeAddress does not break
         # eval -- it just means flake.nix's agentScrapeMap/desktopScrapeMap
