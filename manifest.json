@@ -1,5 +1,5 @@
 {
-  "generated_at": 1792903849,
+  "generated_at": 1792920918,
   "hosts": {
     "Daytona": {
       "history": [
@@ -1292,6 +1292,6 @@
       ]
     }
   },
-  "rev": "b83ba4fa00f9a420314d852a13033065dc8fc570",
+  "rev": "8d98691a798c58d1bc18c52ac4e9f6b60e194a54",
   "schema": 1
 }
