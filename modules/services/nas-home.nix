@@ -40,6 +40,49 @@ in
     systemd.user.startServices = true;
 
     # ====================================
+    # Launcher entries to mount/unmount on demand
+    # ====================================
+    # The system mounts are noauto (see nas-system.nix), so these are the
+    # only thing that ever contacts the NAS. polkit lets the user start/stop
+    # exactly these units without a password.
+    xdg.desktopEntries = lib.listToAttrs (
+      lib.concatMap (
+        m:
+        let
+          name = if m.gvfsName != "" then m.gvfsName else m.share;
+          id = "nas${lib.replaceStrings [ "/" ] [ "-" ] m.path}";
+
+          mkScript =
+            verb: label: done:
+            pkgs.writeShellScript "${id}-${verb}" ''
+              unit="$(systemd-escape -p --suffix=mount ${lib.escapeShellArg m.path})"
+              if out="$(systemctl ${verb} "$unit" 2>&1)"; then
+                ${pkgs.libnotify}/bin/notify-send -i folder-remote "NAS" ${lib.escapeShellArg "${name} ${done}"}
+              else
+                ${pkgs.libnotify}/bin/notify-send -u critical -i dialog-error "NAS" \
+                  ${lib.escapeShellArg "Could not ${lib.toLower label} ${name}"}": $out"
+              fi
+            '';
+
+          mkEntry = verb: label: done: {
+            name = "${id}-${verb}";
+            value = {
+              name = "${label} NAS: ${name}";
+              exec = "${mkScript verb label done}";
+              icon = "folder-remote";
+              terminal = false;
+              categories = [ "Utility" ];
+            };
+          };
+        in
+        [
+          (mkEntry "start" "Mount" "mounted at ${m.path}")
+          (mkEntry "stop" "Unmount" "unmounted")
+        ]
+      ) cfg.mounts
+    );
+
+    # ====================================
     # GNOME bookmarks
     # ====================================
     systemd.user.services = lib.foldl' (

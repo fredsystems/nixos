@@ -41,6 +41,7 @@
       nas = {
         enable = lib.mkDefault true;
         mounts = lib.mkDefault config.shared.nasMounts.standard;
+        manageUsers = lib.mkDefault [ user ];
       };
 
       shared.enableStandardWifi = lib.mkDefault true;
