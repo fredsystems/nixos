@@ -86,8 +86,15 @@ coming but not yet which release carries it. The checker treats a null
 target as **BLOCKED** -- it never falsely resolves -- and, if you set
 `upstream_pr`, it reports whether that PR has merged yet so you get
 nudged to fill in the real version later. This is exactly how
-`nix-15638-opencode-darwin` is modeled: PR open, `min_version` null,
-entry permanently quiet until you act.
+`nixpkgs-575801-gearlever-structured-attrs` is modeled: PR open,
+`min_version` null, entry permanently quiet until you act.
+
+That quiet cuts both ways: if the upstream PR is closed **without**
+merging, the checker just keeps saying "not merged yet" and never
+resolves. `nix-15638-opencode-darwin` sat like that for months after
+NixOS/nix#15638 was rejected, while the real fix shipped elsewhere (in
+bun). When sweeping open entries, check each `upstream_pr`'s actual
+state, and retarget the entry if the PR was abandoned.
 
 ## Procedure: adding a new tracked workaround
 

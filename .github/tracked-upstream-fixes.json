@@ -80,7 +80,7 @@
     },
     {
       "id": "nix-15638-opencode-darwin",
-      "done": false,
+      "done": true,
       "summary": "opencode build-time `--version` smoke test is SIGKILLed (exit 137) on aarch64-darwin due to Mach-O page-hash code-signing corruption from the nix daemon; needs a patched daemon that has actually landed in our pinned nixpkgs.",
       "repo": "NixOS/nix",
       "check": "pkgs-min-version",
@@ -88,9 +88,13 @@
       "eval_host": "Daytona",
       "min_version": null,
       "upstream_pr": 15638,
-      "tracking": ["https://github.com/NixOS/nix/pull/15638"],
+      "tracking": [
+        "https://github.com/NixOS/nix/pull/15638",
+        "https://github.com/oven-sh/bun/issues/32159",
+        "https://github.com/oven-sh/bun/pull/39837"
+      ],
       "workaround": "hosts/darwin/Freds-MacBook-Pro/configuration.nix -- `ai.opencode.enable = false;` (see the comment referencing NixOS/nix#15638).",
-      "revert_action": "Once PR #15638 merges AND ships in a tagged nix release that lands in our pinned nixpkgs, set `min_version` to that nix version. When the checker then confirms pkgs.nix on a darwin-channel host is >= that version, re-enable `ai.opencode.enable = true;` and set this entry `done: true`. NOTE: eval_host is currently a Linux host (Daytona) as a placeholder for the unstable nix version; switch it to the actual darwin host attr once the carrying release is known if the darwin pin can diverge."
+      "revert_action": "DONE. NixOS/nix#15638 was admin-closed unmerged on 2026-07-05 (Mach-O handling in the daemon was NACKed), so this entry could never resolve as written. The fix landed upstream in bun instead: oven-sh/bun#32159, fixed by oven-sh/bun#39837 (2026-08-22), shipped in bun >= 1.4.1. opencode now comes from the `opencode` flake input (not nixpkgs), whose nixpkgs ships bun 1.4.2. Re-enabled `ai.opencode.enable` on Freds-MacBook-Pro. The opencode aarch64-darwin output is not in any cache, so ci-darwin.yaml's build-darwin builds it from source on the macOS runner, including the `--version` smoke test that was being SIGKILLed; that green build is the verification. If it fails again, set `done: false`, disable opencode on the host, and retarget this entry at a live upstream signal."
     },
     {
       "id": "nixpkgs-507531-direnv-darwin",
