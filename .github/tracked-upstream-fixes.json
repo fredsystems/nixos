@@ -431,6 +431,23 @@
       ],
       "workaround": "overlays/default.nix -- `ladybird` overrideAttrs appending a postPatch substituteInPlace that drops `-Dwarnings` from Meta/CMake/rust_crate.cmake, gated on upstream's postPatch not already mentioning rust_crate.cmake (see FIXME(nixpkgs-576716-ladybird-rust-dwarnings)).",
       "revert_action": "fix_commit is #576716's merge commit on master; resolves once nixpkgs-unstable (pin_node `nixpkgs`, which the desktops use) contains it. The gate self-disables at that point, so to revert: confirm ladybird's drvPath on Daytona is unchanged with the override removed, delete the `ladybird` override and the FIXME, and let ci-linux.yaml build both desktops."
+    },
+    {
+      "id": "nixpkgs-578265-posthog-mcp2",
+      "done": false,
+      "summary": "The mcp 1.29 -> 2.2 bump (nixpkgs PR #575004) marked python3Packages.posthog 7.71.0 broken: one test in its optional MCP integration fails against mcp 2 (CallToolResult no longer has `structuredContent`). posthog is a transitive dep of open-webui via chromadb telemetry, so maranello and fredhub (unstable open-webui) fail to evaluate.",
+      "repo": "NixOS/nixpkgs",
+      "check": "pkgs-min-version",
+      "package": "python3Packages.posthog",
+      "eval_host": "Daytona",
+      "min_version": "7.75.11",
+      "upstream_pr": 578265,
+      "tracking": [
+        "https://github.com/NixOS/nixpkgs/pull/578265",
+        "https://github.com/NixOS/nixpkgs/pull/575004"
+      ],
+      "workaround": "features/ai/lammacpp/default.nix -- `openwebPackageWithPosthog` let-binding that overrides open-webui's own python3Packages scope so posthog has meta.broken = false and skips posthog/test/mcp, gated on posthog actually being marked broken (see FIXME(nixpkgs-578265-posthog-mcp2)). Lives in the feature module, not overlays/, because fredhub supplies open-webui from its own `import inputs.nixpkgs { }` which overlays never reach.",
+      "revert_action": "Delete the `openwebPackageWithPosthog` let-binding and its FIXME in features/ai/lammacpp/default.nix, and set `pkg = cfg.openwebPackage;` in the `openwebPackage` binding below it. eval_host Daytona reads the unstable pin, which is what both consumers use (maranello via pkgs, fredhub via unstablePkgs). min_version 7.75.11 is the version PR #578265 targets; if it merges at a different version, update it. Confirm safe: `nix eval .#nixosConfigurations.Daytona.pkgs.python3Packages.posthog.meta.broken` is false (the version bump alone does not prove it is unbroken), and the open-webui ExecStart store path on fredhub and maranello is unchanged by the revert."
     }
   ]
 }
