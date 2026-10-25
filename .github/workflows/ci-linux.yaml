@@ -826,43 +826,40 @@ jobs:
   build-linux-summary:
     name: Build Linux Summary
     runs-on: ubuntu-latest
+    # The detection jobs (find-systems, find-devshell) must be listed here:
+    # when one fails, its build jobs are merely "skipped", which is
+    # indistinguishable from "nothing in scope" unless the summary sees the
+    # detection job's own result.
     needs:
-      [skip-if-clean, build-servers, build-desktops, dev-shell, colmena-parity]
+      [
+        skip-if-clean,
+        find-systems,
+        build-servers,
+        build-desktops,
+        find-devshell,
+        dev-shell,
+        colmena-parity,
+      ]
     if: ${{ always() }}
 
     steps:
       - name: Evaluate summary (skip or propagate failures)
+        env:
+          NEEDS: ${{ toJSON(needs) }}
         run: |
-          # merge_queue fast-path
+          # Any needed job that failed or was cancelled fails the summary.
+          # "skipped" stays valid: an empty matrix (no systems in scope), the
+          # merge-queue fast-path, and the fork guard on self-hosted jobs
+          # (including colmena-parity) all legitimately skip.
+          jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<<"$NEEDS"
+          if jq -e 'any(.[]; .result == "failure" or .result == "cancelled")' <<<"$NEEDS" >/dev/null; then
+            echo "❌ One or more Linux jobs failed or were cancelled."
+            exit 1
+          fi
+
           if [ "${{ needs.skip-if-clean.outputs.skip }}" = "true" ]; then
             echo "Merge queue synthetic merge was clean — summary passing without builds."
             exit 0
-          fi
-
-          SERVERS="${{ needs.build-servers.result }}"
-          DESKTOPS="${{ needs.build-desktops.result }}"
-          DEVSHELL="${{ needs.dev-shell.result }}"
-          PARITY="${{ needs.colmena-parity.result }}"
-
-          echo "Servers result:        $SERVERS"
-          echo "Desktops result:       $DESKTOPS"
-          echo "Dev shell result:      $DEVSHELL"
-          echo "Colmena parity result: $PARITY"
-
-          # A result of "skipped" means the matrix was empty (no systems in
-          # scope for this PR) — that is a valid outcome, not a failure.
-          # colmena-parity has no system-count gate, but it does carry a fork
-          # guard (it runs on self-hosted), so "skipped" there means either
-          # the skip-if-clean fast-path already handled above, or a fork PR.
-          # Both are valid; only failure/cancelled are treated as fatal.
-          if [ "$SERVERS" = "failure" ] || [ "$DESKTOPS" = "failure" ] || [ "$DEVSHELL" = "failure" ] || [ "$PARITY" = "failure" ]; then
-            echo "❌ One or more Linux builds failed."
-            exit 1
-          fi
-
-          if [ "$SERVERS" = "cancelled" ] || [ "$DESKTOPS" = "cancelled" ] || [ "$DEVSHELL" = "cancelled" ] || [ "$PARITY" = "cancelled" ]; then
-            echo "❌ Build job was cancelled — treating as failure."
-            exit 1
           fi
 
           echo "✅ All in-scope Linux systems built successfully (skipped systems were not affected by this PR)."

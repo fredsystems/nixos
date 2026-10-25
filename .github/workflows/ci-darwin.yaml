@@ -369,32 +369,37 @@ jobs:
   build-darwin-summary:
     name: Build Darwin Systems Summary
     runs-on: ubuntu-latest
-    needs: [skip-if-clean, build-darwin, dev-shell-darwin]
+    # The detection jobs (find-darwin, find-devshell) must be listed here:
+    # when one fails, its build job is merely "skipped", which is
+    # indistinguishable from "nothing in scope" unless the summary sees the
+    # detection job's own result.
+    needs:
+      [
+        skip-if-clean,
+        find-darwin,
+        build-darwin,
+        find-devshell,
+        dev-shell-darwin,
+      ]
     if: ${{ always() }}
 
     steps:
       - name: Evaluate results (skip or enforce failures)
+        env:
+          NEEDS: ${{ toJSON(needs) }}
         run: |
-          # Case 1: merge queue fast-path
+          # Any needed job that failed or was cancelled fails the summary.
+          # "skipped" stays valid: fork PRs, the merge-queue fast-path, and
+          # an empty matrix all legitimately skip.
+          jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<<"$NEEDS"
+          if jq -e 'any(.[]; .result == "failure" or .result == "cancelled")' <<<"$NEEDS" >/dev/null; then
+            echo "❌ One or more Darwin jobs failed or were cancelled."
+            exit 1
+          fi
+
           if [ "${{ needs.skip-if-clean.outputs.skip }}" = "true" ]; then
             echo "Merge queue synthetic merge was clean — summary passing without builds."
             exit 0
-          fi
-
-          # Case 2: enforce matrix results
-          STATUS="${{ needs.build-darwin.result }}"
-          DEVSHELL="${{ needs.dev-shell-darwin.result }}"
-          echo "build-darwin result:     $STATUS"
-          echo "dev-shell-darwin result: $DEVSHELL"
-
-          if [ "$STATUS" = "failure" ] || [ "$DEVSHELL" = "failure" ]; then
-            echo "❌ One or more Darwin builds failed."
-            exit 1
-          fi
-
-          if [ "$STATUS" = "cancelled" ] || [ "$DEVSHELL" = "cancelled" ]; then
-            echo "❌ Darwin build was cancelled — treating as failure."
-            exit 1
           fi
 
           echo "✅ All in-scope Darwin systems built successfully (skipped systems were not affected by this PR)."

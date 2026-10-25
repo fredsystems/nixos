@@ -132,22 +132,21 @@ jobs:
 
     steps:
       - name: Evaluate summary
+        env:
+          NEEDS: ${{ toJSON(needs) }}
         run: |
+          # Fail on ANY needed job that failed or was cancelled. A failed
+          # skip-if-clean otherwise only shows up as `lint` being "skipped",
+          # which reads exactly like a legitimate no-op.
+          jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<<"$NEEDS"
+          if jq -e 'any(.[]; .result == "failure" or .result == "cancelled")' <<<"$NEEDS" >/dev/null; then
+            echo "❌ A required job failed or was cancelled."
+            exit 1
+          fi
+
           if [ "${{ needs.skip-if-clean.outputs.skip }}" = "true" ]; then
             echo "Merge queue noop — skipping lint."
             exit 0
-          fi
-
-          STATUS="${{ needs.lint.result }}"
-
-          if [ "$STATUS" = "failure" ]; then
-            echo "Lint failed"
-            exit 1
-          fi
-
-          if [ "$STATUS" = "cancelled" ]; then
-            echo "Lint cancelled"
-            exit 1
           fi
 
           echo "Lint succeeded."
