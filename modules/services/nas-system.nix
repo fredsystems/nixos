@@ -2,6 +2,7 @@
   config,
   lib,
   pkgs,
+  utils,
   ...
 }:
 
@@ -22,7 +23,13 @@ in
     mounts = mkOption {
       type = types.listOf nasMountType;
       default = [ ];
-      description = "NAS shares to mount as systemd automounts, optionally gated to a specific WiFi SSID.";
+      description = "NAS shares to declare as on-demand (noauto) systemd mounts, optionally auto-started on a specific WiFi SSID.";
+    };
+
+    manageUsers = mkOption {
+      type = types.listOf types.str;
+      default = [ ];
+      description = "Users allowed to start/stop the NAS mount units without authentication (used by the launcher entries from nas-home.nix).";
     };
 
     wifiDetectionCmd = mkOption {
@@ -47,17 +54,25 @@ in
 
           device = if m.type == "nfs" then "${m.host}:${escapedShare}" else "//${m.host}/${m.share}";
 
+          # Deliberately no x-systemd.automount: anything that walks the mount
+          # table would trigger it -- notably every buildFHSEnv app (Discord,
+          # syncclipboard, Steam), whose bwrap setup recursively binds /mnt --
+          # and with the NAS down or off-LAN each one then blocks until the
+          # mount times out. Mounts are started explicitly instead (launcher
+          # entries in nas-home.nix), and fail fast when the NAS is unreachable.
+          mountTimeout = "x-systemd.mount-timeout=5s";
+
           defaultOptions =
             if m.type == "nfs" then
               [
-                "x-systemd.automount"
                 "noauto"
+                mountTimeout
                 "nfsvers=3"
               ]
             else
               [
-                "x-systemd.automount"
                 "noauto"
+                mountTimeout
                 "uid=1000"
                 "gid=100"
                 "noperm"
@@ -73,6 +88,22 @@ in
         }
       ) cfg.mounts
     );
+
+    # ====================================
+    # Let manageUsers start/stop exactly these mount units
+    # ====================================
+    security.polkit.extraConfig = mkIf (cfg.manageUsers != [ ]) ''
+      polkit.addRule(function(action, subject) {
+        var units = ${builtins.toJSON (map (m: "${utils.escapeSystemdPath m.path}.mount") cfg.mounts)};
+        var users = ${builtins.toJSON cfg.manageUsers};
+        if (action.id == "org.freedesktop.systemd1.manage-units" &&
+            units.indexOf(action.lookup("unit")) >= 0 &&
+            ["start", "stop", "restart"].indexOf(action.lookup("verb")) >= 0 &&
+            users.indexOf(subject.user) >= 0) {
+          return polkit.Result.YES;
+        }
+      });
+    '';
 
     # ====================================
     # WiFi-gated systemd mount triggers
