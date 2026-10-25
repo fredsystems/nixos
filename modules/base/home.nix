@@ -1,6 +1,7 @@
 {
   lib,
   options,
+  pkgs,
   isDarwin,
   inputs,
   verbose_name,
@@ -59,6 +60,24 @@ in
     enable = true;
     flavor = "mocha";
     accent = "lavender";
+
+    # catppuccin's flake module defaults `sources` to its own packages
+    # (built from its pinned nixpkgs, served by catppuccin.cachix.org), but
+    # as ONE whole-set mkDefault: any normal-priority
+    # `catppuccin.sources.<port>` definition discards it, and catppuccin
+    # then rebuilds EVERY port with our pkgs. Restating the default per
+    # port means a single-port override only replaces that port.
+    #
+    # On Linux the fallback just costs cache misses and local builds. On
+    # Darwin it is fatal for CI: several ports (starship, bottom, palette,
+    # ...) importTOML/importJSON their source -- import-from-derivation --
+    # so CI's find-darwin job, a Linux runner that evaluates but never
+    # builds Darwin hosts, needs those aarch64-darwin outputs substitutable
+    # and dies with "platform mismatch" otherwise. A per-port lazygit
+    # override did exactly that on #2644.
+    sources = builtins.mapAttrs (
+      _: lib.mkDefault
+    ) catppuccinInput.packages.${pkgs.stdenv.hostPlatform.system};
   }
   // lib.optionalAttrs (options.catppuccin ? autoEnable) {
     autoEnable = true;

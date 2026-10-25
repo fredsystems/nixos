@@ -80,7 +80,7 @@
     },
     {
       "id": "nix-15638-opencode-darwin",
-      "done": false,
+      "done": true,
       "summary": "opencode build-time `--version` smoke test is SIGKILLed (exit 137) on aarch64-darwin due to Mach-O page-hash code-signing corruption from the nix daemon; needs a patched daemon that has actually landed in our pinned nixpkgs.",
       "repo": "NixOS/nix",
       "check": "pkgs-min-version",
@@ -88,9 +88,13 @@
       "eval_host": "Daytona",
       "min_version": null,
       "upstream_pr": 15638,
-      "tracking": ["https://github.com/NixOS/nix/pull/15638"],
+      "tracking": [
+        "https://github.com/NixOS/nix/pull/15638",
+        "https://github.com/oven-sh/bun/issues/32159",
+        "https://github.com/oven-sh/bun/pull/39837"
+      ],
       "workaround": "hosts/darwin/Freds-MacBook-Pro/configuration.nix -- `ai.opencode.enable = false;` (see the comment referencing NixOS/nix#15638).",
-      "revert_action": "Once PR #15638 merges AND ships in a tagged nix release that lands in our pinned nixpkgs, set `min_version` to that nix version. When the checker then confirms pkgs.nix on a darwin-channel host is >= that version, re-enable `ai.opencode.enable = true;` and set this entry `done: true`. NOTE: eval_host is currently a Linux host (Daytona) as a placeholder for the unstable nix version; switch it to the actual darwin host attr once the carrying release is known if the darwin pin can diverge."
+      "revert_action": "DONE. NixOS/nix#15638 was admin-closed unmerged on 2026-07-05 (Mach-O handling in the daemon was NACKed), so this entry could never resolve as written. The fix landed upstream in bun instead: oven-sh/bun#32159, fixed by oven-sh/bun#39837 (2026-08-22), shipped in bun >= 1.4.1. opencode now comes from the `opencode` flake input (not nixpkgs), whose nixpkgs ships bun 1.4.2. Re-enabled `ai.opencode.enable` on Freds-MacBook-Pro. The opencode aarch64-darwin output is not in any cache, so ci-darwin.yaml's build-darwin builds it from source on the macOS runner, including the `--version` smoke test that was being SIGKILLed; that green build is the verification. If it fails again, set `done: false`, disable opencode on the host, and retarget this entry at a live upstream signal."
     },
     {
       "id": "nixpkgs-507531-direnv-darwin",
@@ -315,7 +319,7 @@
     },
     {
       "id": "catppuccin-lazygit-65-author-colors",
-      "done": false,
+      "done": true,
       "summary": "lazygit 0.66 refuses the catppuccin theme file because it still uses gui.authorColors (moved to gui.theme.authorColors); catppuccin/nix's port pin predates the fix",
       "repo": "catppuccin/lazygit",
       "check": "flake-input-port-contains-commit",
@@ -329,7 +333,7 @@
         "https://github.com/catppuccin/lazygit/issues/66"
       ],
       "workaround": "features/shell/lazygit/default.nix -- FIXME(catppuccin-lazygit-65-author-colors): fixedLazygitTheme overrides catppuccin.sources.lazygit to catppuccin/lazygit f50a723 when lazygit >= 0.66",
-      "revert_action": "Delete the fixedLazygitTheme binding, the catppuccinInput arg and the catppuccin.sources override in features/shell/lazygit/default.nix. Confirm `nix eval .#nixosConfigurations.Daytona.config.home-manager.users.fred.home.sessionVariables.LG_CONFIG_FILE` points at a theme whose YAML nests authorColors under gui.theme, and that lazygit starts without a migration error."
+      "revert_action": "DONE. Our catppuccin pin (a08c7948) now pins catppuccin/lazygit 1a4b26cb, which contains f50a723. Removed fixedLazygitTheme, the catppuccinInput arg and the catppuccin.sources override; features/shell/lazygit/default.nix is byte-identical to its pre-workaround state (42a78646~1). Verified: Daytona's LG_CONFIG_FILE theme (catppuccin-lazygit-0-unstable-2026-10-10) nests authorColors under gui.theme. Side effect worth knowing: the override was a normal-priority definition of catppuccin.sources, which discarded the catppuccin flake's whole-set `mkDefault self.packages` and made catppuccin rebuild EVERY port with our pkgs. That is what produced the Darwin IFD failure on #2644. Removing it puts Daytona/maranello back on catppuccin's cached packages; dry-run shows no port needs a local build."
     },
     {
       "id": "toybox-0.8.15-darwin-readahead",
@@ -351,7 +355,7 @@
     },
     {
       "id": "nixpkgs-576893-open-webui-structured-attrs",
-      "done": false,
+      "done": true,
       "summary": "open-webui 0.12.3 fails to build under buildPythonApplication's new __structuredAttrs: its makeWrapperArgs passes \"--set FRONTEND_BUILD_DIR <path>\" as ONE list element, which makeWrapper now receives as a single unknown argument and dies on in fixupPhase. Breaks Daytona, maranello and fredhub (unstable open-webui).",
       "repo": "NixOS/nixpkgs",
       "check": "nixpkgs-pin-contains-commit",
@@ -359,7 +363,7 @@
       "pin_node": "nixpkgs",
       "tracking": ["https://github.com/NixOS/nixpkgs/pull/576893"],
       "workaround": "features/ai/lammacpp/default.nix -- `openwebPackage` let-binding that overridePythonAttrs-splits makeWrapperArgs into three elements, gated on the exact broken value (see FIXME(nixpkgs-576893-open-webui-structured-attrs)). Lives in the feature module, not overlays/, because fredhub supplies the package from its own `import inputs.nixpkgs { }` which overlays never reach.",
-      "revert_action": "Delete the `openwebPackage` let-binding and its FIXME in features/ai/lammacpp/default.nix and point ExecStart back at cfg.openwebPackage. pin_node nixpkgs is the right gate: every consumer (desktops via pkgs, fredhub via unstablePkgs) uses unstable nixpkgs. Confirm safe: the gate should already be a no-op, i.e. `nix eval .#nixosConfigurations.fredhub.config.ai.local-llm.openwebPackage.makeWrapperArgs` shows three elements, and the open-webui ExecStart store path is unchanged by the revert on fredhub and maranello."
+      "revert_action": "DONE. Fix is in our nixpkgs pin (3ec63636). Deleted the structured-attrs block; the posthog workaround binding now carries the `openwebPackage` name, so ExecStart is unchanged. Verified: the open-webui ExecStart store path on maranello and fredhub is identical before and after (jv6idi97...-open-webui-0.12.3), and fredhub's toplevel drvPath is unchanged."
     },
     {
       "id": "nixpkgs-575801-gearlever-structured-attrs",
@@ -418,7 +422,7 @@
     },
     {
       "id": "nixpkgs-576716-ladybird-rust-dwarnings",
-      "done": false,
+      "done": true,
       "summary": "ladybird-0-unstable-2026-10-14 fails to build under rustc 1.99: its Rust crates compile with -Dwarnings and the snapshot (written for Rust 1.98) uses APIs 1.99 deprecates, so libweb_bindings_rust dies and breaks both desktop toplevels (Daytona, maranello).",
       "repo": "NixOS/nixpkgs",
       "check": "nixpkgs-pin-contains-commit",
@@ -430,7 +434,7 @@
         "https://github.com/LadybirdBrowser/ladybird/pull/12751"
       ],
       "workaround": "overlays/default.nix -- `ladybird` overrideAttrs appending a postPatch substituteInPlace that drops `-Dwarnings` from Meta/CMake/rust_crate.cmake, gated on upstream's postPatch not already mentioning rust_crate.cmake (see FIXME(nixpkgs-576716-ladybird-rust-dwarnings)).",
-      "revert_action": "fix_commit is #576716's merge commit on master; resolves once nixpkgs-unstable (pin_node `nixpkgs`, which the desktops use) contains it. The gate self-disables at that point, so to revert: confirm ladybird's drvPath on Daytona is unchanged with the override removed, delete the `ladybird` override and the FIXME, and let ci-linux.yaml build both desktops."
+      "revert_action": "DONE. Fix is in our nixpkgs pin (3ec63636). Deleted the ladybird override and FIXME from overlays/default.nix. Verified: Daytona's ladybird drvPath is identical before and after (m6dim53n...-ladybird-0-unstable-2026-10-14), i.e. the gate had already self-disabled."
     },
     {
       "id": "nixpkgs-578265-posthog-mcp2",
@@ -446,8 +450,8 @@
         "https://github.com/NixOS/nixpkgs/pull/578265",
         "https://github.com/NixOS/nixpkgs/pull/575004"
       ],
-      "workaround": "features/ai/lammacpp/default.nix -- `openwebPackageWithPosthog` let-binding that overrides open-webui's own python3Packages scope so posthog has meta.broken = false and skips posthog/test/mcp, gated on posthog actually being marked broken (see FIXME(nixpkgs-578265-posthog-mcp2)). Lives in the feature module, not overlays/, because fredhub supplies open-webui from its own `import inputs.nixpkgs { }` which overlays never reach.",
-      "revert_action": "Delete the `openwebPackageWithPosthog` let-binding and its FIXME in features/ai/lammacpp/default.nix, and set `pkg = cfg.openwebPackage;` in the `openwebPackage` binding below it. eval_host Daytona reads the unstable pin, which is what both consumers use (maranello via pkgs, fredhub via unstablePkgs). min_version 7.75.11 is the version PR #578265 targets; if it merges at a different version, update it. Confirm safe: `nix eval .#nixosConfigurations.Daytona.pkgs.python3Packages.posthog.meta.broken` is false (the version bump alone does not prove it is unbroken), and the open-webui ExecStart store path on fredhub and maranello is unchanged by the revert."
+      "workaround": "features/ai/lammacpp/default.nix -- `openwebPackage` let-binding that overrides open-webui's own python3Packages scope so posthog has meta.broken = false and skips posthog/test/mcp, gated on posthog actually being marked broken (see FIXME(nixpkgs-578265-posthog-mcp2)). Lives in the feature module, not overlays/, because fredhub supplies open-webui from its own `import inputs.nixpkgs { }` which overlays never reach.",
+      "revert_action": "Delete the `openwebPackage` let-binding and its FIXME in features/ai/lammacpp/default.nix, and point ExecStart back at cfg.openwebPackage. eval_host Daytona reads the unstable pin, which is what both consumers use (maranello via pkgs, fredhub via unstablePkgs). min_version 7.75.11 is the version PR #578265 targets; if it merges at a different version, update it. Confirm safe: `nix eval .#nixosConfigurations.Daytona.pkgs.python3Packages.posthog.meta.broken` is false (the version bump alone does not prove it is unbroken), and the open-webui ExecStart store path on fredhub and maranello is unchanged by the revert."
     }
   ]
 }

@@ -26,9 +26,9 @@ let
   # broken, so it is a no-op on pins where it is not.
   #
   # Revert: once our nixpkgs pin carries posthog >= 7.75.11 unbroken,
-  # delete this block and feed cfg.openwebPackage into openwebPackage
-  # below. See .github/workflows/track-upstream-fixes.yaml.
-  openwebPackageWithPosthog =
+  # delete this block and use cfg.openwebPackage directly in ExecStart.
+  # See .github/workflows/track-upstream-fixes.yaml.
+  openwebPackage =
     let
       pkg = cfg.openwebPackage;
     in
@@ -48,45 +48,6 @@ let
                 pyPrev.posthog;
           }
         );
-      })
-    else
-      pkg;
-
-  # FIXME(nixpkgs-576893-open-webui-structured-attrs): WORKAROUND, not a fix.
-  #
-  # buildPythonApplication now builds with __structuredAttrs, so each
-  # makeWrapperArgs element reaches makeWrapper as ONE argument. open-webui
-  # 0.12.3 passes "--set FRONTEND_BUILD_DIR <path>" as a single string and
-  # the build dies in fixupPhase ("makeWrapper doesn't understand the arg").
-  # Fixed upstream by https://github.com/NixOS/nixpkgs/pull/576893, which
-  # splits it into three elements; this applies the same split.
-  #
-  # Done here rather than in overlays/ because fredhub passes in a package
-  # from its own `import inputs.nixpkgs { }`, which overlays never reach.
-  # Gated on structured attrs plus the exact broken value, so it is a no-op
-  # both before the structured-attrs switch (the joined string still
-  # word-splits there) and once the fix is in our pin, and can never drop
-  # wrapper args upstream adds later.
-  #
-  # Revert: once our nixpkgs pin contains the fix, delete this block and
-  # use cfg.openwebPackage directly. See
-  # .github/workflows/track-upstream-fixes.yaml.
-  openwebPackage =
-    let
-      pkg = openwebPackageWithPosthog;
-      frontendDir = "${pkg.frontend}/share/open-webui";
-    in
-    if
-      (pkg.__structuredAttrs or false)
-      && pkg ? frontend
-      && (pkg.makeWrapperArgs or null) == [ "--set FRONTEND_BUILD_DIR ${frontendDir}" ]
-    then
-      pkg.overridePythonAttrs (_: {
-        makeWrapperArgs = [
-          "--set"
-          "FRONTEND_BUILD_DIR"
-          frontendDir
-        ];
       })
     else
       pkg;
