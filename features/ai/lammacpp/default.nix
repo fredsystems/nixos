@@ -9,6 +9,49 @@ let
   cfg = config.ai.local-llm;
   isLinux = !isDarwin;
 
+  # FIXME(nixpkgs-578265-posthog-mcp2): WORKAROUND, not a fix.
+  #
+  # The mcp 1.29 -> 2.2 bump (https://github.com/NixOS/nixpkgs/pull/575004)
+  # marked python3Packages.posthog broken: one test in its optional MCP
+  # integration fails against mcp 2 (CallToolResult lost
+  # `structuredContent`). open-webui reaches posthog only through
+  # chromadb's telemetry, which never touches posthog's MCP module, so
+  # this unbreaks posthog inside open-webui's own python set and skips
+  # just the MCP tests. Unbroken upstream by
+  # https://github.com/NixOS/nixpkgs/pull/578265 (posthog 7.75.11).
+  #
+  # Built from the package's own python3Packages (`override` with a
+  # function), so it applies equally to `pkgs.open-webui` and fredhub's
+  # `unstablePkgs.open-webui`. Gated on posthog actually being marked
+  # broken, so it is a no-op on pins where it is not.
+  #
+  # Revert: once our nixpkgs pin carries posthog >= 7.75.11 unbroken,
+  # delete this block and feed cfg.openwebPackage into openwebPackage
+  # below. See .github/workflows/track-upstream-fixes.yaml.
+  openwebPackageWithPosthog =
+    let
+      pkg = cfg.openwebPackage;
+    in
+    if (pkg.override.__functionArgs or { }) ? python3Packages then
+      pkg.override (prev: {
+        python3Packages = prev.python3Packages.overrideScope (
+          _: pyPrev: {
+            posthog =
+              if pyPrev.posthog.meta.broken or false then
+                pyPrev.posthog.overridePythonAttrs (old: {
+                  disabledTestPaths = (old.disabledTestPaths or [ ]) ++ [ "posthog/test/mcp" ];
+                  meta = old.meta // {
+                    broken = false;
+                  };
+                })
+              else
+                pyPrev.posthog;
+          }
+        );
+      })
+    else
+      pkg;
+
   # FIXME(nixpkgs-576893-open-webui-structured-attrs): WORKAROUND, not a fix.
   #
   # buildPythonApplication now builds with __structuredAttrs, so each
@@ -30,7 +73,7 @@ let
   # .github/workflows/track-upstream-fixes.yaml.
   openwebPackage =
     let
-      pkg = cfg.openwebPackage;
+      pkg = openwebPackageWithPosthog;
       frontendDir = "${pkg.frontend}/share/open-webui";
     in
     if
