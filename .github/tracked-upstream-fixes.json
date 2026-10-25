@@ -315,7 +315,7 @@
     },
     {
       "id": "catppuccin-lazygit-65-author-colors",
-      "done": false,
+      "done": true,
       "summary": "lazygit 0.66 refuses the catppuccin theme file because it still uses gui.authorColors (moved to gui.theme.authorColors); catppuccin/nix's port pin predates the fix",
       "repo": "catppuccin/lazygit",
       "check": "flake-input-port-contains-commit",
@@ -329,7 +329,7 @@
         "https://github.com/catppuccin/lazygit/issues/66"
       ],
       "workaround": "features/shell/lazygit/default.nix -- FIXME(catppuccin-lazygit-65-author-colors): fixedLazygitTheme overrides catppuccin.sources.lazygit to catppuccin/lazygit f50a723 when lazygit >= 0.66",
-      "revert_action": "Delete the fixedLazygitTheme binding, the catppuccinInput arg and the catppuccin.sources override in features/shell/lazygit/default.nix. Confirm `nix eval .#nixosConfigurations.Daytona.config.home-manager.users.fred.home.sessionVariables.LG_CONFIG_FILE` points at a theme whose YAML nests authorColors under gui.theme, and that lazygit starts without a migration error."
+      "revert_action": "DONE. Our catppuccin pin (a08c7948) now pins catppuccin/lazygit 1a4b26cb, which contains f50a723. Removed fixedLazygitTheme, the catppuccinInput arg and the catppuccin.sources override; features/shell/lazygit/default.nix is byte-identical to its pre-workaround state (42a78646~1). Verified: Daytona's LG_CONFIG_FILE theme (catppuccin-lazygit-0-unstable-2026-10-10) nests authorColors under gui.theme. Side effect worth knowing: the override was a normal-priority definition of catppuccin.sources, which discarded the catppuccin flake's whole-set `mkDefault self.packages` and made catppuccin rebuild EVERY port with our pkgs. That is what produced the Darwin IFD failure on #2644. Removing it puts Daytona/maranello back on catppuccin's cached packages; dry-run shows no port needs a local build."
     },
     {
       "id": "toybox-0.8.15-darwin-readahead",
