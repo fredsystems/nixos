@@ -96,21 +96,6 @@ darwin.lib.darwinSystem {
           # NixOS-side system module sets `enable = true` automatically;
           # Darwin needs it set explicitly here at the HM level.
           catppuccin.enable = true;
-
-          # Several catppuccin ports (starship, bottom, palette, ...) read
-          # their source with importTOML/importJSON -- import-from-derivation.
-          # catppuccin's flake module defaults `sources` to its own packages
-          # (pinned nixpkgs, served by catppuccin.cachix.org), but as ONE
-          # whole-set mkDefault: any normal-priority `catppuccin.sources.<port>`
-          # definition discards it and catppuccin rebuilds every port with OUR
-          # pkgs. On Darwin those are aarch64-darwin derivations no cache has,
-          # so CI's find-darwin job (a Linux runner that evaluates, never
-          # builds, Darwin hosts) dies with "platform mismatch" -- exactly what
-          # a per-port lazygit override did on #2644. Restating the default
-          # per port means a single-port override only replaces that port.
-          catppuccin.sources = builtins.mapAttrs (
-            _: inputs.nixpkgs.lib.mkDefault
-          ) catppuccin.packages.${system};
         };
 
         extraSpecialArgs = {

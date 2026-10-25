@@ -350,7 +350,7 @@ if [[ -z "$MODE" ]]; then
   # their source. That only works because those sources come from
   # catppuccin.cachix.org, so the runner substitutes them instead of having
   # to build aarch64-darwin derivations it cannot -- see the
-  # `catppuccin.sources` comment in flake/lib/mk-darwin-system.nix. Any new
+  # `catppuccin.sources` comment in modules/base/home.nix. Any new
   # Darwin IFD must likewise be substitutable, or this eval fails with
   # "platform mismatch".
   echo "Running a real per-host derivation diff (base=${BASE_SHA})..." >&2
