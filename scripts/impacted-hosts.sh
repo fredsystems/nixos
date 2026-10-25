@@ -344,12 +344,15 @@ if [[ -z "$MODE" ]]; then
   # and compute .outPath from the .drv's hash, never *realize* (build) it,
   # and Nix's eval/build split doesn't require the evaluator to run on the
   # target platform. The `system = "aarch64-darwin"` attribute just becomes
-  # metadata embedded in the .drv. This would only break if some part of
-  # nix-darwin's module evaluation triggered import-from-derivation (reading
-  # the actual *contents* of a built artifact mid-eval, not just its path),
-  # which is not how nixpkgs/nix-darwin modules are normally structured.
-  # Verified directly: `nix eval .#darwinConfigurations...toplevel.outPath`
-  # and this exact eval-diff branch both succeed from x86_64-linux.
+  # metadata embedded in the .drv. The exception is import-from-derivation
+  # (reading the *contents* of a built artifact mid-eval): the Darwin home
+  # config does hit IFD, via catppuccin ports that importTOML/importJSON
+  # their source. That only works because those sources come from
+  # catppuccin.cachix.org, so the runner substitutes them instead of having
+  # to build aarch64-darwin derivations it cannot -- see the
+  # `catppuccin.sources` comment in flake/lib/mk-darwin-system.nix. Any new
+  # Darwin IFD must likewise be substitutable, or this eval fails with
+  # "platform mismatch".
   echo "Running a real per-host derivation diff (base=${BASE_SHA})..." >&2
   if ! HEAD_JSON="$(nix eval --json ".#${FLAKE_ATTR}" --apply 'cfgs: builtins.mapAttrs (_: c: c.config.system.build.toplevel.outPath) cfgs' 2>"$NIX_EVAL_STDERR")"; then
     printf 'ERROR: failed to evaluate HEAD %s:\n%s\n' "$FLAKE_ATTR" "$(cat "$NIX_EVAL_STDERR")" >&2
