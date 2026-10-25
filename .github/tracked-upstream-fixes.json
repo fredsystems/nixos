@@ -438,7 +438,7 @@
     },
     {
       "id": "nixpkgs-578265-posthog-mcp2",
-      "done": false,
+      "done": true,
       "summary": "The mcp 1.29 -> 2.2 bump (nixpkgs PR #575004) marked python3Packages.posthog 7.71.0 broken: one test in its optional MCP integration fails against mcp 2 (CallToolResult no longer has `structuredContent`). posthog is a transitive dep of open-webui via chromadb telemetry, so maranello and fredhub (unstable open-webui) fail to evaluate.",
       "repo": "NixOS/nixpkgs",
       "check": "pkgs-min-version",
@@ -450,8 +450,21 @@
         "https://github.com/NixOS/nixpkgs/pull/578265",
         "https://github.com/NixOS/nixpkgs/pull/575004"
       ],
-      "workaround": "features/ai/lammacpp/default.nix -- `openwebPackage` let-binding that overrides open-webui's own python3Packages scope so posthog has meta.broken = false and skips posthog/test/mcp, gated on posthog actually being marked broken (see FIXME(nixpkgs-578265-posthog-mcp2)). Lives in the feature module, not overlays/, because fredhub supplies open-webui from its own `import inputs.nixpkgs { }` which overlays never reach.",
-      "revert_action": "Delete the `openwebPackage` let-binding and its FIXME in features/ai/lammacpp/default.nix, and point ExecStart back at cfg.openwebPackage. eval_host Daytona reads the unstable pin, which is what both consumers use (maranello via pkgs, fredhub via unstablePkgs). min_version 7.75.11 is the version PR #578265 targets; if it merges at a different version, update it. Confirm safe: `nix eval .#nixosConfigurations.Daytona.pkgs.python3Packages.posthog.meta.broken` is false (the version bump alone does not prove it is unbroken), and the open-webui ExecStart store path on fredhub and maranello is unchanged by the revert."
+      "workaround": "features/ai/lammacpp/default.nix -- `openwebPackage` let-binding that unbroke posthog inside open-webui's python3Packages scope.",
+      "revert_action": "SUPERSEDED by nixpkgs-open-webui-mcp2. Unbreaking posthog only fixed evaluation: open-webui 0.12.3 still crash-looped at runtime against mcp 2 (ImportError on `streamablehttp_client`). The replacement pins mcp to mcp_1 in open-webui's scope, which also leaves posthog unbroken (its meta.broken is `versionAtLeast mcp.version \"2\"`), so this posthog override was deleted."
+    },
+    {
+      "id": "nixpkgs-open-webui-mcp2",
+      "done": false,
+      "summary": "The mcp 1.29 -> 2.2 bump (nixpkgs PR #575004) broke open-webui 0.12.3 at RUNTIME: open_webui/utils/mcp/client.py imports `streamablehttp_client` from mcp.client.streamable_http, which mcp 2 removed. The build and pythonImportsCheck pass; the service crash-loops on startup (fredhub hit 100+ restarts and a flapping alert). Affects maranello and fredhub (unstable open-webui).",
+      "repo": "NixOS/nixpkgs",
+      "check": "pkgs-min-version",
+      "package": "open-webui",
+      "eval_host": "Daytona",
+      "min_version": null,
+      "tracking": ["https://github.com/NixOS/nixpkgs/pull/575004"],
+      "workaround": "features/ai/lammacpp/default.nix -- `openwebPackage` let-binding that overrides open-webui's own python3Packages scope with `mcp = mcp_1` (as nixpkgs does for music-assistant), gated on mcp being >= 2 (see FIXME(nixpkgs-open-webui-mcp2)). Lives in the feature module, not overlays/, because fredhub supplies open-webui from its own `import inputs.nixpkgs { }` which overlays never reach.",
+      "revert_action": "BLOCKED: no upstream issue/PR yet; file one against nixpkgs (or find the open-webui release that supports mcp 2), then set upstream_pr / min_version. To revert: delete the `openwebPackage` let-binding and its FIXME in features/ai/lammacpp/default.nix and point ExecStart back at cfg.openwebPackage. Confirm safe at RUNTIME, not just eval: build the new open-webui and run `open-webui serve` against a scratch DATA_DIR until /health returns ok, since the original break passed both build and import checks."
     }
   ]
 }

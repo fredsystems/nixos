@@ -9,25 +9,27 @@ let
   cfg = config.ai.local-llm;
   isLinux = !isDarwin;
 
-  # FIXME(nixpkgs-578265-posthog-mcp2): WORKAROUND, not a fix.
+  # FIXME(nixpkgs-open-webui-mcp2): WORKAROUND, not a fix.
   #
   # The mcp 1.29 -> 2.2 bump (https://github.com/NixOS/nixpkgs/pull/575004)
-  # marked python3Packages.posthog broken: one test in its optional MCP
-  # integration fails against mcp 2 (CallToolResult lost
-  # `structuredContent`). open-webui reaches posthog only through
-  # chromadb's telemetry, which never touches posthog's MCP module, so
-  # this unbreaks posthog inside open-webui's own python set and skips
-  # just the MCP tests. Unbroken upstream by
-  # https://github.com/NixOS/nixpkgs/pull/578265 (posthog 7.75.11).
+  # broke open-webui 0.12.3 at runtime: open_webui/utils/mcp/client.py
+  # imports `streamablehttp_client`, which mcp 2 removed, so the service
+  # crash-loops on startup (the build and pythonImportsCheck still pass).
+  # It also marks posthog (a transitive dep via chromadb) broken, since
+  # posthog's meta.broken is `versionAtLeast mcp.version "2"`.
+  #
+  # Pin mcp back to nixpkgs' `mcp_1` inside open-webui's own python set,
+  # the same thing nixpkgs does for music-assistant. That fixes both the
+  # import and posthog in one move.
   #
   # Built from the package's own python3Packages (`override` with a
   # function), so it applies equally to `pkgs.open-webui` and fredhub's
-  # `unstablePkgs.open-webui`. Gated on posthog actually being marked
-  # broken, so it is a no-op on pins where it is not.
+  # `unstablePkgs.open-webui`. Gated on mcp actually being >= 2, so it is
+  # a no-op on pins where it is not.
   #
-  # Revert: once our nixpkgs pin carries posthog >= 7.75.11 unbroken,
-  # delete this block and use cfg.openwebPackage directly in ExecStart.
-  # See .github/workflows/track-upstream-fixes.yaml.
+  # Revert: once nixpkgs' open-webui works against mcp 2 (or pins mcp_1
+  # itself), delete this block and use cfg.openwebPackage directly in
+  # ExecStart. See .github/workflows/track-upstream-fixes.yaml.
   openwebPackage =
     let
       pkg = cfg.openwebPackage;
@@ -35,17 +37,9 @@ let
     if (pkg.override.__functionArgs or { }) ? python3Packages then
       pkg.override (prev: {
         python3Packages = prev.python3Packages.overrideScope (
-          _: pyPrev: {
-            posthog =
-              if pyPrev.posthog.meta.broken or false then
-                pyPrev.posthog.overridePythonAttrs (old: {
-                  disabledTestPaths = (old.disabledTestPaths or [ ]) ++ [ "posthog/test/mcp" ];
-                  meta = old.meta // {
-                    broken = false;
-                  };
-                })
-              else
-                pyPrev.posthog;
+          pyFinal: pyPrev: {
+            mcp =
+              if lib.versionAtLeast pyPrev.mcp.version "2" && pyPrev ? mcp_1 then pyFinal.mcp_1 else pyPrev.mcp;
           }
         );
       })
