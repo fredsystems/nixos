@@ -351,7 +351,7 @@
     },
     {
       "id": "nixpkgs-576893-open-webui-structured-attrs",
-      "done": false,
+      "done": true,
       "summary": "open-webui 0.12.3 fails to build under buildPythonApplication's new __structuredAttrs: its makeWrapperArgs passes \"--set FRONTEND_BUILD_DIR <path>\" as ONE list element, which makeWrapper now receives as a single unknown argument and dies on in fixupPhase. Breaks Daytona, maranello and fredhub (unstable open-webui).",
       "repo": "NixOS/nixpkgs",
       "check": "nixpkgs-pin-contains-commit",
@@ -359,7 +359,7 @@
       "pin_node": "nixpkgs",
       "tracking": ["https://github.com/NixOS/nixpkgs/pull/576893"],
       "workaround": "features/ai/lammacpp/default.nix -- `openwebPackage` let-binding that overridePythonAttrs-splits makeWrapperArgs into three elements, gated on the exact broken value (see FIXME(nixpkgs-576893-open-webui-structured-attrs)). Lives in the feature module, not overlays/, because fredhub supplies the package from its own `import inputs.nixpkgs { }` which overlays never reach.",
-      "revert_action": "Delete the `openwebPackage` let-binding and its FIXME in features/ai/lammacpp/default.nix and point ExecStart back at cfg.openwebPackage. pin_node nixpkgs is the right gate: every consumer (desktops via pkgs, fredhub via unstablePkgs) uses unstable nixpkgs. Confirm safe: the gate should already be a no-op, i.e. `nix eval .#nixosConfigurations.fredhub.config.ai.local-llm.openwebPackage.makeWrapperArgs` shows three elements, and the open-webui ExecStart store path is unchanged by the revert on fredhub and maranello."
+      "revert_action": "DONE. Fix is in our nixpkgs pin (3ec63636). Deleted the structured-attrs block; the posthog workaround binding now carries the `openwebPackage` name, so ExecStart is unchanged. Verified: the open-webui ExecStart store path on maranello and fredhub is identical before and after (jv6idi97...-open-webui-0.12.3), and fredhub's toplevel drvPath is unchanged."
     },
     {
       "id": "nixpkgs-575801-gearlever-structured-attrs",
@@ -446,8 +446,8 @@
         "https://github.com/NixOS/nixpkgs/pull/578265",
         "https://github.com/NixOS/nixpkgs/pull/575004"
       ],
-      "workaround": "features/ai/lammacpp/default.nix -- `openwebPackageWithPosthog` let-binding that overrides open-webui's own python3Packages scope so posthog has meta.broken = false and skips posthog/test/mcp, gated on posthog actually being marked broken (see FIXME(nixpkgs-578265-posthog-mcp2)). Lives in the feature module, not overlays/, because fredhub supplies open-webui from its own `import inputs.nixpkgs { }` which overlays never reach.",
-      "revert_action": "Delete the `openwebPackageWithPosthog` let-binding and its FIXME in features/ai/lammacpp/default.nix, and set `pkg = cfg.openwebPackage;` in the `openwebPackage` binding below it. eval_host Daytona reads the unstable pin, which is what both consumers use (maranello via pkgs, fredhub via unstablePkgs). min_version 7.75.11 is the version PR #578265 targets; if it merges at a different version, update it. Confirm safe: `nix eval .#nixosConfigurations.Daytona.pkgs.python3Packages.posthog.meta.broken` is false (the version bump alone does not prove it is unbroken), and the open-webui ExecStart store path on fredhub and maranello is unchanged by the revert."
+      "workaround": "features/ai/lammacpp/default.nix -- `openwebPackage` let-binding that overrides open-webui's own python3Packages scope so posthog has meta.broken = false and skips posthog/test/mcp, gated on posthog actually being marked broken (see FIXME(nixpkgs-578265-posthog-mcp2)). Lives in the feature module, not overlays/, because fredhub supplies open-webui from its own `import inputs.nixpkgs { }` which overlays never reach.",
+      "revert_action": "Delete the `openwebPackage` let-binding and its FIXME in features/ai/lammacpp/default.nix, and point ExecStart back at cfg.openwebPackage. eval_host Daytona reads the unstable pin, which is what both consumers use (maranello via pkgs, fredhub via unstablePkgs). min_version 7.75.11 is the version PR #578265 targets; if it merges at a different version, update it. Confirm safe: `nix eval .#nixosConfigurations.Daytona.pkgs.python3Packages.posthog.meta.broken` is false (the version bump alone does not prove it is unbroken), and the open-webui ExecStart store path on fredhub and maranello is unchanged by the revert."
     }
   ]
 }
