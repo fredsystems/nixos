@@ -1,5 +1,5 @@
 {
-  "generated_at": 1792940669,
+  "generated_at": 1792944454,
   "hosts": {
     "Daytona": {
       "history": [
@@ -262,6 +262,11 @@
     "fredhub": {
       "history": [
         {
+          "at": 1792944454,
+          "rev": "c515321a22789c6dc0e34d0488c1bced6f25c396",
+          "toplevel": "/nix/store/2jsnc30x7zxdpkymw8pz9npinsndcw2s-nixos-system-fredhub-26.05.20261021.da6dc0e"
+        },
+        {
           "at": 1792937295,
           "rev": "8b19a5dab6daf4015cb058e69637dacf2fb9295a",
           "toplevel": "/nix/store/slslkfpglz77i2y9xzpb4lvnia08zd0g-nixos-system-fredhub-26.05.20261021.da6dc0e"
@@ -380,11 +385,6 @@
           "at": 1791112020,
           "rev": "fd3107a3ae096ef782a9d519be23bafb6b8742f1",
           "toplevel": "/nix/store/bwp97s2hggxg2x30ynn42jwqf65kb3wa-nixos-system-fredhub-26.05.20261003.825e202"
-        },
-        {
-          "at": 1791050042,
-          "rev": "ae01505590d79d13a1a0adfe2afa1bace5e1c4de",
-          "toplevel": "/nix/store/70lpk880b31r1xz8wk0z2xsha792026g-nixos-system-fredhub-26.05.20261002.774debe"
         }
       ]
     },
@@ -778,6 +778,11 @@
     "maranello": {
       "history": [
         {
+          "at": 1792944454,
+          "rev": "c515321a22789c6dc0e34d0488c1bced6f25c396",
+          "toplevel": "/nix/store/d6ysibivq6fhl5nhq6i33vqq8jpzacar-nixos-system-maranello-26.11.20261023.3ec6363"
+        },
+        {
           "at": 1792940669,
           "rev": "600df75bc77176d7a3b5f23c91c0a9a76edcbca2",
           "toplevel": "/nix/store/zp559lkjj6sza79hl56l1m5rczn83fyc-nixos-system-maranello-26.11.20261023.3ec6363"
@@ -896,11 +901,6 @@
           "at": 1791741196,
           "rev": "b3e80ebe91421355cfeeced0ae77689e9bd863d7",
           "toplevel": "/nix/store/d1abvnnzfqhs9vpj0j3k6biy6d2wh5sg-nixos-system-maranello-26.11.20261010.6510408"
-        },
-        {
-          "at": 1791739555,
-          "rev": "71ad24e7f35fcb0fda17937ef827ae0bec229953",
-          "toplevel": "/nix/store/qrxpv1k2c8iim3hhhycpwwcqsvlsvrj7-nixos-system-maranello-26.11.20261010.6510408"
         }
       ]
     },
@@ -1292,6 +1292,6 @@
       ]
     }
   },
-  "rev": "600df75bc77176d7a3b5f23c91c0a9a76edcbca2",
+  "rev": "c515321a22789c6dc0e34d0488c1bced6f25c396",
   "schema": 1
 }
