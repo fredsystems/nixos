@@ -108,34 +108,6 @@ final: prev: {
     else
       prev.gearlever;
 
-  # FIXME(nixpkgs-576716-ladybird-rust-dwarnings): WORKAROUND, not a fix.
-  #
-  # Ladybird builds its Rust crates with `-Dwarnings`. The 0-unstable-2026-10-14
-  # snapshot targets Rust 1.98, but nixpkgs now ships rustc 1.99, which
-  # deprecates APIs the snapshot uses, so `libweb_bindings_rust` fails and
-  # takes both desktops with it (https://github.com/NixOS/nixpkgs/issues/576691).
-  # Fixed by https://github.com/NixOS/nixpkgs/pull/576716, which drops
-  # `-Dwarnings` in postPatch (mirroring LadybirdBrowser/ladybird#12751); it is
-  # on master but not yet in nixpkgs-unstable. This applies the same change.
-  #
-  # Gated on upstream's postPatch not already touching rust_crate.cmake, so it
-  # is a no-op once the fix reaches our pin. `--replace-fail` stays so a source
-  # bump that moves the flag fails loudly instead of silently re-breaking.
-  #
-  # Revert: once our nixpkgs pin contains the fix, delete this override and
-  # FIXME. See .github/workflows/track-upstream-fixes.yaml.
-  ladybird =
-    if prev.lib.hasInfix "rust_crate.cmake" (prev.ladybird.postPatch or "") then
-      prev.ladybird
-    else
-      prev.ladybird.overrideAttrs (old: {
-        postPatch = (old.postPatch or "") + ''
-
-          substituteInPlace Meta/CMake/rust_crate.cmake \
-            --replace-fail 'set(RUSTC_TARGET_FLAGS -Dwarnings ' 'set(RUSTC_TARGET_FLAGS '
-        '';
-      });
-
   pythonPackagesExtensions = prev.pythonPackagesExtensions ++ [
     (
       _: pyprev:
