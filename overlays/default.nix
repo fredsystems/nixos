@@ -34,19 +34,6 @@ final: prev: {
   # not in nixpkgs; see overlays/syncclipboard.nix for the ICU caveat.
   syncclipboard = final.callPackage ./syncclipboard.nix { };
 
-  # github-runner ≥ 2.333.1 has __noChroot = true set on its derivation
-  # (nixpkgs commit 40231286, added as a darwin sandbox workaround).  On any
-  # system with sandbox = true (the NixOS default), Nix refuses to even
-  # schedule the build.  The flag is not needed for Linux builds, so strip it.
-  # On darwin, keep __noChroot = true (the upstream default) since the darwin
-  # sandbox requires it.
-  github-runner = prev.github-runner.overrideAttrs (
-    _:
-    prev.lib.optionalAttrs (!prev.stdenv.hostPlatform.isDarwin) {
-      __noChroot = false;
-    }
-  );
-
   # `direnv`'s checkPhase runs `make test-go test-bash test-fish test-zsh`.
   # On darwin, the fish test suite hangs indefinitely (CI hits the 6h max
   # execution time with no output).  Tracked upstream:
