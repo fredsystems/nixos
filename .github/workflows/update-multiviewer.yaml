@@ -1,0 +1,122 @@
+---
+name: update-multiviewer
+
+# Keeps overlays/multiviewer-for-f1.json pinned to the latest MultiViewer
+# for F1 Linux release. nixpkgs' own updater cannot follow upstream any
+# more (see overlays/multiviewer-for-f1.nix), and nothing else -- Renovate
+# included -- watches the releases API.
+#
+# Runs at :50 rather than on the hour. GitHub documents the top of the hour
+# as its highest-contention slot for scheduled workflows and drops queued
+# jobs under load.
+
+on:
+  schedule:
+    - cron: "50 4 * * *"
+  workflow_dispatch:
+
+# Static group name: the daily cron and a manual dispatch open/update the
+# same PR branch. cancel-in-progress must stay false so a cancelled run
+# cannot leave a pushed branch with no PR attached.
+concurrency:
+  group: update-multiviewer
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-multiviewer:
+    name: Update MultiViewer pin
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # PAT (not GITHUB_TOKEN) so the pushed branch triggers CI on the
+          # resulting PR -- see the same note in renovate-relock.yaml.
+          token: ${{ secrets.PAT }}
+          persist-credentials: true
+
+      - uses: DeterminateSystems/nix-installer-action@3138316df39ed29be04236d7ffc686fa525866aa # v23
+        with:
+          extra-conf: accept-flake-config = true
+
+      - name: Configure Git identity
+        run: |
+          git config --global user.email "noreply@github.com"
+          git config --global user.name "github[bot]"
+
+      - name: Re-pin to the latest upstream release
+        id: update
+        run: |
+          set -uo pipefail
+
+          # `run:` blocks execute under `bash -e`, and update-multiviewer.sh
+          # exits 2 to mean "changed, not an error". The invocation must BE
+          # the `if` condition so -e does not abort before the case below
+          # translates it. See the same note in update-syncclipboard.yaml.
+          if nix shell nixpkgs#jq nixpkgs#curl -c ./scripts/update-multiviewer.sh; then
+            rc=0
+          else
+            rc=$?
+          fi
+
+          # 0 = already current, 2 = pin was updated, anything else = error.
+          case "$rc" in
+            0) echo "changed=false" >> "$GITHUB_OUTPUT" ;;
+            2) echo "changed=true"  >> "$GITHUB_OUTPUT" ;;
+            *) echo "update failed with exit $rc" >&2; exit "$rc" ;;
+          esac
+
+          echo "version=$(jq -r .version overlays/multiviewer-for-f1.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Verify the package builds
+        if: steps.update.outputs.changed == 'true'
+        # Proves the hash and that nixpkgs' install phase still matches the
+        # deb layout. multiviewer-for-f1 is unfree; Daytona's pkgs already
+        # allows it via the desktop multiviewer feature.
+        run: nix build '.#nixosConfigurations.Daytona.pkgs.multiviewer-for-f1' --no-link
+
+      - name: Commit, push, and open a PR
+        if: steps.update.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.PAT }}
+          NEW_VERSION: ${{ steps.update.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          branch="update-multiviewer-${NEW_VERSION}"
+
+          # Ask "have I already filed this?", not "does a branch exist?".
+          # Any PR for this branch (open, closed, or merged) means the
+          # workflow has done its job or a human has ruled on the bump, so a
+          # deliberately closed PR is not reopened daily. See the longer
+          # note in update-syncclipboard.yaml.
+          existing="$(gh pr list --head "$branch" --state all --json number --jq '.[0].number // empty')"
+          if [ -n "$existing" ]; then
+            echo "PR #${existing} already exists for $branch; nothing to do"
+            exit 0
+          fi
+
+          git checkout -b "$branch"
+          git add overlays/multiviewer-for-f1.json
+          git commit -m "chore(multiviewer): update to ${NEW_VERSION}"
+
+          # --force is reachable only when no PR exists for this branch, so
+          # there is nothing under review to clobber.
+          git push --force -u origin "$branch"
+
+          gh pr create \
+            --title "chore(multiviewer): update to ${NEW_VERSION}" \
+            --body "$(cat <<BODY
+          Automated bump of the MultiViewer for F1 pin to upstream ${NEW_VERSION}.
+
+          The download URL and version came from the MultiViewer releases API.
+          The hash was proven by
+          \`nix build .#nixosConfigurations.Daytona.pkgs.multiviewer-for-f1\`.
+
+          Opened automatically by \`.github/workflows/update-multiviewer.yaml\`.
+          BODY
+          )" \
+            --label dependencies

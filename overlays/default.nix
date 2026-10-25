@@ -30,6 +30,14 @@ final: prev: {
 
   cider3 = final.callPackage ./cider.nix { };
 
+  # nixpkgs' updater broke when the MultiViewer API stopped returning
+  # download ids, leaving it stuck at 2.8.4. Pinned in
+  # overlays/multiviewer-for-f1.json and bumped daily by
+  # update-multiviewer.yaml; defers to nixpkgs once it catches up.
+  multiviewer-for-f1 = final.callPackage ./multiviewer-for-f1.nix {
+    inherit (prev) multiviewer-for-f1;
+  };
+
   # SyncClipboard desktop client. Upstream ships an AppImage only and it is
   # not in nixpkgs; see overlays/syncclipboard.nix for the ICU caveat.
   syncclipboard = final.callPackage ./syncclipboard.nix { };
