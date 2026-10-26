@@ -38,6 +38,7 @@
   p7zip,
   parallel,
   nerd-font-patcher,
+  python3,
 }:
 let
   baseUrl = "https://devimages-cdn.apple.com/design/resources/download";
@@ -95,6 +96,7 @@ let
       ++ lib.optionals nerd [
         parallel
         nerd-font-patcher
+        (python3.withPackages (ps: [ ps.fonttools ]))
       ];
 
       # The dmg holds an installer .pkg, which holds a gzipped cpio
@@ -127,14 +129,21 @@ let
 
       setSourceRoot = "sourceRoot=$(pwd)";
 
-      # nerd-font-patcher writes each patched face into the working
-      # directory, leaving the originals in the unpacked subtree. That is
-      # what lets installPhase below select patched faces with -maxdepth 1.
+      # Each face is patched into its own `patched/<n>/` directory next to a
+      # `.source` file naming the original, so apple-fonts-repair-names.py
+      # can pair them up. FontForge overflows the `name` table (Mac copies of
+      # Apple's ~60 KB license push it past the 64 KiB offset limit), which
+      # garbles the typographic family names; that script repairs them (see
+      # its docstring). Without it every face except Regular/Italic/Bold/
+      # Bold Italic is unselectable by family.
+      # The font list is collected before patching starts so the outputs are
+      # never picked up as inputs.
       buildPhase = lib.optionalString nerd ''
         runHook preBuild
-        find \( -name \*.ttf -o -name \*.otf \) -print0 \
-          | parallel --will-cite -j "$NIX_BUILD_CORES" -0 \
-              nerd-font-patcher --no-progressbars -c {}
+        find \( -name \*.ttf -o -name \*.otf \) -print0 > fonts.list
+        parallel --will-cite -j "$NIX_BUILD_CORES" -0 -a fonts.list \
+          'mkdir -p patched/{#} && printf "%s\n" "$(realpath {})" > patched/{#}/.source && nerd-font-patcher --no-progressbars -c -out patched/{#} {}'
+        python3 ${./apple-fonts-repair-names.py} patched/*
         runHook postBuild
       '';
 
@@ -145,8 +154,8 @@ let
       + (
         if nerd then
           ''
-            find -maxdepth 1 -name \*.otf -exec mv {} "$out/share/fonts/opentype/" \;
-            find -maxdepth 1 -name \*.ttf -exec mv {} "$out/share/fonts/truetype/" \;
+            find patched -name \*.otf -exec mv {} "$out/share/fonts/opentype/" \;
+            find patched -name \*.ttf -exec mv {} "$out/share/fonts/truetype/" \;
           ''
         else
           ''
