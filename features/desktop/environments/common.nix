@@ -59,7 +59,10 @@ in
   };
 
   config = lib.mkIf cfg.enable {
-    desktop.environments.shell.startupUnits = lib.mkIf standaloneDaemons [ "hypridle" ];
+    desktop.environments.shell = lib.mkIf standaloneDaemons {
+      startupUnits = [ "hypridle" ];
+      startupCommands = [ "hyprsunset" ];
+    };
 
     # ── SDDM display manager ────────────────────────────────────────────────
     # Shared by all Wayland compositors (Hyprland, Niri).
@@ -197,7 +200,7 @@ in
       # issued regardless of which compositor packages are installed on the host.
       services = {
         hyprsunset = {
-          enable = true;
+          enable = standaloneDaemons;
           package = pkgs.hyprsunset;
           settings = {
             profile = [

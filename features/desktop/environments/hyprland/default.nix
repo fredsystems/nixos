@@ -263,7 +263,6 @@ in
             hl.exec_cmd("systemctl restart --user udiskie-agent")
             hl.exec_cmd("systemctl restart --user solaar")
             hl.exec_cmd("blueman-applet")
-            hl.exec_cmd("hyprsunset")
             hl.exec_cmd("sleep 5 && 1password --silent")
           end)
 

@@ -132,7 +132,20 @@ let
       };
     };
 
-    location.address = "Albuquerque, NM";
+    # Fixed schedule matching the old hyprsunset profile. Noctalia fades over
+    # the hour centred on each time.
+    nightlight = {
+      enabled = true;
+      temperature_day = 6500;
+      temperature_night = 5000;
+    };
+
+    location = {
+      address = "Albuquerque, NM";
+      custom_schedule = true;
+      sunrise = "07:30";
+      sunset = "18:00";
+    };
     weather.enabled = true;
 
     plugins = {
