@@ -1,6 +1,7 @@
 # Plan 01: Noctalia desktop shell
 
-- **Status:** in progress
+- **Status:** in progress (subtasks 1.1-1.12 committed; Daytona trial
+  pending)
 - **Branch:** `feat/noctalia-shell`
 - **Scope of the current run:** subtasks 1.1 through 1.12 (phases 0-2).
   Phase 3 (remove wayle) and phase 4 (greeter) are deliberately not
@@ -54,11 +55,13 @@ also lets a security key satisfy a text-console login on those hosts.
 ## Subtasks
 
 Each subtask is one commit and leaves `./scripts/impacted-hosts.sh --os
-linux --eval` green.
+linux --eval` green. 1.9 and 1.10 landed as one commit, because either
+half alone leaves a window with two lockers or none; 1.12 landed as two
+(clipboard, then polkit).
 
 ### Phase 0: accent
 
-- [ ] **1.1 Switch the catppuccin accent to mauve.**
+- [x] **1.1 Switch the catppuccin accent to mauve.**
   - Files: `modules/base/catppuccin.nix`, `modules/base/home.nix`,
     `features/desktop/environments/common.nix` (SDDM cursor theme name,
     `catppuccin-cursors.mochaMauve`, comment),
@@ -68,50 +71,50 @@ linux --eval` green.
 
 ### Phase 1: Noctalia beside wayle
 
-- [ ] **1.2 Shell selection interface.** New
+- [x] **1.2 Shell selection interface.** New
   `features/desktop/environments/shell/default.nix` declaring
   `desktop.environments.shell.provider` (`wayle` | `noctalia`, default
   `wayle`), the session-start lists (`startupUnits`, `startupCommands`)
   and the compositor-facing `commands` (volume, mute, mic mute, idle
   inhibit). Imported from `features/desktop/environments/default.nix`.
-- [ ] **1.3 Extract shell-agnostic scripts.** Move the compositor-aware
+- [x] **1.3 Extract shell-agnostic scripts.** Move the compositor-aware
   logout/reboot/poweroff wrappers and the deploy-state script out of the
   wayle module into `shell/session-actions.nix` and
   `shell/nixos-deploy-state.nix`, exposed as read-only package options.
   wayle consumes them from there; behaviour is unchanged.
-- [ ] **1.4 wayle owns its half of the interface.**
+- [x] **1.4 wayle owns its half of the interface.**
   `modules/default.nix` enables wayle only when `provider = "wayle"`;
   the wayle module sets `startupUnits`, `startupCommands` and
   `commands`.
-- [ ] **1.5 Compositors consume the interface.**
+- [x] **1.5 Compositors consume the interface.**
   `hyprland/default.nix` and `niri/default.nix` render their autostart
   and the volume / mute / idle-inhibit binds from
   `desktop.environments.shell` instead of hard-coding wayle.
-- [ ] **1.6 Noctalia module.** New `modules/noctalia/default.nix`:
+- [x] **1.6 Noctalia module.** New `modules/noctalia/default.nix`:
   bar mirroring the wayle layout, notifications, OSD (following the
   focused output), wallpaper rotation, session actions bound to the
   shared scripts, Catppuccin theme, templates off. Sets its half of the
   interface. Config is validated at build time by `noctalia config
   validate`.
-- [ ] **1.7 Deploy-state bar widget.** New
+- [x] **1.7 Deploy-state bar widget.** New
   `modules/noctalia/plugins/nixos-deploy-state/` (`plugin.toml`,
   `widget.luau`) polling the shared script every 60 s, installed as a
   read-only `path` plugin source.
-- [ ] **1.8 Select Noctalia on Daytona.**
+- [x] **1.8 Select Noctalia on Daytona.**
   `hosts/linux/daytona/configuration.nix` sets
   `desktop.environments.shell.provider = "noctalia"`.
 
 ### Phase 2: Noctalia absorbs the helper daemons (Noctalia hosts only)
 
-- [ ] **1.9 Lock screen.** `pauseandsleep.sh` locks via
+- [x] **1.9 Lock screen.** `pauseandsleep.sh` locks via
   `loginctl lock-session` (handled by hypridle on wayle hosts and by
   Noctalia's logind integration on Noctalia hosts). Noctalia module
   enables `login.u2fAuth` when the host uses U2F.
-- [ ] **1.10 Idle.** hypridle only on wayle hosts; Noctalia gets
+- [x] **1.10 Idle.** hypridle only on wayle hosts; Noctalia gets
   lock 300 s, monitors off 600 s, suspend 900 s.
-- [ ] **1.11 Night light.** hyprsunset only on wayle hosts; Noctalia
+- [x] **1.11 Night light.** hyprsunset only on wayle hosts; Noctalia
   night light on a fixed 07:30 / 18:00 schedule at 6500 K / 5000 K.
-- [ ] **1.12 Clipboard and polkit.** The cliphist watchers and fuzzel
+- [x] **1.12 Clipboard and polkit.** The cliphist watchers and fuzzel
   `SUPER+V` bind only on wayle hosts; Noctalia hosts bind `SUPER+V` to
   Noctalia's clipboard panel. polkit-gnome is started only on wayle
   hosts; Noctalia hosts use Noctalia's polkit agent.
@@ -126,10 +129,23 @@ linux --eval` green.
 - [ ] Idle lock, monitors off and suspend fire at the right times;
       caffeine (`SUPER+S`) blocks them.
 - [ ] Night light switches at 18:00 and 07:30.
+- [ ] `SUPER+V` opens Noctalia's clipboard history, and history survives a
+      reboot (its key lives in gnome-keyring's default collection).
+- [ ] An admin prompt (for example `pkexec true`) appears as a Noctalia
+      panel and accepts password, fingerprint and security key.
 - [ ] Wallpapers never repeat. `jq '[.scopes[][] | length]'
       ~/.local/state/noctalia/wallpaper_shuffle.json` only grows, and
       `journalctl --user -u noctalia | grep 'automation set' | awk
       '{print $NF}' | sort | uniq -d` prints nothing.
+
+## Known limitations
+
+- `noctalia config validate`, which home-manager runs at build time,
+  exits 0 on warnings. An unknown or misspelled key therefore builds
+  and is silently ignored. Run the validator by hand after editing the
+  settings and read its output.
+- The deploy-state widget's Luau has been syntax-checked and the config
+  recognises it, but it first runs for real on Daytona.
 
 ## Phase 3: remove wayle (after the trial)
 
