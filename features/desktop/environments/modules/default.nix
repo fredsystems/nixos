@@ -14,6 +14,7 @@ in
   imports = [
     ./clipboard
     ./hyprlandextra
+    ./noctalia
     ./pamixer
     ./vicinae
     ./wayle
@@ -23,6 +24,7 @@ in
     desktop.environments.modules = {
       clipboard.enable = true;
       hyprlandextra.enable = true;
+      noctalia.enable = provider == "noctalia";
       pamixer.enable = true;
       vicinae.enable = true;
       wayle.enable = provider == "wayle";
