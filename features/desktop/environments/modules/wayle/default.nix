@@ -68,6 +68,17 @@ in
   };
 
   config = lib.mkIf cfg.enable {
+    desktop.environments.shell = {
+      startupUnits = [ "wayle" ];
+      commands = {
+        volumeUp = "wayle audio output-volume +5";
+        volumeDown = "wayle audio output-volume -5";
+        volumeMute = "wayle audio output-mute";
+        micMute = "wayle audio input-mute";
+        idleInhibitToggle = "wayle idle toggle --indefinite";
+      };
+    };
+
     home-manager.users = lib.genAttrs allUsers (_: {
       # Install the in-tree symbolic state icons into wayle's custom-icon
       # directory so the custom module's icon-map references resolve.

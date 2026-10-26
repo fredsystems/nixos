@@ -5,6 +5,7 @@
 }:
 let
   cfg = config.desktop.environments.modules;
+  inherit (config.desktop.environments.shell) provider;
 in
 {
   options.desktop.environments.modules = {
@@ -24,7 +25,7 @@ in
       hyprlandextra.enable = true;
       pamixer.enable = true;
       vicinae.enable = true;
-      wayle.enable = true;
+      wayle.enable = provider == "wayle";
     };
   };
 }
