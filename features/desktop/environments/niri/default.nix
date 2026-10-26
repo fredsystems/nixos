@@ -10,6 +10,15 @@ let
   allUsers = [ user ] ++ extraUsers;
   cfg = config.desktop.environments.niri;
   inherit (config.desktop.environments.common) gtkThemeName;
+  shell = config.desktop.environments.shell;
+  restartUnit = unit: {
+    command = [
+      "systemctl"
+      "--user"
+      "restart"
+      unit
+    ];
+  };
 in
 {
   options.desktop.environments.niri = {
@@ -70,16 +79,12 @@ in
               ];
             }
 
-            # Wayle desktop shell (bar, OSD, notifications, wallpaper)
-            {
-              command = [
-                "systemctl"
-                "--user"
-                "restart"
-                "wayle"
-              ];
-            }
-
+          ]
+          # Desktop shell (bar, OSD, notifications, wallpaper) and the helpers
+          # it owns; see ../shell/default.nix.
+          ++ map restartUnit shell.startupUnits
+          ++ map (cmd: { sh = cmd; }) shell.startupCommands
+          ++ [
             # Background helpers (systemd user units)
             {
               command = [
@@ -242,14 +247,7 @@ in
               ];
             };
 
-            "Mod+S".action = {
-              spawn = [
-                "wayle"
-                "idle"
-                "toggle"
-                "--indefinite"
-              ];
-            };
+            "Mod+S".action.spawn-sh = shell.commands.idleInhibitToggle;
 
             "Alt+Space".action = {
               spawn = [
@@ -419,39 +417,13 @@ in
               focus-workspace-up = { };
             };
 
-            "XF86AudioRaiseVolume".action = {
-              spawn = [
-                "wayle"
-                "audio"
-                "output-volume"
-                "+5"
-              ];
-            };
+            "XF86AudioRaiseVolume".action.spawn-sh = shell.commands.volumeUp;
 
-            "XF86AudioLowerVolume".action = {
-              spawn = [
-                "wayle"
-                "audio"
-                "output-volume"
-                "-5"
-              ];
-            };
+            "XF86AudioLowerVolume".action.spawn-sh = shell.commands.volumeDown;
 
-            "XF86AudioMute".action = {
-              spawn = [
-                "wayle"
-                "audio"
-                "output-mute"
-              ];
-            };
+            "XF86AudioMute".action.spawn-sh = shell.commands.volumeMute;
 
-            "XF86AudioMicMute".action = {
-              spawn = [
-                "wayle"
-                "audio"
-                "input-mute"
-              ];
-            };
+            "XF86AudioMicMute".action.spawn-sh = shell.commands.micMute;
 
             "XF86AudioPlay".action = {
               spawn = [

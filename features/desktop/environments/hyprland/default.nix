@@ -11,6 +11,14 @@ let
   allUsers = [ user ] ++ extraUsers;
   cfg = config.desktop.environments.hyprland;
   inherit (config.desktop.environments.common) waitForWayland gtkThemeName;
+  shell = config.desktop.environments.shell;
+
+  # Lua string literal for an arbitrary shell command.
+  luaString = cmd: builtins.toJSON cmd;
+  shellStartup = lib.concatStringsSep "\n" (
+    map (unit: "  hl.exec_cmd(${luaString "systemctl restart --user ${unit}"})") shell.startupUnits
+    ++ map (cmd: "  hl.exec_cmd(${luaString cmd})") shell.startupCommands
+  );
 in
 {
   options.desktop.environments.hyprland = {
@@ -248,7 +256,7 @@ in
             hl.exec_cmd("systemctl restart --user polkit-gnome-authentication-agent-1")
             hl.exec_cmd("gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark'")
             hl.exec_cmd("gsettings set org.gnome.desktop.interface gtk-theme '${gtkThemeName}'")
-            hl.exec_cmd("systemctl restart --user wayle")
+          ${shellStartup}
             hl.exec_cmd("systemctl restart --user sway-audio-idle-inhibit")
             hl.exec_cmd("systemctl restart --user syncclipboard")
             hl.exec_cmd("systemctl restart --user hypridle")
@@ -274,7 +282,7 @@ in
           hl.bind(mainMod .. " + SHIFT + T", hl.dsp.exec_cmd("wezterm start -- bash"))
           hl.bind(mainMod .. " + CTRL + T",  hl.dsp.exec_cmd("freminal --shell bash"))
           hl.bind(mainMod .. " + A",         hl.dsp.exec_cmd("freminal --hide-menu-bar yazi"))
-          hl.bind(mainMod .. " + S",         hl.dsp.exec_cmd("wayle idle toggle --indefinite"))
+          hl.bind(mainMod .. " + S",         hl.dsp.exec_cmd(${luaString shell.commands.idleInhibitToggle}))
           hl.bind("ALT + SPACE",             hl.dsp.exec_cmd("vicinae toggle"))
           hl.bind(mainMod .. " + C",         hl.dsp.window.close())
           hl.bind(mainMod .. " + M",         hl.dsp.exit())
@@ -309,10 +317,10 @@ in
           hl.bind(mainMod .. " + mouse:275",  hl.dsp.focus({ workspace = "e+1" })) -- Forward
 
           -- Multimedia (locked + repeating)
-          hl.bind("XF86AudioRaiseVolume", hl.dsp.exec_cmd("wayle audio output-volume +5"), { locked = true, repeating = true })
-          hl.bind("XF86AudioLowerVolume", hl.dsp.exec_cmd("wayle audio output-volume -5"), { locked = true, repeating = true })
-          hl.bind("XF86AudioMute",        hl.dsp.exec_cmd("wayle audio output-mute"),      { locked = true, repeating = true })
-          hl.bind("XF86AudioMicMute",     hl.dsp.exec_cmd("wayle audio input-mute"),       { locked = true, repeating = true })
+          hl.bind("XF86AudioRaiseVolume", hl.dsp.exec_cmd(${luaString shell.commands.volumeUp}),   { locked = true, repeating = true })
+          hl.bind("XF86AudioLowerVolume", hl.dsp.exec_cmd(${luaString shell.commands.volumeDown}), { locked = true, repeating = true })
+          hl.bind("XF86AudioMute",        hl.dsp.exec_cmd(${luaString shell.commands.volumeMute}), { locked = true, repeating = true })
+          hl.bind("XF86AudioMicMute",     hl.dsp.exec_cmd(${luaString shell.commands.micMute}),    { locked = true, repeating = true })
           hl.bind("XF86AudioPlay",        hl.dsp.exec_cmd("playerctl play-pause"),               { locked = true, repeating = true })
           hl.bind("XF86AudioPause",       hl.dsp.exec_cmd("playerctl play-pause"),               { locked = true, repeating = true })
           hl.bind("XF86AudioNext",        hl.dsp.exec_cmd("playerctl next"),                     { locked = true, repeating = true })
