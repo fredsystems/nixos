@@ -159,9 +159,13 @@ let
       order = [ "main" ];
       main = {
         position = "top";
-        # Opaque, with a thin outline in the accent colour (mauve).
+        # Opaque, with a thin outline in the accent colour (mauve). No drop
+        # shadow and no compositor blur, so nothing is drawn over the
+        # wallpaper beside or below the bar.
         border = "primary";
         border_width = 1.0;
+        shadow = false;
+        compositor_blur = false;
         # wayle's bar labels are semibold (600); Noctalia defaults to 500.
         font_weight = 600;
         start = [
