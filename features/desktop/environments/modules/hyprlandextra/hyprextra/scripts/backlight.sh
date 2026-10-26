@@ -8,10 +8,11 @@ if [[ -z "$SCALE" ]]; then
 	exit 1
 fi
 
-# Brightness changes are surfaced by wayle's built-in transient OSD, which
-# observes the backlight state directly, so this script only performs the
-# change (no notify-send). SCALE is retained so per-host callers can pass the
-# DDC bus id / scaling factor used by `get_backlight`.
+# wayle's and Noctalia's OSDs both observe the backlight directly, but
+# Noctalia only reacts to an actual change, so at 0% or 100% a key press would
+# show nothing. show_osd tells Noctalia the current level explicitly; it is a
+# no-op where Noctalia is not installed. SCALE is retained so per-host callers
+# can pass the DDC bus id / scaling factor used by `get_backlight`.
 
 # Get brightness
 get_backlight() {
@@ -26,14 +27,22 @@ get_backlight() {
 	echo "${LIGHT}"
 }
 
+show_osd() {
+	if command -v noctalia >/dev/null 2>&1; then
+		noctalia msg brightness-osd "$(brightnessctl -m | cut -d, -f4)" >/dev/null 2>&1 || true
+	fi
+}
+
 # Increase brightness
 inc_backlight() {
 	brightnessctl s +5%
+	show_osd
 }
 
 # Decrease brightness
 dec_backlight() {
 	brightnessctl s 5%-
+	show_osd
 }
 
 # Execute accordingly

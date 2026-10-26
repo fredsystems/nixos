@@ -214,8 +214,10 @@ in
         "systemctl --user import-environment XDG_SESSION_ID && systemctl --user restart noctalia"
       ];
       commands = {
-        volumeUp = "noctalia msg volume-up 5";
-        volumeDown = "noctalia msg volume-down 5";
+        # Noctalia only pops the OSD when the volume actually changes, so at
+        # 0% or 100% a key press would show nothing. Show it explicitly.
+        volumeUp = "noctalia msg volume-up 5 && noctalia msg volume-osd";
+        volumeDown = "noctalia msg volume-down 5 && noctalia msg volume-osd";
         volumeMute = "noctalia msg volume-mute";
         micMute = "noctalia msg mic-mute";
         idleInhibitToggle = "noctalia msg caffeine-toggle";
