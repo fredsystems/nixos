@@ -48,9 +48,11 @@ let
     shell = {
       font_family = "SFProDisplay Nerd Font";
       telemetry_enabled = false;
-      # Phase 1 of agent-docs/plans/PLAN_01_NOCTALIA_SHELL.md keeps cliphist
-      # and polkit-gnome; Noctalia's own replacements are switched on later.
-      clipboard_enabled = false;
+      # Phase 1 of agent-docs/plans/PLAN_01_NOCTALIA_SHELL.md keeps
+      # polkit-gnome; Noctalia's own agent is switched on later. Clipboard
+      # history replaces cliphist; its encryption key lives in the Secret
+      # Service (gnome-keyring's default collection).
+      clipboard_enabled = true;
       polkit_agent = false;
       session.actions = sessionActions;
     };
@@ -220,6 +222,11 @@ in
 
     home-manager.users = lib.genAttrs allUsers (uname: {
       xdg.dataFile = deployStateFiles;
+
+      # Same chord cliphist + fuzzel use on wayle hosts.
+      wayland.windowManager.hyprland.extraConfig = ''
+        hl.bind("SUPER + V", hl.dsp.exec_cmd("noctalia msg panel-toggle clipboard"))
+      '';
 
       programs.noctalia = {
         enable = true;
