@@ -159,7 +159,9 @@ let
       order = [ "main" ];
       main = {
         position = "top";
-        background_opacity = 0.5;
+        # Opaque, with a thin outline in the accent colour (mauve).
+        border = "primary";
+        border_width = 1.0;
         start = [
           "dashboard"
           "weather"
