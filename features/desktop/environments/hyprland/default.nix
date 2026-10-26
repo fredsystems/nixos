@@ -253,7 +253,6 @@ in
           --------------------
 
           hl.on("hyprland.start", function()
-            hl.exec_cmd("systemctl restart --user polkit-gnome-authentication-agent-1")
             hl.exec_cmd("gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark'")
             hl.exec_cmd("gsettings set org.gnome.desktop.interface gtk-theme '${gtkThemeName}'")
           ${shellStartup}

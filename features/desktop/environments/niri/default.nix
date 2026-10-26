@@ -91,14 +91,6 @@ in
                 "systemctl"
                 "--user"
                 "restart"
-                "polkit-gnome-authentication-agent-1"
-              ];
-            }
-            {
-              command = [
-                "systemctl"
-                "--user"
-                "restart"
                 "sway-audio-idle-inhibit"
               ];
             }

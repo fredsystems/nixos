@@ -48,12 +48,12 @@ let
     shell = {
       font_family = "SFProDisplay Nerd Font";
       telemetry_enabled = false;
-      # Phase 1 of agent-docs/plans/PLAN_01_NOCTALIA_SHELL.md keeps
-      # polkit-gnome; Noctalia's own agent is switched on later. Clipboard
-      # history replaces cliphist; its encryption key lives in the Secret
+      # Replaces polkit-gnome. Authentication still runs through the
+      # polkit-1 PAM service, so fingerprint and U2F behave as before.
+      polkit_agent = true;
+      # Replaces cliphist. The history's encryption key lives in the Secret
       # Service (gnome-keyring's default collection).
       clipboard_enabled = true;
-      polkit_agent = false;
       session.actions = sessionActions;
     };
 

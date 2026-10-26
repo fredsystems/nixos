@@ -60,7 +60,10 @@ in
 
   config = lib.mkIf cfg.enable {
     desktop.environments.shell = lib.mkIf standaloneDaemons {
-      startupUnits = [ "hypridle" ];
+      startupUnits = [
+        "polkit-gnome-authentication-agent-1"
+        "hypridle"
+      ];
       startupCommands = [ "hyprsunset" ];
     };
 
@@ -296,7 +299,8 @@ in
     desktop.environments.modules.enable = true;
 
     # ── Polkit agent user service ──────────────────────────────────────────────
-    systemd.user.services.polkit-gnome-authentication-agent-1 = {
+    # Noctalia hosts use Noctalia's built-in agent instead.
+    systemd.user.services.polkit-gnome-authentication-agent-1 = lib.mkIf standaloneDaemons {
       description = "polkit-gnome-authentication-agent-1";
       unitConfig = {
         StartLimitIntervalSec = 0;
