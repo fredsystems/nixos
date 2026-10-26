@@ -8,6 +8,11 @@
   # `startupCommands` and `commands` when it is the active provider, and the
   # compositor modules (../hyprland, ../niri) consume them, so the
   # compositors never hard-code a particular shell.
+  imports = [
+    ./nixos-deploy-state.nix
+    ./session-actions.nix
+  ];
+
   options.desktop.environments.shell = {
     provider = lib.mkOption {
       type = lib.types.enum [
