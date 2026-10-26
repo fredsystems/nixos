@@ -162,6 +162,10 @@ let
         # Opaque, with a thin outline in the accent colour (mauve).
         border = "primary";
         border_width = 1.0;
+        # wayle's bar labels are semibold (600); Noctalia defaults to 500. With
+        # our SF Pro build only Regular and Bold resolve under the family name,
+        # so 500 renders Regular and 600 renders Bold, which is what wayle showed.
+        font_weight = 600;
         start = [
           "dashboard"
           "weather"
