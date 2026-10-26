@@ -1,0 +1,11 @@
+id          = "fred/nixos-deploy-state"
+name        = "NixOS deploy state"
+version     = "1.0.0"
+plugin_api  = 24
+author      = "fred"
+icon        = "circle-check"
+description = "Shows whether this host runs the closure main expects for it."
+
+[[widget]]
+id    = "state"
+entry = "widget.luau"

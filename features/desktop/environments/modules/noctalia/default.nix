@@ -34,6 +34,18 @@ let
     }
   ];
 
+  # Bar widget backed by ../../shell/nixos-deploy-state.nix. Installed into
+  # Noctalia's local plugin directory, which it scans as a built-in source.
+  deployStatePlugin = "noctalia/plugins/nixos-deploy-state";
+  deployStateFiles = {
+    "${deployStatePlugin}/plugin.toml".source = ./plugins/nixos-deploy-state/plugin.toml;
+    "${deployStatePlugin}/widget.luau".source =
+      pkgs.replaceVars ./plugins/nixos-deploy-state/widget.luau
+        {
+          deployState = lib.getExe shell.nixosDeployState;
+        };
+  };
+
   settings = uname: {
     shell = {
       font_family = "SFProDisplay Nerd Font";
@@ -95,7 +107,10 @@ let
     location.address = "Albuquerque, NM";
     weather.enabled = true;
 
-    plugins.auto_update = "none";
+    plugins = {
+      auto_update = "none";
+      enabled = [ "fred/nixos-deploy-state" ];
+    };
 
     bar = {
       order = [ "main" ];
@@ -118,6 +133,7 @@ let
           # Hides itself when the host has no battery.
           "battery"
           "caffeine"
+          "deploy_state"
           "clock"
           "notifications"
         ];
@@ -131,6 +147,7 @@ let
         custom_image = "${pkgs.nixos-icons}/share/icons/hicolor/scalable/apps/nix-snowflake.svg";
         custom_image_colorize = true;
       };
+      deploy_state.type = "fred/nixos-deploy-state:state";
       clock.format = "{:%H:%M:%S}";
       media.album_art_only = true;
       volume.show_label = false;
@@ -156,6 +173,8 @@ in
     };
 
     home-manager.users = lib.genAttrs allUsers (uname: {
+      xdg.dataFile = deployStateFiles;
+
       programs.noctalia = {
         enable = true;
         systemd.enable = true;
