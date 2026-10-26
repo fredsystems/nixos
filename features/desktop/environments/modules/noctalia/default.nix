@@ -205,7 +205,14 @@ in
 
   config = lib.mkIf cfg.enable {
     desktop.environments.shell = {
-      startupUnits = [ "noctalia" ];
+      # Noctalia runs as a systemd user service, outside the logind session,
+      # and falls back to XDG_SESSION_ID to find it. Without it Noctalia never
+      # hears `loginctl lock-session` (SUPER+L, lid switch) and cannot resolve
+      # the session for brightness or polkit. The compositor's environment
+      # has it, so hand it to the user manager before restarting Noctalia.
+      startupCommands = [
+        "systemctl --user import-environment XDG_SESSION_ID && systemctl --user restart noctalia"
+      ];
       commands = {
         volumeUp = "noctalia msg volume-up 5";
         volumeDown = "noctalia msg volume-down 5";
