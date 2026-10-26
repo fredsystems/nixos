@@ -270,8 +270,8 @@ let
   # the `class = "nixos-state-pill"` instance class in the bar layout below.
   wayleUserStyles = ./styles/index.scss;
 
-  # Catppuccin Mocha palette with the Lavender accent as `primary`, matching
-  # the repo-wide catppuccin default (flavor = mocha, accent = lavender).
+  # Catppuccin Mocha palette with the Mauve accent as `primary`, matching
+  # the repo-wide catppuccin default (flavor = mocha, accent = mauve).
   # Not yet an upstream wayle built-in theme; shipped inline so the config is
   # fully declarative. A separate PR adds the flavors to wayle-rs/wayle.
   catppuccinMochaPalette = {
@@ -280,7 +280,7 @@ let
     elevated = "#313244"; # surface0
     fg = "#cdd6f4"; # text
     fg-muted = "#a6adc8"; # subtext0
-    primary = "#b4befe"; # lavender (accent)
+    primary = "#cba6f7"; # mauve (accent)
     red = "#f38ba8";
     yellow = "#f9e2af";
     green = "#a6e3a1";

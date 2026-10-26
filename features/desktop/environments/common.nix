@@ -69,7 +69,7 @@ in
 
       settings = {
         Theme = {
-          CursorTheme = "catppuccin-mocha-lavender-cursors";
+          CursorTheme = "catppuccin-mocha-mauve-cursors";
           CursorSize = 24;
         };
 
@@ -81,7 +81,7 @@ in
     };
 
     # ── Catppuccin SDDM theme options ────────────────────────────────────────
-    # Inherits flavor (mocha) and accent (lavender) from the global
+    # Inherits flavor (mocha) and accent (mauve) from the global
     # catppuccin settings.  catppuccin.enable = true auto-enables this.
     catppuccin.sddm = {
       enable = true;
@@ -267,7 +267,7 @@ in
 
       # Catppuccin cursor theme – needed system-wide so the SDDM greeter
       # (which runs as the sddm user) can resolve the CursorTheme setting.
-      catppuccin-cursors.mochaLavender
+      catppuccin-cursors.mochaMauve
     ];
 
     environment.sessionVariables.GSETTINGS_SCHEMA_DIR = "${pkgs.gsettings-desktop-schemas}/share/gsettings-schemas/${pkgs.gsettings-desktop-schemas.name}/glib-2.0/schemas";

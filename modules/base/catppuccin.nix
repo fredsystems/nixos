@@ -3,7 +3,7 @@
   catppuccin = {
     enable = true;
     flavor = "mocha";
-    accent = "lavender";
+    accent = "mauve";
   }
   # `autoEnable` was introduced in catppuccin/nix #817 (post-25.11). The
   # release-25.11 input used by server hosts does not have this option yet,
