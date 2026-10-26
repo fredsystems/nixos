@@ -10,14 +10,12 @@ let
   allUsers = [ user ] ++ extraUsers;
   cfg = config.desktop.environments.modules.noctalia;
   shell = config.desktop.environments.shell;
+  u2f = config.hardware-profile.u2f.enable;
 
   # Compositor-aware graceful exits shared with wayle; see
   # ../../shell/session-actions.nix for why they are needed.
   sessionActions = [
-    {
-      action = "lock";
-      command = "loginctl lock-session";
-    }
+    { action = "lock"; }
     {
       action = "logout";
       command = lib.getExe shell.sessionActions.logout;
@@ -100,9 +98,39 @@ let
       follow_focused_output = true;
     };
 
-    # Phase 1 keeps hyprlock behind hypridle; Noctalia's lock screen is
-    # switched on later.
-    lockscreen.enabled = false;
+    # Noctalia authenticates against the `login` PAM stack and drives
+    # fprintd itself. With a security key, Enter on an empty field starts
+    # the pam_u2f touch prompt.
+    lockscreen = {
+      enabled = true;
+      allow_empty_password = u2f;
+    };
+
+    # Same timings hypridle used: lock, then monitors off, then suspend.
+    idle = {
+      behavior_order = [
+        "lock"
+        "screen-off"
+        "suspend"
+      ];
+      behavior = {
+        lock = {
+          enabled = true;
+          timeout = 300;
+          action = "lock";
+        };
+        screen-off = {
+          enabled = true;
+          timeout = 600;
+          action = "screen_off";
+        };
+        suspend = {
+          enabled = true;
+          timeout = 900;
+          action = "suspend";
+        };
+      };
+    };
 
     location.address = "Albuquerque, NM";
     weather.enabled = true;
@@ -171,6 +199,11 @@ in
         idleInhibitToggle = "noctalia msg caffeine-toggle";
       };
     };
+
+    # The lock screen uses `login`, not a hyprlock-style dedicated service,
+    # so the security key has to be accepted there. This also lets the key
+    # satisfy a text-console login on this host.
+    security.pam.services.login.u2fAuth = lib.mkIf u2f true;
 
     home-manager.users = lib.genAttrs allUsers (uname: {
       xdg.dataFile = deployStateFiles;

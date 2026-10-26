@@ -259,7 +259,6 @@ in
           ${shellStartup}
             hl.exec_cmd("systemctl restart --user sway-audio-idle-inhibit")
             hl.exec_cmd("systemctl restart --user syncclipboard")
-            hl.exec_cmd("systemctl restart --user hypridle")
             hl.exec_cmd("systemctl restart --user network-manager-applet")
             hl.exec_cmd("systemctl restart --user udiskie-agent")
             hl.exec_cmd("systemctl restart --user solaar")

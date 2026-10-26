@@ -115,14 +115,6 @@ in
                 "systemctl"
                 "--user"
                 "restart"
-                "hypridle"
-              ];
-            }
-            {
-              command = [
-                "systemctl"
-                "--user"
-                "restart"
                 "network-manager-applet"
               ];
             }

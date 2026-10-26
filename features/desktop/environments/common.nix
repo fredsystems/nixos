@@ -9,6 +9,9 @@
 let
   allUsers = [ user ] ++ extraUsers;
   cfg = config.desktop.environments.common;
+  # The standalone idle, night-light and polkit daemons belong to the wayle
+  # stack; Noctalia replaces them. See ./shell/default.nix.
+  standaloneDaemons = config.desktop.environments.shell.provider == "wayle";
   dpmsScript = "~/.config/hyprextra/scripts/dpms.sh";
 
   # Shared theme definition used for both gtk.theme (GTK3) and
@@ -56,6 +59,7 @@ in
   };
 
   config = lib.mkIf cfg.enable {
+    desktop.environments.shell.startupUnits = lib.mkIf standaloneDaemons [ "hypridle" ];
 
     # ── SDDM display manager ────────────────────────────────────────────────
     # Shared by all Wayland compositors (Hyprland, Niri).
@@ -212,7 +216,7 @@ in
         network-manager-applet.enable = true;
 
         hypridle = {
-          enable = true;
+          enable = standaloneDaemons;
           settings = {
             general = {
               lock_cmd = "hyprlock";
