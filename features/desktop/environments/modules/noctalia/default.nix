@@ -79,6 +79,14 @@ let
   hyprlandBinds = bindsFor "hyprland";
   niriBinds = bindsFor "niri";
 
+  # Screen brightness on the focused monitor, usable on the lock screen and
+  # repeating while held. As with volume, the OSD is shown explicitly so it
+  # also appears at 0% and 100%.
+  brightnessBinds = {
+    XF86MonBrightnessUp = "noctalia msg brightness-up && noctalia msg brightness-osd";
+    XF86MonBrightnessDown = "noctalia msg brightness-down && noctalia msg brightness-osd";
+  };
+
   settings = uname: {
     shell = {
       font_family = "SFProDisplay Nerd Font";
@@ -287,6 +295,12 @@ in
             chord: cmd: "hl.bind(${builtins.toJSON chord}, hl.dsp.exec_cmd(${builtins.toJSON cmd}))"
           ) hyprlandBinds
         )}
+        ${lib.concatStringsSep "\n" (
+          lib.mapAttrsToList (
+            key: cmd:
+            "hl.bind(${builtins.toJSON key}, hl.dsp.exec_cmd(${builtins.toJSON cmd}), { locked = true, repeating = true })"
+          ) brightnessBinds
+        )}
 
         hl.window_rule({
           match = { class = ${builtins.toJSON settingsAppId} },
@@ -307,7 +321,12 @@ in
       '';
 
       programs.niri.settings = {
-        binds = lib.mapAttrs (_: cmd: { action.spawn-sh = cmd; }) niriBinds;
+        binds =
+          lib.mapAttrs (_: cmd: { action.spawn-sh = cmd; }) niriBinds
+          // lib.mapAttrs (_: cmd: {
+            action.spawn-sh = cmd;
+            allow-when-locked = true;
+          }) brightnessBinds;
 
         # Noctalia requests blur for its own surfaces. Turn off xray so the
         # blur samples what is really behind them, not just the wallpaper,
