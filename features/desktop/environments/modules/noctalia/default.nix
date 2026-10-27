@@ -12,7 +12,7 @@ let
   shell = config.desktop.environments.shell;
   u2f = config.hardware-profile.u2f.enable;
 
-  # Compositor-aware graceful exits shared with wayle; see
+  # Compositor-aware graceful exits; see
   # ../../shell/session-actions.nix for why they are needed.
   sessionActions = [
     { action = "lock"; }
@@ -44,17 +44,138 @@ let
         };
   };
 
+  settingsAppId = "dev.noctalia.Noctalia";
+
+  # IPC binds, rendered for both compositors. Panel binds also move the
+  # pointer onto the panel under Hyprland (see hyprlandConfig).
+  panelBinds = {
+    launcher = {
+      hyprland = "SUPER + Space";
+      niri = "Mod+Space";
+      command = "noctalia msg panel-toggle launcher";
+    };
+    controlCenter = {
+      hyprland = "SUPER + S";
+      niri = "Mod+S";
+      command = "noctalia msg panel-toggle control-center";
+    };
+    clipboard = {
+      hyprland = "SUPER + V";
+      niri = "Mod+V";
+      command = "noctalia msg panel-toggle clipboard";
+    };
+  };
+  # ALT+Tab holds the switcher open while ALT stays down.
+  actionBinds = {
+    settings = {
+      hyprland = "SUPER + comma";
+      niri = "Mod+Comma";
+      command = "noctalia msg settings-toggle";
+    };
+    windowSwitcher = {
+      hyprland = "ALT + Tab";
+      niri = "Alt+Tab";
+      command = "noctalia msg window-switcher hold";
+    };
+  };
+
+  # Screen brightness on the focused monitor, usable on the lock screen and
+  # repeating while held. Noctalia shows the OSD on every change. Unlike
+  # `volume-osd`, `brightness-osd` requires an explicit value and cannot
+  # re-show the current level, so at 0% and 100% the key gives no feedback.
+  brightnessBinds = {
+    XF86MonBrightnessUp = "noctalia msg brightness-up";
+    XF86MonBrightnessDown = "noctalia msg brightness-down";
+  };
+
+  lua = builtins.toJSON;
+  hyprlandConfig = ''
+    -- Noctalia panels opened from a keybind: once the panel maps, move the
+    -- pointer to its centre so it is where the eyes go. Bar clicks leave the
+    -- pointer alone (it is already there). The request expires after a
+    -- second or two so a toggle that closed a panel cannot move the pointer
+    -- on a later, unrelated open. niri has no action to move the pointer.
+    local noctaliaPanelRequestedAt = nil
+    local function noctaliaPanel(cmd)
+      return function()
+        noctaliaPanelRequestedAt = os.time()
+        hl.exec_cmd(cmd)
+      end
+    end
+    hl.on("layer.opened", function(ls)
+      if noctaliaPanelRequestedAt == nil or os.time() - noctaliaPanelRequestedAt > 1 then
+        return
+      end
+      if ls.namespace ~= "noctalia-panel" and ls.namespace ~= "noctalia-attached-panel" then
+        return
+      end
+      noctaliaPanelRequestedAt = nil
+      hl.dispatch(hl.dsp.cursor.move({
+        x = math.floor(ls.x + ls.w / 2),
+        y = math.floor(ls.y + ls.h / 2),
+      }))
+    end)
+
+    ${lib.concatMapStringsSep "\n" (b: "hl.bind(${lua b.hyprland}, noctaliaPanel(${lua b.command}))") (
+      lib.attrValues panelBinds
+    )}
+    ${lib.concatMapStringsSep "\n" (
+      b: "hl.bind(${lua b.hyprland}, hl.dsp.exec_cmd(${lua b.command}))"
+    ) (lib.attrValues actionBinds)}
+    ${lib.concatStringsSep "\n" (
+      lib.mapAttrsToList (
+        key: cmd: "hl.bind(${lua key}, hl.dsp.exec_cmd(${lua cmd}), { locked = true, repeating = true })"
+      ) brightnessBinds
+    )}
+
+    hl.window_rule({
+      match = { class = ${lua settingsAppId} },
+      float = true,
+      size = { 1080, 920 },
+    })
+
+    hl.layer_rule({
+      name = "noctalia",
+      match = {
+        namespace = "^noctalia-(bar-.+|notification|dock|panel|attached-panel|osd|window-switcher)$",
+      },
+      no_anim = true,
+      ignore_alpha = 0.5,
+      blur = true,
+      blur_popups = true,
+    })
+  '';
+
   settings = uname: {
     shell = {
       font_family = "SFProDisplay Nerd Font";
       telemetry_enabled = false;
-      # Replaces polkit-gnome. Authentication still runs through the
-      # polkit-1 PAM service, so fingerprint and U2F behave as before.
+      # Polkit agent. Authentication runs through the polkit-1 PAM service,
+      # so fingerprint and U2F work there.
       polkit_agent = true;
-      # Replaces cliphist. The history's encryption key lives in the Secret
-      # Service (gnome-keyring's default collection).
+      # Clipboard history. Its encryption key lives in the Secret Service
+      # (gnome-keyring's default collection).
       clipboard_enabled = true;
+      # Typing in niri's overview opens the launcher with what was typed.
+      niri_overview_type_to_launch_enabled = true;
       session.actions = sessionActions;
+
+      # Noctalia cannot place a panel by how it was opened, so the control
+      # center floats just below the bar: under the widget when a bar widget
+      # is clicked, centred along the bar when opened by keybind.
+      panel = {
+        control_center_placement = "floating";
+        control_center_position = "auto";
+        open_near_click_control_center = true;
+      };
+    };
+
+    # Height is fixed (520 x ui_scale); only the width is configurable. With
+    # the full sidebar the tabs carry labels as well as icons.
+    control_center = {
+      width = 1000;
+      sidebar = "full";
+      sidebar_section = "full";
     };
 
     # Built-in Catppuccin is Mocha with a mauve primary, matching the global
@@ -89,6 +210,10 @@ let
       };
     };
 
+    # niri-only blurred overview copy of the wallpaper. Off because the niri
+    # layer rules put the real wallpaper in the backdrop instead.
+    backdrop.enabled = false;
+
     notification = {
       follow_focused_output = true;
       offset_x = 8;
@@ -108,7 +233,7 @@ let
       allow_empty_password = u2f;
     };
 
-    # Same timings hypridle used: lock, then monitors off, then suspend.
+    # Lock, then monitors off, then suspend.
     idle = {
       behavior_order = [
         "lock"
@@ -134,8 +259,7 @@ let
       };
     };
 
-    # Fixed schedule matching the old hyprsunset profile. Noctalia fades over
-    # the hour centred on each time.
+    # Fixed schedule. Noctalia fades over the hour centred on each time.
     nightlight = {
       enabled = true;
       temperature_day = 6500;
@@ -166,7 +290,7 @@ let
         border_width = 1.0;
         shadow = false;
         compositor_blur = false;
-        # wayle's bar labels are semibold (600); Noctalia defaults to 500.
+        # Semibold labels (600); Noctalia defaults to 500.
         font_weight = 600;
         start = [
           "dashboard"
@@ -192,7 +316,7 @@ let
     };
 
     widget = {
-      # Session menu behind a NixOS snowflake, like wayle's dashboard button.
+      # Session menu behind a NixOS snowflake.
       dashboard = {
         type = "session";
         custom_image = "${pkgs.nixos-icons}/share/icons/hicolor/scalable/apps/nix-snowflake.svg";
@@ -240,12 +364,64 @@ in
     home-manager.users = lib.genAttrs allUsers (uname: {
       xdg.dataFile = deployStateFiles;
 
-      # Same chord cliphist + fuzzel use on wayle hosts (Hyprland only there);
-      # Noctalia records history under niri too, so bind it in both.
-      wayland.windowManager.hyprland.extraConfig = ''
-        hl.bind("SUPER + V", hl.dsp.exec_cmd("noctalia msg panel-toggle clipboard"))
-      '';
-      programs.niri.settings.binds."Mod+V".action.spawn-sh = "noctalia msg panel-toggle clipboard";
+      # Noctalia's recommended binds and rules, kept identical across both
+      # compositors.
+      wayland.windowManager.hyprland.extraConfig = hyprlandConfig;
+
+      programs.niri.settings = {
+        binds =
+          lib.mapAttrs' (_: b: lib.nameValuePair b.niri { action.spawn-sh = b.command; }) (
+            panelBinds // actionBinds
+          )
+          // lib.mapAttrs (_: cmd: {
+            action.spawn-sh = cmd;
+            allow-when-locked = true;
+          }) brightnessBinds;
+
+        # Noctalia requests blur for its own surfaces. Turn off xray so the
+        # blur samples what is really behind them, not just the wallpaper,
+        # which otherwise shows through the rounded corners. The window
+        # switcher does not request blur, so force it.
+        layer-rules = [
+          {
+            matches = [
+              { namespace = "^noctalia-(bar-[^\"]+|notification|dock|panel|attached-panel|osd)$"; }
+            ];
+            background-effect.xray = false;
+          }
+          {
+            matches = [ { namespace = "^noctalia-window-switcher$"; } ];
+            background-effect = {
+              blur = true;
+              xray = false;
+            };
+          }
+          # Stationary wallpaper: it lives in niri's backdrop, so it stays put
+          # while workspaces scroll and the overview shows it unblurred. This
+          # needs Noctalia's own [backdrop] layer to stay disabled (its
+          # default), or that blurred copy would cover the wallpaper.
+          {
+            matches = [ { namespace = "^noctalia-wallpaper"; } ];
+            place-within-backdrop = true;
+          }
+        ];
+
+        # Let the backdrop (and so the wallpaper) show through workspaces.
+        layout.background-color = "transparent";
+        overview.workspace-shadow.enable = false;
+
+        # After the niri module's catch-all `open-maximized` rule, so this one
+        # wins for the settings window.
+        window-rules = lib.mkAfter [
+          {
+            matches = [ { app-id = "^${lib.escapeRegex settingsAppId}$"; } ];
+            open-floating = true;
+            open-maximized = false;
+            default-column-width.fixed = 1080;
+            default-window-height.fixed = 920;
+          }
+        ];
+      };
 
       programs.noctalia = {
         enable = true;

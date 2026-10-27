@@ -30,7 +30,6 @@
     hostName = "daytona";
     stateVersion = "24.11";
     isDesktop = true;
-    isLaptop = true;
     hmModules = [
       ../../hosts/linux/daytona/home.nix
       freminal.homeManagerModules.default
@@ -46,11 +45,6 @@
     hostName = "maranello";
     stateVersion = "24.11";
     isDesktop = true;
-    # wayle is not focus-aware: OSD/notification popups are pinned to the
-    # bottom-left monitor of the 2x2 grid (connector DP-3, EDID "ASUSTek
-    # COMPUTER INC VG27A SALMQS105752"). See hosts/linux/maranello/monitors.nix
-    # for the full physical layout.
-    wayleMonitor = "DP-3";
     hmModules = [
       ../../hosts/linux/maranello/home.nix
       freminal.homeManagerModules.default

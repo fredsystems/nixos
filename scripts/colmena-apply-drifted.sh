@@ -142,7 +142,8 @@
 #
 # deployment.criticalProcesses -- in practice the compositor on a desktop --
 # holds a node whose RUNNING instance of the package would move to a different
-# version. No server declares one today; the rule is here because it lives in
+# version. The same rule holds a node whose running display manager is not the
+# one the target would run (never true of a server today). No server declares one today; the rule is here because it lives in
 # the shared library, not because this script special-cases it. See
 # modules/base/deployment-meta.nix.
 #

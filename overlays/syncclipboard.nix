@@ -5,8 +5,8 @@
 #
 # Upstream ships AppImage/deb/rpm only and is not in nixpkgs, so this wraps
 # the AppImage rather than building from source. It is an Avalonia (.NET) app
-# and shows its UI through a StatusNotifierItem tray icon; wayle provides the
-# SNI watcher on this fleet, so the tray works without extra plumbing.
+# and shows its UI through a StatusNotifierItem tray icon; Noctalia's tray
+# provides the SNI watcher on this fleet, so it works without extra plumbing.
 #
 # Usage in overlays/default.nix:
 #

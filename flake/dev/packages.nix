@@ -36,7 +36,7 @@ in
       };
     in
     # The aggregate wallpaper bundle is a Linux-desktop-only asset
-    # (consumed by the wayle wallpaper engine).  Skip it on Darwin so the
+    # (consumed by the Noctalia wallpaper rotation).  Skip it on Darwin so the
     # 1.4 GB closure is never built or surfaced there.
     lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
       # sbomnix with the nix_2_31 PATH pin overridden (see the
@@ -60,13 +60,7 @@ in
       #   cozypixels/   - SleepyCatHey/CozyPixels Catppuccin/ subtree
       #                   (subdirs renamed to remove spaces & ampersands)
       #
-      # The source-attributed subdir tree is the browsable, human-facing
-      # layout.  In addition we materialise a FLAT directory at
-      # $out/share/backgrounds-flat/ containing every image copied to the
-      # top level with a collision-safe `<source>-<relpath>` name.  The
-      # wayle wallpaper engine's cycler scans its cycling-directory
-      # NON-recursively (fs::read_dir, not WalkDir), so pointing it at the
-      # nested tree finds zero images; it must be pointed at the flat dir.
+      # Noctalia's wallpaper rotation scans this tree recursively.
       catppuccin-wallpapers = pkgs.stdenvNoCC.mkDerivation {
         pname = "catppuccin-wallpapers";
         version = "2026-05-05";
@@ -190,46 +184,6 @@ in
           # ".comments" sidecar dirs).  -delete implies -depth, so nested
           # empties are pruned bottom-up in one pass.
           find "$out_bg" -mindepth 1 -type d -empty -delete
-
-          ##################################################################
-          # 6. Flat mirror for the wayle wallpaper cycler.
-          #    wayle scans its cycling-directory non-recursively, so it
-          #    cannot see images nested under the source-attributed subdirs
-          #    above.  Copy every image into one flat directory with a
-          #    name derived from its path relative to backgrounds/
-          #    (slashes -> hyphens).  e.g.
-          #      catppuccin/waves/foo.png -> catppuccin-waves-foo.png
-          #
-          #    That mapping is NOT injective -- "a/b-c.png" and
-          #    "a-b/c.png" both flatten to "a-b-c.png" -- and cp
-          #    overwrites silently, so a colliding pair would drop a
-          #    wallpaper with no signal at all.  Assert the counts match
-          #    instead.  No collisions exist today (1247/1247); this
-          #    exists to fail the build rather than lose an image on
-          #    some future input bump.
-          #
-          #    Step 5 already removed every non-image, so this can copy
-          #    plain -type f rather than repeat the extension allowlist.
-          ##################################################################
-          out_flat="$out/share/backgrounds-flat"
-          mkdir -p "$out_flat"
-          find "$out_bg" -type f -print0 \
-            | while IFS= read -r -d "" img; do
-                rel="''${img#"$out_bg"/}"
-                flat="''${rel//\//-}"
-                cp "$img" "$out_flat/$flat"
-              done
-
-          n_src="$(find "$out_bg" -type f -printf 'x' | wc -c)"
-          n_flat="$(find "$out_flat" -type f -printf 'x' | wc -c)"
-          if [ "$n_src" -ne "$n_flat" ]; then
-            echo "ERROR: flat mirror lost $((n_src - n_flat)) image(s)." >&2
-            echo "  $n_src under backgrounds/, $n_flat in backgrounds-flat/." >&2
-            echo "  Two source paths flattened to the same name and one" >&2
-            echo "  overwrote the other.  Rename the offending upstream" >&2
-            echo "  directory in its install step above." >&2
-            exit 1
-          fi
 
           runHook postInstall
         '';

@@ -191,6 +191,37 @@ disc="$(jq -cn --arg p "$(sp dc discord-1.0.170)" '{discord: {pnames: "discord d
 dg_classify "$(pf "$disc")" "$(base "proc=$(sp du discord-unwrapped-1.0.161)" "proc_unreadable=0")"
 has "alternate pname (unwrapped) is matched" "discord-unwrapped-1.0.161, target discord-1.0.170" "${DG_HOLD_PROCESS[*]}"
 
+# display manager: identified by program name, never by naming one
+dmf() { facts "$@" | jq -c --arg d "$DM_TARGET" '. + {displayManager: $d}'; }
+DM_TARGET=greetd
+dg_classify "$(dmf "$SYS_NEW" "$SD_OLD" "$K_OLD" "$M_OLD")" "$(base "dm=sddm")"
+eq "display manager replaced: held" \
+    "display manager: running sddm, target greetd -- switch never restarts the display manager, but removes the running one's user, PAM services and config, so the next logout gets no login screen" \
+    "${DG_HOLD_PROCESS[*]}"
+dg_classify "$(dmf "$SYS_NEW" "$SD_OLD" "$K_OLD" "$M_OLD")" "$(base "dm=greetd")"
+eq "same display manager (upgrade or config change): not held" 0 "${#DG_HOLD_PROCESS[@]}"
+dg_classify "$(dmf "$SYS_NEW" "$SD_OLD" "$K_OLD" "$M_OLD")" "$(base "dm=none")"
+eq "no display manager running: not held (activation starts the new one)" 0 "${#DG_HOLD_PROCESS[@]}"
+dg_classify "$(dmf "$SYS_NEW" "$SD_OLD" "$K_OLD" "$M_OLD")" "$(base "dm=?")"
+has "running display manager unreadable: held" "display manager: running one unreadable" "${DG_HOLD_PROCESS[*]}"
+dg_classify "$(dmf "$SYS_NEW" "$SD_OLD" "$K_OLD" "$M_OLD")" "$(base)"
+has "probe without a dm field: held as unreadable" "display manager: running one unreadable" "${DG_HOLD_PROCESS[*]}"
+DM_TARGET=sddm
+dg_classify "$(dmf "$SYS_NEW" "$SD_OLD" "$K_OLD" "$M_OLD")" "$(base "dm=.sddm-wrapped")"
+eq "wrapProgram's .X-wrapped is the same program" 0 "${#DG_HOLD_PROCESS[@]}"
+DM_TARGET=""
+dg_classify "$(dmf "$SYS_NEW" "$SD_OLD" "$K_OLD" "$M_OLD")" "$(base "dm=none")"
+eq "server: no display manager either side" 0 "${#DG_HOLD_PROCESS[@]}"
+dg_classify "$(dmf "$SYS_NEW" "$SD_OLD" "$K_OLD" "$M_OLD")" "$(base "dm=?")"
+eq "server: unreadable but none in the target is not held" 0 "${#DG_HOLD_PROCESS[@]}"
+dg_classify "$(dmf "$SYS_NEW" "$SD_OLD" "$K_OLD" "$M_OLD")" "$(base "dm=sddm")"
+has "display manager removed: held" "display manager: sddm would be removed" "${DG_HOLD_PROCESS[*]}"
+# Already switched across the change (the old one still runs): owed, not held
+DM_TARGET=greetd
+dg_classify "$(dmf "$SYS_OLD" "$SD_OLD" "$K_OLD" "$M_OLD")" "$(base "dm=sddm")"
+eq "switched across a display-manager change: current" current "$DG_STATE"
+eq "switched across a display-manager change: reboot owed" "display manager: running sddm, target greetd" "$DG_OWED"
+
 # name validation
 eq "unit names validated" "bad;name.service" "$(dg_bad_names "$DG_UNIT_NAME_RE" ok.service 'bad;name.service' getty@tty1.service)"
 # shellcheck disable=SC2016 # a literal command substitution is the payload under test
@@ -216,6 +247,7 @@ mk_system() { # <dir> <systemd> <kernel-dir> <modules-tree>
     ln -s "$4" "$1/kernel-modules"
 }
 mkdir -p "$STORE/unit-atticd.service" "$STORE/modtree"
+echo 0 >"$WORK/dm-pid"
 touch "$STORE/unit-atticd.service/atticd.service"
 mk_system "$STORE/sys" "$STORE/systemd-261.3" "$STORE/linux-7.2.10" "$STORE/modtree"
 ln -s "$STORE/unit-atticd.service/atticd.service" "$STORE/sys/etc/systemd/system/atticd.service"
@@ -228,6 +260,12 @@ ln -s "$STORE/sys" "$R/nix/var/nix/profiles/system-41-link"
 # rather than an executable on PATH: a stub executable would need a shebang,
 # and the Nix build sandbox this runs in has /bin/sh but no /usr/bin/env.
 STUB="$(cat <<EOF
+systemctl() {
+  case "\$*" in
+    "show -P MainPID display-manager.service") cat "$WORK/dm-pid" ;;
+    *) return 1 ;;
+  esac
+}
 nix-store() {
   case "\$*" in
     "-q --references $STORE/modtree") printf '%s\n' "$M_NVIDIA" "$M_OLD" ;;
@@ -287,6 +325,8 @@ has "probe falls back to a store argv0 when exe is unreadable" "proc=$HYPR_RUN" 
 eq "probe dedupes store prefixes" 1 "$(grep -c "^proc=$BRAVE_OLD\$" <<<"$out")"
 eq "probe counts unattributable processes (pid 600), skips kernel threads" 1 "$(dg_probe_field "$out" proc_unreadable)"
 
+eq "probe: no display manager is none" none "$(dg_probe_field "$out" dm)"
+
 out="$(run_fixture "$(dg_probe_script "" 0)")"
 lacks "probe skips /proc when no critical process is declared" "proc" "$(grep -E '^proc' <<<"$out" || true)"
 
@@ -335,6 +375,24 @@ set -e
 eq "scan: empty output (ssh never ran) is incomplete" 2 "$rc"
 
 # ---------------------------------------------------------------------------
+# The probe's display manager, against the fixture tree
+# ---------------------------------------------------------------------------
+GREETD="$(sp gr greetd-0.10.3)"
+mkproc 700 0 greetd.service "$GREETD/bin/greetd" "$GREETD/bin/greetd"
+echo 700 >"$WORK/dm-pid"
+eq "probe: display manager by exe" greetd "$(dg_probe_field "$(run_fixture "$(dg_probe_script "" 0)")" dm)"
+# Unreadable exe (a non-root probe): argv[0] need not be a store path
+mkproc 701 0 display-manager.service "" "/run/current-system/sw/bin/sddm"
+echo 701 >"$WORK/dm-pid"
+eq "probe: display manager by argv0 when exe is unreadable" sddm "$(dg_probe_field "$(run_fixture "$(dg_probe_script "" 0)")" dm)"
+echo 999 >"$WORK/dm-pid"
+eq "probe: vanished main process is unreadable" "?" "$(dg_probe_field "$(run_fixture "$(dg_probe_script "" 0)")" dm)"
+: >"$WORK/dm-pid"
+eq "probe: systemctl answering nothing is unreadable" "?" "$(dg_probe_field "$(run_fixture "$(dg_probe_script "" 0)")" dm)"
+rm -rf "$R/proc/700" "$R/proc/701"
+echo 0 >"$WORK/dm-pid"
+
+# ---------------------------------------------------------------------------
 # switch-preflight.sh verdicts (fixture mode)
 # ---------------------------------------------------------------------------
 preflight() {
@@ -368,6 +426,15 @@ preflight
 eq "preflight: compositor bump -> 10" 10 "$PREFLIGHT_RC"
 preflight --allow-process-change
 eq "preflight: compositor override -> 0" 0 "$PREFLIGHT_RC"
+
+DM_TARGET=greetd
+dmf "$SYS_NEW" "$SD_OLD" "$K_OLD" "$M_OLD" >"$WORK/f.json"
+probe "$SYS_OLD" "$SD_OLD" "$K_OLD" "$M_OLD" "dm=sddm" >"$WORK/p.txt"
+preflight
+eq "preflight: display manager replaced -> 10" 10 "$PREFLIGHT_RC"
+has "preflight: names the display managers" "HOLD      display manager: running sddm, target greetd" "$PREFLIGHT_OUT"
+preflight --allow-process-change
+eq "preflight: display manager override -> 0" 0 "$PREFLIGHT_RC"
 
 : >"$WORK/p.txt"
 preflight

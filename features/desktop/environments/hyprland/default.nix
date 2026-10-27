@@ -45,9 +45,9 @@ in
 
     # hyprshutdown: graceful Hyprland exit utility. It asks each running app
     # to close (and waits) before quitting the compositor, instead of letting
-    # apps die when the compositor exits. The wayle dashboard dropdown's
-    # logout/reboot/poweroff actions dispatch to it on Hyprland (see the
-    # compositor-aware wrappers in the wayle module). Reboot/poweroff use its
+    # apps die when the compositor exits. Noctalia's logout/reboot/poweroff
+    # session actions dispatch to it on Hyprland (see the compositor-aware
+    # wrappers in ../shell/session-actions.nix). Reboot/poweroff use its
     # `--post-cmd` to run `systemctl reboot`/`poweroff` after the graceful
     # exit completes.
     environment.systemPackages = [ pkgs.hyprshutdown ];
@@ -165,8 +165,8 @@ in
             },
 
             general = {
-              gaps_in = 4,
-              gaps_out = 4,
+              gaps_in = 5,
+              gaps_out = 10,
               border_size = 4,
               resize_on_border = true,
               col = {
@@ -200,13 +200,24 @@ in
             },
 
             decoration = {
+              rounding = 20,
+              rounding_power = 2,
+
               shadow = {
                 enabled = true,
-                range = 60,
+                range = 4,
                 offset = "1 2",
                 color = "rgba(1E202966)",
                 render_power = 3,
                 scale = 0.97,
+              },
+
+              blur = {
+                enabled = true,
+                xray = true,
+                size = 3,
+                passes = 2,
+                vibrancy = 0.1696,
               },
             },
 
@@ -279,7 +290,7 @@ in
           hl.bind(mainMod .. " + SHIFT + T", hl.dsp.exec_cmd("wezterm start -- bash"))
           hl.bind(mainMod .. " + CTRL + T",  hl.dsp.exec_cmd("freminal --shell bash"))
           hl.bind(mainMod .. " + A",         hl.dsp.exec_cmd("freminal --hide-menu-bar yazi"))
-          hl.bind(mainMod .. " + S",         hl.dsp.exec_cmd(${luaString shell.commands.idleInhibitToggle}))
+          hl.bind(mainMod .. " + SHIFT + S", hl.dsp.exec_cmd(${luaString shell.commands.idleInhibitToggle}))
           hl.bind("ALT + SPACE",             hl.dsp.exec_cmd("vicinae toggle"))
           hl.bind(mainMod .. " + C",         hl.dsp.window.close())
           hl.bind(mainMod .. " + M",         hl.dsp.exit())

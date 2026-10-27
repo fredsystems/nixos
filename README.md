@@ -160,9 +160,8 @@ See [MODULES.md](./MODULES.md) for complete documentation.
 
 #### Hyprland/Niri Tools
 
-- `fredbar`
+- `noctalia`
 - `vicinae`
-- `cliphist`
 - `wl-clipboard`
 
 ### Graphical Applications

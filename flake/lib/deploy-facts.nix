@@ -22,6 +22,7 @@
 #   kernel      { image, modules }                            reboot owed
 #   critical    { <unit> = { reason, path }; }                unit restart
 #   processes   { <label> = { reason, pnames, path, name }; } session version
+#   displayManager  program name, or ""                       DM replacement
 #
 # `kernel.image` / `kernel.modules` are built from the same expressions
 # nixos/modules/system/boot/kernel.nix builds the toplevel's `kernel` and
@@ -34,8 +35,60 @@
 # because modules/base/deployment-meta.nix asserts every declared unit exists,
 # so a typo fails evaluation instead of producing an empty path here -- which
 # would read as "nothing critical changed".
+#
+# `displayManager` is the basename of the program the display manager runs
+# (`greetd`, `sddm`, `gdm`, ...), "" on a node without one. It is found
+# without naming any display manager: every NixOS display manager is reached
+# through display-manager.service, either as that unit (the xserver-module
+# ones: sddm, gdm, lightdm) or as an alias of its own (greetd). The program is
+# the first word after `exec` in the unit's `script`, or the first word of its
+# ExecStart. The guard compares it against the program display-manager.service
+# is actually running; see the display-manager rule in scripts/lib/deploy-guard.sh.
 { lib }:
 let
+  displayManagerOf =
+    config:
+    let
+      units = lib.filterAttrs (
+        name: s: s.enable && (name == "display-manager" || lib.elem "display-manager.service" s.aliases)
+      ) config.systemd.services;
+      svc = lib.head (lib.attrValues units);
+      execStart = svc.serviceConfig.ExecStart or "";
+      # A list ExecStart may lead with "" to reset an inherited one.
+      lastExec =
+        if lib.isList execStart then lib.last ([ "" ] ++ lib.filter (e: e != "") execStart) else execStart;
+      command = if svc.script != "" then svc.script else lastExec;
+      words = lib.filter (w: lib.isString w && w != "") (builtins.split "[[:space:]]+" command);
+      afterExec =
+        lib.foldl'
+          (
+            acc: w:
+            if acc.found != null then
+              acc
+            else if acc.prev == "exec" then
+              acc // { found = w; }
+            else
+              acc // { prev = w; }
+          )
+          {
+            prev = "";
+            found = null;
+          }
+          words;
+      # ExecStart prefixes (`-`, `@`, `+`, `!`, `:`) are systemd flags, not
+      # part of the path.
+      program = lib.removePrefix "-" (
+        lib.removePrefix "@" (
+          lib.removePrefix "+" (
+            lib.removePrefix "!" (
+              if afterExec.found != null then afterExec.found else lib.head (words ++ [ "" ])
+            )
+          )
+        )
+      );
+    in
+    if units == { } then "" else baseNameOf program;
+
   of = n: {
     toplevel = n.config.system.build.toplevel.outPath;
     systemd = n.config.systemd.package.outPath;
@@ -67,6 +120,8 @@ let
       path = p.package.outPath;
       inherit (p.package) name;
     }) n.config.deployment.criticalProcesses;
+
+    displayManager = displayManagerOf n.config;
   };
 in
 {

@@ -178,6 +178,10 @@ in
         are actually in matters, not the other ones that happen to be
         installed.
 
+        The display manager needs no entry here. The guard finds it through
+        display-manager.service on its own and holds when the target would
+        replace it with a different one (see flake/lib/deploy-facts.nix).
+
         ## Scope
 
         Linux only (it reads /proc), and the assertion below enforces it.

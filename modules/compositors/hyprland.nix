@@ -3,8 +3,7 @@
 #
 # Emits a list of `hl.monitor({...})` Lua statement strings, suitable for
 # splicing into `wayland.windowManager.hyprland.extraConfig` (under
-# configType = "lua") or written directly into a `hyprland.lua` file
-# (e.g. the SDDM session config).
+# configType = "lua").
 { lib, monitors }:
 
 let

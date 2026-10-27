@@ -132,7 +132,7 @@ in
     };
 
     # Tray-only application, so it needs a running graphical session with an
-    # SNI host (wayle provides the StatusNotifierWatcher on this fleet).
+    # SNI host (Noctalia's tray provides the StatusNotifierWatcher on this fleet).
     systemd.user.services.syncclipboard = {
       description = "SyncClipboard client";
       partOf = [ "graphical-session.target" ];

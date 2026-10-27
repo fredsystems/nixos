@@ -9,10 +9,6 @@
 let
   allUsers = [ user ] ++ extraUsers;
   cfg = config.desktop.environments.common;
-  # The standalone idle, night-light and polkit daemons belong to the wayle
-  # stack; Noctalia replaces them. See ./shell/default.nix.
-  standaloneDaemons = config.desktop.environments.shell.provider == "wayle";
-  dpmsScript = "~/.config/hyprextra/scripts/dpms.sh";
 
   # Shared theme definition used for both gtk.theme (GTK3) and
   # gtk.gtk4.theme.  Home-manager >=26.05 no longer auto-inherits the GTK3
@@ -59,47 +55,42 @@ in
   };
 
   config = lib.mkIf cfg.enable {
-    desktop.environments.shell = lib.mkIf standaloneDaemons {
-      startupUnits = [
-        "polkit-gnome-authentication-agent-1"
-        "hypridle"
-      ];
-      startupCommands = [ "hyprsunset" ];
-    };
-
-    # ── SDDM display manager ────────────────────────────────────────────────
-    # Shared by all Wayland compositors (Hyprland, Niri).
-    # The catppuccin NixOS module (catppuccin.sddm) sets the theme and
-    # installs the theme package automatically; we only need to supply the
-    # Qt 6 SDDM build it requires and any SDDM-level knobs.
-    services.displayManager.sddm = {
+    # ── Login screen: noctalia-greeter on greetd ───────────────────────────
+    # greetd's PAM service is a substack of `login`, so what is configured
+    # there (the gnome-keyring unlock, U2F from ./modules/noctalia, Daytona's
+    # fingerprint opt-out) applies to the greeter as well.
+    services.displayManager.noctalia-greeter = {
       enable = true;
-      package = pkgs.kdePackages.sddm;
-      wayland.enable = true;
-
+      # Settings -> Security -> Noctalia Greeter -> Sync in the shell copies
+      # the wallpaper and monitor layout here without an admin prompt.
+      passwordlessSyncUsers = allUsers;
+      cursorTheme = {
+        package = pkgs.catppuccin-cursors.mochaMauve;
+        name = "catppuccin-mocha-mauve-cursors";
+      };
       settings = {
-        Theme = {
-          CursorTheme = "catppuccin-mocha-mauve-cursors";
-          CursorSize = 24;
+        # Open on the password step; the greeter itself remembers the last
+        # session picked, like SDDM's RememberLastSession did.
+        user.default = user;
+        # Pinned, so a synced palette never replaces it.
+        appearance = {
+          scheme = "Catppuccin";
+          theme_mode = "dark";
+          font_family = "SFProDisplay Nerd Font";
         };
-
-        General = {
-          RememberLastSession = true;
-          RememberLastUser = true;
+        cursor.size = 24;
+        keyboard = {
+          layout = "us";
+          numlock = true;
         };
+        # Same as the lock screen: Enter on an empty field starts the
+        # security-key touch prompt.
+        auth.allow_empty_password = config.hardware-profile.u2f.enable;
       };
     };
 
-    # ── Catppuccin SDDM theme options ────────────────────────────────────────
-    # Inherits flavor (mocha) and accent (mauve) from the global
-    # catppuccin settings.  catppuccin.enable = true auto-enables this.
-    catppuccin.sddm = {
-      enable = true;
-      font = "SFProDisplay Nerd Font";
-      fontSize = "12";
-      loginBackground = true;
-      userIcon = true;
-    };
+    # catppuccin.enable turns this on; there is no SDDM to theme.
+    catppuccin.sddm.enable = false;
 
     # ── Shared compositor utility packages ───────────────────────────────────
     # Used by both Hyprland and Niri; compositor-specific binaries stay in
@@ -123,8 +114,7 @@ in
         hyprshot
         slurp
 
-        # Idle / lock / sleep
-        hypridle
+        # Lock screen
         hyprlock
 
         # Media controls (playerctl keybinds shared across both compositors)
@@ -153,8 +143,7 @@ in
         # generally required by any app that opens URLs/files via xdg-open
         xdg-utils
 
-        # Shared compositor utilities (polkit agent, picker, audio idle inhibit)
-        hyprpolkitagent
+        # Shared compositor utilities (picker, audio idle inhibit)
         hyprpicker
         sway-audio-idle-inhibit
         networkmanagerapplet
@@ -165,7 +154,7 @@ in
       imports = [ ./modules/xdg-mime-common.nix ];
 
       # ── User avatar (.face) ───────────────────────────────────────────────
-      # Deployed to ~/.face so that SDDM and any greeter that respects the
+      # Deployed to ~/.face so that any greeter that respects the
       # freedesktop face icon convention picks it up automatically.
       home.file.".face" = {
         source = ./assets/face.png;
@@ -196,62 +185,8 @@ in
 
       programs.hyprlock.enable = true;
 
-      # ── Idle management (hypridle) ─────────────────────────────────────────
-      # Single shared hypridle definition for both Hyprland and Niri.
-      # DPMS on/off is delegated to dpms.sh, which probes the active compositor
-      # at runtime via hyprctl / niri IPC — so the correct command is always
-      # issued regardless of which compositor packages are installed on the host.
       services = {
-        hyprsunset = {
-          enable = standaloneDaemons;
-          package = pkgs.hyprsunset;
-          settings = {
-            profile = [
-              {
-                time = "07:30";
-                temperature = 6500;
-              }
-              {
-                time = "18:00";
-                temperature = 5000;
-              }
-            ];
-          };
-        };
-
         network-manager-applet.enable = true;
-
-        hypridle = {
-          enable = standaloneDaemons;
-          settings = {
-            general = {
-              lock_cmd = "hyprlock";
-              before_sleep_cmd = "hyprlock";
-              after_sleep_cmd = "${dpmsScript} on";
-            };
-
-            listener = [
-              {
-                # Lock the screen after 5 minutes of inactivity.
-                timeout = 300;
-                on-timeout = "hyprlock";
-              }
-              {
-                # Power off monitors after 10 minutes of inactivity.
-                # dpms.sh detects whether Hyprland or Niri is running and
-                # issues the appropriate compositor command.
-                timeout = 600;
-                on-timeout = "${dpmsScript} off";
-                on-resume = "${dpmsScript} on";
-              }
-              {
-                # Suspend the system after 15 minutes of inactivity.
-                timeout = 900;
-                on-timeout = "systemctl suspend";
-              }
-            ];
-          };
-        };
       };
     });
 
@@ -269,15 +204,10 @@ in
     # ── dconf ──────────────────────────────────────────────────────────────────
     programs.dconf.enable = true;
 
-    # ── Polkit authentication agent + SDDM cursor package ────────────────────
+    # ── GSettings ────────────────────────────────────────────────────────────
     environment.systemPackages = with pkgs; [
-      polkit_gnome
       glib
       gsettings-desktop-schemas
-
-      # Catppuccin cursor theme – needed system-wide so the SDDM greeter
-      # (which runs as the sddm user) can resolve the CursorTheme setting.
-      catppuccin-cursors.mochaMauve
     ];
 
     environment.sessionVariables.GSETTINGS_SCHEMA_DIR = "${pkgs.gsettings-desktop-schemas}/share/gsettings-schemas/${pkgs.gsettings-desktop-schemas.name}/glib-2.0/schemas";
@@ -297,20 +227,5 @@ in
 
     # ── Desktop environment helper modules ─────────────────────────────────────
     desktop.environments.modules.enable = true;
-
-    # ── Polkit agent user service ──────────────────────────────────────────────
-    # Noctalia hosts use Noctalia's built-in agent instead.
-    systemd.user.services.polkit-gnome-authentication-agent-1 = lib.mkIf standaloneDaemons {
-      description = "polkit-gnome-authentication-agent-1";
-      unitConfig = {
-        StartLimitIntervalSec = 0;
-      };
-      serviceConfig = {
-        Type = "simple";
-        ExecStart = "${pkgs.polkit_gnome}/libexec/polkit-gnome-authentication-agent-1";
-        Restart = "always";
-        RestartSec = "2s";
-      };
-    };
   };
 }

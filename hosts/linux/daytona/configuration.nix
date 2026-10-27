@@ -31,11 +31,7 @@
     };
   };
 
-  desktop = {
-    enable_games = false;
-    # Trial host for agent-docs/plans/PLAN_01_NOCTALIA_SHELL.md.
-    environments.shell.provider = "noctalia";
-  };
+  desktop.enable_games = false;
 
   boot.kernelPackages = pkgs.linuxPackages_latest;
 
@@ -44,18 +40,6 @@
     networkmanager.wifi.scanRandMacAddress = false;
     firewall.allowedTCPPorts = [ 12345 ];
   };
-
-  system.activationScripts.sddm-hyprland-config = ''
-    mkdir -p /var/lib/sddm/.config/hypr
-    # hyprland.conf (hyprlang) is deprecated upstream; the Lua config is the
-    # supported format. No monitor rules are needed on this host -- the file
-    # only has to exist so Hyprland does not fall back to its shipped default.
-    rm -f /var/lib/sddm/.config/hypr/hyprland.conf
-    cat <<EOF > /var/lib/sddm/.config/hypr/hyprland.lua
-    -- Auto-generated for the SDDM Wayland session.
-    EOF
-    chown -R sddm:sddm /var/lib/sddm/.config
-  '';
 
   services = {
     alloy = {
@@ -141,24 +125,6 @@
           }
         }
       '';
-    };
-
-    displayManager = {
-      defaultSession = "hyprland";
-      sddm = {
-        enable = true;
-        wayland = {
-          enable = true;
-        };
-
-        settings = {
-          Wayland = {
-            EnableHiDPI = true;
-
-            CompositorCommand = "${pkgs.hyprland}/bin/start-hyprland";
-          };
-        };
-      };
     };
 
     logind = {

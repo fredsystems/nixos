@@ -88,21 +88,6 @@
       "Mod+Alt+Right".action = {
         spawn = [ "~/.config/hyprextra/scripts/niri-swap-external.sh" ];
       };
-
-      "XF86MonBrightnessUp".action = {
-        spawn = [
-          "~/.config/hyprextra/scripts/backlight.sh"
-          "64764"
-          "--inc"
-        ];
-      };
-      "XF86MonBrightnessDown".action = {
-        spawn = [
-          "~/.config/hyprextra/scripts/backlight.sh"
-          "64764"
-          "--dec"
-        ];
-      };
     };
   };
 
@@ -123,9 +108,5 @@
     -- (for the position flip) and the 4K-specific rule (so its scale survives).
     hl.bind("SUPER + ALT + left",  hl.dsp.exec_cmd("hyprctl --batch 'keyword monitor ,highres,auto-left,1 ; keyword monitor desc:Genesys ATE Inc PM156R1-H,highres,auto-left,2'"))
     hl.bind("SUPER + ALT + right", hl.dsp.exec_cmd("hyprctl --batch 'keyword monitor ,highres,auto-right,1 ; keyword monitor desc:Genesys ATE Inc PM156R1-H,highres,auto-right,2'"))
-
-    local scripts = os.getenv("HOME") .. "/.config/hyprextra/scripts"
-    hl.bind("XF86MonBrightnessUp",   hl.dsp.exec_cmd(scripts .. "/backlight.sh 64764 --inc"), { locked = true, repeating = true })
-    hl.bind("XF86MonBrightnessDown", hl.dsp.exec_cmd(scripts .. "/backlight.sh 64764 --dec"), { locked = true, repeating = true })
   '';
 }
