@@ -7,9 +7,6 @@
 }:
 let
   monitors = import ./monitors.nix;
-  hyprMonitors = import ../../../modules/compositors/hyprland.nix {
-    inherit lib monitors;
-  };
 in
 {
   imports = [
@@ -120,36 +117,13 @@ in
   system.stateVersion = stateVersion;
 
   services = {
-    displayManager = {
-      defaultSession = "hyprland";
-      sddm = {
-        enable = true;
-        wayland = {
-          enable = true;
+    # Same 2x2 arrangement as the desktop session (./monitors.nix).
+    displayManager.noctalia-greeter.settings.output =
+      import ../../../modules/compositors/noctalia-greeter.nix
+        {
+          inherit lib monitors;
         };
-
-        settings = {
-          Wayland = {
-            EnableHiDPI = true;
-
-            CompositorCommand = "${pkgs.hyprland}/bin/start-hyprland";
-          };
-        };
-      };
-    };
   };
-
-  system.activationScripts.sddm-hyprland-config = ''
-    mkdir -p /var/lib/sddm/.config/hypr
-    # hyprland.conf (hyprlang) is deprecated upstream; drop any stale copy left
-    # behind by a pre-Lua generation so Hyprland does not read it.
-    rm -f /var/lib/sddm/.config/hypr/hyprland.conf
-    cat <<EOF > /var/lib/sddm/.config/hypr/hyprland.lua
-    -- Auto-generated for the SDDM Wayland session.
-    ${lib.concatStringsSep "\n    " hyprMonitors}
-    EOF
-    chown -R sddm:sddm /var/lib/sddm/.config
-  '';
 
   sops.secrets = {
     "fred-yubi-maranello" = {

@@ -55,39 +55,42 @@ in
   };
 
   config = lib.mkIf cfg.enable {
-    # ── SDDM display manager ────────────────────────────────────────────────
-    # Shared by all Wayland compositors (Hyprland, Niri).
-    # The catppuccin NixOS module (catppuccin.sddm) sets the theme and
-    # installs the theme package automatically; we only need to supply the
-    # Qt 6 SDDM build it requires and any SDDM-level knobs.
-    services.displayManager.sddm = {
+    # ── Login screen: noctalia-greeter on greetd ───────────────────────────
+    # greetd's PAM service is a substack of `login`, so what is configured
+    # there (the gnome-keyring unlock, U2F from ./modules/noctalia, Daytona's
+    # fingerprint opt-out) applies to the greeter as well.
+    services.displayManager.noctalia-greeter = {
       enable = true;
-      package = pkgs.kdePackages.sddm;
-      wayland.enable = true;
-
+      # Settings -> Security -> Noctalia Greeter -> Sync in the shell copies
+      # the wallpaper and monitor layout here without an admin prompt.
+      passwordlessSyncUsers = allUsers;
+      cursorTheme = {
+        package = pkgs.catppuccin-cursors.mochaMauve;
+        name = "catppuccin-mocha-mauve-cursors";
+      };
       settings = {
-        Theme = {
-          CursorTheme = "catppuccin-mocha-mauve-cursors";
-          CursorSize = 24;
+        # Open on the password step; the greeter itself remembers the last
+        # session picked, like SDDM's RememberLastSession did.
+        user.default = user;
+        # Pinned, so a synced palette never replaces it.
+        appearance = {
+          scheme = "Catppuccin";
+          theme_mode = "dark";
+          font_family = "SFProDisplay Nerd Font";
         };
-
-        General = {
-          RememberLastSession = true;
-          RememberLastUser = true;
+        cursor.size = 24;
+        keyboard = {
+          layout = "us";
+          numlock = true;
         };
+        # Same as the lock screen: Enter on an empty field starts the
+        # security-key touch prompt.
+        auth.allow_empty_password = config.hardware-profile.u2f.enable;
       };
     };
 
-    # ── Catppuccin SDDM theme options ────────────────────────────────────────
-    # Inherits flavor (mocha) and accent (mauve) from the global
-    # catppuccin settings.  catppuccin.enable = true auto-enables this.
-    catppuccin.sddm = {
-      enable = true;
-      font = "SFProDisplay Nerd Font";
-      fontSize = "12";
-      loginBackground = true;
-      userIcon = true;
-    };
+    # catppuccin.enable turns this on; there is no SDDM to theme.
+    catppuccin.sddm.enable = false;
 
     # ── Shared compositor utility packages ───────────────────────────────────
     # Used by both Hyprland and Niri; compositor-specific binaries stay in
@@ -151,7 +154,7 @@ in
       imports = [ ./modules/xdg-mime-common.nix ];
 
       # ── User avatar (.face) ───────────────────────────────────────────────
-      # Deployed to ~/.face so that SDDM and any greeter that respects the
+      # Deployed to ~/.face so that any greeter that respects the
       # freedesktop face icon convention picks it up automatically.
       home.file.".face" = {
         source = ./assets/face.png;
@@ -201,14 +204,10 @@ in
     # ── dconf ──────────────────────────────────────────────────────────────────
     programs.dconf.enable = true;
 
-    # ── GSettings + SDDM cursor package ──────────────────────────────────────
+    # ── GSettings ────────────────────────────────────────────────────────────
     environment.systemPackages = with pkgs; [
       glib
       gsettings-desktop-schemas
-
-      # Catppuccin cursor theme – needed system-wide so the SDDM greeter
-      # (which runs as the sddm user) can resolve the CursorTheme setting.
-      catppuccin-cursors.mochaMauve
     ];
 
     environment.sessionVariables.GSETTINGS_SCHEMA_DIR = "${pkgs.gsettings-desktop-schemas}/share/gsettings-schemas/${pkgs.gsettings-desktop-schemas.name}/glib-2.0/schemas";
