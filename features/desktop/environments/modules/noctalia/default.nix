@@ -124,6 +124,10 @@ let
       };
     };
 
+    # niri-only blurred overview copy of the wallpaper. Off because the niri
+    # layer rules put the real wallpaper in the backdrop instead.
+    backdrop.enabled = false;
+
     notification = {
       follow_focused_output = true;
       offset_x = 8;
@@ -323,7 +327,19 @@ in
               xray = false;
             };
           }
+          # Stationary wallpaper: it lives in niri's backdrop, so it stays put
+          # while workspaces scroll and the overview shows it unblurred. This
+          # needs Noctalia's own [backdrop] layer to stay disabled (its
+          # default), or that blurred copy would cover the wallpaper.
+          {
+            matches = [ { namespace = "^noctalia-wallpaper"; } ];
+            place-within-backdrop = true;
+          }
         ];
+
+        # Let the backdrop (and so the wallpaper) show through workspaces.
+        layout.background-color = "transparent";
+        overview.workspace-shadow.enable = false;
 
         # After the niri module's catch-all `open-maximized` rule, so this one
         # wins for the settings window.
