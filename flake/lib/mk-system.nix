@@ -36,18 +36,6 @@
 #   kernelPkgsInput  = inputs.nixpkgs-kernel   (server kernel pin source;
 #                                               unused on desktops)
 #   isDesktop        = false  – gates the desktop package tree
-#   isLaptop         = false  – machine has an internal battery (laptop
-#                               chassis). Drives battery-dependent UI such
-#                               as the wayle bar battery module. Distinct
-#                               from isDesktop, which only means "runs the
-#                               desktop environment" (a desktop tower has
-#                               isDesktop = true but isLaptop = false).
-#   wayleMonitor     = null   – Wayland connector name (e.g. "DP-3") that
-#                               wayle should pin its OSD and notification
-#                               popups to. wayle is not focus-aware, so on
-#                               multi-monitor hosts without an explicit
-#                               value it falls back to its own "primary"
-#                               default. null means "let wayle decide".
 {
   inputs,
   self,
@@ -77,8 +65,6 @@
   nixYaziPluginsInput ? inputs.nix-yazi-plugins,
   kernelPkgsInput ? inputs.nixpkgs-kernel,
   isDesktop ? false,
-  isLaptop ? false,
-  wayleMonitor ? null,
 }:
 let
   isDarwin = pkgsInput.lib.hasSuffix "darwin" system;
@@ -104,8 +90,6 @@ let
       desktopNodes
       desktopScrapeMap
       isDesktop
-      isLaptop
-      wayleMonitor
       catppuccinInput
       sopsNixInput
       nixYaziPluginsInput
