@@ -9,6 +9,9 @@
 let
   allUsers = [ user ] ++ extraUsers;
   cfg = config.desktop.environments.common;
+  # The standalone idle, night-light and polkit daemons belong to the wayle
+  # stack; Noctalia replaces them. See ./shell/default.nix.
+  standaloneDaemons = config.desktop.environments.shell.provider == "wayle";
   dpmsScript = "~/.config/hyprextra/scripts/dpms.sh";
 
   # Shared theme definition used for both gtk.theme (GTK3) and
@@ -56,6 +59,13 @@ in
   };
 
   config = lib.mkIf cfg.enable {
+    desktop.environments.shell = lib.mkIf standaloneDaemons {
+      startupUnits = [
+        "polkit-gnome-authentication-agent-1"
+        "hypridle"
+      ];
+      startupCommands = [ "hyprsunset" ];
+    };
 
     # ── SDDM display manager ────────────────────────────────────────────────
     # Shared by all Wayland compositors (Hyprland, Niri).
@@ -69,7 +79,7 @@ in
 
       settings = {
         Theme = {
-          CursorTheme = "catppuccin-mocha-lavender-cursors";
+          CursorTheme = "catppuccin-mocha-mauve-cursors";
           CursorSize = 24;
         };
 
@@ -81,7 +91,7 @@ in
     };
 
     # ── Catppuccin SDDM theme options ────────────────────────────────────────
-    # Inherits flavor (mocha) and accent (lavender) from the global
+    # Inherits flavor (mocha) and accent (mauve) from the global
     # catppuccin settings.  catppuccin.enable = true auto-enables this.
     catppuccin.sddm = {
       enable = true;
@@ -193,7 +203,7 @@ in
       # issued regardless of which compositor packages are installed on the host.
       services = {
         hyprsunset = {
-          enable = true;
+          enable = standaloneDaemons;
           package = pkgs.hyprsunset;
           settings = {
             profile = [
@@ -212,7 +222,7 @@ in
         network-manager-applet.enable = true;
 
         hypridle = {
-          enable = true;
+          enable = standaloneDaemons;
           settings = {
             general = {
               lock_cmd = "hyprlock";
@@ -267,7 +277,7 @@ in
 
       # Catppuccin cursor theme – needed system-wide so the SDDM greeter
       # (which runs as the sddm user) can resolve the CursorTheme setting.
-      catppuccin-cursors.mochaLavender
+      catppuccin-cursors.mochaMauve
     ];
 
     environment.sessionVariables.GSETTINGS_SCHEMA_DIR = "${pkgs.gsettings-desktop-schemas}/share/gsettings-schemas/${pkgs.gsettings-desktop-schemas.name}/glib-2.0/schemas";
@@ -289,7 +299,8 @@ in
     desktop.environments.modules.enable = true;
 
     # ── Polkit agent user service ──────────────────────────────────────────────
-    systemd.user.services.polkit-gnome-authentication-agent-1 = {
+    # Noctalia hosts use Noctalia's built-in agent instead.
+    systemd.user.services.polkit-gnome-authentication-agent-1 = lib.mkIf standaloneDaemons {
       description = "polkit-gnome-authentication-agent-1";
       unitConfig = {
         StartLimitIntervalSec = 0;

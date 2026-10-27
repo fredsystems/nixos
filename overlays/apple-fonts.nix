@@ -38,6 +38,7 @@
   p7zip,
   parallel,
   nerd-font-patcher,
+  python3,
 }:
 let
   baseUrl = "https://devimages-cdn.apple.com/design/resources/download";
@@ -95,6 +96,10 @@ let
       ++ lib.optionals nerd [
         parallel
         nerd-font-patcher
+        (python3.withPackages (ps: [
+          ps.fonttools
+          ps.uharfbuzz
+        ]))
       ];
 
       # The dmg holds an installer .pkg, which holds a gzipped cpio
@@ -127,14 +132,22 @@ let
 
       setSourceRoot = "sourceRoot=$(pwd)";
 
-      # nerd-font-patcher writes each patched face into the working
-      # directory, leaving the originals in the unpacked subtree. That is
-      # what lets installPhase below select patched faces with -maxdepth 1.
+      # Each face is patched into its own `patched/<n>/` directory next to a
+      # `.source` file naming the original, so apple-fonts-repair.py can pair
+      # them up. FontForge garbles the typographic family names (every face
+      # except Regular/Italic/Bold/Bold Italic becomes unselectable by
+      # family) and drops Apple's kerning entirely; the script restores both
+      # from the original and fails the build if the repaired face does not
+      # shape identically to it (see its docstring).
+      # The font list is collected before patching starts so the outputs are
+      # never picked up as inputs.
       buildPhase = lib.optionalString nerd ''
         runHook preBuild
-        find \( -name \*.ttf -o -name \*.otf \) -print0 \
-          | parallel --will-cite -j "$NIX_BUILD_CORES" -0 \
-              nerd-font-patcher --no-progressbars -c {}
+        find \( -name \*.ttf -o -name \*.otf \) -print0 > fonts.list
+        parallel --will-cite -j "$NIX_BUILD_CORES" -0 -a fonts.list \
+          'mkdir -p patched/{#} && printf "%s\n" "$(realpath {})" > patched/{#}/.source && nerd-font-patcher --no-progressbars -c -out patched/{#} {}'
+        parallel --will-cite -j "$NIX_BUILD_CORES" \
+          python3 ${./apple-fonts-repair.py} {} ::: patched/*
         runHook postBuild
       '';
 
@@ -145,8 +158,19 @@ let
       + (
         if nerd then
           ''
-            find -maxdepth 1 -name \*.otf -exec mv {} "$out/share/fonts/opentype/" \;
-            find -maxdepth 1 -name \*.ttf -exec mv {} "$out/share/fonts/truetype/" \;
+            # Fail rather than let one face silently overwrite another.
+            for font in patched/*/*.otf patched/*/*.ttf; do
+              [ -e "$font" ] || continue
+              case "$font" in
+                *.otf) dest="$out/share/fonts/opentype/''${font##*/}" ;;
+                *) dest="$out/share/fonts/truetype/''${font##*/}" ;;
+              esac
+              if [ -e "$dest" ]; then
+                echo "duplicate font file name: ''${font##*/}" >&2
+                exit 1
+              fi
+              mv "$font" "$dest"
+            done
           ''
         else
           ''

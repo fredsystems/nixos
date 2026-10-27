@@ -59,7 +59,7 @@ in
   catppuccin = {
     enable = true;
     flavor = "mocha";
-    accent = "lavender";
+    accent = "mauve";
 
     # catppuccin's flake module defaults `sources` to its own packages
     # (built from its pinned nixpkgs, served by catppuccin.cachix.org), but

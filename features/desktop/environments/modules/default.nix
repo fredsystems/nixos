@@ -5,6 +5,7 @@
 }:
 let
   cfg = config.desktop.environments.modules;
+  inherit (config.desktop.environments.shell) provider;
 in
 {
   options.desktop.environments.modules = {
@@ -13,6 +14,7 @@ in
   imports = [
     ./clipboard
     ./hyprlandextra
+    ./noctalia
     ./pamixer
     ./vicinae
     ./wayle
@@ -22,9 +24,10 @@ in
     desktop.environments.modules = {
       clipboard.enable = true;
       hyprlandextra.enable = true;
+      noctalia.enable = provider == "noctalia";
       pamixer.enable = true;
       vicinae.enable = true;
-      wayle.enable = true;
+      wayle.enable = provider == "wayle";
     };
   };
 }

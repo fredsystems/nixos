@@ -24,6 +24,7 @@ in
     ./hyprland
     ./modules
     ./niri
+    ./shell
   ];
 
   config = lib.mkIf cfg.enable {

@@ -1,7 +1,6 @@
 {
   lib,
   config,
-  pkgs,
   user,
   extraUsers ? [ ],
   isLaptop ? false,
@@ -11,246 +10,7 @@
 let
   allUsers = [ user ] ++ extraUsers;
   cfg = config.desktop.environments.modules.wayle;
-
-  # ── Compositor-aware session actions for the dashboard dropdown ─────────
-  # wayle is compositor-agnostic and its dashboard dropdown runs static
-  # shell commands (`sh -c`). But a correct logout/reboot/poweroff differs by
-  # compositor:
-  #
-  #   * Hyprland: use `hyprshutdown`, which gracefully asks every app to
-  #     close (and waits) before quitting the compositor, rather than letting
-  #     apps die when Hyprland exits. For reboot/poweroff it runs the
-  #     `systemctl` command via `--post-cmd` *after* the graceful exit, so the
-  #     machine only reboots once apps have cleanly shut down.
-  #   * Niri: `niri msg action quit` cleanly exits the session (and shows
-  #     niri's own confirmation dialog). Reboot/poweroff just call `systemctl`
-  #     directly; the session teardown closes apps.
-  #
-  # Each action is a single dispatch script that detects the running
-  # compositor at runtime ($NIRI_SOCKET when niri is up,
-  # $HYPRLAND_INSTANCE_SIGNATURE when Hyprland is up) so the same wayle config
-  # works on both. hyprshutdown is referenced by bare name (it is installed by
-  # the hyprland module and only present in a Hyprland session); niri is
-  # pinned to its store path.
-  #
-  # hyprshutdown MUST be launched detached from wayle's process tree. wayle's
-  # bar is a layer-shell surface, so hyprshutdown's "close every app" pass
-  # SIGTERMs wayle's own PID. If hyprshutdown is a descendant of wayle (it is,
-  # when wayle spawns the dropdown command via `sh -c`), killing wayle tears
-  # hyprshutdown down with it — before its GUI renders or it issues
-  # `/dispatch exit`. The symptom is exactly "apps close but the compositor
-  # just sits there, and running hyprshutdown by hand works" (a hand-launched
-  # hyprshutdown is not a wayle descendant). `systemd-run --user --scope` runs
-  # hyprshutdown in its own transient scope, fully decoupled from wayle's
-  # process tree and signal propagation, so it survives wayle being killed and
-  # runs to completion (GUI, Hyprland exit, and --post-cmd).
-  # Use the same niri package the system actually installs
-  # (config.programs.niri.package, from niri.nixosModules.niri) rather than
-  # nixpkgs' own `pkgs.niri`. They're different derivations; referencing
-  # nixpkgs' `pkgs.niri` here forced an extra, entirely separate niri build.
-  niriBin = lib.getExe config.programs.niri.package;
-  systemdRun = "${pkgs.systemd}/bin/systemd-run";
-  detectCompositor = ''
-    # Returns: prints "hyprland", "niri", or "unknown".
-    detect_compositor() {
-      if [ -n "''${HYPRLAND_INSTANCE_SIGNATURE:-}" ]; then
-        echo hyprland
-      elif [ -n "''${NIRI_SOCKET:-}" ]; then
-        echo niri
-      else
-        case "''${XDG_CURRENT_DESKTOP:-}" in
-          *Hyprland*) echo hyprland ;;
-          *niri*) echo niri ;;
-          *) echo unknown ;;
-        esac
-      fi
-    }
-  '';
-
-  sessionLogout = pkgs.writeShellApplication {
-    name = "wayle-session-logout";
-    # hyprshutdown is intentionally not in runtimeInputs: it is a Hyprland-
-    # only tool installed by the hyprland module and resolved from PATH only
-    # inside a Hyprland session.
-    text = ''
-      ${detectCompositor}
-      case "$(detect_compositor)" in
-        hyprland) exec ${systemdRun} --user --scope --quiet hyprshutdown --no-fork ;;
-        niri)     exec ${niriBin} msg action quit ;;
-        *)        echo "wayle-session-logout: unknown compositor" >&2; exit 1 ;;
-      esac
-    '';
-  };
-
-  sessionReboot = pkgs.writeShellApplication {
-    name = "wayle-session-reboot";
-    text = ''
-      ${detectCompositor}
-      case "$(detect_compositor)" in
-        hyprland) exec ${systemdRun} --user --scope --quiet hyprshutdown --no-fork -t 'Restarting…' --post-cmd 'systemctl reboot' ;;
-        niri)     exec systemctl reboot ;;
-        *)        exec systemctl reboot ;;
-      esac
-    '';
-  };
-
-  sessionPoweroff = pkgs.writeShellApplication {
-    name = "wayle-session-poweroff";
-    text = ''
-      ${detectCompositor}
-      case "$(detect_compositor)" in
-        hyprland) exec ${systemdRun} --user --scope --quiet hyprshutdown --no-fork -t 'Shutting down…' --post-cmd 'systemctl poweroff' ;;
-        niri)     exec systemctl poweroff ;;
-        *)        exec systemctl poweroff ;;
-      esac
-    '';
-  };
-
-  # ── NixOS deploy state indicator ──────────────────────────────────────
-  # Reports whether THIS MACHINE is running the closure main expects for it.
-  #
-  # This used to compare the local git checkout against its upstream and
-  # report "behind by N commits", which was wrong in both directions:
-  #
-  #   1. False clean. `git pull` with no deploy made the widget go quiet
-  #      while the machine carried on running the old generation. The thing
-  #      being measured was the checkout, not the system.
-  #   2. False dirty. Any commit touching only servers put every desktop
-  #      into "behind by N", so the indicator was lit most of the time and
-  #      therefore ignored.
-  #
-  # Both fall out of measuring the wrong object. The right one already
-  # exists: nixos-deploy-state-metric.service (modules/monitoring/agent/
-  # node_exporter.nix) compares `readlink -f /run/current-system` against
-  # the per-host expected closure in the fleet manifest published by
-  # .github/workflows/fleet-manifest.yaml. That is per-host, so a
-  # server-only commit is correctly invisible here, and it is keyed on what
-  # is actually activated, so pulling without deploying still reads as
-  # drifted.
-  #
-  # This widget deliberately does NOT reimplement that comparison -- it
-  # reads the .prom the service already emits (world-readable 0644,
-  # refreshed every 10 minutes). One state machine, one place to be wrong.
-  # It also means the widget does no network I/O at all, so the git fetch
-  # and its throttle stamp are gone.
-  #
-  # States, from that service: up_to_date | drifted | unmanaged | unknown.
-  nixosStateProm = "/var/lib/node_exporter/textfiles/nixos_deploy_state.prom";
-  nixosStateScript = pkgs.writeShellApplication {
-    name = "wayle-nixos-state";
-    runtimeInputs = [
-      pkgs.coreutils
-      pkgs.gnused
-    ];
-    text = ''
-      prom="''${DEPLOY_STATE_PROM:-${nixosStateProm}}"
-
-      # The module renders the icon via the icon slot: the JSON `alt` field
-      # keys into the custom module's icon-map (reboot|update|clean), and the
-      # `class` is carried for future custom CSS. `text` is left empty because
-      # label-show is off; the human-readable state lives in `tooltip`.
-      emit() {
-        # $1 = alt (icon-map key), $2 = class, $3 = tooltip
-        printf '{"text":"","alt":"%s","class":"%s","tooltip":"%s"}\n' "$1" "$2" "$3"
-      }
-
-      # Pull a label out of the single nixos_deploy_info sample. The leading
-      # [,{] anchors the match to a whole label name, so `short_rev` cannot
-      # match inside `short_expected_rev`.
-      info_label() {
-        sed -n "s/^nixos_deploy_info{.*[,{]$1=\"\([^\"]*\)\".*/\1/p" "$prom" | head -1
-      }
-
-      gauge() {
-        sed -n "s/^$1{[^}]*} \([0-9][0-9]*\).*/\1/p" "$prom" | head -1
-      }
-
-      human_age() {
-        secs="$1"
-        if [ "$secs" -lt 3600 ]; then
-          printf '%dm' "$((secs / 60))"
-        elif [ "$secs" -lt 86400 ]; then
-          printf '%dh' "$((secs / 3600))"
-        else
-          printf '%dd' "$((secs / 86400))"
-        fi
-      }
-
-      # 1. Reboot required (highest priority).
-      if [ -f /run/reboot-required ]; then
-        emit "reboot" "reboot" "Reboot required"
-        exit 0
-      fi
-
-      # 2. No metrics. Deliberately NOT styled clean: the previous widget's
-      #    worst failure mode was looking healthy while saying nothing
-      #    meaningful, and "the exporter never ran" is exactly that.
-      if [ ! -r "$prom" ]; then
-        emit "update" "updates" "Deploy state unknown: nixos-deploy-state-metric has not produced metrics"
-        exit 0
-      fi
-
-      state="$(sed -n 's/^nixos_deploy_state{[^}]*state="\([^"]*\)"} 1$/\1/p' "$prom" | head -1)"
-      running_rev="$(info_label short_rev)"
-      expected_rev="$(info_label short_expected_rev)"
-      drifted_since="$(gauge nixos_drifted_since_seconds)"
-      manifest_age="$(gauge nixos_manifest_age_seconds)"
-      now="$(date +%s)"
-
-      : "''${state:=}"
-      : "''${drifted_since:=0}"
-      : "''${manifest_age:=0}"
-
-      # A manifest nobody has refreshed in a day makes every verdict below
-      # suspect, "up to date" included. Surface that rather than trust it.
-      if [ "$manifest_age" -gt 86400 ]; then
-        emit "update" "updates" "Fleet manifest is $(human_age "$manifest_age") old; deploy state cannot be trusted"
-        exit 0
-      fi
-
-      case "$state" in
-        drifted)
-          behind=""
-          if [ "$drifted_since" -gt 0 ] && [ "$now" -gt "$drifted_since" ]; then
-            behind=" for $(human_age "$((now - drifted_since))")"
-          fi
-          emit "update" "updates" \
-            "Deploy needed$behind: running ''${running_rev:-unknown}, main expects ''${expected_rev:-unknown}"
-          ;;
-        unmanaged)
-          # Running something main never published: a local, dirty or
-          # feature-branch build. Same remedy, different cause, so say which.
-          emit "update" "updates" \
-            "Running a closure main never published (local or branch build); deploy to return to main"
-          ;;
-        unknown)
-          # The manifest predates the running closure, i.e. this host was
-          # deployed more recently than the manifest was published.
-          #
-          # Normally that is a deploy racing the publisher and is not
-          # actionable -- but a STUCK publisher produces the same state
-          # indefinitely, so treating it as unconditionally clean would hide
-          # a broken deploy-state pipeline behind the 24h guard above.
-          #
-          # fleet-manifest.yaml publishes every 6h and on every push to main,
-          # so a manifest older than two cycles is not "catching up", it is
-          # stuck. Below that, stay quiet; above it, say so.
-          if [ "$manifest_age" -gt 43200 ]; then
-            emit "update" "updates" \
-              "Deploy state indeterminate: manifest is $(human_age "$manifest_age") old and predates the running closure"
-          else
-            emit "clean" "clean" "Deployed ahead of the published manifest; state will settle shortly"
-          fi
-          ;;
-        up_to_date)
-          emit "clean" "clean" "Running the closure main expects (''${running_rev:-unknown})"
-          ;;
-        *)
-          emit "update" "updates" "Deploy state could not be read from the metrics file"
-          ;;
-      esac
-    '';
-  };
+  shell = config.desktop.environments.shell;
 
   # Symbolic state icons for the custom module, shipped in-tree and installed
   # into wayle's custom-icon directory (~/.local/share/wayle/icons) so the
@@ -270,8 +30,8 @@ let
   # the `class = "nixos-state-pill"` instance class in the bar layout below.
   wayleUserStyles = ./styles/index.scss;
 
-  # Catppuccin Mocha palette with the Lavender accent as `primary`, matching
-  # the repo-wide catppuccin default (flavor = mocha, accent = lavender).
+  # Catppuccin Mocha palette with the Mauve accent as `primary`, matching
+  # the repo-wide catppuccin default (flavor = mocha, accent = mauve).
   # Not yet an upstream wayle built-in theme; shipped inline so the config is
   # fully declarative. A separate PR adds the flavors to wayle-rs/wayle.
   catppuccinMochaPalette = {
@@ -280,7 +40,7 @@ let
     elevated = "#313244"; # surface0
     fg = "#cdd6f4"; # text
     fg-muted = "#a6adc8"; # subtext0
-    primary = "#b4befe"; # lavender (accent)
+    primary = "#cba6f7"; # mauve (accent)
     red = "#f38ba8";
     yellow = "#f9e2af";
     green = "#a6e3a1";
@@ -308,6 +68,17 @@ in
   };
 
   config = lib.mkIf cfg.enable {
+    desktop.environments.shell = {
+      startupUnits = [ "wayle" ];
+      commands = {
+        volumeUp = "wayle audio output-volume +5";
+        volumeDown = "wayle audio output-volume -5";
+        volumeMute = "wayle audio output-mute";
+        micMute = "wayle audio input-mute";
+        idleInhibitToggle = "wayle idle toggle --indefinite";
+      };
+    };
+
     home-manager.users = lib.genAttrs allUsers (_: {
       # Install the in-tree symbolic state icons into wayle's custom-icon
       # directory so the custom module's icon-map references resolve.
@@ -437,12 +208,12 @@ in
             # logout/reboot/poweroff do the right thing under both Hyprland
             # (graceful hyprshutdown) and niri (niri msg action quit /
             # systemctl). Lock stays the generic loginctl call, which works
-            # everywhere. See the script definitions in the `let` block.
+            # everywhere. See ../../shell/session-actions.nix.
             dashboard = {
               dropdown-lock-command = "loginctl lock-session";
-              dropdown-logout-command = lib.getExe sessionLogout;
-              dropdown-reboot-command = lib.getExe sessionReboot;
-              dropdown-poweroff-command = lib.getExe sessionPoweroff;
+              dropdown-logout-command = lib.getExe shell.sessionActions.logout;
+              dropdown-reboot-command = lib.getExe shell.sessionActions.reboot;
+              dropdown-poweroff-command = lib.getExe shell.sessionActions.poweroff;
             };
 
             # ── Clock (24h with seconds, matching fredbar) ────────────────
@@ -479,8 +250,7 @@ in
             };
 
             # ── NixOS config state (ports fred-bar's updates module) ──────
-            # Polls the local script every 60s; the script self-throttles
-            # its network fetch to once an hour. The script emits JSON with an
+            # Polls ../../shell/nixos-deploy-state.nix every 60s. It emits JSON with an
             # `alt` field (reboot|update|clean) that selects the icon via
             # icon-map, a `tooltip` for hover, and a `class` carried for future
             # custom CSS. The icon renders in the icon slot (sized like a real
@@ -490,7 +260,7 @@ in
             custom = [
               {
                 id = "nixos-state";
-                command = lib.getExe nixosStateScript;
+                command = lib.getExe shell.nixosDeployState;
                 mode = "poll";
                 interval-ms = 60000;
                 icon-show = true;
