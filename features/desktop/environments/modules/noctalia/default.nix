@@ -240,10 +240,12 @@ in
     home-manager.users = lib.genAttrs allUsers (uname: {
       xdg.dataFile = deployStateFiles;
 
-      # Same chord cliphist + fuzzel use on wayle hosts.
+      # Same chord cliphist + fuzzel use on wayle hosts (Hyprland only there);
+      # Noctalia records history under niri too, so bind it in both.
       wayland.windowManager.hyprland.extraConfig = ''
         hl.bind("SUPER + V", hl.dsp.exec_cmd("noctalia msg panel-toggle clipboard"))
       '';
+      programs.niri.settings.binds."Mod+V".action.spawn-sh = "noctalia msg panel-toggle clipboard";
 
       programs.noctalia = {
         enable = true;
