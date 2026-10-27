@@ -1,11 +1,9 @@
 # Plan 01: Noctalia desktop shell
 
-- **Status:** in progress (subtasks 1.1-1.12 committed; Daytona trial
-  pending)
-- **Branch:** `feat/noctalia-shell`
-- **Scope of the current run:** subtasks 1.1 through 1.12 (phases 0-2).
-  Phase 3 (remove wayle) and phase 4 (greeter) are deliberately not
-  started until the trial on Daytona is signed off.
+- **Status:** pending merge (subtasks 1.1-1.25 committed; trial on both
+  desktops pending)
+- **Branches:** `feat/noctalia-shell` (1.1-1.12, merged),
+  `feat/noctalia-compositor-settings` (1.13-1.25)
 
 ## Goal
 
@@ -25,12 +23,14 @@ until the new one is proven.
 | System accent   | Changed fleet-wide from lavender to mauve so the shell and every other port agree.         |
 | App templates   | Noctalia's GTK/terminal templates stay off; catppuccin/nix owns app theming.               |
 | Wallpaper       | Per-monitor independent no-repeat rotation, recursive over `~/Pictures/Background`, 5 min. |
-| Rollout         | `desktop.environments.shell.provider` enum; Daytona = `noctalia`, maranello = `wayle`.     |
-| Launcher        | vicinae stays. Noctalia's launcher is available but not bound.                             |
+| Rollout         | Daytona first behind a `provider` enum, then maranello; the enum went with wayle (1.20).   |
+| Launcher        | vicinae stays on ALT+Space. Noctalia's launcher is on SUPER+Space.                         |
 | Tray apps       | nm-applet, blueman, udiskie, syncclipboard and solaar keep running in the tray.            |
-| Clipboard       | Noctalia's clipboard history on Noctalia hosts; cliphist + fuzzel on wayle hosts.          |
-| Lock screen     | Noctalia's lock screen on Noctalia hosts. It authenticates against the `login` PAM stack.  |
-| Login manager   | SDDM stays until phase 4.                                                                  |
+| Clipboard       | Noctalia's clipboard history (SUPER+V).                                                    |
+| Lock screen     | Noctalia's lock screen. It authenticates against the `login` PAM stack.                    |
+| Login manager   | noctalia-greeter on greetd. Its PAM service substacks `login`.                             |
+| Keybinds        | One table in the Noctalia module, rendered for Hyprland and niri. Caffeine is SUPER+SHIFT+S. |
+| Control center  | 1000 px wide, labelled sidebar, floats below the bar; opens under a clicked bar widget.    |
 | Config drift    | GUI changes land in `~/.local/state/noctalia/settings.toml` and override Nix. Delete it to reset. |
 
 ### Why the wallpaper choice matters
@@ -119,7 +119,56 @@ half alone leaves a window with two lockers or none; 1.12 landed as two
   Noctalia's clipboard panel. polkit-gnome is started only on wayle
   hosts; Noctalia hosts use Noctalia's polkit agent.
 
-## Trial checklist (Daytona, user-run)
+### Phase 2b: compositor settings and control center
+
+- [x] **1.13 Noctalia's recommended Hyprland settings** (user commit):
+  gaps 5/10, shadow range 4, blur, the IPC binds and the settings-window
+  and layer rules.
+- [x] **1.14 Share the binds between compositors.** The launcher,
+  control-center, clipboard, settings and window-switcher binds and the
+  settings-window rule move into the Noctalia module, rendered for both
+  Hyprland and niri. Caffeine moves from SUPER+S to SUPER+SHIFT+S.
+- [x] **1.15 niri appearance.** 20 px rounded, clipped corners (and
+  `rounding = 20` in Hyprland), gaps 10, blur behind windows, xray off
+  on Noctalia's surfaces, blur on the window switcher.
+- [x] **1.16 Stationary wallpaper under niri.** `noctalia-wallpaper` is
+  placed in niri's backdrop, the workspace background is transparent and
+  overview workspace shadows are off. Noctalia's `[backdrop]` stays off.
+- [x] **1.17 Brightness keys** call `noctalia msg brightness-up/down`
+  and show its OSD, in both compositors.
+- [x] **1.18 Type-to-launch** in niri's overview.
+- [x] **1.19 Control center.** 1000 px wide with the labelled sidebar,
+  floating below the bar, under the clicked widget from a bar click.
+  In Hyprland, panels opened by keybind (SUPER+S, SUPER+Space, SUPER+V)
+  move the pointer to their centre via a `layer.opened` hook.
+
+### Phase 3: remove wayle
+
+- [x] **1.20 Switch maranello to Noctalia.**
+- [x] **1.21 Remove wayle and the `provider` option.** Deletes the
+  wayle module and every wayle branch, including hypridle, hyprsunset,
+  the polkit-gnome agent and the cliphist watchers.
+- [x] **1.22 Drop `isLaptop` and `wayleMonitor`** from the system
+  builder (closures unchanged).
+- [x] **1.23 Drop the flat wallpaper mirror**
+  (`~/Pictures/Background-flat` and its build step).
+- [x] **1.24 Remove leftovers**: hypridle, hyprpolkitagent and
+  polkit-gnome packages, their PAM services, and the `dpms.sh`,
+  `logout.sh` and `backlight.sh` scripts. Remaining wayle mentions are
+  reworded.
+
+### Phase 4: noctalia-greeter
+
+- [x] **1.25 Replace SDDM with noctalia-greeter.** Catppuccin scheme
+  (pinned), mauve cursor, SF Pro font, opens on `fred`'s password step
+  and remembers the last session. greetd's PAM substacks `login`, so
+  gnome-keyring, U2F and Daytona's fingerprint opt-out need no greetd
+  entries. Empty-password submit starts the security-key prompt. The
+  shell may sync wallpaper and layout without an admin prompt.
+  maranello's `[output]` layout, scales and refresh rates come from
+  `monitors.nix` via `modules/compositors/noctalia-greeter.nix`.
+
+## Trial checklist (both desktops, user-run)
 
 - [ ] Bar, tray icons, notifications and OSD behave; OSD follows focus.
 - [ ] Logout, reboot and poweroff from the session panel close apps
@@ -127,7 +176,7 @@ half alone leaves a window with two lockers or none; 1.12 landed as two
 - [ ] Deploy-state widget shows the right state and tooltip.
 - [ ] Lock, unlock by password, fingerprint and security key.
 - [ ] Idle lock, monitors off and suspend fire at the right times;
-      caffeine (`SUPER+S`) blocks them.
+      caffeine (`SUPER+SHIFT+S`) blocks them.
 - [ ] Night light switches at 18:00 and 07:30.
 - [ ] `SUPER+V` opens Noctalia's clipboard history, and history survives a
       reboot (its key lives in gnome-keyring's default collection).
@@ -137,6 +186,16 @@ half alone leaves a window with two lockers or none; 1.12 landed as two
       ~/.local/state/noctalia/wallpaper_shuffle.json` only grows, and
       `journalctl --user -u noctalia | grep 'automation set' | awk
       '{print $NF}' | sort | uniq -d` prints nothing.
+- [ ] `SUPER+S` opens the control center centred under the bar and, in
+      Hyprland, moves the pointer onto it; a bar click opens it under
+      the widget and leaves the pointer alone.
+- [ ] Brightness keys change the backlight and show the OSD (maranello
+      needs `[brightness] enable_ddcutil` for its monitors).
+- [ ] niri: rounded corners, blur, a stationary wallpaper, and typing in
+      the overview opens the launcher.
+- [ ] The greeter appears on every monitor (maranello in the 2x2
+      layout), logs in by password and by security key, and the
+      keyring unlocks.
 
 ## Known limitations
 
@@ -146,38 +205,10 @@ half alone leaves a window with two lockers or none; 1.12 landed as two
   settings and read its output.
 - The deploy-state widget's Luau has been syntax-checked and the config
   recognises it, but it first runs for real on Daytona.
-
-## Phase 3: remove wayle (after the trial)
-
-Not started. Switch maranello to Noctalia first, then:
-
-- Delete `features/desktop/environments/modules/wayle/` (module, three
-  icons, `styles/index.scss`).
-- Remove the wayle import and branch from
-  `features/desktop/environments/modules/default.nix`, and collapse the
-  `provider` option and every `provider == "wayle"` branch in
-  `common.nix`, `modules/clipboard/default.nix`, `hyprland/default.nix`,
-  `niri/default.nix` and `shell/default.nix`.
-- Remove `wayleMonitor` and `isLaptop` (only wayle reads them) from
-  `flake/lib/mk-system.nix` and `flake/hosts/nixos.nix`.
-- Remove the `Pictures/Background-flat` entry from
-  `features/desktop/environments/default.nix` and the flat-mirror step
-  from `flake/dev/packages.nix`.
-- Drop hypridle, hyprsunset, polkit-gnome, `hyprpolkitagent`, cliphist
-  and the `hyprextra/scripts/dpms.sh` and `logout.sh` scripts.
-- Fix wayle mentions in `features/desktop/clipboard/default.nix`,
-  `overlays/syncclipboard.nix`, `hyprextra/scripts/backlight.sh`,
-  `hyprextra/scripts/kbbacklight.sh` and `hyprlandextra/default.nix`.
-
-## Phase 4: noctalia-greeter (after phase 3)
-
-Not started. Replace SDDM with `services.displayManager.noctalia-greeter`
-(greetd):
-
-- `common.nix`: SDDM and `catppuccin.sddm` blocks; add
-  `security.pam.services.greetd.enableGnomeKeyring` and any U2F setting.
-- `hosts/linux/daytona/configuration.nix`: remove the
-  `sddm-hyprland-config` activation script.
-- `hosts/linux/maranello/configuration.nix`: replace the SDDM block,
-  `CompositorCommand` and activation script with the greeter's
-  `[output]` layout generated from `monitors.nix`.
+- Noctalia 5.3.0 places a panel from config only; `panel-toggle` takes
+  no position, so a keybind cannot open the control center somewhere
+  other than where a bar click would.
+- niri has no action to move the pointer, so keybind-opened panels do
+  not get the pointer there as they do under Hyprland.
+- `niri_overview_close_on_launch_enabled` from Noctalia's niri guide
+  does not exist in 5.3.0 and is not set.
