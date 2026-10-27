@@ -305,6 +305,26 @@ in
       programs.niri.settings = {
         binds = lib.mapAttrs (_: cmd: { action.spawn-sh = cmd; }) niriBinds;
 
+        # Noctalia requests blur for its own surfaces. Turn off xray so the
+        # blur samples what is really behind them, not just the wallpaper,
+        # which otherwise shows through the rounded corners. The window
+        # switcher does not request blur, so force it.
+        layer-rules = [
+          {
+            matches = [
+              { namespace = "^noctalia-(bar-[^\"]+|notification|dock|panel|attached-panel|osd)$"; }
+            ];
+            background-effect.xray = false;
+          }
+          {
+            matches = [ { namespace = "^noctalia-window-switcher$"; } ];
+            background-effect = {
+              blur = true;
+              xray = false;
+            };
+          }
+        ];
+
         # After the niri module's catch-all `open-maximized` rule, so this one
         # wins for the settings window.
         window-rules = lib.mkAfter [

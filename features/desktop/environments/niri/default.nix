@@ -143,8 +143,9 @@ in
           ];
 
           layout = {
-            # Hyprland gaps → Niri gaps
-            gaps = 2;
+            # niri has a single gap; 10 matches Hyprland's gaps_out (and the
+            # 2 x gaps_in it leaves between windows).
+            gaps = 10;
 
             # Border (Hypr: border_size + colors)
             border = {
@@ -163,8 +164,15 @@ in
               active.color = "#e0e0e0ff";
               inactive.color = "#00000000";
             };
+          };
 
-            # Niri doesn't do rounded corners or shadows → ignore Hypr "decoration"
+          # Blur behind translucent surfaces (niri 26.04+). Windows opt in via
+          # the catch-all window rule below.
+          blur = {
+            passes = 2;
+            offset = 3.0;
+            noise = 0.03;
+            saturation = 1.0;
           };
 
           overview.backdrop-color = "#0f0f0f";
@@ -182,6 +190,23 @@ in
           window-rules = [
             {
               open-maximized = true;
+
+              # Rounded corners, matching Hyprland's `rounding = 20`, with the
+              # window contents clipped to them.
+              geometry-corner-radius = {
+                top-left = 20.0;
+                top-right = 20.0;
+                bottom-right = 20.0;
+                bottom-left = 20.0;
+              };
+              clip-to-geometry = true;
+
+              # Blur what is behind each window rather than the wallpaper
+              # (xray), so overlapping translucent windows look right.
+              background-effect = {
+                blur = true;
+                xray = false;
+              };
             }
           ];
 

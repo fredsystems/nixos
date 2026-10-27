@@ -200,6 +200,9 @@ in
             },
 
             decoration = {
+              rounding = 20,
+              rounding_power = 2,
+
               shadow = {
                 enabled = true,
                 range = 4,
