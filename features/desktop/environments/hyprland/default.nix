@@ -142,6 +142,7 @@ in
           local terminal = "freminal"
           local email = "thunderbird"
           local scripts = os.getenv("HOME") .. "/.config/hyprextra/scripts"
+          local ipc = "noctalia msg "
 
           ----------------
           ---- ENV    ----
@@ -165,8 +166,8 @@ in
             },
 
             general = {
-              gaps_in = 4,
-              gaps_out = 4,
+              gaps_in = 5,
+              gaps_out = 10,
               border_size = 4,
               resize_on_border = true,
               col = {
@@ -202,11 +203,19 @@ in
             decoration = {
               shadow = {
                 enabled = true,
-                range = 60,
+                range = 4,
                 offset = "1 2",
                 color = "rgba(1E202966)",
                 render_power = 3,
                 scale = 0.97,
+              },
+
+              blur = {
+                enabled = true,
+                xray = true,
+                size = 3,
+                passes = 2,
+                vibrancy = 0.1696,
               },
             },
 
@@ -338,6 +347,28 @@ in
 
           -- Lock lid on close
           hl.bind("switch:off:Lid Switch", hl.dsp.exec_cmd(scripts .. "/pauseandsleep.sh"), { locked = true })
+
+          hl.bind(mainMod .. "+Space", hl.dsp.exec_cmd(ipc .. "panel-toggle launcher"))
+          hl.bind(mainMod .. "+S", hl.dsp.exec_cmd(ipc .. "panel-toggle control-center"))
+          hl.bind(mainMod .. "+comma", hl.dsp.exec_cmd(ipc .. "settings-toggle"))
+          hl.bind("ALT + Tab", hl.dsp.exec_cmd(ipc .. "window-switcher hold"))
+
+          hl.window_rule({
+              match = { class = "dev.noctalia.Noctalia" },
+              float = true,
+              size = { 1080, 920 },
+          })
+
+          hl.layer_rule({
+            name = "noctalia",
+            match = {
+              namespace = "^noctalia-(bar-.+|notification|dock|panel|attached-panel|osd|window-switcher)$",
+            },
+            no_anim = true,
+            ignore_alpha = 0.5,
+            blur = true,
+            blur_popups = true,
+          })
         '';
       };
 
