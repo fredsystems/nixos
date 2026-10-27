@@ -2,9 +2,7 @@
 
 # shellcheck disable=SC2035
 
-# Brightness changes are surfaced by wayle's built-in transient OSD, which
-# observes the backlight sysfs node directly, so this script only performs
-# the change (no notify-send).
+# Only performs the change; no notification is sent.
 
 # Get brightness
 get_backlight() {

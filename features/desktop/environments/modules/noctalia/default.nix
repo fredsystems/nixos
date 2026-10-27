@@ -12,7 +12,7 @@ let
   shell = config.desktop.environments.shell;
   u2f = config.hardware-profile.u2f.enable;
 
-  # Compositor-aware graceful exits shared with wayle; see
+  # Compositor-aware graceful exits; see
   # ../../shell/session-actions.nix for why they are needed.
   sessionActions = [
     { action = "lock"; }
@@ -149,11 +149,11 @@ let
     shell = {
       font_family = "SFProDisplay Nerd Font";
       telemetry_enabled = false;
-      # Replaces polkit-gnome. Authentication still runs through the
-      # polkit-1 PAM service, so fingerprint and U2F behave as before.
+      # Polkit agent. Authentication runs through the polkit-1 PAM service,
+      # so fingerprint and U2F work there.
       polkit_agent = true;
-      # Replaces cliphist. The history's encryption key lives in the Secret
-      # Service (gnome-keyring's default collection).
+      # Clipboard history. Its encryption key lives in the Secret Service
+      # (gnome-keyring's default collection).
       clipboard_enabled = true;
       # Typing in niri's overview opens the launcher with what was typed.
       niri_overview_type_to_launch_enabled = true;
@@ -232,7 +232,7 @@ let
       allow_empty_password = u2f;
     };
 
-    # Same timings hypridle used: lock, then monitors off, then suspend.
+    # Lock, then monitors off, then suspend.
     idle = {
       behavior_order = [
         "lock"
@@ -258,8 +258,7 @@ let
       };
     };
 
-    # Fixed schedule matching the old hyprsunset profile. Noctalia fades over
-    # the hour centred on each time.
+    # Fixed schedule. Noctalia fades over the hour centred on each time.
     nightlight = {
       enabled = true;
       temperature_day = 6500;
@@ -290,7 +289,7 @@ let
         border_width = 1.0;
         shadow = false;
         compositor_blur = false;
-        # wayle's bar labels are semibold (600); Noctalia defaults to 500.
+        # Semibold labels (600); Noctalia defaults to 500.
         font_weight = 600;
         start = [
           "dashboard"
@@ -316,7 +315,7 @@ let
     };
 
     widget = {
-      # Session menu behind a NixOS snowflake, like wayle's dashboard button.
+      # Session menu behind a NixOS snowflake.
       dashboard = {
         type = "session";
         custom_image = "${pkgs.nixos-icons}/share/icons/hicolor/scalable/apps/nix-snowflake.svg";
@@ -365,7 +364,7 @@ in
       xdg.dataFile = deployStateFiles;
 
       # Noctalia's recommended binds and rules, kept identical across both
-      # compositors. SUPER+V is the chord cliphist + fuzzel use on wayle hosts.
+      # compositors.
       wayland.windowManager.hyprland.extraConfig = hyprlandConfig;
 
       programs.niri.settings = {

@@ -45,9 +45,9 @@ in
 
     # hyprshutdown: graceful Hyprland exit utility. It asks each running app
     # to close (and waits) before quitting the compositor, instead of letting
-    # apps die when the compositor exits. The wayle dashboard dropdown's
-    # logout/reboot/poweroff actions dispatch to it on Hyprland (see the
-    # compositor-aware wrappers in the wayle module). Reboot/poweroff use its
+    # apps die when the compositor exits. Noctalia's logout/reboot/poweroff
+    # session actions dispatch to it on Hyprland (see the compositor-aware
+    # wrappers in ../shell/session-actions.nix). Reboot/poweroff use its
     # `--post-cmd` to run `systemctl reboot`/`poweroff` after the graceful
     # exit completes.
     environment.systemPackages = [ pkgs.hyprshutdown ];
