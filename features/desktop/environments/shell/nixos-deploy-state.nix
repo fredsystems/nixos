@@ -108,6 +108,16 @@ in
         : "''${drifted_since:=0}"
         : "''${manifest_age:=0}"
 
+        # The service records the manifest's age at the moment it writes the
+        # file. If the service stops running, the file and that age freeze,
+        # and a stale "up to date" would read as clean forever. Age the value
+        # by the time since the file was written so the guards below still
+        # fire.
+        written="$(stat -c %Y "$prom")"
+        if [ "$now" -gt "$written" ]; then
+          manifest_age=$((manifest_age + now - written))
+        fi
+
         # A manifest nobody has refreshed in a day makes every verdict below
         # suspect, "up to date" included. Surface that rather than trust it.
         if [ "$manifest_age" -gt 86400 ]; then
