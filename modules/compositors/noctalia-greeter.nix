@@ -10,8 +10,9 @@
 
 let
   all = lib.attrValues monitors;
-  minX = lib.foldl' lib.min 0 (map (m: m.x) all);
-  minY = lib.foldl' lib.min 0 (map (m: m.y) all);
+  minOf = f: if all == [ ] then 0 else lib.foldl' lib.min (f (lib.head all)) (map f all);
+  minX = minOf (m: m.x);
+  minY = minOf (m: m.y);
   perOutput = f: lib.concatStringsSep "; " (lib.mapAttrsToList (name: m: "${name}:${f m}") monitors);
 in
 {
