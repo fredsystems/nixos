@@ -100,6 +100,23 @@ let
       # Typing in niri's overview opens the launcher with what was typed.
       niri_overview_type_to_launch_enabled = true;
       session.actions = sessionActions;
+
+      # Noctalia cannot place a panel by how it was opened, so the control
+      # center floats just below the bar: under the widget when a bar widget
+      # is clicked, centred along the bar when opened by keybind.
+      panel = {
+        control_center_placement = "floating";
+        control_center_position = "auto";
+        open_near_click_control_center = true;
+      };
+    };
+
+    # Height is fixed (520 x ui_scale); only the width is configurable. With
+    # the full sidebar the tabs carry labels as well as icons.
+    control_center = {
+      width = 1000;
+      sidebar = "full";
+      sidebar_section = "full";
     };
 
     # Built-in Catppuccin is Mocha with a mauve primary, matching the global
