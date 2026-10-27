@@ -3,30 +3,16 @@
   ...
 }:
 {
-  # The desktop shell (bar, notifications, OSD, wallpaper, session menu) is
-  # selected per host. Each shell module sets `startupUnits`,
-  # `startupCommands` and `commands` when it is the active provider, and the
-  # compositor modules (../hyprland, ../niri) consume them, so the
-  # compositors never hard-code a particular shell.
+  # The desktop shell (bar, notifications, OSD, wallpaper, session menu) sets
+  # `startupUnits`, `startupCommands` and `commands`, and the compositor
+  # modules (../hyprland, ../niri) consume them, so the compositors never
+  # hard-code the shell. Noctalia (../modules/noctalia) is the only shell.
   imports = [
     ./nixos-deploy-state.nix
     ./session-actions.nix
   ];
 
   options.desktop.environments.shell = {
-    provider = lib.mkOption {
-      type = lib.types.enum [
-        "wayle"
-        "noctalia"
-      ];
-      default = "wayle";
-      description = ''
-        Desktop shell used by the Hyprland and niri sessions. `wayle` is the
-        hand-assembled stack (wayle plus hypridle, hyprsunset, polkit-gnome
-        and cliphist); `noctalia` replaces all of those with Noctalia.
-      '';
-    };
-
     startupUnits = lib.mkOption {
       type = lib.types.listOf lib.types.str;
       default = [ ];

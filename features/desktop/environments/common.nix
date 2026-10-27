@@ -9,10 +9,6 @@
 let
   allUsers = [ user ] ++ extraUsers;
   cfg = config.desktop.environments.common;
-  # The standalone idle, night-light and polkit daemons belong to the wayle
-  # stack; Noctalia replaces them. See ./shell/default.nix.
-  standaloneDaemons = config.desktop.environments.shell.provider == "wayle";
-  dpmsScript = "~/.config/hyprextra/scripts/dpms.sh";
 
   # Shared theme definition used for both gtk.theme (GTK3) and
   # gtk.gtk4.theme.  Home-manager >=26.05 no longer auto-inherits the GTK3
@@ -59,14 +55,6 @@ in
   };
 
   config = lib.mkIf cfg.enable {
-    desktop.environments.shell = lib.mkIf standaloneDaemons {
-      startupUnits = [
-        "polkit-gnome-authentication-agent-1"
-        "hypridle"
-      ];
-      startupCommands = [ "hyprsunset" ];
-    };
-
     # ── SDDM display manager ────────────────────────────────────────────────
     # Shared by all Wayland compositors (Hyprland, Niri).
     # The catppuccin NixOS module (catppuccin.sddm) sets the theme and
@@ -196,62 +184,8 @@ in
 
       programs.hyprlock.enable = true;
 
-      # ── Idle management (hypridle) ─────────────────────────────────────────
-      # Single shared hypridle definition for both Hyprland and Niri.
-      # DPMS on/off is delegated to dpms.sh, which probes the active compositor
-      # at runtime via hyprctl / niri IPC — so the correct command is always
-      # issued regardless of which compositor packages are installed on the host.
       services = {
-        hyprsunset = {
-          enable = standaloneDaemons;
-          package = pkgs.hyprsunset;
-          settings = {
-            profile = [
-              {
-                time = "07:30";
-                temperature = 6500;
-              }
-              {
-                time = "18:00";
-                temperature = 5000;
-              }
-            ];
-          };
-        };
-
         network-manager-applet.enable = true;
-
-        hypridle = {
-          enable = standaloneDaemons;
-          settings = {
-            general = {
-              lock_cmd = "hyprlock";
-              before_sleep_cmd = "hyprlock";
-              after_sleep_cmd = "${dpmsScript} on";
-            };
-
-            listener = [
-              {
-                # Lock the screen after 5 minutes of inactivity.
-                timeout = 300;
-                on-timeout = "hyprlock";
-              }
-              {
-                # Power off monitors after 10 minutes of inactivity.
-                # dpms.sh detects whether Hyprland or Niri is running and
-                # issues the appropriate compositor command.
-                timeout = 600;
-                on-timeout = "${dpmsScript} off";
-                on-resume = "${dpmsScript} on";
-              }
-              {
-                # Suspend the system after 15 minutes of inactivity.
-                timeout = 900;
-                on-timeout = "systemctl suspend";
-              }
-            ];
-          };
-        };
       };
     });
 
@@ -297,20 +231,5 @@ in
 
     # ── Desktop environment helper modules ─────────────────────────────────────
     desktop.environments.modules.enable = true;
-
-    # ── Polkit agent user service ──────────────────────────────────────────────
-    # Noctalia hosts use Noctalia's built-in agent instead.
-    systemd.user.services.polkit-gnome-authentication-agent-1 = lib.mkIf standaloneDaemons {
-      description = "polkit-gnome-authentication-agent-1";
-      unitConfig = {
-        StartLimitIntervalSec = 0;
-      };
-      serviceConfig = {
-        Type = "simple";
-        ExecStart = "${pkgs.polkit_gnome}/libexec/polkit-gnome-authentication-agent-1";
-        Restart = "always";
-        RestartSec = "2s";
-      };
-    };
   };
 }

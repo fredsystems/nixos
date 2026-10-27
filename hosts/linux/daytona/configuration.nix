@@ -31,11 +31,7 @@
     };
   };
 
-  desktop = {
-    enable_games = false;
-    # Trial host for agent-docs/plans/PLAN_01_NOCTALIA_SHELL.md.
-    environments.shell.provider = "noctalia";
-  };
+  desktop.enable_games = false;
 
   boot.kernelPackages = pkgs.linuxPackages_latest;
 
