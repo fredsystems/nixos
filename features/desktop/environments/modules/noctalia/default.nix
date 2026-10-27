@@ -46,9 +46,9 @@ let
 
   settingsAppId = "dev.noctalia.Noctalia";
 
-  # One table of IPC binds, rendered for both compositors. ALT+Tab holds the
-  # switcher open while ALT stays down.
-  ipcBinds = {
+  # IPC binds, rendered for both compositors. Panel binds also move the
+  # pointer onto the panel under Hyprland (see hyprlandConfig).
+  panelBinds = {
     launcher = {
       hyprland = "SUPER + Space";
       niri = "Mod+Space";
@@ -64,6 +64,9 @@ let
       niri = "Mod+V";
       command = "noctalia msg panel-toggle clipboard";
     };
+  };
+  # ALT+Tab holds the switcher open while ALT stays down.
+  actionBinds = {
     settings = {
       hyprland = "SUPER + comma";
       niri = "Mod+Comma";
@@ -75,9 +78,6 @@ let
       command = "noctalia msg window-switcher hold";
     };
   };
-  bindsFor = compositor: lib.mapAttrs' (_: b: lib.nameValuePair b.${compositor} b.command) ipcBinds;
-  hyprlandBinds = bindsFor "hyprland";
-  niriBinds = bindsFor "niri";
 
   # Screen brightness on the focused monitor, usable on the lock screen and
   # repeating while held. As with volume, the OSD is shown explicitly so it
@@ -86,6 +86,64 @@ let
     XF86MonBrightnessUp = "noctalia msg brightness-up && noctalia msg brightness-osd";
     XF86MonBrightnessDown = "noctalia msg brightness-down && noctalia msg brightness-osd";
   };
+
+  lua = builtins.toJSON;
+  hyprlandConfig = ''
+    -- Noctalia panels opened from a keybind: once the panel maps, move the
+    -- pointer to its centre so it is where the eyes go. Bar clicks leave the
+    -- pointer alone (it is already there). The request expires after a
+    -- second or two so a toggle that closed a panel cannot move the pointer
+    -- on a later, unrelated open. niri has no action to move the pointer.
+    local noctaliaPanelRequestedAt = nil
+    local function noctaliaPanel(cmd)
+      return function()
+        noctaliaPanelRequestedAt = os.time()
+        hl.exec_cmd(cmd)
+      end
+    end
+    hl.on("layer.opened", function(ls)
+      if noctaliaPanelRequestedAt == nil or os.time() - noctaliaPanelRequestedAt > 1 then
+        return
+      end
+      if ls.namespace ~= "noctalia-panel" and ls.namespace ~= "noctalia-attached-panel" then
+        return
+      end
+      noctaliaPanelRequestedAt = nil
+      hl.dispatch(hl.dsp.cursor.move({
+        x = math.floor(ls.x + ls.w / 2),
+        y = math.floor(ls.y + ls.h / 2),
+      }))
+    end)
+
+    ${lib.concatMapStringsSep "\n" (b: "hl.bind(${lua b.hyprland}, noctaliaPanel(${lua b.command}))") (
+      lib.attrValues panelBinds
+    )}
+    ${lib.concatMapStringsSep "\n" (
+      b: "hl.bind(${lua b.hyprland}, hl.dsp.exec_cmd(${lua b.command}))"
+    ) (lib.attrValues actionBinds)}
+    ${lib.concatStringsSep "\n" (
+      lib.mapAttrsToList (
+        key: cmd: "hl.bind(${lua key}, hl.dsp.exec_cmd(${lua cmd}), { locked = true, repeating = true })"
+      ) brightnessBinds
+    )}
+
+    hl.window_rule({
+      match = { class = ${lua settingsAppId} },
+      float = true,
+      size = { 1080, 920 },
+    })
+
+    hl.layer_rule({
+      name = "noctalia",
+      match = {
+        namespace = "^noctalia-(bar-.+|notification|dock|panel|attached-panel|osd|window-switcher)$",
+      },
+      no_anim = true,
+      ignore_alpha = 0.5,
+      blur = true,
+      blur_popups = true,
+    })
+  '';
 
   settings = uname: {
     shell = {
@@ -308,40 +366,13 @@ in
 
       # Noctalia's recommended binds and rules, kept identical across both
       # compositors. SUPER+V is the chord cliphist + fuzzel use on wayle hosts.
-      wayland.windowManager.hyprland.extraConfig = ''
-        ${lib.concatStringsSep "\n" (
-          lib.mapAttrsToList (
-            chord: cmd: "hl.bind(${builtins.toJSON chord}, hl.dsp.exec_cmd(${builtins.toJSON cmd}))"
-          ) hyprlandBinds
-        )}
-        ${lib.concatStringsSep "\n" (
-          lib.mapAttrsToList (
-            key: cmd:
-            "hl.bind(${builtins.toJSON key}, hl.dsp.exec_cmd(${builtins.toJSON cmd}), { locked = true, repeating = true })"
-          ) brightnessBinds
-        )}
-
-        hl.window_rule({
-          match = { class = ${builtins.toJSON settingsAppId} },
-          float = true,
-          size = { 1080, 920 },
-        })
-
-        hl.layer_rule({
-          name = "noctalia",
-          match = {
-            namespace = "^noctalia-(bar-.+|notification|dock|panel|attached-panel|osd|window-switcher)$",
-          },
-          no_anim = true,
-          ignore_alpha = 0.5,
-          blur = true,
-          blur_popups = true,
-        })
-      '';
+      wayland.windowManager.hyprland.extraConfig = hyprlandConfig;
 
       programs.niri.settings = {
         binds =
-          lib.mapAttrs (_: cmd: { action.spawn-sh = cmd; }) niriBinds
+          lib.mapAttrs' (_: b: lib.nameValuePair b.niri { action.spawn-sh = b.command; }) (
+            panelBinds // actionBinds
+          )
           // lib.mapAttrs (_: cmd: {
             action.spawn-sh = cmd;
             allow-when-locked = true;
