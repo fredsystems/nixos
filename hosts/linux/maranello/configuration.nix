@@ -53,6 +53,7 @@ in
   desktop = {
     enable_games = true;
     enable_streaming = true;
+    environments.shell.provider = "noctalia";
 
     # This desk has a second machine on it -- the Mac Studio, driving its own
     # monitor -- which until now meant a second keyboard and mouse taking up
