@@ -97,6 +97,8 @@ let
       # Replaces cliphist. The history's encryption key lives in the Secret
       # Service (gnome-keyring's default collection).
       clipboard_enabled = true;
+      # Typing in niri's overview opens the launcher with what was typed.
+      niri_overview_type_to_launch_enabled = true;
       session.actions = sessionActions;
     };
 
