@@ -379,6 +379,71 @@ tests:
         alertname: NixOSDeployDrift
         exp_alerts: []
 
+  # A desktop briefly holding two nixos_deploy_info series must not break the
+  # rule for the rest of the fleet. Daytona remote-writes through Alloy, so when
+  # its labels change (every local rebuild, every manifest bump) the old series
+  # is not reliably closed by a staleness marker and lingers for the 5m lookback.
+  # PromQL rejects duplicate match groups on the `one` side of a group_left even
+  # when the left-hand side has already filtered that host out, so the whole
+  # evaluation failed and a genuinely drifted server went unreported.
+  - interval: 1m
+    name: NixOSDeployDrift survives duplicate desktop info series
+    input_series:
+      - series: 'nixos_deploy_state{host="vdlmhub", hostname="vdlmhub", role="agent", state="drifted"}'
+        values: "1+0x500"
+      - series: 'nixos_drifted_since_seconds{host="vdlmhub", hostname="vdlmhub", role="agent"}'
+        values: "100+0x500"
+      - series: 'nixos_deploy_info{host="vdlmhub", hostname="vdlmhub", role="agent", running="nixos-system-vdlmhub-1", expected="nixos-system-vdlmhub-2", short_rev="aaaaaaa", short_expected_rev="bbbbbbb"}'
+        values: "1+0x500"
+      - series: 'nixos_deploy_info{host="Daytona", hostname="Daytona", role="desktop", running="nixos-system-Daytona-a", expected="nixos-system-Daytona-1"}'
+        values: "1+0x500"
+      - series: 'nixos_deploy_info{host="Daytona", hostname="Daytona", role="desktop", running="nixos-system-Daytona-b", expected="nixos-system-Daytona-1"}'
+        values: "1+0x500"
+    alert_rule_test:
+      - eval_time: 7h
+        alertname: NixOSDeployDrift
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              host: vdlmhub
+              hostname: vdlmhub
+              role: agent
+              state: drifted
+              running: nixos-system-vdlmhub-1
+              expected: nixos-system-vdlmhub-2
+              short_rev: aaaaaaa
+              short_expected_rev: bbbbbbb
+            exp_annotations:
+              summary: "NixOS host is running an outdated system closure"
+              description: "vdlmhub is running nixos-system-vdlmhub-1 (from aaaaaaa) but main expects nixos-system-vdlmhub-2 (from bbbbbbb). This commit range genuinely changes this host's closure, so a deploy is required."
+
+  - interval: 1m
+    name: NixOSUnmanagedSystem survives duplicate desktop info series
+    input_series:
+      - series: 'nixos_deploy_state{host="vdlmhub", hostname="vdlmhub", role="agent", state="unmanaged"}'
+        values: "1+0x500"
+      - series: 'nixos_deploy_info{host="vdlmhub", hostname="vdlmhub", role="agent", running="nixos-system-vdlmhub-wip", expected="nixos-system-vdlmhub-2"}'
+        values: "1+0x500"
+      - series: 'nixos_deploy_info{host="Daytona", hostname="Daytona", role="desktop", running="nixos-system-Daytona-a", expected="nixos-system-Daytona-1"}'
+        values: "1+0x500"
+      - series: 'nixos_deploy_info{host="Daytona", hostname="Daytona", role="desktop", running="nixos-system-Daytona-b", expected="nixos-system-Daytona-1"}'
+        values: "1+0x500"
+    alert_rule_test:
+      - eval_time: 3h
+        alertname: NixOSUnmanagedSystem
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              host: vdlmhub
+              hostname: vdlmhub
+              role: agent
+              state: unmanaged
+              running: nixos-system-vdlmhub-wip
+              expected: nixos-system-vdlmhub-2
+            exp_annotations:
+              summary: "NixOS host is running an unmanaged system closure"
+              description: "vdlmhub is running nixos-system-vdlmhub-wip, which main has never produced (main expects nixos-system-vdlmhub-2). It was probably deployed from a dirty or feature-branch checkout and will not converge on its own."
+
   # Failure mode (a): a host built from a dirty or feature-branch tree. The
   # superseded script hard-coded BEHIND=0 whenever the recorded revision was the
   # string "dirty", so this -- the state most deserving an alert -- was the one

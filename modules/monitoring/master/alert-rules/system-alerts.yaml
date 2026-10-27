@@ -57,6 +57,14 @@ groups:
         # nixos_deploy_info is an identity metric with a constant value of 1,
         # which is what keeps this a label enrichment rather than an arithmetic
         # change to the condition.
+        #
+        # The info side carries the same role!="desktop" filter as the state
+        # side. PromQL requires the `one` side of a group_left to be unique per
+        # match group across the WHOLE vector, not just for hosts the left side
+        # kept, and Daytona remote-writes through Alloy: when its labels change
+        # the old series is not reliably closed by a staleness marker and
+        # lingers for the 5m lookback. Two Daytona series there failed the
+        # entire evaluation, silencing the alert for every server.
         expr: |
           (
             nixos_deploy_state{state="drifted", role!="desktop"} == 1
@@ -65,7 +73,7 @@ groups:
             )
           )
           * on (host) group_left (running, expected, short_rev, short_expected_rev)
-          max by (host, running, expected, short_rev, short_expected_rev) (nixos_deploy_info)
+          max by (host, running, expected, short_rev, short_expected_rev) (nixos_deploy_info{role!="desktop"})
         # Short: the six-hour grace already lives in the expression above. This
         # only needs to ride out a scrape gap or an in-flight deploy.
         for: 15m
@@ -88,11 +96,12 @@ groups:
         # matter how far main moved.
         #
         # Same group_left label enrichment as NixOSDeployDrift; see the note
-        # there for why the constant-valued info metric makes this safe.
+        # there for why the constant-valued info metric makes this safe, and
+        # why the info side must also exclude desktops.
         expr: |
           (nixos_deploy_state{state="unmanaged", role!="desktop"} == 1)
           * on (host) group_left (running, expected)
-          max by (host, running, expected) (nixos_deploy_info)
+          max by (host, running, expected) (nixos_deploy_info{role!="desktop"})
         for: 2h
         labels:
           severity: warning
