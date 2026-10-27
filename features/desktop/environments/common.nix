@@ -111,8 +111,7 @@ in
         hyprshot
         slurp
 
-        # Idle / lock / sleep
-        hypridle
+        # Lock screen
         hyprlock
 
         # Media controls (playerctl keybinds shared across both compositors)
@@ -141,8 +140,7 @@ in
         # generally required by any app that opens URLs/files via xdg-open
         xdg-utils
 
-        # Shared compositor utilities (polkit agent, picker, audio idle inhibit)
-        hyprpolkitagent
+        # Shared compositor utilities (picker, audio idle inhibit)
         hyprpicker
         sway-audio-idle-inhibit
         networkmanagerapplet
@@ -203,9 +201,8 @@ in
     # ── dconf ──────────────────────────────────────────────────────────────────
     programs.dconf.enable = true;
 
-    # ── Polkit authentication agent + SDDM cursor package ────────────────────
+    # ── GSettings + SDDM cursor package ──────────────────────────────────────
     environment.systemPackages = with pkgs; [
-      polkit_gnome
       glib
       gsettings-desktop-schemas
 
