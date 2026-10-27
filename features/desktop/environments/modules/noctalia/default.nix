@@ -80,11 +80,12 @@ let
   };
 
   # Screen brightness on the focused monitor, usable on the lock screen and
-  # repeating while held. As with volume, the OSD is shown explicitly so it
-  # also appears at 0% and 100%.
+  # repeating while held. Noctalia shows the OSD on every change. Unlike
+  # `volume-osd`, `brightness-osd` requires an explicit value and cannot
+  # re-show the current level, so at 0% and 100% the key gives no feedback.
   brightnessBinds = {
-    XF86MonBrightnessUp = "noctalia msg brightness-up && noctalia msg brightness-osd";
-    XF86MonBrightnessDown = "noctalia msg brightness-down && noctalia msg brightness-osd";
+    XF86MonBrightnessUp = "noctalia msg brightness-up";
+    XF86MonBrightnessDown = "noctalia msg brightness-down";
   };
 
   lua = builtins.toJSON;
