@@ -44,6 +44,41 @@ let
         };
   };
 
+  settingsAppId = "dev.noctalia.Noctalia";
+
+  # One table of IPC binds, rendered for both compositors. ALT+Tab holds the
+  # switcher open while ALT stays down.
+  ipcBinds = {
+    launcher = {
+      hyprland = "SUPER + Space";
+      niri = "Mod+Space";
+      command = "noctalia msg panel-toggle launcher";
+    };
+    controlCenter = {
+      hyprland = "SUPER + S";
+      niri = "Mod+S";
+      command = "noctalia msg panel-toggle control-center";
+    };
+    clipboard = {
+      hyprland = "SUPER + V";
+      niri = "Mod+V";
+      command = "noctalia msg panel-toggle clipboard";
+    };
+    settings = {
+      hyprland = "SUPER + comma";
+      niri = "Mod+Comma";
+      command = "noctalia msg settings-toggle";
+    };
+    windowSwitcher = {
+      hyprland = "ALT + Tab";
+      niri = "Alt+Tab";
+      command = "noctalia msg window-switcher hold";
+    };
+  };
+  bindsFor = compositor: lib.mapAttrs' (_: b: lib.nameValuePair b.${compositor} b.command) ipcBinds;
+  hyprlandBinds = bindsFor "hyprland";
+  niriBinds = bindsFor "niri";
+
   settings = uname: {
     shell = {
       font_family = "SFProDisplay Nerd Font";
@@ -240,12 +275,48 @@ in
     home-manager.users = lib.genAttrs allUsers (uname: {
       xdg.dataFile = deployStateFiles;
 
-      # Same chord cliphist + fuzzel use on wayle hosts (Hyprland only there);
-      # Noctalia records history under niri too, so bind it in both.
+      # Noctalia's recommended binds and rules, kept identical across both
+      # compositors. SUPER+V is the chord cliphist + fuzzel use on wayle hosts.
       wayland.windowManager.hyprland.extraConfig = ''
-        hl.bind("SUPER + V", hl.dsp.exec_cmd("noctalia msg panel-toggle clipboard"))
+        ${lib.concatStringsSep "\n" (
+          lib.mapAttrsToList (
+            chord: cmd: "hl.bind(${builtins.toJSON chord}, hl.dsp.exec_cmd(${builtins.toJSON cmd}))"
+          ) hyprlandBinds
+        )}
+
+        hl.window_rule({
+          match = { class = ${builtins.toJSON settingsAppId} },
+          float = true,
+          size = { 1080, 920 },
+        })
+
+        hl.layer_rule({
+          name = "noctalia",
+          match = {
+            namespace = "^noctalia-(bar-.+|notification|dock|panel|attached-panel|osd|window-switcher)$",
+          },
+          no_anim = true,
+          ignore_alpha = 0.5,
+          blur = true,
+          blur_popups = true,
+        })
       '';
-      programs.niri.settings.binds."Mod+V".action.spawn-sh = "noctalia msg panel-toggle clipboard";
+
+      programs.niri.settings = {
+        binds = lib.mapAttrs (_: cmd: { action.spawn-sh = cmd; }) niriBinds;
+
+        # After the niri module's catch-all `open-maximized` rule, so this one
+        # wins for the settings window.
+        window-rules = lib.mkAfter [
+          {
+            matches = [ { app-id = "^${lib.escapeRegex settingsAppId}$"; } ];
+            open-floating = true;
+            open-maximized = false;
+            default-column-width.fixed = 1080;
+            default-window-height.fixed = 920;
+          }
+        ];
+      };
 
       programs.noctalia = {
         enable = true;

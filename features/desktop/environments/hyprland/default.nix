@@ -142,7 +142,6 @@ in
           local terminal = "freminal"
           local email = "thunderbird"
           local scripts = os.getenv("HOME") .. "/.config/hyprextra/scripts"
-          local ipc = "noctalia msg "
 
           ----------------
           ---- ENV    ----
@@ -288,7 +287,7 @@ in
           hl.bind(mainMod .. " + SHIFT + T", hl.dsp.exec_cmd("wezterm start -- bash"))
           hl.bind(mainMod .. " + CTRL + T",  hl.dsp.exec_cmd("freminal --shell bash"))
           hl.bind(mainMod .. " + A",         hl.dsp.exec_cmd("freminal --hide-menu-bar yazi"))
-          hl.bind(mainMod .. " + S",         hl.dsp.exec_cmd(${luaString shell.commands.idleInhibitToggle}))
+          hl.bind(mainMod .. " + SHIFT + S", hl.dsp.exec_cmd(${luaString shell.commands.idleInhibitToggle}))
           hl.bind("ALT + SPACE",             hl.dsp.exec_cmd("vicinae toggle"))
           hl.bind(mainMod .. " + C",         hl.dsp.window.close())
           hl.bind(mainMod .. " + M",         hl.dsp.exit())
@@ -347,28 +346,6 @@ in
 
           -- Lock lid on close
           hl.bind("switch:off:Lid Switch", hl.dsp.exec_cmd(scripts .. "/pauseandsleep.sh"), { locked = true })
-
-          hl.bind(mainMod .. "+Space", hl.dsp.exec_cmd(ipc .. "panel-toggle launcher"))
-          hl.bind(mainMod .. "+S", hl.dsp.exec_cmd(ipc .. "panel-toggle control-center"))
-          hl.bind(mainMod .. "+comma", hl.dsp.exec_cmd(ipc .. "settings-toggle"))
-          hl.bind("ALT + Tab", hl.dsp.exec_cmd(ipc .. "window-switcher hold"))
-
-          hl.window_rule({
-              match = { class = "dev.noctalia.Noctalia" },
-              float = true,
-              size = { 1080, 920 },
-          })
-
-          hl.layer_rule({
-            name = "noctalia",
-            match = {
-              namespace = "^noctalia-(bar-.+|notification|dock|panel|attached-panel|osd|window-switcher)$",
-            },
-            no_anim = true,
-            ignore_alpha = 0.5,
-            blur = true,
-            blur_popups = true,
-          })
         '';
       };
 

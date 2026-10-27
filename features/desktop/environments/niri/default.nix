@@ -226,7 +226,7 @@ in
               ];
             };
 
-            "Mod+S".action.spawn-sh = shell.commands.idleInhibitToggle;
+            "Mod+Shift+S".action.spawn-sh = shell.commands.idleInhibitToggle;
 
             "Alt+Space".action = {
               spawn = [
