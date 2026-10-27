@@ -43,6 +43,13 @@
 #              them).
 #   process    a deployment.criticalProcesses package is RUNNING at a different
 #              VERSION than the target's (the compositor you are logged into).
+#   display manager
+#              the program display-manager.service is running is not the one
+#              the target would run (sddm -> greetd). `switch` never restarts
+#              the display manager, but it does delete the old one's user, PAM
+#              services and config, so the next logout lands on a blank VT.
+#              Agnostic: no display manager is named anywhere. Reported under
+#              the process rule and overridden with the same flag.
 #
 # Anything that cannot be read counts as changed. Wrongly holding costs a
 # reboot; wrongly switching can cost a frozen box. The one exception is a
@@ -257,6 +264,29 @@ for u in $CRITICAL_UNITS; do
   fi
 done
 
+# The display manager actually running: the main process of
+# display-manager.service, whatever unit that name resolves to (greetd
+# aliases it; sddm, gdm and lightdm ARE it). systemd resolves the alias, and
+# after a switch that already replaced the display manager it still names the
+# old process, which is exactly the state to catch. Identified by program basename -- exe when
+# readable, argv[0] otherwise -- because a store path differs on every
+# rebuild and the question is WHICH display manager, not which build.
+# "none" when nothing runs as the display manager (servers); "?" when that
+# could not be read.
+dm_pid=$(systemctl show -P MainPID display-manager.service 2>/dev/null) || dm_pid=""
+case "$dm_pid" in
+  "") dm="?" ;;
+  0) dm=none ;;
+  *)
+    dm_exe=$(readlink "$R/proc/$dm_pid/exe" 2>/dev/null) || dm_exe=""
+    [ -n "$dm_exe" ] || dm_exe=$(tr "\0" "\n" 2>/dev/null < "$R/proc/$dm_pid/cmdline" | head -n 1)
+    dm_exe=${dm_exe%% (deleted)}
+    dm=${dm_exe##*/}
+    [ -n "$dm" ] || dm="?"
+    ;;
+esac
+printf "dm=%s\n" "$dm"
+
 # Running binaries, deduplicated to store prefixes. Only collected when the
 # node declares a critical process: it walks all of /proc, which a server
 # with none has no use for.
@@ -320,11 +350,13 @@ dg_scan_script() {
 #   DG_PROFILE          the node's system profile
 #   DG_OWED             why a reboot is ALREADY owed, independent of this
 #                       deploy (staged generation, kernel/systemd switched
-#                       into live); empty if none
+#                       into live, a replaced display manager still running);
+#                       empty if none
 #   DG_HOLD_SYSTEMD     reason, or empty
 #   DG_HOLD_KERNEL      reason, or empty
 #   DG_HOLD_CRITICAL    array of reasons
-#   DG_HOLD_PROCESS     array of reasons
+#   DG_HOLD_PROCESS     array of reasons (critical processes and the
+#                       display manager)
 #   DG_CRITICAL_UNKNOWN array: critical units that could not be compared
 #   DG_INFO             array: observations that do not hold anything
 #
@@ -391,8 +423,15 @@ dg_classify() {
         fi
     fi
 
+    # A display manager that does not match the target is owed a reboot even
+    # when the node is otherwise current: that is the state an earlier
+    # `switch` across a display-manager change leaves behind.
+    local dm_hold
+    dm_hold="$(dg_classify_display_manager "$facts" "$probe")"
+
     if [[ "$running" == "$expected" ]]; then
         DG_STATE=current
+        [[ -z "$dm_hold" ]] || DG_OWED="${DG_OWED:+$DG_OWED, }${dm_hold%% -- *}"
         return 0
     fi
     DG_STATE=drifted
@@ -447,7 +486,43 @@ dg_classify() {
         esac
     done < <(dg_classify_processes "$facts" "$probe")
 
+    [[ -z "$dm_hold" ]] || DG_HOLD_PROCESS+=("$dm_hold")
+
     return 0
+}
+
+# "sddm" out of ".sddm-wrapped": wrapProgram renames the real binary, so the
+# running exe and the unit's program name differ by exactly that.
+dg_dm_name() {
+    local n="${1#.}"
+    printf '%s' "${n%-wrapped}"
+}
+
+# The display-manager half of dg_classify. Prints a hold reason, or nothing.
+#
+# Not held: no display manager in the target and none running (servers), or
+# none running at all (activation starts the new one, nothing is stranded),
+# or the same program before and after (an upgrade or config change of the
+# same display manager is compatible; it applies at its next restart).
+dg_classify_display_manager() {
+    local facts="$1" probe="$2" target running
+    local why="switch never restarts the display manager, but removes the running one's user, PAM services and config, so the next logout gets no login screen"
+    target="$(jq -r '.displayManager // ""' <<<"$facts")"
+    running="$(dg_probe_field "$probe" dm)"
+
+    if [[ -z "$running" || "$running" == "?" ]]; then
+        [[ -n "$target" ]] || return 0
+        printf 'display manager: running one unreadable, treated as changed (target %s)\n' "$target"
+        return 0
+    fi
+    [[ "$running" != none ]] || return 0
+
+    running="$(dg_dm_name "$running")"
+    if [[ -z "$target" ]]; then
+        printf 'display manager: %s would be removed -- %s\n' "$running" "$why"
+    elif [[ "$running" != "$(dg_dm_name "$target")" ]]; then
+        printf 'display manager: running %s, target %s -- %s\n' "$running" "$target" "$why"
+    fi
 }
 
 # The process half of dg_classify, separately so it is one awk program rather

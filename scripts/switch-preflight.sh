@@ -28,6 +28,14 @@
 #              are logged into -- would move to a different VERSION. Config
 #              changes and same-version rebuilds are not held; compositors
 #              that are installed but not running are not held.
+#   display manager
+#              the program display-manager.service is running (sddm, greetd,
+#              whatever it is) is not the one the target runs. `switch` keeps
+#              the old one running but deletes its user, PAM services and
+#              config, so the next logout shows no login screen (Daytona,
+#              2026-10-27, sddm -> greetd). Overridden by
+#              --allow-process-change. An earlier switch that already crossed
+#              such a change is reported as a reboot owed.
 #
 # Anything that cannot be read is held, not waved through. Wrongly holding
 # costs a reboot; wrongly switching can cost a frozen machine.
@@ -53,7 +61,7 @@
 #   ... --allow-unsafe-switch      # switch despite a systemd change
 #   ... --allow-kernel-switch      # switch despite a kernel change
 #   ... --allow-critical-restart   # switch despite a critical-unit restart
-#   ... --allow-process-change     # switch despite a critical-process version change
+#   ... --allow-process-change     # switch despite a critical-process or display-manager change
 #
 # --facts-file takes one node's object from `.#lib.deployFacts.nixos.<host>`;
 # --probe-file takes the output of the probe (DG_PROBE_BODY). Together they
