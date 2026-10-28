@@ -76,7 +76,7 @@
       dumphfdl = "ghcr.io/sdr-enthusiasts/docker-dumphfdl:latest-build-209@sha256:0b25e9772e1892e2a04c4e4015ac5bca8f7127ef174f26af89f734240201db83";
 
       # hfdlhub2 host
-      hfdlobserver = "ghcr.io/sdr-enthusiasts/docker-hfdlobserver:latest-build-32@sha256:b23ecb022918c9a095b675cf1135a84b09b5d8faa3f2346949b7778bf1910236";
+      hfdlobserver = "ghcr.io/sdr-enthusiasts/docker-hfdlobserver:latest-build-36@sha256:f5b3c17853f3b0519b402b6dbd2231a577f06d6bab42176fecfafa5b81d8e1d4";
 
       # vdlmhub host
       dumpvdl2 = "ghcr.io/sdr-enthusiasts/docker-dumpvdl2:latest-build-439@sha256:e7318855491261dca5b9e891ebfa0681fc51f6de00a2b4bc3342a3513bc0fbb1";
