@@ -1,5 +1,5 @@
 {
-  "generated_at": 1793212734,
+  "generated_at": 1793223604,
   "hosts": {
     "Daytona": {
       "history": [
@@ -133,6 +133,11 @@
     "acarshub": {
       "history": [
         {
+          "at": 1793223604,
+          "rev": "f1bd48454a5f596875ea26529a7b935ca1041e95",
+          "toplevel": "/nix/store/khxx1m478cv54hi8xlhlmkjs6m3spxcp-nixos-system-acarshub-26.05.20261026.718f670"
+        },
+        {
           "at": 1793212734,
           "rev": "ac7b754c0fe3c457702b0ef084333af3c9115ef8",
           "toplevel": "/nix/store/ya2h3i7byl128ql5f36spba0msczibnf-nixos-system-acarshub-26.05.20261026.718f670"
@@ -251,11 +256,6 @@
           "at": 1791678300,
           "rev": "1b6542cf31a48ca5582be340cb9d056ac5aa7a79",
           "toplevel": "/nix/store/rvv4p2kfyl23h8i1gzydxrdgjbvbraiz-nixos-system-acarshub-26.05.20261008.7c8764b"
-        },
-        {
-          "at": 1791677947,
-          "rev": "ad637116633f8d0de671e46d33089e9cd74d638c",
-          "toplevel": "/nix/store/jw63f6gdzby6zj0gjxb7zc3n7a367kg5-nixos-system-acarshub-26.05.20261008.7c8764b"
         }
       ]
     },
@@ -1036,6 +1036,11 @@
     "sdrhub": {
       "history": [
         {
+          "at": 1793223604,
+          "rev": "f1bd48454a5f596875ea26529a7b935ca1041e95",
+          "toplevel": "/nix/store/0zfr13azkv4dv0ci5dr4v6lg7m05c1sf-nixos-system-sdrhub-26.05.20261026.718f670"
+        },
+        {
           "at": 1793212734,
           "rev": "ac7b754c0fe3c457702b0ef084333af3c9115ef8",
           "toplevel": "/nix/store/jp5nhv95a569khl9hyvrz3ac84f5dgy9-nixos-system-sdrhub-26.05.20261026.718f670"
@@ -1154,11 +1159,6 @@
           "at": 1792863104,
           "rev": "f77795ffb89b5b9be2f5ecbda4d2c3469622923e",
           "toplevel": "/nix/store/kbhn6fgcbbfvk3wzxbc7sf4dmmaayi9w-nixos-system-sdrhub-26.05.20261021.da6dc0e"
-        },
-        {
-          "at": 1792862907,
-          "rev": "b8af7e16edc591d30e219e5a144c11cb9be55605",
-          "toplevel": "/nix/store/vmk9kznsbhr6nif7h1p1204lqhdblw2i-nixos-system-sdrhub-26.05.20261021.da6dc0e"
         }
       ]
     },
@@ -1292,6 +1292,6 @@
       ]
     }
   },
-  "rev": "ac7b754c0fe3c457702b0ef084333af3c9115ef8",
+  "rev": "f1bd48454a5f596875ea26529a7b935ca1041e95",
   "schema": 1
 }
