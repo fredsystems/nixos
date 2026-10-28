@@ -47,6 +47,7 @@ in
     ./music
     ./nix-ld
     ./obs
+    ./photocraft
     ./pinta
     ./print
     ./sqlitebrowser
@@ -96,6 +97,7 @@ in
       nix-ld.enable = true;
       obs.enable = cfg.enable_streaming;
       onepassword.enable = true;
+      photocraft.enable = true;
       pinta.enable = true;
       print.enable = true;
       sqlitebrowser.enable = true;
