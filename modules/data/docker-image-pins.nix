@@ -88,7 +88,7 @@
 
       dump978 = "ghcr.io/sdr-enthusiasts/docker-dump978:telegraf-build-806@sha256:1af94d0ec7b225b8dcf2e3dda48e783c117551d794d1571bef2af8f3680ccfae";
 
-      adsbhub = "ghcr.io/sdr-enthusiasts/docker-adsbhub:latest-build-534@sha256:fbfefa7b344b0468d269acdc79d58bda7f1803058fe5928b167114a9760acf59";
+      adsbhub = "ghcr.io/sdr-enthusiasts/docker-adsbhub:latest-build-539@sha256:957473849b0f775982fc2d84ffbffc57b10c6b9208932d66ebf50e6d19a78ab5";
 
       flightradar24 = "ghcr.io/sdr-enthusiasts/docker-flightradar24:latest-build-863@sha256:1de9e501bdf48a863652c165681313d8463312e28a1ae5f6c83c5b4f684119d5";
 
