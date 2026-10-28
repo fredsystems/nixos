@@ -68,7 +68,7 @@
       tar1090 = "ghcr.io/sdr-enthusiasts/docker-tar1090:telegraf-build-1496@sha256:bb47253d62fcb62aabeda4e2781eb54c4d6c3c197f74a008c7a3330ec5a6e539";
 
       # Shared verbatim: sdrhub + fredvps.
-      acarsRouter = "ghcr.io/sdr-enthusiasts/acars_router:latest-build-591@sha256:9763e7c8d54a2bc258c1fa3d7dae6f4821502f6d7fbca82301adc15ad7e83425";
+      acarsRouter = "ghcr.io/sdr-enthusiasts/acars_router:latest-build-596@sha256:25f50a6868b689f68f972c947de0a745b000a2eb02e30ef23e210413d44655b5";
 
       acarshub = "ghcr.io/sdr-enthusiasts/docker-acarshub:latest-build-1513@sha256:522c7064779d35431abb10bffed523a040449f3c3a992db438050a5852cdc3ae";
 
