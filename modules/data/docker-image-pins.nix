@@ -11,9 +11,9 @@
   # WHY CENTRALIZE EVEN SINGLE-HOST IMAGES
   #
   # Two images (acarshub, acarsRouter) are genuinely shared verbatim
-  # across sdrhub and fredvps, and three more repeat multiple times
+  # across sdrhub and fredvps, and two more repeat multiple times
   # within one host's own file (dumpvdl2 x4 in vdlmhub, dumphfdl x3 in
-  # hfdlhub1, acarsdec x2 in acarshub) -- both are the same underlying
+  # hfdlhub1) -- both are the same underlying
   # risk: nothing stops the copies from drifting apart on a manual edit.
   # Splitting "shared images live here, single-host images stay inline"
   # was considered and rejected as more confusing than one consistent
@@ -56,8 +56,6 @@
       dozzle = "amir20/dozzle:v11.3.5@sha256:dd09e6aaa9d5ad686b6017427a502c40dc862ba28445609813e5ea1f66f6dbdf";
 
       # acarshub host
-      acarsdec = "ghcr.io/sdr-enthusiasts/docker-acarsdec:latest-build-512@sha256:cc59235b825650c033cf1893e3fbd2ff16f5a2bcb69665bfc2e1f24ab2a1f92a";
-
       xng = "ghcr.io/sdr-enthusiasts/docker-xng:latest-build-12@sha256:878d2b04dc3e77ff2ba9f9b17998eb44da433aa8adeb5b6776921c65ea2abe33";
 
       # fredvps host

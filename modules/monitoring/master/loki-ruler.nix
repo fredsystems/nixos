@@ -58,26 +58,19 @@ let
   # hosts/linux/*/configuration.nix.
   decoderUnits = [
     {
-      host = "acarshub";
-      unit = "docker-acarsdec-1.service";
-      pattern = "\\[STATS\\] Total in the last";
-    }
-    {
-      host = "acarshub";
-      unit = "docker-acarsdec-2.service";
-      pattern = "\\[STATS\\] Total in the last";
-    }
-    {
-      # xng replaced acarsdec-3 on this receiver. It emits no periodic stats
+      # xng replaced all of acarsdec-1/2/3 on this receiver, running one
+      # session per SDR in a single container. It emits no periodic stats
       # line at all -- 6h of logs contained zero STATS-style output -- so the
       # only available liveness signal is "logging anything", as with
       # hfdlobserver.
       #
       # That makes this rule traffic-dependent, unlike every other entry here.
-      # It is acceptable because xng covers 16 ACARS channels including busy
-      # ones: over a 48h sample the quietest hour still produced 117 lines,
-      # roughly two per minute. The 45m window is well beyond any plausible
-      # lull while still catching a wedged container within an hour.
+      # It is acceptable because xng covers 25 ACARS channels including busy
+      # ones: over a 48h sample of the 16-channel session alone the quietest
+      # hour still produced 117 lines, roughly two per minute. The 45m window
+      # is well beyond any plausible lull while still catching a wedged
+      # container within an hour. One wedged session inside a still-logging
+      # container is NOT caught by this rule.
       host = "acarshub";
       unit = "docker-xng.service";
       pattern = null;
