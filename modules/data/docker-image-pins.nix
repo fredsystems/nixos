@@ -70,7 +70,7 @@
       # Shared verbatim: sdrhub + fredvps.
       acarsRouter = "ghcr.io/sdr-enthusiasts/acars_router:latest-build-596@sha256:25f50a6868b689f68f972c947de0a745b000a2eb02e30ef23e210413d44655b5";
 
-      acarshub = "ghcr.io/sdr-enthusiasts/docker-acarshub:latest-build-1513@sha256:522c7064779d35431abb10bffed523a040449f3c3a992db438050a5852cdc3ae";
+      acarshub = "ghcr.io/sdr-enthusiasts/docker-acarshub:latest-build-1518@sha256:bb6b4301fe413f567609f1b6370def79b777aeb94324cc517fa5e3ab0e863f94";
 
       # hfdlhub1 host
       dumphfdl = "ghcr.io/sdr-enthusiasts/docker-dumphfdl:latest-build-205@sha256:ccb50b509dd2e7b935cc4978c0f950177c2a5881e3901ebc7f4e7586226b8eb3";
