@@ -338,21 +338,17 @@ fi
 
 if [[ -z "$MODE" ]]; then
   MODE="eval-diff"
-  # --os darwin's find-darwin job runs on ubuntu-latest, not real macOS
-  # hardware (only build-darwin does, on [self-hosted, macOS]) -- but this
-  # still works. `nix eval` only needs to *evaluate* the derivation graph
-  # and compute .outPath from the .drv's hash, never *realize* (build) it,
-  # and Nix's eval/build split doesn't require the evaluator to run on the
-  # target platform. The `system = "aarch64-darwin"` attribute just becomes
-  # metadata embedded in the .drv. The exception is import-from-derivation
-  # (reading the *contents* of a built artifact mid-eval): the Darwin home
-  # config does hit IFD, via catppuccin ports that importTOML/importJSON
-  # their source. That only works because those sources come from
-  # catppuccin.cachix.org, so the runner substitutes them instead of having
-  # to build aarch64-darwin derivations it cannot -- see the
-  # `catppuccin.sources` comment in modules/base/home.nix. Any new
-  # Darwin IFD must likewise be substitutable, or this eval fails with
-  # "platform mismatch".
+  # `nix eval` only needs to *evaluate* the derivation graph and compute
+  # .outPath from the .drv's hash, never *realize* (build) it, so in
+  # principle --os darwin could run on any platform. The exception is
+  # import-from-derivation (reading the *contents* of a built artifact
+  # mid-eval): the Darwin home config hits IFD via catppuccin ports that
+  # importTOML/importYAML their source. On a non-Darwin machine those
+  # aarch64-darwin outputs can only be substituted, and the eval fails
+  # with "platform mismatch" whenever catppuccin.cachix.org lacks the
+  # exact build. That is why CI's find-darwin job runs on
+  # [self-hosted, macOS], where they can simply be built. Running
+  # --os darwin locally on Linux carries the same caveat.
   echo "Running a real per-host derivation diff (base=${BASE_SHA})..." >&2
   if ! HEAD_JSON="$(nix eval --json ".#${FLAKE_ATTR}" --apply 'cfgs: builtins.mapAttrs (_: c: c.config.system.build.toplevel.outPath) cfgs' 2>"$NIX_EVAL_STDERR")"; then
     printf 'ERROR: failed to evaluate HEAD %s:\n%s\n' "$FLAKE_ATTR" "$(cat "$NIX_EVAL_STDERR")" >&2

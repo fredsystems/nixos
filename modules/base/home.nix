@@ -68,13 +68,13 @@ in
     # then rebuilds EVERY port with our pkgs. Restating the default per
     # port means a single-port override only replaces that port.
     #
-    # On Linux the fallback just costs cache misses and local builds. On
-    # Darwin it is fatal for CI: several ports (starship, bottom, palette,
-    # ...) importTOML/importJSON their source -- import-from-derivation --
-    # so CI's find-darwin job, a Linux runner that evaluates but never
-    # builds Darwin hosts, needs those aarch64-darwin outputs substitutable
-    # and dies with "platform mismatch" otherwise. A per-port lazygit
-    # override did exactly that on #2644.
+    # The fallback costs cache misses and local builds. On Darwin it is
+    # worse: several ports (starship, bottom, palette, ...)
+    # importTOML/importJSON their source -- import-from-derivation -- so
+    # any eval of a Darwin host on a non-Darwin machine needs those
+    # aarch64-darwin outputs substitutable and dies with "platform
+    # mismatch" otherwise. A per-port lazygit override did exactly that on
+    # #2644, back when CI's find-darwin job ran on Linux.
     sources = builtins.mapAttrs (
       _: lib.mkDefault
     ) catppuccinInput.packages.${pkgs.stdenv.hostPlatform.system};
