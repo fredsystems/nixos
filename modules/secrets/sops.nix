@@ -40,16 +40,26 @@ in
           # Nix's disallowedReferences check.
           # The configurePhase already exports GOPROXY=off for the main build
           # (it uses the vendor directory), so those vars are not needed here.
-          passthru = (old.passthru or { }) // {
-            overrideModAttrs = _: _: {
-              GOPROXY = "https://mirrors.aliyun.com/goproxy/";
-              GONOSUMDB = "*";
-              preBuild = ''
-                export GOPROXY=https://mirrors.aliyun.com/goproxy/
-                export GONOSUMDB="*"
-              '';
+          # GOPROXY is a fallback list. `|` (not `,`) makes Go move to the next
+          # entry on ANY error, not just 404/410, so a 5xx or timeout from one
+          # mirror still reaches the rest. The aliyun mirror alone has gaps (it
+          # 404'd smithy-go v1.27.4 while listing newer versions), which broke
+          # the vendor fetch on #2686/#2689. Quote it in shell: `|` is a pipe.
+          passthru =
+            let
+              goproxy = "https://mirrors.aliyun.com/goproxy/|https://goproxy.cn|https://proxy.golang.org|direct";
+            in
+            (old.passthru or { })
+            // {
+              overrideModAttrs = _: _: {
+                GOPROXY = goproxy;
+                GONOSUMDB = "*";
+                preBuild = ''
+                  export GOPROXY="${goproxy}"
+                  export GONOSUMDB="*"
+                '';
+              };
             };
-          };
         })
       );
 

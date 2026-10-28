@@ -62,16 +62,19 @@ jobs:
   # =====================================================================
   find-darwin:
     name: Find Darwin systems
-    # Self-hosted Linux, not ubuntu-latest and not the self-hosted macOS pool:
-    # pure `nix eval` of darwinConfigurations doesn't need real macOS hardware
-    # (only build-darwin's actual build does; verified directly against
-    # x86_64-linux), and a persistent, continuously-warmed self-hosted store
-    # makes the real derivation diff dramatically cheaper than ubuntu-latest's
-    # cold-every-run store. See the identical, longer comment on find-systems
-    # in ci-linux.yaml (measured 9-11 minutes on ubuntu-latest for a single
-    # input bump there) and the fork-safety comment on build-darwin below for
-    # the `if:` / `permissions:` shape.
-    runs-on: [self-hosted, Linux]
+    # Self-hosted macOS, not a Linux runner: the Darwin home config hits
+    # import-from-derivation (catppuccin ports importTOML/importYAML their
+    # sources), so evaluating it needs those aarch64-darwin outputs realised
+    # mid-eval. A Linux runner can only substitute them, and dies with
+    # "platform mismatch" whenever catppuccin.cachix.org lacks the exact
+    # build (e.g. upstream's dev/flake.lock drifting from its flake.lock, as
+    # on #2684); the macOS pool can just build them. It is also a
+    # persistent, continuously-warmed self-hosted store, which keeps the
+    # real derivation diff cheap (see the longer comment on find-systems in
+    # ci-linux.yaml: 9-11 minutes on ubuntu-latest for one input bump). See
+    # the fork-safety comment on build-darwin below for the `if:` /
+    # `permissions:` shape.
+    runs-on: [self-hosted, macOS]
     needs: [skip-if-clean]
     if: ${{ needs.skip-if-clean.outputs.skip != 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     permissions:
@@ -93,6 +96,8 @@ jobs:
           extra-conf: |
             access-tokens = github.com=${{ github.token }}
             accept-flake-config = true
+            substituters = http://192.168.31.14:8080/fred https://catppuccin.cachix.org https://cache.nixos.org/
+            trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= fred:JjyhvRSvKfkk8r4HS0mS5r5I7dT4GociEFbrR9OgBZ0= catppuccin.cachix.org-1:noG/4HkbhJb+lUAdKrph6LaozJvAeEEZj4N732IysmU=
 
       # Impact detection lives in one place -- scripts/impacted-hosts.sh --
       # shared verbatim with ci-linux.yaml and the nixos-eval-impacted-hosts
