@@ -58,7 +58,7 @@
       # acarshub host
       acarsdec = "ghcr.io/sdr-enthusiasts/docker-acarsdec:latest-build-508@sha256:724bcdb55104f9662a5788c66d123b90ffbe0627c7d2f57af59c7c2b09bfcf54";
 
-      xng = "ghcr.io/sdr-enthusiasts/docker-xng:latest-build-9@sha256:e90f6550aba47bb502373f39c6a54b3e31550778c5e002a3871e83d41ff7ff68";
+      xng = "ghcr.io/sdr-enthusiasts/docker-xng:latest-build-12@sha256:878d2b04dc3e77ff2ba9f9b17998eb44da433aa8adeb5b6776921c65ea2abe33";
 
       # fredvps host
       fredSite = "ghcr.io/fredsystems/fred-site:latest-build-8@sha256:53659b897364c139dc504e6824ae999febdfe96616fbf306b8681a493510ed81";
