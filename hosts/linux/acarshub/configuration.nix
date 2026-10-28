@@ -23,6 +23,11 @@ in
   hardware-profile.usbfs.enable = true;
 
   system.stateVersion = stateVersion;
+  networking = {
+    firewall = {
+      allowedTCPPorts = [ 5555 ];
+    };
+  };
 
   sops.secrets = {
     "docker/acarshub.env" = mkContainerSecrets [
