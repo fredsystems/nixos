@@ -102,7 +102,7 @@
 
       airnavradar = "ghcr.io/sdr-enthusiasts/docker-airnavradar:latest-build-891@sha256:bee09f36dc5ce3ddcf963ca5a60437b425adcd59d66b408631cd79b812dfdd43";
 
-      openskyNetwork = "ghcr.io/sdr-enthusiasts/docker-opensky-network:latest-build-850@sha256:3411f0cb0f66e1da23f4bba60eb44d5bd83143acac070761771d0d4228e1bd52";
+      openskyNetwork = "ghcr.io/sdr-enthusiasts/docker-opensky-network:latest-build-854@sha256:a6f620496968e762ae2e6f0f97a872b826ceb88a22f6bab2542fe0a75809251c";
 
       sdrmap = "ghcr.io/sdr-enthusiasts/docker-sdrmap:latest-build-107@sha256:f5533d4667b0d2c9e79b0efa04d22ef6ace2a63b4061884c562251ce318acfec";
 
