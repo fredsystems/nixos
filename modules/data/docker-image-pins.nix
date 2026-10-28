@@ -68,7 +68,7 @@
       tar1090 = "ghcr.io/sdr-enthusiasts/docker-tar1090:telegraf-build-1498@sha256:b3daf344c8ddd39a54d3e0776b9e10e82f37814bdf05d055c2919e077439de42";
 
       # Shared verbatim: sdrhub + fredvps.
-      acarsRouter = "ghcr.io/sdr-enthusiasts/acars_router:latest-build-596@sha256:25f50a6868b689f68f972c947de0a745b000a2eb02e30ef23e210413d44655b5";
+      acarsRouter = "ghcr.io/sdr-enthusiasts/acars_router:latest-build-597@sha256:eccd7018caa4ee727918ec00db79a46072701e729fe09757a529814a9d41135b";
 
       acarshub = "ghcr.io/sdr-enthusiasts/docker-acarshub:latest-build-1518@sha256:bb6b4301fe413f567609f1b6370def79b777aeb94324cc517fa5e3ab0e863f94";
 
@@ -106,7 +106,7 @@
 
       sdrmap = "ghcr.io/sdr-enthusiasts/docker-sdrmap:latest-build-109@sha256:9e1fd2b2bddc195e389c9c65c3bd3d985d4e458fd4721abe8b22ea6c36c54570";
 
-      acarshubV4 = "ghcr.io/sdr-enthusiasts/docker-acarshub:v4-latest-build-72@sha256:44e2e8f29e456dcc3d9316dab2b8169c6b5f4b46885eb307673790d970908e5b";
+      acarshubV4 = "ghcr.io/sdr-enthusiasts/docker-acarshub:v4-latest-build-73@sha256:8f6a9f3f3a34fb181e09a5167a5aec5e7aa093837675994ae6066e55b4063f3e";
 
       acars2posAlt = "ghcr.io/rpatel3001/docker-acars2pos:latest-build-32@sha256:79eef9eaaa123f79a350e466452d577e71a6f11cedebad59ff91ebf97a6b6ea8"; # inactive (commented-out alternative)
 
