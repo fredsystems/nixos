@@ -104,7 +104,7 @@
 
       sdrmap = "ghcr.io/sdr-enthusiasts/docker-sdrmap:latest-build-109@sha256:9e1fd2b2bddc195e389c9c65c3bd3d985d4e458fd4721abe8b22ea6c36c54570";
 
-      acarshubV4 = "ghcr.io/sdr-enthusiasts/docker-acarshub:v4-latest-build-74@sha256:86026a603bc65c551e3d01aa08e2ca098dfc38c94cb2b8b77e420188da90ae72";
+      acarshubV4 = "ghcr.io/sdr-enthusiasts/docker-acarshub:v4-latest-build-75@sha256:032a37be45b61a800abd1210af594bf0591631fef4a0b70897f659b1082c58d5";
 
       acars2posAlt = "ghcr.io/rpatel3001/docker-acars2pos:latest-build-32@sha256:79eef9eaaa123f79a350e466452d577e71a6f11cedebad59ff91ebf97a6b6ea8"; # inactive (commented-out alternative)
 
