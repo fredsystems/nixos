@@ -181,6 +181,14 @@
       automerge: true,
     },
     {
+      // opencode releases often and the pin is the only thing that moves it,
+      // so bypass the weekly schedule above and open the PR as soon as
+      // Renovate sees the new tag.
+      matchManagers: ["custom.regex"],
+      matchDepNames: ["opencode"],
+      schedule: ["at any time"],
+    },
+    {
       // opencode is pinned to a release tag in flake.nix. Minor and patch
       // releases automerge like everything else; a major release (V1 -> V2
       // replaced the plugin API, server API, and CLI config file) needs a
