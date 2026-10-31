@@ -212,7 +212,7 @@ tests:
   - interval: 1m
     name: DockerUnitFlapping fires on a restart loop
     input_series:
-      - series: 'node_systemd_service_restart_total{name="docker-dumpvdl2-3.service", hostname="vdlmhub"}'
+      - series: 'node_systemd_service_restart_total{name="docker-dumphfdl-3.service", hostname="hfdlhub1"}'
         values: "0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19"
     alert_rule_test:
       - eval_time: 16m
@@ -220,11 +220,11 @@ tests:
         exp_alerts:
           - exp_labels:
               severity: critical
-              name: docker-dumpvdl2-3.service
-              hostname: vdlmhub
+              name: docker-dumphfdl-3.service
+              hostname: hfdlhub1
             exp_annotations:
-              summary: "Docker systemd unit docker-dumpvdl2-3.service is restarting repeatedly"
-              description: "Systemd restarted docker-dumpvdl2-3.service more than 3 times in 10 minutes."
+              summary: "Docker systemd unit docker-dumphfdl-3.service is restarting repeatedly"
+              description: "Systemd restarted docker-dumphfdl-3.service more than 3 times in 10 minutes."
 
   - interval: 1m
     name: DockerUnitFlapping stays silent for a stable unit

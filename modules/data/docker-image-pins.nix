@@ -10,11 +10,9 @@
   #
   # WHY CENTRALIZE EVEN SINGLE-HOST IMAGES
   #
-  # Two images (acarshub, acarsRouter) are genuinely shared verbatim
-  # across sdrhub and fredvps, and two more repeat multiple times
-  # within one host's own file (dumpvdl2 x4 in vdlmhub, dumphfdl x3 in
-  # hfdlhub1) -- both are the same underlying
-  # risk: nothing stops the copies from drifting apart on a manual edit.
+  # Some images (acarshub, acarsRouter, xng) are genuinely shared verbatim
+  # across hosts, and another repeats multiple times within one host's own
+  # file (dumphfdl x3 in hfdlhub1) -- both are the same underlying risk: nothing stops the copies from drifting apart on a manual edit.
   # Splitting "shared images live here, single-host images stay inline"
   # was considered and rejected as more confusing than one consistent
   # rule, so every image is here, including ones only one host runs
@@ -55,8 +53,8 @@
       # modules/services/mk-dozzle-agent.nix.
       dozzle = "amir20/dozzle:v11.4.0@sha256:d23d23ce02c8cc96416dfbad4a7de225d01fdc03ad310203d64d580034dd120d";
 
-      # acarshub host
-      xng = "ghcr.io/sdr-enthusiasts/docker-xng:latest-build-14@sha256:1d76dcebe76400b71d72e7e4df557eb98c45342eb860a9611663c16f2f96b0d1";
+      # acarshub + vdlmhub hosts
+      xng = "ghcr.io/sdr-enthusiasts/docker-xng:latest-build-15@sha256:7b04d89d18a5cd499f9695dcb1387adf1a3988ac1d39b79f1034c247095bdf38";
 
       # fredvps host
       fredSite = "ghcr.io/fredsystems/fred-site:latest-build-8@sha256:53659b897364c139dc504e6824ae999febdfe96616fbf306b8681a493510ed81";
@@ -75,9 +73,6 @@
 
       # hfdlhub2 host
       hfdlobserver = "ghcr.io/sdr-enthusiasts/docker-hfdlobserver:latest-build-38@sha256:18e7a1b7f942fb9bfd9862994cfe7b4341006095758eb32d5f2a2b1ebe61c8c3";
-
-      # vdlmhub host
-      dumpvdl2 = "ghcr.io/sdr-enthusiasts/docker-dumpvdl2:latest-build-441@sha256:f1af3f5647870c3bb615bf2f1d23d60c5cd2bbf6193d5c0570eb3ec0419bb04b";
 
       # sdrhub host
       airspyAdsb = "ghcr.io/sdr-enthusiasts/airspy_adsb:latest-build-326@sha256:cd59e311d60732104318157b788ad06c2ade720b7c20ea031c92af4d8e39587d"; # inactive (commented-out container)
