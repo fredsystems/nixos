@@ -17,7 +17,7 @@ let
   #
   # Iterates .Alerts rather than using .CommonAnnotations: group_by is
   # [alertname, hostname], so a group can contain several alerts that differ
-  # only by unit or device -- DecoderHeartbeatMissing across four dumpvdl2
+  # only by unit or device -- DecoderHeartbeatMissing across three dumphfdl
   # instances, or the SMART rules across devices. Those have no common
   # description, and .CommonAnnotations.description would render empty.
   #

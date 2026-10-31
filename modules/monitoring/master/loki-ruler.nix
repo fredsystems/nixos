@@ -44,7 +44,7 @@ let
   # has no single stable heartbeat string but logs continuously.
   #
   # `window` defaults to 20m, which suits the five-minute heartbeat that the
-  # acarsdec/dumpvdl2/dumphfdl containers emit (over a 48h sample it arrived 575
+  # dumphfdl containers (and formerly acarsdec/dumpvdl2) emit (over a 48h sample it arrived 575
   # times out of 576, so 20m is ~4 missed beats). dump978 is on a different
   # mechanism with a 30 minute cadence and overrides it.
   #
@@ -78,24 +78,14 @@ let
       trafficDependent = true;
     }
     {
+      # xng replaced dumpvdl2-1..4 here, one VDL2 session per SDR. Same
+      # traffic-dependent "logging anything" liveness signal as acarshub's
+      # xng above, for the same reason: no periodic stats line.
       host = "vdlmhub";
-      unit = "docker-dumpvdl2-1.service";
-      pattern = "\\[STATS\\] Total in the last";
-    }
-    {
-      host = "vdlmhub";
-      unit = "docker-dumpvdl2-2.service";
-      pattern = "\\[STATS\\] Total in the last";
-    }
-    {
-      host = "vdlmhub";
-      unit = "docker-dumpvdl2-3.service";
-      pattern = "\\[STATS\\] Total in the last";
-    }
-    {
-      host = "vdlmhub";
-      unit = "docker-dumpvdl2-4.service";
-      pattern = "\\[STATS\\] Total in the last";
+      unit = "docker-xng.service";
+      pattern = null;
+      window = "45m";
+      trafficDependent = true;
     }
     {
       host = "hfdlhub1";
@@ -408,17 +398,15 @@ let
         # this series exists -- see agent-docs/MONITORING.md, Phase 6.
         name = "decoder-throughput-recording";
         interval = "1m";
-        # NOTE: xng on acarshub is deliberately absent from these rules. It
-        # emits no periodic stats line, so there is no count to unwrap; the
-        # only way to derive throughput would be to count individual decoded
-        # message lines, which is a different and much more expensive query
-        # shape than `last_over_time` on a pre-aggregated total. Its liveness
-        # is covered by the decoder-liveness group instead.
+        # NOTE: xng (acarshub, vdlmhub) is deliberately absent from these
+        # rules. It emits no periodic stats line, so there is no count to
+        # unwrap; the only way to derive throughput would be to count
+        # individual decoded message lines, which is a different and much
+        # more expensive query shape than `last_over_time` on a
+        # pre-aggregated total. Its liveness is covered by the
+        # decoder-liveness group instead. The acarsdec/dumpvdl2 recording
+        # rule was dropped once xng replaced both, as it matched nothing.
         rules = [
-          {
-            record = "decoder:messages:last5m";
-            expr = ''sum by (host, hostname, unit) (last_over_time({unit=~"docker-(acarsdec|dumpvdl2)-.*"} | regexp `Total in the last \d+ minutes: (?P<msgs>\d+)` | unwrap msgs [10m]))'';
-          }
           {
             record = "decoder:messages:last5m";
             expr = ''sum by (host, hostname, unit) (last_over_time({unit=~"docker-dumphfdl-.*"} | regexp `(?P<msgs>\d+) hfdl messages received` | unwrap msgs [10m]))'';

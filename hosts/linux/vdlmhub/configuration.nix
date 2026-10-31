@@ -3,12 +3,6 @@
   stateVersion,
   ...
 }:
-let
-  inherit (import ../../../modules/services/mk-container-secret.nix)
-    mkContainerSecret
-    ;
-
-in
 {
   imports = [
     ./hardware-configuration.nix
@@ -24,13 +18,9 @@ in
 
   system.stateVersion = stateVersion;
 
-  sops.secrets = {
-
-    "docker/vdlmhub/dumpvdl2-1.env" = mkContainerSecret "dumpvdl2-1";
-    "docker/vdlmhub/dumpvdl2-2.env" = mkContainerSecret "dumpvdl2-2";
-    "docker/vdlmhub/dumpvdl2-3.env" = mkContainerSecret "dumpvdl2-3";
-    "docker/vdlmhub/dumpvdl2-4.env" = mkContainerSecret "dumpvdl2-4";
-  };
+  # acars_router on sdrhub connects in to xng's ZMQ PUB socket
+  # (AR_RECV_ZMQ_XNG), same as it does for acarshub.
+  networking.firewall.allowedTCPPorts = [ 5555 ];
 
   services = {
     adsb.containers = [
@@ -43,87 +33,65 @@ in
       })
 
       ###############################################################
-      # dumpvdl2-1
+      # XNG
+      #
+      # Replaces dumpvdl2-1..4: one station, one VDL2 session per SDR,
+      # same serials and channel sets as the old containers. Session 1
+      # uses the unsuffixed XNG_* vars, session 2+ use _2, _3, ...; the
+      # container refuses to start on a numbering gap. Outputs are
+      # station-wide and not indexed.
       ###############################################################
       (config.services.adsb.mkSdrContainer {
-        name = "dumpvdl2-1";
-        image = config.shared.dockerImages.dumpvdl2;
+        name = "xng";
+        image = config.shared.dockerImages.xng;
 
         tty = true;
         restart = "always";
 
-        environmentFiles = [
-          config.sops.secrets."docker/vdlmhub/dumpvdl2-1.env".path
-        ];
+        ports = [ "5555:5555" ];
 
-        tmpfs = [
-          "/var/log"
-        ];
+        environment = {
+          TZ = "America/Denver";
 
-        volumes = [
-          "/dev:/dev"
-        ];
-      })
+          # Station
+          XNG_STATION_ID = "CS-KABQ-VDLM";
+          XNG_VERBOSE = "1";
 
-      ###############################################################
-      # dumpvdl2-2
-      ###############################################################
-      (config.services.adsb.mkSdrContainer {
-        name = "dumpvdl2-2";
-        image = config.shared.dockerImages.dumpvdl2;
+          # Outputs
+          XNG_ZMQ = "tcp://0.0.0.0:5555";
 
-        tty = true;
-        restart = "always";
+          # Session 1: 136.775 - 136.975 MHz
+          XNG_MODE = "vdl2";
+          XNG_DRIVER = "rtlsdr";
+          XNG_SERIAL = "00013475";
+          XNG_CENTER = "136.875M";
+          XNG_SAMPLE_RATE = "2400000";
+          XNG_CHANNELS = "136.975;136.945;136.925;136.825;136.8;136.775";
 
-        environmentFiles = [
-          config.sops.secrets."docker/vdlmhub/dumpvdl2-2.env".path
-        ];
+          # Session 2: 136.1 - 136.725 MHz
+          XNG_MODE_2 = "vdl2";
+          XNG_DRIVER_2 = "rtlsdr";
+          XNG_SERIAL_2 = "00013212";
+          XNG_CENTER_2 = "136.4125M";
+          XNG_SAMPLE_RATE_2 = "2400000";
+          XNG_CHANNELS_2 = "136.725;136.7;136.675;136.65;136.3;136.1";
 
-        tmpfs = [
-          "/var/log"
-        ];
+          # Session 3: 131.125 - 131.725 MHz
+          XNG_MODE_3 = "vdl2";
+          XNG_DRIVER_3 = "rtlsdr";
+          XNG_SERIAL_3 = "00012507";
+          XNG_CENTER_3 = "131.425M";
+          XNG_SAMPLE_RATE_3 = "2400000";
+          XNG_CHANNELS_3 = "131.725;131.55;131.125";
 
-        volumes = [
-          "/dev:/dev"
-        ];
-      })
-
-      ###############################################################
-      # dumpvdl2-3
-      ###############################################################
-      (config.services.adsb.mkSdrContainer {
-        name = "dumpvdl2-3";
-        image = config.shared.dockerImages.dumpvdl2;
-
-        tty = true;
-        restart = "always";
-
-        environmentFiles = [
-          config.sops.secrets."docker/vdlmhub/dumpvdl2-3.env".path
-        ];
-
-        tmpfs = [
-          "/var/log"
-        ];
-
-        volumes = [
-          "/dev:/dev"
-        ];
-      })
-
-      ###############################################################
-      # dumpvdl2-4
-      ###############################################################
-      (config.services.adsb.mkSdrContainer {
-        name = "dumpvdl2-4";
-        image = config.shared.dockerImages.dumpvdl2;
-
-        tty = true;
-        restart = "always";
-
-        environmentFiles = [
-          config.sops.secrets."docker/vdlmhub/dumpvdl2-4.env".path
-        ];
+          # Session 4: 130.025 - 130.825 MHz
+          XNG_MODE_4 = "vdl2";
+          XNG_DRIVER_4 = "rtlsdr";
+          XNG_SERIAL_4 = "00012867";
+          XNG_CENTER_4 = "130.425M";
+          XNG_SAMPLE_RATE_4 = "2400000";
+          XNG_CHANNELS_4 = "130.825;130.45;130.025";
+        };
 
         tmpfs = [
           "/var/log"
