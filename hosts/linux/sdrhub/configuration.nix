@@ -231,6 +231,12 @@ let
       vhost.locations."/".proxyPass = "http://192.168.31.20:8080";
     };
 
+    # Airspy-only tar1090. New, so there are no `.lan` names to keep working.
+    tar1090-airspy = {
+      legacy = [ ];
+      vhost.locations."/".proxyPass = "http://192.168.31.20:8088";
+    };
+
     dump978 = {
       legacy = [
         "dump978.sdrhub.lan"
@@ -1083,6 +1089,54 @@ in
       }
 
       ###############################################################
+      # TAR1090 (airspy only)
+      ###############################################################
+      # A view of what the Airspy alone is receiving, for comparing it
+      # against the combined picture in ultrafeeder. Its only input is
+      # airspy_adsb's Beast output; no MLAT, no connectors out, and none of
+      # readsb's feed ports are published.
+      {
+        name = "tar1090_airspy";
+        image = config.shared.dockerImages.tar1090;
+
+        hostname = "tar1090_airspy";
+        restart = "always";
+        tty = false;
+
+        dependsOn = [ "airspy_adsb" ];
+
+        # TZ, LAT and LONG (the receiver position, for the range outline).
+        environmentFiles = [
+          config.sops.secrets."docker/sdrhub/tar1090_airspy.env".path
+        ];
+
+        environment = {
+          BEASTHOST = "airspy_adsb";
+          BEASTPORT = "30005";
+          TAR1090_PAGETITLE = "sdrhub - airspy";
+          TAR1090_SITESHOW = "true";
+          TAR1090_ENABLE_AC_DB = "true";
+          ENABLE_AIRSPY = "true";
+        };
+
+        ports = [
+          "8088:80"
+        ];
+
+        volumes = [
+          "/opt/adsb/data/tar1090_airspy/globe_history:/var/globe_history"
+          "/opt/adsb/data/tar1090_airspy/graphs1090:/var/lib/collectd"
+          "/opt/adsb/data/airspy_adsb:/run/airspy_adsb:ro"
+        ];
+
+        tmpfs = [
+          "/run:exec,size=256M"
+          "/tmp:size=128M"
+          "/var/log:size=32M"
+        ];
+      }
+
+      ###############################################################
       # ULTRAFEEDER (readsb) — central ADS-B decoder
       ###############################################################
       {
@@ -1800,6 +1854,8 @@ in
     };
 
     "docker/sdrhub/airspy_adsb.env" = mkContainerSecret "airspy_adsb";
+
+    "docker/sdrhub/tar1090_airspy.env" = mkContainerSecret "tar1090_airspy";
 
     "docker/sdrhub/ultrafeeder.env" = mkContainerSecret "ultrafeeder";
 
