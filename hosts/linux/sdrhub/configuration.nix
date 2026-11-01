@@ -1060,27 +1060,27 @@ in
       ###############################################################
       # AIRSPY ADS-B RECEIVER
       ###############################################################
-      # {
-      #   name = "airspy_adsb";
-      #   image = config.shared.dockerImages.airspyAdsb;
+      {
+        name = "airspy_adsb";
+        image = config.shared.dockerImages.airspyAdsb;
 
-      #   hostname = "airspy_adsb";
-      #   restart = "always";
-      #   tty = false;
+        hostname = "airspy_adsb";
+        restart = "always";
+        tty = false;
 
-      #   environmentFiles = [
-      #     config.sops.secrets."docker/sdrhub/airspy_adsb.env".path
-      #   ];
+        environmentFiles = [
+          config.sops.secrets."docker/sdrhub/airspy_adsb.env".path
+        ];
 
-      #   deviceCgroupRules = [
-      #     "c 189:* rwm"
-      #   ];
+        deviceCgroupRules = [
+          "c 189:* rwm"
+        ];
 
-      #   volumes = [
-      #     "/dev:/dev"
-      #     "/opt/adsb/data/airspy_adsb:/run/airspy_adsb"
-      #   ];
-      # }
+        volumes = [
+          "/dev:/dev"
+          "/opt/adsb/data/airspy_adsb:/run/airspy_adsb"
+        ];
+      }
 
       ###############################################################
       # ULTRAFEEDER (readsb) — central ADS-B decoder
@@ -1789,20 +1789,17 @@ in
     "docker/sdrhub/dozzle.env" = mkContainerSecret "dozzle";
     "docker/sdrhub/syncclipboard.env" = mkContainerSecret "syncclipboard";
 
-    # Deliberately NOT mkContainerSecret. Both are declared but unconsumed:
-    # the dozzle-agent container takes no environmentFiles (its secret is
-    # "intentionally empty (no env vars required)"), and the airspy_adsb
-    # container is commented out entirely. Attaching restartUnits to either
+    # Deliberately NOT mkContainerSecret. Declared but unconsumed: the
+    # dozzle-agent container takes no environmentFiles (its secret is
+    # "intentionally empty (no env vars required)"). Attaching restartUnits
     # would name a container that does not read it, which is a claim the
-    # config cannot honour. If airspy_adsb is uncommented, or dozzle-agent
-    # ever gains real env vars, convert them then.
+    # config cannot honour. If dozzle-agent ever gains real env vars,
+    # convert it then.
     "docker/sdrhub/dozzle-agent.env" = {
       format = "yaml";
     };
 
-    "docker/sdrhub/airspy_adsb.env" = {
-      format = "yaml";
-    };
+    "docker/sdrhub/airspy_adsb.env" = mkContainerSecret "airspy_adsb";
 
     "docker/sdrhub/ultrafeeder.env" = mkContainerSecret "ultrafeeder";
 

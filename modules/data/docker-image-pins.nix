@@ -41,10 +41,9 @@
   # them cleanly. Enforced by scripts/check-docker-pin-spacing.sh (pre-commit
   # hook + `checks.docker-pin-spacing`); do not collapse the spacing.
   #
-  # `airspyAdsb` and `acars2posAlt` are pinned here even though sdrhub's
-  # container blocks that would use them are currently commented out
-  # (inactive/alternate configurations) -- kept so Renovate still tracks
-  # them and the pin is ready if either is re-enabled.
+  # `acars2posAlt` is pinned here even though sdrhub's container block that
+  # would use it is currently commented out (alternate configuration) --
+  # kept so Renovate still tracks it and the pin is ready if re-enabled.
   options.shared.dockerImages = lib.mkOption {
     type = lib.types.attrsOf lib.types.str;
     default = {
@@ -75,7 +74,7 @@
       hfdlobserver = "ghcr.io/sdr-enthusiasts/docker-hfdlobserver:latest-build-38@sha256:18e7a1b7f942fb9bfd9862994cfe7b4341006095758eb32d5f2a2b1ebe61c8c3";
 
       # sdrhub host
-      airspyAdsb = "ghcr.io/sdr-enthusiasts/airspy_adsb:latest-build-326@sha256:cd59e311d60732104318157b788ad06c2ade720b7c20ea031c92af4d8e39587d"; # inactive (commented-out container)
+      airspyAdsb = "ghcr.io/sdr-enthusiasts/airspy_adsb:latest-build-326@sha256:cd59e311d60732104318157b788ad06c2ade720b7c20ea031c92af4d8e39587d";
 
       adsbUltrafeeder = "ghcr.io/sdr-enthusiasts/docker-adsb-ultrafeeder:telegraf-build-984@sha256:b0566feaad628b498388ba01cc241d3fc5c89e2e4268ef15ecd726a9dc9d82dd";
 
