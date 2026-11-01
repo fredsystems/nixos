@@ -359,7 +359,17 @@ in
     # The lock screen uses `login`, not a hyprlock-style dedicated service,
     # so the security key has to be accepted there. This also lets the key
     # satisfy a text-console login on this host.
-    security.pam.services.login.u2fAuth = lib.mkIf u2f true;
+    #
+    # pam_u2f normally runs before pam_unix and, with the key plugged in,
+    # blocks for its ~30 s touch timeout before the password is even checked
+    # (greetd substacks `login`, so the greeter waits too). Running it after
+    # pam_unix makes a typed password succeed immediately, while an empty
+    # password falls through to the touch prompt that `cue` announces.
+    security.pam.services.login = lib.mkIf u2f {
+      u2fAuth = true;
+      rules.auth.u2f.order = config.security.pam.services.login.rules.auth.unix.order + 10;
+    };
+    security.pam.u2f.settings.cue = lib.mkIf u2f true;
 
     home-manager.users = lib.genAttrs allUsers (uname: {
       xdg.dataFile = deployStateFiles;
