@@ -16,6 +16,10 @@
 # Note: Hyprland's runtime auto-arrangement of overlapping/missing-coord
 # monitors does NOT reflect physical reality on this host -- the coords
 # below are the source of truth and were validated by user observation.
+#
+# bitdepth = 10 is Hyprland-only (niri ignores it). Without it, Hyprland's
+# auto-HDR switches to wide colour gamut on an 8-bit output and warns. All
+# four links, HDMI-A-1 included, accept XRGB2101010 at 144 Hz.
 {
   # Top-left (HDMI-A-1)
   "ASUSTek COMPUTER INC VG27A SALMQS105747" = {
@@ -23,6 +27,7 @@
     height = 1440;
     refresh = 144.0;
     scale = 1.0;
+    bitdepth = 10;
     x = -2560;
     y = -1440;
   };
@@ -33,6 +38,7 @@
     height = 1440;
     refresh = 144.0;
     scale = 1.0;
+    bitdepth = 10;
     x = 0;
     y = -1440;
   };
@@ -43,6 +49,7 @@
     height = 1440;
     refresh = 144.0;
     scale = 1.0;
+    bitdepth = 10;
     x = -2560;
     y = 0;
   };
@@ -53,6 +60,7 @@
     height = 1440;
     refresh = 144.0;
     scale = 1.0;
+    bitdepth = 10;
     x = 0;
     y = 0;
   };
