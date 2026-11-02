@@ -1,9 +1,8 @@
 # Plan 01: Noctalia desktop shell
 
-- **Status:** pending merge (subtasks 1.1-1.25 committed; trial on both
-  desktops pending)
-- **Branches:** `feat/noctalia-shell` (1.1-1.12, merged),
-  `feat/noctalia-compositor-settings` (1.13-1.25)
+- **Status:** complete (merged 2026-10-27)
+- **Branches:** `feat/noctalia-shell` (1.1-1.12, #2656),
+  `feat/noctalia-compositor-settings` (1.13-1.25, #2660), both merged
 
 ## Goal
 
