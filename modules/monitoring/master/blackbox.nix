@@ -158,6 +158,8 @@ let
   internalEndpoints = [
     "https://sdrhub.int.fredsystems.org/" # landing page
     "https://tar1090.int.fredsystems.org/" # -> 192.168.31.20:8080
+    "https://tar1090-airspy.int.fredsystems.org/" # -> 192.168.31.20:8088
+    "https://tar1090-rtlsdr.int.fredsystems.org/" # -> 192.168.31.20:8089
     "https://dump978.int.fredsystems.org/" # -> 192.168.31.20:8083
     "https://piaware.int.fredsystems.org/" # -> 192.168.31.20:8084
     "https://ai.int.fredsystems.org/" # -> fredhub 192.168.31.14:8889

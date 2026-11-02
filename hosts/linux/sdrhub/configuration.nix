@@ -231,6 +231,18 @@ let
       vhost.locations."/".proxyPass = "http://192.168.31.20:8080";
     };
 
+    # Airspy-only tar1090. New, so there are no `.lan` names to keep working.
+    tar1090-airspy = {
+      legacy = [ ];
+      vhost.locations."/".proxyPass = "http://192.168.31.20:8088";
+    };
+
+    # RTL-SDR-only tar1090. Same reasoning as tar1090-airspy.
+    tar1090-rtlsdr = {
+      legacy = [ ];
+      vhost.locations."/".proxyPass = "http://192.168.31.20:8089";
+    };
+
     dump978 = {
       legacy = [
         "dump978.sdrhub.lan"
@@ -1060,27 +1072,131 @@ in
       ###############################################################
       # AIRSPY ADS-B RECEIVER
       ###############################################################
-      # {
-      #   name = "airspy_adsb";
-      #   image = config.shared.dockerImages.airspyAdsb;
+      {
+        name = "airspy_adsb";
+        image = config.shared.dockerImages.airspyAdsb;
 
-      #   hostname = "airspy_adsb";
-      #   restart = "always";
-      #   tty = false;
+        hostname = "airspy_adsb";
+        restart = "always";
+        tty = false;
 
-      #   environmentFiles = [
-      #     config.sops.secrets."docker/sdrhub/airspy_adsb.env".path
-      #   ];
+        environmentFiles = [
+          config.sops.secrets."docker/sdrhub/airspy_adsb.env".path
+        ];
 
-      #   deviceCgroupRules = [
-      #     "c 189:* rwm"
-      #   ];
+        deviceCgroupRules = [
+          "c 189:* rwm"
+        ];
 
-      #   volumes = [
-      #     "/dev:/dev"
-      #     "/opt/adsb/data/airspy_adsb:/run/airspy_adsb"
-      #   ];
-      # }
+        volumes = [
+          "/dev:/dev"
+          "/opt/adsb/data/airspy_adsb:/run/airspy_adsb"
+        ];
+      }
+
+      ###############################################################
+      # TAR1090 (airspy only)
+      ###############################################################
+      # A view of what the Airspy alone is receiving, for comparing it
+      # against the combined picture in ultrafeeder. Its only input is
+      # airspy_adsb's Beast output; no MLAT, no connectors out, and none of
+      # readsb's feed ports are published.
+      {
+        name = "tar1090_airspy";
+        image = config.shared.dockerImages.tar1090;
+
+        hostname = "tar1090_airspy";
+        restart = "always";
+        tty = false;
+
+        dependsOn = [ "airspy_adsb" ];
+
+        # TZ, LAT and LONG (the receiver position, for the range outline).
+        environmentFiles = [
+          config.sops.secrets."docker/sdrhub/tar1090_airspy.env".path
+        ];
+
+        environment = {
+          BEASTHOST = "airspy_adsb";
+          BEASTPORT = "30005";
+          TAR1090_PAGETITLE = "sdrhub - airspy";
+          TAR1090_SITESHOW = "true";
+          TAR1090_ENABLE_AC_DB = "true";
+          ENABLE_AIRSPY = "true";
+        };
+
+        ports = [
+          "8088:80"
+        ];
+
+        volumes = [
+          "/opt/adsb/data/tar1090_airspy/globe_history:/var/globe_history"
+          "/opt/adsb/data/tar1090_airspy/graphs1090:/var/lib/collectd"
+          "/opt/adsb/data/airspy_adsb:/run/airspy_adsb:ro"
+        ];
+
+        tmpfs = [
+          "/run:exec,size=256M"
+          "/tmp:size=128M"
+          "/var/log:size=32M"
+        ];
+      }
+
+      ###############################################################
+      # TAR1090 (1090 RTL-SDR only)
+      ###############################################################
+      # Owns the 1090 RTL-SDR (serial 00001090) and decodes it itself, so
+      # this view is exactly what that receiver hears. Nothing else reads it:
+      # it is not fed into ultrafeeder, and there are no connectors out and
+      # no readsb feed ports published.
+      #
+      # Feeding it into ultrafeeder alongside the airspy would merge two
+      # receivers with unsynchronised clocks into one MLAT station, which is
+      # what broke MLAT while both were in ultrafeeder.
+      {
+        name = "tar1090_rtlsdr";
+        image = config.shared.dockerImages.tar1090;
+
+        hostname = "tar1090_rtlsdr";
+        restart = "always";
+        tty = false;
+
+        # TZ, LAT and LONG (the receiver position, for the range outline).
+        environmentFiles = [
+          config.sops.secrets."docker/sdrhub/tar1090_rtlsdr.env".path
+        ];
+
+        environment = {
+          READSB_DEVICE_TYPE = "rtlsdr";
+          READSB_RTLSDR_DEVICE = "00001090";
+          READSB_GAIN = "autogain";
+          # Where ultrafeeder's autogain had settled for this dongle.
+          READSB_AUTOGAIN_INITIAL_GAIN = "44.5";
+          TAR1090_PAGETITLE = "sdrhub - rtlsdr";
+          TAR1090_SITESHOW = "true";
+          TAR1090_ENABLE_AC_DB = "true";
+        };
+
+        deviceCgroupRules = [
+          "c 189:* rwm"
+        ];
+
+        ports = [
+          "8089:80"
+        ];
+
+        volumes = [
+          "/dev/bus/usb:/dev/bus/usb:ro"
+          "/opt/adsb/data/tar1090_rtlsdr/globe_history:/var/globe_history"
+          "/opt/adsb/data/tar1090_rtlsdr/graphs1090:/var/lib/collectd"
+        ];
+
+        tmpfs = [
+          "/run:exec,size=256M"
+          "/tmp:size=128M"
+          "/var/log:size=32M"
+        ];
+      }
 
       ###############################################################
       # ULTRAFEEDER (readsb) — central ADS-B decoder
@@ -1097,10 +1213,11 @@ in
           config.sops.secrets."docker/sdrhub/ultrafeeder.env".path
         ];
 
-        deviceCgroupRules = [
-          "c 189:* rwm"
-        ];
-
+        # Network-only: ultrafeeder opens no SDR itself. Its 1090 input is
+        # airspy_adsb (beast_in in ultrafeeder.env). The 1090 RTL-SDR belongs
+        # to tar1090_rtlsdr, so ultrafeeder deliberately gets no USB access --
+        # a USB SDR can only be opened by one process, and this makes it
+        # impossible for ultrafeeder to grab the RTL again by accident.
         ports = [
           "8080:80"
           "30002:30002"
@@ -1115,7 +1232,6 @@ in
           "/opt/adsb/data/ultra_globe_history:/var/globe_history"
           "/opt/adsb/data/ultra_graphs1090:/var/lib/collectd"
           "/proc/diskstats:/proc/diskstats:ro"
-          "/dev:/dev"
           "/sys/class/thermal/thermal_zone2:/sys/class/thermal/thermal_zone0:ro"
           "/opt/adsb/data/airspy_adsb:/run/airspy_adsb"
         ];
@@ -1789,20 +1905,21 @@ in
     "docker/sdrhub/dozzle.env" = mkContainerSecret "dozzle";
     "docker/sdrhub/syncclipboard.env" = mkContainerSecret "syncclipboard";
 
-    # Deliberately NOT mkContainerSecret. Both are declared but unconsumed:
-    # the dozzle-agent container takes no environmentFiles (its secret is
-    # "intentionally empty (no env vars required)"), and the airspy_adsb
-    # container is commented out entirely. Attaching restartUnits to either
+    # Deliberately NOT mkContainerSecret. Declared but unconsumed: the
+    # dozzle-agent container takes no environmentFiles (its secret is
+    # "intentionally empty (no env vars required)"). Attaching restartUnits
     # would name a container that does not read it, which is a claim the
-    # config cannot honour. If airspy_adsb is uncommented, or dozzle-agent
-    # ever gains real env vars, convert them then.
+    # config cannot honour. If dozzle-agent ever gains real env vars,
+    # convert it then.
     "docker/sdrhub/dozzle-agent.env" = {
       format = "yaml";
     };
 
-    "docker/sdrhub/airspy_adsb.env" = {
-      format = "yaml";
-    };
+    "docker/sdrhub/airspy_adsb.env" = mkContainerSecret "airspy_adsb";
+
+    "docker/sdrhub/tar1090_airspy.env" = mkContainerSecret "tar1090_airspy";
+
+    "docker/sdrhub/tar1090_rtlsdr.env" = mkContainerSecret "tar1090_rtlsdr";
 
     "docker/sdrhub/ultrafeeder.env" = mkContainerSecret "ultrafeeder";
 
