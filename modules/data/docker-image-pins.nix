@@ -88,7 +88,7 @@
 
       planefinder = "ghcr.io/sdr-enthusiasts/docker-planefinder:latest-build-553@sha256:53f34fb5514e521cc4afd5c90f2c94a88680b88733ec3c79265e350872e6f24d";
 
-      planewatch = "ghcr.io/plane-watch/docker-plane-watch:v0.0.11@sha256:e0f0f5e55847273bae1b9b1c6a8962e74065f38659bd180e97d7da9d0a2865c3";
+      planewatch = "ghcr.io/plane-watch/docker-plane-watch:v0.0.11@sha256:712b4cb7045ffb6b7b904981f287855264d8526becdc644b9bb2bd00bf25c658";
 
       radarvirtuel = "ghcr.io/sdr-enthusiasts/docker-radarvirtuel:latest-build-814@sha256:9670c2d66597ca7f752d25829fa48d7595ec69c8ec0642e512f09921aae30f63";
 
