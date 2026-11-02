@@ -14,7 +14,11 @@ is a true control: same aircraft, same signal, same moment.
 ## Why the first sweep does not decide this
 
 The 2026-11-01 sweep (16, 18, 20, 21, auto; 15 minutes each) was enough
-to retune the configured gain, but not to rank gains against each other:
+to replace the configured gain of 16 with `auto`: 16 was the only step
+where the Airspy did no better than the RTL, 20 was the best fixed step,
+21 added about 4 dB of noise for no gain in weak-signal SNR, and `auto`
+settled at 20 within a minute. It was not enough to rank gains against
+each other:
 
 - **The control moved.** `tar1090_rtlsdr` was in autogain1090's two-hour
   initial period and moved between 36.4 and 40.2 dB during every step,
@@ -48,15 +52,15 @@ to retune the configured gain, but not to rank gains against each other:
   `/opt/adsb/data/tar1090_rtlsdr/globe_history/autogain/`, and
   `docker logs tar1090_rtlsdr | grep "tuner gain set"` shows no recent
   change.
-- The configured Airspy gain from the first sweep is deployed. Call it
-  `G`; it is the baseline.
+- `AIRSPY_ADSB_RF_GAIN=auto` is deployed; it is the baseline. Check the
+  gain it reports in `stats.json` has held steady before starting.
 - Run during a busy traffic period and outside nearby thunderstorm
   activity, so the far bands have enough samples.
 
 ## Method
 
-**Steps.** `G`, `G+2`, `G-1`, `auto`, `G+1`, `G-2`, `G` (clamped to
-0..21). About 2 h 40 min in total.
+**Steps.** `auto`, `21`, `18`, `20`, `19`, `auto`: the fixed values
+bracket where `auto` settled (20). About 2 h 20 min in total.
 
 **Collector.** Every 5 seconds, for both `tar1090_airspy` and
 `tar1090_rtlsdr`, append one line per aircraft from `aircraft.json`:
@@ -90,8 +94,8 @@ used.
 - [ ] 2.1 Collector script, with the preflight tool check and gain/phase
       tagging.
 - [ ] 2.2 Analysis script producing the per-step metrics above.
-- [ ] 2.3 Dry run: one minute at `G`, no gain change, analysis end to
-      end.
+- [ ] 2.3 Dry run: one minute at `auto`, no gain change, analysis end
+      to end.
 - [ ] 2.4 Full run with the RTL autogain suspended; resume it afterwards.
 - [ ] 2.5 Decide `auto` versus a fixed gain from the far-band and
       acquisition results.
@@ -101,7 +105,9 @@ used.
 ## Out of scope
 
 - An autogain in the airspy_adsb container.
-- Sample rate (`AIRSPY_ADSB_SAMPLE_RATE` 12 vs 20 MSPS); a separate run,
-  only worth doing once the gain is settled.
+- Sample rate (`AIRSPY_ADSB_SAMPLE_RATE`). The device is an Airspy R2
+  (firmware "AirSpy NOS", native 10 / 2.5 MSPS), so the current 20 MSPS
+  is supported and 24 is available; a separate run, only worth doing
+  once the gain is settled.
 - Repointing the ADS-B Grafana dashboard's local-signal panels, which
   went blank when ultrafeeder became network-only.
