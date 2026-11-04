@@ -455,7 +455,7 @@
     },
     {
       "id": "nixpkgs-open-webui-mcp2",
-      "done": false,
+      "done": true,
       "summary": "The mcp 1.29 -> 2.2 bump (nixpkgs PR #575004) broke open-webui 0.12.3 at RUNTIME: open_webui/utils/mcp/client.py imports `streamablehttp_client` from mcp.client.streamable_http, which mcp 2 removed. The build and pythonImportsCheck pass; the service crash-loops on startup (fredhub hit 100+ restarts and a flapping alert). Affects maranello and fredhub (unstable open-webui).",
       "repo": "NixOS/nixpkgs",
       "check": "pkgs-min-version",
@@ -464,7 +464,7 @@
       "min_version": null,
       "tracking": ["https://github.com/NixOS/nixpkgs/pull/575004"],
       "workaround": "features/ai/lammacpp/default.nix -- `openwebPackage` let-binding that overrides open-webui's own python3Packages scope with `mcp = mcp_1` (as nixpkgs does for music-assistant), gated on mcp being >= 2 (see FIXME(nixpkgs-open-webui-mcp2)). Lives in the feature module, not overlays/, because fredhub supplies open-webui from its own `import inputs.nixpkgs { }` which overlays never reach.",
-      "revert_action": "BLOCKED: no upstream issue/PR yet; file one against nixpkgs (or find the open-webui release that supports mcp 2), then set upstream_pr / min_version. To revert: delete the `openwebPackage` let-binding and its FIXME in features/ai/lammacpp/default.nix and point ExecStart back at cfg.openwebPackage. Confirm safe at RUNTIME, not just eval: build the new open-webui and run `open-webui serve` against a scratch DATA_DIR until /health returns ok, since the original break passed both build and import checks."
+      "revert_action": "DONE. open-webui 0.12.5 ported to the mcp 2 API (`from mcp import Client`, `streamable_http_client`), so the mcp_1 pin turned from fix into cause: fredhub crash-looped on `ImportError: cannot import name 'Client' from 'mcp'` (mcp 1.29.0) and nginx served 502. Deleted the `openwebPackage` let-binding and FIXME; ExecStart uses cfg.openwebPackage again. posthog is still meta.broken under mcp 2.3.0 but is no longer in open-webui's closure (unpinned open-webui evaluates and builds). Verified at runtime: the unpinned open-webui-0.12.5 (bsapvf6b...) served against a scratch DATA_DIR returned /health {\"status\":true}."
     }
   ]
 }
