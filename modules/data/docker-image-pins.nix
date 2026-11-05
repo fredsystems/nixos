@@ -84,7 +84,7 @@
 
       flightradar24 = "ghcr.io/sdr-enthusiasts/docker-flightradar24:latest-build-870@sha256:d1436b1f38650ddd9485be0343942026eb7837d552e587f4572065d9033f0f24";
 
-      piaware = "ghcr.io/sdr-enthusiasts/docker-piaware:latest-build-676@sha256:1d7f45f8cdf9834eb9f86d644f2cebb3df0494615dd76e71a61778decfe26909";
+      piaware = "ghcr.io/sdr-enthusiasts/docker-piaware:latest-build-678@sha256:414d4fe9b27f060003763d50c57ede1c887a7bc81c2c5b726ddb7149687b7f56";
 
       planefinder = "ghcr.io/sdr-enthusiasts/docker-planefinder:latest-build-553@sha256:53f34fb5514e521cc4afd5c90f2c94a88680b88733ec3c79265e350872e6f24d";
 
