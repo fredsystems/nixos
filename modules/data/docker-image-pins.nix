@@ -78,7 +78,7 @@
 
       adsbUltrafeeder = "ghcr.io/sdr-enthusiasts/docker-adsb-ultrafeeder:telegraf-build-985@sha256:99a9cf8ef7624f51acbc42b472af75ae6158ef1c7ef03aa27b508693f19218d8";
 
-      dump978 = "ghcr.io/sdr-enthusiasts/docker-dump978:telegraf-build-812@sha256:a58b6f14486667d2621bd51df0898816d7871c6a19daf15a6d85f8ec3a8c1f93";
+      dump978 = "ghcr.io/sdr-enthusiasts/docker-dump978:telegraf-build-814@sha256:d31f51df6e35fcc47731f60ba94225e82f0570493d21a59ad93c9d84de489547";
 
       adsbhub = "ghcr.io/sdr-enthusiasts/docker-adsbhub:latest-build-541@sha256:33202b3c60c4fdeaa8e49ffd137e39c6d746e232d0079c9f1dc07711efc82d6d";
 
