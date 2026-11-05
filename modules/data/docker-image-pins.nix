@@ -76,7 +76,7 @@
       # sdrhub host
       airspyAdsb = "ghcr.io/sdr-enthusiasts/airspy_adsb:latest-build-326@sha256:cd59e311d60732104318157b788ad06c2ade720b7c20ea031c92af4d8e39587d";
 
-      adsbUltrafeeder = "ghcr.io/sdr-enthusiasts/docker-adsb-ultrafeeder:telegraf-build-985@sha256:99a9cf8ef7624f51acbc42b472af75ae6158ef1c7ef03aa27b508693f19218d8";
+      adsbUltrafeeder = "ghcr.io/sdr-enthusiasts/docker-adsb-ultrafeeder:telegraf-build-987@sha256:91bafaafade95eff6df786a3febd401e0ad3d32fccd6706cde7ac16f76355de0";
 
       dump978 = "ghcr.io/sdr-enthusiasts/docker-dump978:telegraf-build-812@sha256:a58b6f14486667d2621bd51df0898816d7871c6a19daf15a6d85f8ec3a8c1f93";
 
