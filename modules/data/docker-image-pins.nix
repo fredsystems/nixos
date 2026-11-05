@@ -50,7 +50,7 @@
       # Shared by every host that imports profiles/adsb-hub.nix or
       # modules/services/adsb-docker-units.nix directly (sdrhub), via
       # modules/services/mk-dozzle-agent.nix.
-      dozzle = "amir20/dozzle:v11.4.0@sha256:d23d23ce02c8cc96416dfbad4a7de225d01fdc03ad310203d64d580034dd120d";
+      dozzle = "amir20/dozzle:v11.4.1@sha256:915a5acf91b01bb4d11de1fde7e30d55646211240269e4404c03a6f71c5fc91e";
 
       # acarshub + vdlmhub hosts
       xng = "ghcr.io/sdr-enthusiasts/docker-xng:latest-build-15@sha256:7b04d89d18a5cd499f9695dcb1387adf1a3988ac1d39b79f1034c247095bdf38";
