@@ -86,7 +86,7 @@
 
       piaware = "ghcr.io/sdr-enthusiasts/docker-piaware:latest-build-676@sha256:1d7f45f8cdf9834eb9f86d644f2cebb3df0494615dd76e71a61778decfe26909";
 
-      planefinder = "ghcr.io/sdr-enthusiasts/docker-planefinder:latest-build-553@sha256:53f34fb5514e521cc4afd5c90f2c94a88680b88733ec3c79265e350872e6f24d";
+      planefinder = "ghcr.io/sdr-enthusiasts/docker-planefinder:latest-build-555@sha256:c33bf5984fbedd936b00772fcf6a062d0666191dc2ea19918ccdc385fd72d328";
 
       planewatch = "ghcr.io/plane-watch/docker-plane-watch:v0.0.11@sha256:712b4cb7045ffb6b7b904981f287855264d8526becdc644b9bb2bd00bf25c658";
 
