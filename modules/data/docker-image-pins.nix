@@ -71,7 +71,7 @@
       dumphfdl = "ghcr.io/sdr-enthusiasts/docker-dumphfdl:latest-build-213@sha256:647d8f3407b033bc92f3b0c68296f37a27219d82d4f682d9bf2f3dcefccad10e";
 
       # hfdlhub2 host
-      hfdlobserver = "ghcr.io/sdr-enthusiasts/docker-hfdlobserver:latest-build-38@sha256:18e7a1b7f942fb9bfd9862994cfe7b4341006095758eb32d5f2a2b1ebe61c8c3";
+      hfdlobserver = "ghcr.io/sdr-enthusiasts/docker-hfdlobserver:latest-build-40@sha256:3ca292faecb0bdce797ed4d114c25f770b3f8a905a46b5dbb3ab49de35727539";
 
       # sdrhub host
       airspyAdsb = "ghcr.io/sdr-enthusiasts/airspy_adsb:latest-build-326@sha256:cd59e311d60732104318157b788ad06c2ade720b7c20ea031c92af4d8e39587d";
