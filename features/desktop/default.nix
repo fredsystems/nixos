@@ -28,6 +28,7 @@ in
     ./appimage
     ./audio
     ./brave
+    ./chatgpt
     ./clipboard
     ./discord
     ./firefox
@@ -70,6 +71,7 @@ in
       appimage.enable = cfg.enable_extra;
       audio.enable = true;
       brave.enable = true;
+      chatgpt.enable = true;
       clipboard.enable = true;
       discord.enable = cfg.enable_extra;
       environments.enable = true;
