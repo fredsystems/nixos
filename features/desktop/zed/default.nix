@@ -9,8 +9,44 @@
 let
   allUsers = [ user ] ++ extraUsers;
   cfg = config.desktop.zed;
+
+  # Two-digit hex alpha from the shared terminal opacity, so Zed matches the
+  # terminal emulators (0.95 -> "f2").
+  alphaHex =
+    let
+      hex = lib.toLower (lib.toHexString (builtins.floor (config.terminal.opacity * 255 + 0.5)));
+    in
+    if builtins.stringLength hex == 1 then "0${hex}" else hex;
+  clear = "#00000000";
+
+  # Zed draws every surface on top of the window `background`, so only that
+  # layer carries the opacity. The main surfaces are cleared to let it show
+  # through, and the chrome keeps a light tint so panels stay distinguishable.
+  # Popups (`elevated_surface`, `surface`) are left opaque for readability.
+  # Colours are the Catppuccin Mocha palette (base / mantle / crust).
+  mochaTransparency = {
+    "background.appearance" = if pkgs.stdenv.hostPlatform.isDarwin then "blurred" else "transparent";
+    background = "#1e1e2e${alphaHex}";
+
+    "editor.background" = clear;
+    "editor.gutter.background" = clear;
+    "terminal.background" = clear;
+    "toolbar.background" = clear;
+    "tab.active_background" = clear;
+    "scrollbar.track.background" = clear;
+
+    "panel.background" = "#18182580";
+    "editor.subheader.background" = "#18182580";
+    "tab_bar.background" = "#11111b80";
+    "tab.inactive_background" = "#11111b80";
+    "title_bar.background" = "#11111b80";
+    "title_bar.inactive_background" = "#11111b80";
+    "status_bar.background" = "#11111b80";
+  };
 in
 {
+  imports = [ ../../../modules/terminal/common.nix ];
+
   options.desktop.zed = {
     enable = lib.mkEnableOption "Zed editor";
   };
@@ -20,340 +56,355 @@ in
       owner = config.users.users.${user}.name;
     };
 
-    home-manager.users = lib.genAttrs allUsers (uname: {
-      # install packages
-      home.packages = with pkgs; [
-        (pkgs.writeShellScriptBin "zed" ''
-          set -a
-          source ${config.sops.secrets.openai_api.path}
-          set +a
-          exec ${pkgs.zed-editor}/bin/zeditor "$@"
-        '')
-        vtsls
-        # custom wrapper that feels bad but makes lsp work
-        (pkgs.writeShellScriptBin "vtsls-local" ''
-          exec ${lib.getExe pkgs.vtsls} --stdio
-        '')
-        ruff
-        (pkgs.writeShellScriptBin "ruff-local" ''
-          exec ${lib.getExe pkgs.ruff} server
-        '')
-        shellcheck
-        bash-language-server
-        (pkgs.writeShellScriptBin "bash-language-server-local" ''
-          exec ${lib.getExe pkgs.bash-language-server} start
-        '')
-        shfmt
-        dockerfile-language-server
-        (pkgs.writeShellScriptBin "dockerfile-language-server-local" ''
-          exec ${lib.getExe pkgs.dockerfile-language-server} --stdio
-        '')
-        ansible-lint
-        crates-lsp
-        vscode-json-languageserver
-        (pkgs.writeShellScriptBin "jsonls-local" ''
-          exec ${lib.getExe pkgs.vscode-json-languageserver} --stdio
-        '')
-        package-version-server
-        lua-language-server
-      ];
-      catppuccin.zed = {
-        enable = true;
-        icons.enable = true;
-        italics = true;
-      };
-      programs.zed-editor = {
-        enable = true;
-        extensions = [
-          "nix"
-          "toml"
-          "tombi"
-          "rust"
-          "python"
-          "markdown"
-          "yaml"
-          "basher"
-          "dockerfile"
-          "scss"
-          "lua"
-          "ini"
-          "ansible"
-          "crates-lsp"
-          "json"
-          "json5"
-          "css"
-          "markdown"
-          "markdownlint"
-          "git-firefly"
-          "xml"
-          "just"
-          "sql"
-          "log"
-          "fish"
-          "glsl"
+    home-manager.users = lib.genAttrs allUsers (
+      uname: hm:
+      let
+        cz = hm.config.catppuccin.zed;
+        # Mirrors the theme name the catppuccin zed module selects.
+        themeName =
+          "Catppuccin Mocha"
+          + lib.optionalString (cz.accent != "mauve") " (${cz.accent})"
+          + lib.optionalString (!cz.italics) " - No Italics";
+      in
+      {
+        # install packages
+        home.packages = with pkgs; [
+          (pkgs.writeShellScriptBin "zed" ''
+            set -a
+            source ${config.sops.secrets.openai_api.path}
+            set +a
+            exec ${pkgs.zed-editor}/bin/zeditor "$@"
+          '')
+          vtsls
+          # custom wrapper that feels bad but makes lsp work
+          (pkgs.writeShellScriptBin "vtsls-local" ''
+            exec ${lib.getExe pkgs.vtsls} --stdio
+          '')
+          ruff
+          (pkgs.writeShellScriptBin "ruff-local" ''
+            exec ${lib.getExe pkgs.ruff} server
+          '')
+          shellcheck
+          bash-language-server
+          (pkgs.writeShellScriptBin "bash-language-server-local" ''
+            exec ${lib.getExe pkgs.bash-language-server} start
+          '')
+          shfmt
+          dockerfile-language-server
+          (pkgs.writeShellScriptBin "dockerfile-language-server-local" ''
+            exec ${lib.getExe pkgs.dockerfile-language-server} --stdio
+          '')
+          ansible-lint
+          crates-lsp
+          vscode-json-languageserver
+          (pkgs.writeShellScriptBin "jsonls-local" ''
+            exec ${lib.getExe pkgs.vscode-json-languageserver} --stdio
+          '')
+          package-version-server
+          lua-language-server
         ];
-        mutableUserSettings = false;
-        userSettings = {
-          journal = {
-            hour_format = "hour24";
-          };
-
-          show_edit_predictions = true;
-          edit_predictions = {
-            provider = "copilot";
-          };
-
-          load_direnv = "shell_hook";
-          base_keymap = "VSCode";
-          show_whitespaces = "all";
-          ui_font_size = 14;
-          buffer_font_size = 14;
-
-          # When opening a path from the CLI (e.g. `c` -> `zed .`) while
-          # another Zed window is already open, reuse that window as a
-          # new workspace tab instead of spawning a separate window.
-          # Suppresses the "Add to existing / Open new window" prompt.
-          cli_default_open_behavior = "existing_window";
-
-          # Zed flipped the upstream default for the project / outline / git /
-          # collaboration panels to "right" (see assets/settings/default.json
-          # in zed v0.233.10). Pin the file tree back to the left.
-          project_panel.dock = "left";
-          outline_panel.dock = "left";
-          git_panel.dock = "left";
-          collaboration_panel.dock = "left";
-
-          ##########################################################################
-          # AI / Agent configuration (THIS IS THE ONLY VALID AI TOP-LEVEL KEY)
-          ##########################################################################
-          agent = {
-            tool_permissions = {
-              default = "allow";
+        catppuccin.zed = {
+          enable = true;
+          icons.enable = true;
+          italics = true;
+        };
+        programs.zed-editor = {
+          enable = true;
+          extensions = [
+            "nix"
+            "toml"
+            "tombi"
+            "rust"
+            "python"
+            "markdown"
+            "yaml"
+            "basher"
+            "dockerfile"
+            "scss"
+            "lua"
+            "ini"
+            "ansible"
+            "crates-lsp"
+            "json"
+            "json5"
+            "css"
+            "markdown"
+            "markdownlint"
+            "git-firefly"
+            "xml"
+            "just"
+            "sql"
+            "log"
+            "fish"
+            "glsl"
+          ];
+          mutableUserSettings = false;
+          userSettings = {
+            journal = {
+              hour_format = "hour24";
             };
 
-            default_model = {
-              provider = "copilot_chat";
-              model = "gpt-4o";
+            show_edit_predictions = true;
+            edit_predictions = {
+              provider = "copilot";
             };
 
-            inline_alternatives = [
-              {
+            load_direnv = "shell_hook";
+            base_keymap = "VSCode";
+            show_whitespaces = "all";
+            theme_overrides = lib.optionalAttrs (cz.flavor == "mocha") {
+              ${themeName} = mochaTransparency;
+            };
+
+            ui_font_size = 14;
+            buffer_font_size = 14;
+
+            # When opening a path from the CLI (e.g. `c` -> `zed .`) while
+            # another Zed window is already open, reuse that window as a
+            # new workspace tab instead of spawning a separate window.
+            # Suppresses the "Add to existing / Open new window" prompt.
+            cli_default_open_behavior = "existing_window";
+
+            # Zed flipped the upstream default for the project / outline / git /
+            # collaboration panels to "right" (see assets/settings/default.json
+            # in zed v0.233.10). Pin the file tree back to the left.
+            project_panel.dock = "left";
+            outline_panel.dock = "left";
+            git_panel.dock = "left";
+            collaboration_panel.dock = "left";
+
+            ##########################################################################
+            # AI / Agent configuration (THIS IS THE ONLY VALID AI TOP-LEVEL KEY)
+            ##########################################################################
+            agent = {
+              tool_permissions = {
+                default = "allow";
+              };
+
+              default_model = {
                 provider = "copilot_chat";
                 model = "gpt-4o";
-              }
-              {
-                provider = "ollama";
-                model = "qwen2.5-coder:7b";
-              }
-              {
-                provider = "ollama";
-                model = "deepseek-coder-v2:latest";
-              }
-              {
-                provider = "zed.dev";
-                model = "claude-3-5-sonnet-latest";
-              }
-            ];
-          };
+              };
 
-          ##########################################################################
-          # Language model backends
-          ##########################################################################
-          language_models = {
-            ollama = {
-              api_url = "http://fredhub.local:11434";
-
-              available_models = [
+              inline_alternatives = [
                 {
-                  name = "qwen3-coder";
-                  display_name = "Qwen 3 Coder (FredHub)";
-                  max_tokens = 100000;
-                  supports_tools = true;
-                  supports_thinking = false;
-                  supports_images = false;
+                  provider = "copilot_chat";
+                  model = "gpt-4o";
                 }
                 {
-                  name = "qwen2.5-coder:7b";
-                  display_name = "Qwen 2.5 Coder (FredHub)";
-                  max_tokens = 32000;
-                  supports_tools = true;
-                  supports_thinking = false;
-                  supports_images = false;
+                  provider = "ollama";
+                  model = "qwen2.5-coder:7b";
                 }
                 {
-                  name = "deepseek-coder-v2:latest";
-                  display_name = "DeepSeek Coder V2 (FredHub)";
-                  max_tokens = 128000;
-                  supports_tools = true;
-                  supports_thinking = false;
-                  supports_images = false;
+                  provider = "ollama";
+                  model = "deepseek-coder-v2:latest";
+                }
+                {
+                  provider = "zed.dev";
+                  model = "claude-3-5-sonnet-latest";
                 }
               ];
             };
-          };
 
-          ##########################################################################
-          # Node (used by LSPs and extensions)
-          ##########################################################################
-          node = {
-            path = "${lib.getExe pkgs.nodejs}";
-            npm_path = "${lib.getExe' pkgs.nodejs "npm"}";
-          };
+            ##########################################################################
+            # Language model backends
+            ##########################################################################
+            language_models = {
+              ollama = {
+                api_url = "http://fredhub.local:11434";
 
-          ##########################################################################
-          # Terminal
-          ##########################################################################
-          terminal = {
-            alternate_scroll = "off";
-            blinking = "off";
-            copy_on_select = false;
-            dock = "bottom";
-
-            detect_venv = {
-              on = {
-                directories = [
-                  ".env"
-                  "env"
-                  ".venv"
-                  "venv"
+                available_models = [
+                  {
+                    name = "qwen3-coder";
+                    display_name = "Qwen 3 Coder (FredHub)";
+                    max_tokens = 100000;
+                    supports_tools = true;
+                    supports_thinking = false;
+                    supports_images = false;
+                  }
+                  {
+                    name = "qwen2.5-coder:7b";
+                    display_name = "Qwen 2.5 Coder (FredHub)";
+                    max_tokens = 32000;
+                    supports_tools = true;
+                    supports_thinking = false;
+                    supports_images = false;
+                  }
+                  {
+                    name = "deepseek-coder-v2:latest";
+                    display_name = "DeepSeek Coder V2 (FredHub)";
+                    max_tokens = 128000;
+                    supports_tools = true;
+                    supports_thinking = false;
+                    supports_images = false;
+                  }
                 ];
-                activate_script = "default";
               };
             };
 
-            env = {
-              TERM = "wezterm";
+            ##########################################################################
+            # Node (used by LSPs and extensions)
+            ##########################################################################
+            node = {
+              path = "${lib.getExe pkgs.nodejs}";
+              npm_path = "${lib.getExe' pkgs.nodejs "npm"}";
             };
 
-            font_family = "Fira Code";
-            font_features = null;
-            font_size = null;
-            line_height = "comfortable";
-            option_as_meta = false;
-            button = false;
-            shell = "system";
+            ##########################################################################
+            # Terminal
+            ##########################################################################
+            terminal = {
+              alternate_scroll = "off";
+              blinking = "off";
+              copy_on_select = false;
+              dock = "bottom";
 
-            toolbar = {
-              breadcrumbs = true;
-            };
-
-            working_directory = "current_project_directory";
-          };
-
-          ##########################################################################
-          # Language formatting
-          ##########################################################################
-          languages = {
-            CSS = {
-              tab_size = 2;
-              formatter = "prettier";
-            };
-            SCSS = {
-              tab_size = 2;
-              formatter = "prettier";
-            };
-            JSON = {
-              tab_size = 2;
-              formatter = "prettier";
-            };
-            YAML = {
-              tab_size = 2;
-            };
-            Markdown = {
-              tab_size = 2;
-            };
-            Python = {
-              language_servers = [
-                "!ruff"
-                "pyright"
-              ];
-            };
-
-            Nix = {
-              language_servers = [
-                "nixd"
-                "!nil"
-              ];
-            };
-
-            # Bash = {
-            #   language_servers = [ "bash-language-server" ];
-            # };
-          };
-
-          ##########################################################################
-          # LSP configuration
-          ##########################################################################
-          lsp = {
-            rust-analyzer = {
-              binary = {
-                path = "${lib.getExe pkgs.rust-analyzer}";
-              };
-
-              initialization_options = {
-                check = {
-                  command = "clippy";
+              detect_venv = {
+                on = {
+                  directories = [
+                    ".env"
+                    "env"
+                    ".venv"
+                    "venv"
+                  ];
+                  activate_script = "default";
                 };
               };
 
-              settings = {
-                # check = {
-                #   command = "clippy";
+              env = {
+                TERM = "wezterm";
+              };
 
-                #   # Zed only supports `features` OR `--all-features`, not both
-                #   features = null;
+              font_family = "Fira Code";
+              font_features = null;
+              font_size = null;
+              line_height = "comfortable";
+              option_as_meta = false;
+              button = false;
+              shell = "system";
 
-                #   # Everything else must go here
-                #   extraArgs = [
-                #     "--all-targets"
-                #     "--all-features"
-                #     "--"
-                #     "-D"
-                #     "warnings"
-                #   ];
-                # };
+              toolbar = {
+                breadcrumbs = true;
+              };
 
-                cargo.buildScripts.enable = true;
+              working_directory = "current_project_directory";
+            };
 
-                diagnostics = {
-                  enable = true;
-                  styleLints.enable = true;
+            ##########################################################################
+            # Language formatting
+            ##########################################################################
+            languages = {
+              CSS = {
+                tab_size = 2;
+                formatter = "prettier";
+              };
+              SCSS = {
+                tab_size = 2;
+                formatter = "prettier";
+              };
+              JSON = {
+                tab_size = 2;
+                formatter = "prettier";
+              };
+              YAML = {
+                tab_size = 2;
+              };
+              Markdown = {
+                tab_size = 2;
+              };
+              Python = {
+                language_servers = [
+                  "!ruff"
+                  "pyright"
+                ];
+              };
+
+              Nix = {
+                language_servers = [
+                  "nixd"
+                  "!nil"
+                ];
+              };
+
+              # Bash = {
+              #   language_servers = [ "bash-language-server" ];
+              # };
+            };
+
+            ##########################################################################
+            # LSP configuration
+            ##########################################################################
+            lsp = {
+              rust-analyzer = {
+                binary = {
+                  path = "${lib.getExe pkgs.rust-analyzer}";
                 };
 
-                procMacro.enable = true;
-                rustc.source = "discover";
+                initialization_options = {
+                  check = {
+                    command = "clippy";
+                  };
+                };
+
+                settings = {
+                  # check = {
+                  #   command = "clippy";
+
+                  #   # Zed only supports `features` OR `--all-features`, not both
+                  #   features = null;
+
+                  #   # Everything else must go here
+                  #   extraArgs = [
+                  #     "--all-targets"
+                  #     "--all-features"
+                  #     "--"
+                  #     "-D"
+                  #     "warnings"
+                  #   ];
+                  # };
+
+                  cargo.buildScripts.enable = true;
+
+                  diagnostics = {
+                    enable = true;
+                    styleLints.enable = true;
+                  };
+
+                  procMacro.enable = true;
+                  rustc.source = "discover";
+                };
               };
-            };
 
-            crates-lsp = {
-              binary.path = "${lib.getExe pkgs.crates-lsp}";
-            };
+              crates-lsp = {
+                binary.path = "${lib.getExe pkgs.crates-lsp}";
+              };
 
-            nixd.binary.path = "${lib.getExe pkgs.nixd}";
+              nixd.binary.path = "${lib.getExe pkgs.nixd}";
 
-            vtsls = {
-              binary.path = "/etc/profiles/per-user/${uname}/bin/vtsls-local";
-            };
+              vtsls = {
+                binary.path = "/etc/profiles/per-user/${uname}/bin/vtsls-local";
+              };
 
-            ruff = {
-              binary.path = "/etc/profiles/per-user/${uname}/bin/ruff-local";
-            };
+              ruff = {
+                binary.path = "/etc/profiles/per-user/${uname}/bin/ruff-local";
+              };
 
-            bash-language-server.binary.path = "/etc/profiles/per-user/${uname}/bin/bash-language-server-local";
+              bash-language-server.binary.path = "/etc/profiles/per-user/${uname}/bin/bash-language-server-local";
 
-            shellcheck.binary.path = "${lib.getExe pkgs.shellcheck}";
-            shfmt.binary.path = "${lib.getExe pkgs.shfmt}";
+              shellcheck.binary.path = "${lib.getExe pkgs.shellcheck}";
+              shfmt.binary.path = "${lib.getExe pkgs.shfmt}";
 
-            dockerfile-language-server.binary.path = "/etc/profiles/per-user/${uname}/bin/dockerfile-language-server-local";
+              dockerfile-language-server.binary.path = "/etc/profiles/per-user/${uname}/bin/dockerfile-language-server-local";
 
-            markdownlint.settings = {
-              MD013 = false;
-              MD033 = false;
-              MD060 = false;
+              markdownlint.settings = {
+                MD013 = false;
+                MD033 = false;
+                MD060 = false;
+              };
             };
           };
         };
-      };
-    });
+      }
+    );
   };
 }
