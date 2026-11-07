@@ -3,9 +3,10 @@
   ...
 }:
 {
-  # Idle timings the shell applies inside a user session, kept here rather
-  # than in the shell's own settings so other parts of the desktop can
-  # follow the same schedule.
+  # One idle policy for the whole seat. The shell applies it inside a user
+  # session, and ../greeter-idle.nix applies the same screen-off and suspend
+  # times at the login screen, so a machine left at the greeter (after a
+  # reboot or a logout) sleeps exactly like one left logged in.
   options.desktop.environments.shell.idleTimeouts = {
     lock = lib.mkOption {
       type = lib.types.ints.positive;

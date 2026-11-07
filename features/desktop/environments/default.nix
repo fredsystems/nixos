@@ -20,6 +20,7 @@ in
   imports = [
     ./common.nix
     ./cosmic
+    ./greeter-idle.nix
     ./gnome
     ./hyprland
     ./modules
