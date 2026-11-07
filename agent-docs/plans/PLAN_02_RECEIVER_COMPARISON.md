@@ -1,8 +1,8 @@
 # Plan 02: ADS-B receiver comparison
 
-- **Status:** planned
-- **Branches:** none yet. This repo: `feat/receiver-comparison`. Tool:
-  `fredsystems/beast-compare` (new repo).
+- **Status:** in progress
+- **Branches:** this repo `feat/receiver-comparison`. Tool:
+  `fredsystems/beast-compare` (new repo), `feat/recorder` (2.1-2.2).
 
 ## Goal
 
@@ -64,6 +64,7 @@ amp, rated 54-1220 MHz), behind the Nooelec Sawbird 1090/UAT LNA.
 | Source requirements  | Each source is one decoder's unreduced Beast output. Never an aggregator such as ultrafeeder's 30005.      |
 | Tool home            | Separate repo, `fredsystems/beast-compare`, consumed here as a flake input that follows `nixpkgs-stable`.  |
 | Language             | Python: pyModeS (decoding, CPR), polars (matching, binning), plotly (static HTML report), zstandard.       |
+| Tool checks          | precommit-base's Python bundle (black, flake8), mypy `--strict`, pytest; CI runs `nix flake check`.        |
 | Tool shape           | Two commands: `record` (long-running, on sdrhub) and `compare` (offline, any recorded window).             |
 | Where it runs        | `record` as a systemd service on sdrhub. `compare` on a workstation (sdrhub has 15 GB RAM, mostly in use). |
 | Storage              | `/opt/adsb/data/beast-compare/<run-id>/`. About 1-2 GB/day compressed for four receivers; 265 GB free.     |
@@ -78,7 +79,10 @@ Beast `host:port`, a stats source, and free-form metadata (SDR model,
 attenuation, splitter port, host). Per receiver it:
 
 - Keeps one TCP connection open, reconnecting with backoff, and logs
-  every disconnect with its time span.
+  every disconnect with its time span. It never half-closes the
+  connection: readsb drops a client that does.
+- Drops readsb's all-zero Mode A/C heartbeat frames, counting them in
+  the disconnect event.
 - Writes hourly zstd files of records `[u64 arrival_unix_ns][u8 len][frame]`,
   where `frame` is the unescaped Beast frame (type, 6-byte timestamp,
   signal, payload). Frames are kept raw so the analysis can change
@@ -96,17 +100,27 @@ mode, attenuator, port) means a new run, never an edit.
 1. **Decode** every frame: DF, address (from the ICAO field or the CRC
    parity overlay), type code.
 2. **Align clocks.** Each receiver stamps frames with its own counter.
-   For every receiver, fit offset and rate against the Airspy, piecewise
-   per 60 s window, from messages that are effectively unique (DF17
-   airborne position and velocity). Do not assume a 12 MHz rate; fit it.
-   Detect discontinuities (decoder restarts, sample drops) and start a
-   new segment at each one. Arrival time on the recorder only serves as
-   a coarse window (a few seconds), so receivers on other hosts need
-   nothing beyond normal NTP.
+   For every receiver, fit offset and rate against the Airspy, piecewise,
+   from long messages that appear once in each receiver's window. Do not
+   assume a 12 MHz rate; fit it. The fit must be robust to outliers:
+   some "unique" pairs are two different transmissions of identical
+   content, each heard by only one receiver, and are off by up to
+   seconds. Detect discontinuities (decoder restarts, sample drops) and
+   start a new segment at each one. Arrival time on the recorder only
+   serves as a coarse window (a few seconds), so receivers on other
+   hosts need nothing beyond normal NTP.
 3. **Cluster.** Frames with identical bytes and aligned timestamps
-   within tolerance (start at 20 us, tune from residuals) are one
-   transmission. Clock alignment is what separates genuine repeats of
-   identical content, such as DF11 squitters and DF17 identification.
+   within tolerance are one transmission. Clock alignment is what
+   separates genuine repeats of identical content, such as DF11
+   squitters and DF17 identification. Set the tolerance from the fit
+   residuals; a few microseconds is expected (see the probe below).
+
+**Feasibility probe (2026-11-07).** 60 s captured from both decoders at
+once: 23,340 Airspy and 19,128 Pro Stick Plus frames, both with 12 MHz
+counters, the Pro Stick's running 124 ppm off. 4,047 long messages
+paired one-to-one. One least-squares line over the minute was useless
+(median residual 1.9 ms), dragged by mismatched pairs up to 14 s out;
+fitted per 1 s window, the median absolute residual was 0.045 us.
 
 ### Attributing positions
 
@@ -190,12 +204,12 @@ move hardware or need it left alone for days.
 
 ### Recorder
 
-- [ ] **2.1 Tool repo skeleton.** New `fredsystems/beast-compare`: a
+- [x] **2.1 Tool repo skeleton.** New `fredsystems/beast-compare`: a
       flake exporting the package and a dev shell, a `beast-compare`
       entry point with `record` and `compare` subcommands (stubs),
-      pytest, ruff and mypy strict, the `fredsystems/precommit-base`
-      hooks, and CI running all of them.
-- [ ] **2.2 Beast parser and `record`.** Streaming parser (0x1a
+      pytest, mypy strict, the `fredsystems/precommit-base` hooks, and
+      CI running all of them.
+- [x] **2.2 Beast parser and `record`.** Streaming parser (0x1a
       escaping, frame types 1-3, unknown types kept), the YAML config,
       per-receiver connections with reconnect and backoff, hourly zstd
       record files, `stats.jsonl` polling, and the run manifest. Tests:
