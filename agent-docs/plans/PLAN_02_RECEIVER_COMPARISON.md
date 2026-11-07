@@ -59,7 +59,7 @@ amp, rated 54-1220 MHz), behind the Nooelec Sawbird 1090/UAT LNA.
 | Reference set        | The union of transmissions any receiver decoded. Rates are relative to it (see Limits).                    |
 | Receiver count       | Any number, from configuration. Nothing in the tool is pairwise-only.                                      |
 | Gain policy          | Every receiver on its own autogain: Airspy `auto`, RTLs readsb `auto` (`READSB_GAIN = "auto"`).            |
-| Attenuation          | Per receiver, inline at the dongle, until its autogain sits off its floor. Recorded as receiver metadata.  |
+| Attenuation          | Per receiver, only where measured to help (see below). Recorded as receiver metadata.                     |
 | Port fairness        | Ports rotated between runs (cyclic Latin square). Cables stay with ports; attenuators stay with receivers. |
 | Run length           | At least 48 h per port assignment, so every hour of the traffic cycle is in every assignment.             |
 | Decoder confound     | Accepted. The comparison is of receiver chains (SDR plus decoder). The three RTLs share readsb.            |
@@ -195,9 +195,22 @@ set) when the receiver:
 
 - is disconnected, or between clock segments;
 - reports dropped samples or lost buffers;
-- has its gain pinned at its lowest step (it is clipping, as the Pro
-  Stick Plus was at 0 dB on 2026-11-07) or at its highest: readsb 0 and
-  49.6 dB, airspy_adsb 0 and 21.
+- is overloaded (readsb only): a noise floor above -20 dBFS, or more
+  than 10 % of its messages above -3 dBFS. airspy_adsb reports neither.
+
+Overload is judged from clipping, not from the gain: a receiver at the
+bottom of its gain range is not necessarily overloaded (see the
+attenuator test below). The first version of this rule excluded any
+minute at the gain floor, which threw out 96 % of the Pro Stick's
+healthy minutes.
+
+**Attenuator test (2026-11-07).** The Pro Stick Plus at 0 dB, without
+attenuation, had a -31 dBFS noise floor and 2.7 % strong messages: not
+clipping. With 10 dB inline its autogain rose to 3.7 dB but its noise
+floor stayed at -30 dBFS, set by the stick's own LNA, and its message
+rate relative to the Airspy fell from 0.850 to 0.795 (48 and 35 minutes,
+about six standard errors). It runs without an attenuator. The v3 and v4
+have no LNA of their own and are tested the same way when they arrive.
 
 A receiver valid for under 90 % of a run is reported, but its results
 are marked not comparable.
@@ -273,11 +286,12 @@ move hardware or need it left alone for days.
       answers.
 - [x] **2.11 Report.** The HTML report and parquet output described
       above.
-- [ ] **2.12 Two-receiver baseline.** Preconditions: the 10 dB
-      attenuator is fitted to the Pro Stick Plus (add 10 dB more if its
-      gain still settles at 0), and both autogains have been off their
-      floors for 24 h. Record 48 h, swap the two receivers' ports, and
-      record 48 h more. Run `compare` on each half and on the pair pooled.
+- [ ] **2.12 Two-receiver baseline.** Preconditions: neither receiver
+      attenuated, each splitter port recorded in its metadata, and both
+      valid (not overloaded) over the preceding 24 h of the dry run.
+      Record 48 h, swap the two receivers' ports, and record 48 h more,
+      each half under its own `runId`. Run `compare` on each half and on
+      the pair pooled.
 
 ### Four receivers
 
@@ -290,7 +304,8 @@ move hardware or need it left alone for days.
       4-port USB hub is full, so its dongle goes on a root port.
       Confirm the v4 is detected by the image's driver (the v4's R828D
       tuner needs the RTL-SDR Blog driver). Add both to the recorder
-      config, then attenuate each until its gain is off the floor.
+      config. Test 10 dB of attenuation on each against none, as the Pro
+      Stick was tested, and keep whichever decodes more.
 - [ ] **2.14 Four-receiver dry run.** Repeat 2.4 with all four sources,
       including the remote hosts.
 - [ ] **2.15 Four-receiver run.** Four port assignments (cyclic Latin
