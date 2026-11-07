@@ -1,7 +1,9 @@
 {
   config,
+  inputs,
   stateVersion,
   lib,
+  pkgs,
   ...
 }:
 let
@@ -663,6 +665,7 @@ in
     ../../../modules/services/tailscale
     ../../../modules/hardware/usbfs.nix
     ../../../modules/data/docker-image-pins.nix
+    ../../../modules/services/beast-compare.nix
     ./home-ip-drift.nix
   ];
 
@@ -772,6 +775,40 @@ in
   };
 
   services = {
+    ###########################################
+    # beast-compare recorder
+    ###########################################
+    # Plan 02: record every 1090 receiver on the shared antenna. Change runId
+    # whenever the setup changes (a receiver, an attenuator, a splitter
+    # port); see modules/services/beast-compare.nix.
+    beastCompare = {
+      enable = true;
+      package = inputs.beast-compare.packages.${pkgs.stdenv.hostPlatform.system}.default;
+      runId = "2026-11-dryrun";
+      receivers = [
+        {
+          name = "airspy";
+          beast = "127.0.0.1:30105";
+          statsFile = "/opt/adsb/data/airspy_adsb/stats.json";
+          metadata = {
+            sdr = "Airspy R2";
+            decoder = "airspy_adsb";
+            attenuation_db = "0";
+          };
+        }
+        {
+          name = "fa-proplus";
+          beast = "127.0.0.1:30106";
+          statsUrl = "http://127.0.0.1:8089/data/stats.json";
+          metadata = {
+            sdr = "FlightAware Pro Stick Plus";
+            decoder = "readsb (tar1090_rtlsdr)";
+            attenuation_db = "0";
+          };
+        }
+      ];
+    };
+
     ###########################################
     # Unbound DNS Resolver
     ###########################################
@@ -1088,6 +1125,11 @@ in
           "c 189:* rwm"
         ];
 
+        # Raw Beast output for the beast-compare recorder, loopback only.
+        ports = [
+          "127.0.0.1:30105:30005"
+        ];
+
         volumes = [
           "/dev:/dev"
           "/opt/adsb/data/airspy_adsb:/run/airspy_adsb"
@@ -1186,6 +1228,8 @@ in
 
         ports = [
           "8089:80"
+          # Raw Beast output for the beast-compare recorder, loopback only.
+          "127.0.0.1:30106:30005"
         ];
 
         volumes = [

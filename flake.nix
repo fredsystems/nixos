@@ -195,6 +195,19 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    # ADS-B receiver comparison recorder (plan 02). Only sdrhub runs it, and
+    # sdrhub is a stable-channel server, so it follows nixpkgs-stable.
+    beast-compare = {
+      url = "github:fredsystems/beast-compare";
+      #path on disk
+      #url = "git+file:/home/fred/GitHub/beast-compare";
+      inputs = {
+        nixpkgs.follows = "nixpkgs-stable";
+        flake-utils.follows = "flake-utils";
+        precommit-base.follows = "precommit-base";
+      };
+    };
+
     # wallpapers
 
     walls-catppuccin = {

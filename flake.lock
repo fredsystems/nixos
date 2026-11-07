@@ -1,5 +1,31 @@
 {
   "nodes": {
+    "beast-compare": {
+      "inputs": {
+        "flake-utils": [
+          "flake-utils"
+        ],
+        "nixpkgs": [
+          "nixpkgs-stable"
+        ],
+        "precommit-base": [
+          "precommit-base"
+        ]
+      },
+      "locked": {
+        "lastModified": 1794072195,
+        "narHash": "sha256-gJF2Cq0k3gRip7PrQnUcOLK44GjLIx3UThoKLQWtByY=",
+        "owner": "fredsystems",
+        "repo": "beast-compare",
+        "rev": "84f894f275957adea348967196f41f1b53ea5c70",
+        "type": "github"
+      },
+      "original": {
+        "owner": "fredsystems",
+        "repo": "beast-compare",
+        "type": "github"
+      }
+    },
     "cargo-bundle-src": {
       "flake": false,
       "locked": {
@@ -1261,6 +1287,7 @@
     },
     "root": {
       "inputs": {
+        "beast-compare": "beast-compare",
         "catppuccin": "catppuccin",
         "catppuccin-stable": "catppuccin-stable",
         "colmena": "colmena",
