@@ -1169,9 +1169,12 @@ in
         environment = {
           READSB_DEVICE_TYPE = "rtlsdr";
           READSB_RTLSDR_DEVICE = "00001090";
-          READSB_GAIN = "autogain";
-          # Where ultrafeeder's autogain had settled for this dongle.
-          READSB_AUTOGAIN_INITIAL_GAIN = "44.5";
+          # readsb's built-in autogain, not the container's legacy "autogain"
+          # script. The legacy script moves one gain step per run and only
+          # reassesses daily, so when the 1090/UAT LNA went in ahead of the
+          # powered splitter it sat at 36.4 dB with the ADC clipping (noise
+          # -2 dBFS, ~0 msg/s) for hours. readsb's adjusts continuously.
+          READSB_GAIN = "auto";
           TAR1090_PAGETITLE = "sdrhub - rtlsdr";
           TAR1090_SITESHOW = "true";
           TAR1090_ENABLE_AC_DB = "true";
