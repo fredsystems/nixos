@@ -1,10 +1,11 @@
 # Plan 02: ADS-B receiver comparison
 
 - **Status:** in progress
-- **Branches:** this repo `feat/receiver-comparison` (local). Tool:
-  `fredsystems/beast-compare`, `main` (2.1-2.2, published) and
-  `feat/analysis` (2.5-2.11, local). Nothing more is pushed until the
-  plan is ready for its PR (2.16).
+- **Branches:** this repo `feat/receiver-comparison` (2.3, the dry run
+  and the baseline run config), merged ahead of the rest so that sdrhub's
+  deployed state is managed; the plan stays in progress. Tool:
+  `fredsystems/beast-compare`, `main` (2.1-2.2) and `feat/analysis`
+  (2.5-2.11, local until 2.16).
 
 ## Goal
 
@@ -315,10 +316,11 @@ move hardware or need it left alone for days.
 
 ### Release
 
-- [ ] **2.16 Publish and open the PR.** Push `beast-compare`'s
-      `feat/analysis` and merge it, bump this repo's `beast-compare`
+- [ ] **2.16 Publish and close out.** Push `beast-compare`'s
+      `feat/analysis` and merge it, then bump this repo's `beast-compare`
       input to that revision (sdrhub runs the recorder from the first
-      published revision until then), and open this repo's PR.
+      published revision until then) in the PR that marks this plan
+      complete.
 
 ## Out of scope
 
