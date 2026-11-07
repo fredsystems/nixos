@@ -245,9 +245,11 @@ move hardware or need it left alone for days.
       ports on loopback only: `airspy_adsb` as `127.0.0.1:30105:30005`,
       `tar1090_rtlsdr` as `127.0.0.1:30106:30005`. Verify with
       `nixos-eval-impacted-hosts`, then deploy.
-- [ ] **2.4 Recording dry run.** One hour, two receivers. Pass: each
+- [x] **2.4 Recording dry run.** One hour, two receivers. Pass: each
       receiver's recorded frame count is within 1 % of the messages its
       decoder reported over the same hour.
+      Result (2026-11-07, 59 minutes): Airspy +0.000 %, Pro Stick Plus
+      -0.095 % (worst minute 0.21 %); no disconnects, ~7.5 % of a core.
 
 ### Analysis
 
