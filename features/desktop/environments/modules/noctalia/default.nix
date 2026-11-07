@@ -243,17 +243,17 @@ let
       behavior = {
         lock = {
           enabled = true;
-          timeout = 300;
+          timeout = shell.idleTimeouts.lock;
           action = "lock";
         };
         screen-off = {
           enabled = true;
-          timeout = 600;
+          timeout = shell.idleTimeouts.screenOff;
           action = "screen_off";
         };
         suspend = {
           enabled = true;
-          timeout = 900;
+          timeout = shell.idleTimeouts.suspend;
           action = "suspend";
         };
       };
