@@ -784,7 +784,7 @@ in
     beastCompare = {
       enable = true;
       package = inputs.beast-compare.packages.${pkgs.stdenv.hostPlatform.system}.default;
-      runId = "2026-11-dryrun";
+      runId = "2026-11-baseline-a";
       receivers = [
         {
           name = "airspy";
@@ -794,6 +794,7 @@ in
             sdr = "Airspy R2";
             decoder = "airspy_adsb";
             attenuation_db = "0";
+            splitter_port = "2";
           };
         }
         {
@@ -804,6 +805,7 @@ in
             sdr = "FlightAware Pro Stick Plus";
             decoder = "readsb (tar1090_rtlsdr)";
             attenuation_db = "0";
+            splitter_port = "1";
           };
         }
       ];
