@@ -8,6 +8,7 @@
   # modules (../hyprland, ../niri) consume them, so the compositors never
   # hard-code the shell. Noctalia (../modules/noctalia) is the only shell.
   imports = [
+    ./idle.nix
     ./nixos-deploy-state.nix
     ./session-actions.nix
   ];
