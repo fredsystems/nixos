@@ -1,8 +1,10 @@
 # Plan 02: ADS-B receiver comparison
 
 - **Status:** in progress
-- **Branches:** this repo `feat/receiver-comparison`. Tool:
-  `fredsystems/beast-compare` (new repo), `feat/recorder` (2.1-2.2).
+- **Branches:** this repo `feat/receiver-comparison` (local). Tool:
+  `fredsystems/beast-compare`, `main` (2.1-2.2, published) and
+  `feat/analysis` (2.5-2.11, local). Nothing more is pushed until the
+  plan is ready for its PR (2.16).
 
 ## Goal
 
@@ -63,11 +65,14 @@ amp, rated 54-1220 MHz), behind the Nooelec Sawbird 1090/UAT LNA.
 | Decoder confound     | Accepted. The comparison is of receiver chains (SDR plus decoder). The three RTLs share readsb.            |
 | Source requirements  | Each source is one decoder's unreduced Beast output. Never an aggregator such as ultrafeeder's 30005.      |
 | Tool home            | Separate repo, `fredsystems/beast-compare`, consumed here as a flake input that follows `nixpkgs-stable`.  |
-| Language             | Python: pyModeS (decoding, CPR), polars (matching, binning), plotly (static HTML report), zstandard.       |
+| Language             | Python: polars (matching, binning), numpy (vectorised CRC-24 and CPR), plotly (HTML report), zstandard.   |
+| Decoder testing      | pyModeS is a test-only dependency: the reference the vectorised CRC, CPR and altitude decoding must match. |
 | Tool checks          | precommit-base's Python bundle (black, flake8), mypy `--strict`, pytest; CI runs `nix flake check`.        |
 | Tool shape           | Two commands: `record` (long-running, on sdrhub) and `compare` (offline, any recorded window).             |
 | Where it runs        | `record` as a systemd service on sdrhub. `compare` on a workstation (sdrhub has 15 GB RAM, mostly in use). |
-| Storage              | `/opt/adsb/data/beast-compare/<run-id>/`. About 1-2 GB/day compressed for four receivers; 265 GB free.     |
+| Storage              | `/opt/adsb/data/beast-compare/<run-id>/`. Measured: about 0.6 GB/day per receiver compressed; 265 GB free. |
+| Receiver site        | Passed to `compare` on the command line, never recorded: the antenna coordinates are a sops secret.        |
+| Analysis windows     | Frame stages run an hour at a time, with 60 s overlap; visits are numbered over the whole run.             |
 | Results              | The HTML report and its parquet tables stay with the run data. No findings markdown in this repo.          |
 
 ## Method
@@ -117,18 +122,31 @@ mode, attenuator, port) means a new run, never an edit.
 
 **Feasibility probe (2026-11-07).** 60 s captured from both decoders at
 once: 23,340 Airspy and 19,128 Pro Stick Plus frames, both with 12 MHz
-counters, the Pro Stick's running 124 ppm off. 4,047 long messages
-paired one-to-one. One least-squares line over the minute was useless
-(median residual 1.9 ms), dragged by mismatched pairs up to 14 s out;
-fitted per 1 s window, the median absolute residual was 0.045 us.
+counters. 4,047 long messages paired one-to-one. One least-squares line
+over the minute was useless (median residual 1.9 ms), dragged by
+mismatched pairs up to 14 s out; fitted per 1 s window, the median
+absolute residual was 0.045 us.
+
+**As built (2.6, 2.7).** A median gate, then a 5 us gate around a first
+piecewise map, then per-window centroids as the knots. On the first 7
+minutes of the dry run every frame aligned; anchor residuals were 0.043 us
+median and 0.19 us p99; the two counters differ by only 1.25 ppm (the
+probe's single line had suggested 124 ppm, an artefact of the outliers).
+Held-out anchors 10 s from the nearest knot still fitted to 0.05 us, so a
+frame is aligned if a knot is within 10 s. The clustering tolerance is
+2 us, ten times the p99 residual. readsb occasionally emits one message
+twice, 0.17 us apart; a receiver counts once per transmission.
 
 ### Attributing positions
 
-Positions decoded by any receiver build one track per aircraft (CPR
-global decode, local decode against the receiver position). Every
-transmission within 30 s of a track point gets an interpolated position,
-altitude, range, bearing and elevation angle. A receiver that only
-caught a DF11 from an aircraft at 180 nm is credited at 180 nm.
+Positions decoded by any receiver build one track per aircraft: airborne
+positions only (type codes 9-18 and 20-22), decoded globally from
+even/odd CPR pairs no more than 10 s apart, then cleaned of fixes beyond
+450 nm and of jumps no aircraft could make. A transmission is placed by
+interpolating between track points within 30 s either side, else at the
+nearest within 10 s. A receiver that only caught a DF11 from an aircraft
+at 180 nm is credited at 180 nm. On the dry run 98.7 % of transmissions
+were placed.
 
 ### Metrics
 
@@ -178,7 +196,8 @@ set) when the receiver:
 - is disconnected, or between clock segments;
 - reports dropped samples or lost buffers;
 - has its gain pinned at its lowest step (it is clipping, as the Pro
-  Stick Plus was at 0 dB on 2026-11-07) or at its highest.
+  Stick Plus was at 0 dB on 2026-11-07) or at its highest: readsb 0 and
+  49.6 dB, airspy_adsb 0 and 21.
 
 A receiver valid for under 90 % of a run is reported, but its results
 are marked not comparable.
@@ -190,11 +209,13 @@ are marked not comparable.
 - The splitter's port balance at 1090 MHz is unknown, since 1090 is near
   the top of its rated band. Rotation averages it out, and the pooled
   analysis estimates it as a per-port term.
+- Surface positions (type codes 5-8) are not decoded, so ground traffic
+  counts towards overall detection but has no range or bearing.
 
 ## Execution model
 
 Work runs in two repos. Tool subtasks (2.1, 2.2, 2.5-2.11) are in
-`beast-compare`, and this repo's subtasks (2.3, 2.13) are wiring and
+`beast-compare`, and this repo's subtasks (2.3, 2.13, 2.16) are wiring and
 deployment. They can run concurrently where dependencies allow: 2.3
 needs 2.2, the analysis chain is sequential, and 2.13 waits only on
 hardware. Runs (2.4, 2.12, 2.14, 2.15) are user-assisted, because they
@@ -215,7 +236,7 @@ move hardware or need it left alone for days.
       record files, `stats.jsonl` polling, and the run manifest. Tests:
       parser against escaped and truncated fixtures, file round trip,
       reconnect after a dropped connection.
-- [ ] **2.3 Wire the recorder on sdrhub.** Add the `beast-compare`
+- [x] **2.3 Wire the recorder on sdrhub.** Add the `beast-compare`
       flake input (load `nixos-add-flake-input`). New
       `modules/services/beast-compare.nix` with options for the receiver
       list and data directory, and a systemd service on sdrhub. If the
@@ -230,24 +251,25 @@ move hardware or need it left alone for days.
 
 ### Analysis
 
-- [ ] **2.5 Ingest and decode.** Recording files into a polars frame:
+- [x] **2.5 Ingest and decode.** Recording files into a polars frame:
       receiver, arrival time, counter, signal, bytes, DF, address, type
       code. Tests on fixture recordings.
-- [ ] **2.6 Clock alignment.** Piecewise offset and rate fit against the
+- [x] **2.6 Clock alignment.** Piecewise offset and rate fit against the
       reference receiver, discontinuity detection, residual output.
       Tests on synthetic streams with known offset, drift and a reset.
-- [ ] **2.7 Transmission clustering.** Tests with synthetic repeats of
+- [x] **2.7 Transmission clustering.** Tests with synthetic repeats of
       identical content, receivers missing frames, and a receiver with a
       clock reset.
-- [ ] **2.8 Tracks and position attribution.** CPR decode, per-aircraft
+- [x] **2.8 Tracks and position attribution.** CPR decode, per-aircraft
       tracks, interpolation, range, bearing and elevation from the
-      receiver position. Tests against hand-checked positions.
-- [ ] **2.9 Validity masks.** From `stats.jsonl`, disconnect logs and
+      receiver position. Tests against pyModeS decoding the same
+      messages.
+- [x] **2.9 Validity masks.** From `stats.jsonl`, disconnect logs and
       clock segments, per the validity rules above.
-- [ ] **2.10 Metrics.** Everything in the metrics table, with the
+- [x] **2.10 Metrics.** Everything in the metrics table, with the
       visit-level bootstrap. Tests on synthetic clusters with known
       answers.
-- [ ] **2.11 Report.** The HTML report and parquet output described
+- [x] **2.11 Report.** The HTML report and parquet output described
       above.
 - [ ] **2.12 Two-receiver baseline.** Preconditions: the 10 dB
       attenuator is fitted to the Pro Stick Plus (add 10 dB more if its
@@ -273,6 +295,13 @@ move hardware or need it left alone for days.
       square, so every receiver uses every port once), 48 h each, about
       8 days. Report each assignment and the pooled result with the
       per-port term.
+
+### Release
+
+- [ ] **2.16 Publish and open the PR.** Push `beast-compare`'s
+      `feat/analysis` and merge it, bump this repo's `beast-compare`
+      input to that revision (sdrhub runs the recorder from the first
+      published revision until then), and open this repo's PR.
 
 ## Out of scope
 
