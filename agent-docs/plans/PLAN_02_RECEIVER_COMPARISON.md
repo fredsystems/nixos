@@ -196,14 +196,21 @@ set) when the receiver:
 
 - is disconnected, or between clock segments;
 - reports dropped samples or lost buffers;
-- is overloaded (readsb only): a noise floor above -20 dBFS, or more
-  than 10 % of its messages above -3 dBFS. airspy_adsb reports neither.
+- is overloaded (readsb only): a noise floor above -20 dBFS.
+  airspy_adsb reports no noise floor in dBFS.
 
-Overload is judged from clipping, not from the gain: a receiver at the
-bottom of its gain range is not necessarily overloaded (see the
-attenuator test below). The first version of this rule excluded any
-minute at the gain floor, which threw out 96 % of the Pro Stick's
-healthy minutes.
+Overload is judged from the noise floor, not from the gain: a receiver at
+the bottom of its gain range is not necessarily overloaded (see the
+attenuator test below). Every clipping state measured on 2026-11-07 read
+-17 dBFS or higher (-2 at 36.4 dB gain, -17 at 7.7 dB). Two earlier
+versions were wrong:
+
+- Gain at the floor: threw out 96 % of the Pro Stick's healthy minutes.
+- More than 10 % of messages above -3 dBFS: on the baseline run that
+  share reached 34 % overnight, with few aircraft and one close by, while
+  the noise floor stayed at -29 to -33 dBFS. It flagged 42 healthy
+  minutes, and, being readsb-only, removed nearby traffic from the
+  RTL-SDRs' scores alone.
 
 **Attenuator test (2026-11-07).** The Pro Stick Plus at 0 dB, without
 attenuation, had a -31 dBFS noise floor and 2.7 % strong messages: not
@@ -292,7 +299,10 @@ move hardware or need it left alone for days.
       valid (not overloaded) over the preceding 24 h of the dry run.
       Record 48 h, swap the two receivers' ports, and record 48 h more,
       each half under its own `runId`. Run `compare` on each half and on
-      the pair pooled.
+      the pair pooled. `2026-11-baseline-a` started 2026-11-07 16:36, about
+      50 minutes after the attenuator came off rather than 24 h; validity
+      is per minute, and at 14 h both receivers were valid for 99.8 % of
+      it (only the start and a deploy restart excluded).
 
 ### Four receivers
 
