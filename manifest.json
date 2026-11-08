@@ -1,5 +1,5 @@
 {
-  "generated_at": 1794095315,
+  "generated_at": 1794096373,
   "hosts": {
     "Daytona": {
       "history": [
@@ -1036,6 +1036,11 @@
     "sdrhub": {
       "history": [
         {
+          "at": 1794096373,
+          "rev": "1b4687281a559146e56ac2e5694b666f477928ba",
+          "toplevel": "/nix/store/33xp672jiskln70018v17vb8qalag3j9-nixos-system-sdrhub-26.05.20261105.c56a87d"
+        },
+        {
           "at": 1794095315,
           "rev": "b008e4172df7e1b3853cf0753bea035370f945f4",
           "toplevel": "/nix/store/3jj0d0rjpqynvy2i8rhd53jg4i083wn2-nixos-system-sdrhub-26.05.20261105.c56a87d"
@@ -1154,11 +1159,6 @@
           "at": 1793533512,
           "rev": "534ea771fd615f3d9cc087d5179eac9c92ca46d9",
           "toplevel": "/nix/store/wp7pyhaywil5anw04bclympym8jfgmb8-nixos-system-sdrhub-26.05.20261031.fa13731"
-        },
-        {
-          "at": 1793473872,
-          "rev": "077de97552e38d1c4cd682fdc68ac024a0803d17",
-          "toplevel": "/nix/store/jmg7vmx5s6xzxffs00171b7hzzzh0fy8-nixos-system-sdrhub-26.05.20261029.6f06d20"
         }
       ]
     },
@@ -1292,6 +1292,6 @@
       ]
     }
   },
-  "rev": "b008e4172df7e1b3853cf0753bea035370f945f4",
+  "rev": "1b4687281a559146e56ac2e5694b666f477928ba",
   "schema": 1
 }
