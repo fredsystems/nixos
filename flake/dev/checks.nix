@@ -587,6 +587,92 @@
             ''
         );
 
+      # Fan-out parents (desktop, desktop.environments,
+      # desktop.environments.modules, and the Darwin profile's desktop block)
+      # turn their sub-features on with lib.mkDefault, so a host can turn any
+      # one of them off, or a defaulted-off one on, with a plain definition.
+      # With a plain-priority value in the parent, the host's value and the
+      # parent's are equal-priority definitions and evaluation fails with
+      # "conflicting definition values".
+      #
+      # Reproduced here by flipping every sub-feature of each block at once
+      # on a real host and reading the values back. Only the enable options
+      # are evaluated, not the system, so this costs seconds.
+      feature-enables-overridable =
+        let
+          subFeatures =
+            sys: path:
+            lib.attrNames (
+              lib.filterAttrs (_: o: lib.isAttrs o && o ? enable && lib.isOption o.enable) (
+                lib.attrByPath path { } sys.options
+              )
+            );
+
+          flipProblems =
+            { sys, path }:
+            let
+              names = subFeatures sys path;
+              at = cfg: lib.attrByPath path { } cfg;
+              current = lib.genAttrs names (n: (at sys.config).${n}.enable);
+              flipped = sys.extendModules {
+                modules = [
+                  (lib.setAttrByPath path (lib.mapAttrs (_: on: { enable = !on; }) current))
+                ];
+              };
+            in
+            lib.concatMap (
+              n:
+              lib.optional ((at flipped.config).${n}.enable == current.${n})
+                "  ${lib.concatStringsSep "." path}.${n}.enable: a host setting it to ${
+                    lib.boolToString (!current.${n})
+                  } had no effect"
+            ) names;
+
+          cases = [
+            {
+              sys = self.nixosConfigurations.Daytona;
+              path = [ "desktop" ];
+            }
+            {
+              sys = self.nixosConfigurations.Daytona;
+              path = [
+                "desktop"
+                "environments"
+              ];
+            }
+            {
+              sys = self.nixosConfigurations.Daytona;
+              path = [
+                "desktop"
+                "environments"
+                "modules"
+              ];
+            }
+            {
+              sys = self.darwinConfigurations.Freds-MacBook-Pro;
+              path = [ "desktop" ];
+            }
+          ];
+
+          problems = lib.concatMap flipProblems cases;
+          checked = lib.concatMap ({ sys, path }: subFeatures sys path) cases;
+        in
+        pkgs.runCommand "feature-enables-overridable-check" { } (
+          if problems == [ ] then
+            ''
+              echo "every fan-out sub-feature is overridable by a host (${toString (builtins.length checked)} checked)"
+              touch "$out"
+            ''
+          else
+            ''
+              echo "fan-out sub-features a host cannot override:" >&2
+              ${lib.concatMapStringsSep "\n" (p: "echo ${lib.escapeShellArg p} >&2") problems}
+              echo "" >&2
+              echo "Set them with lib.mkDefault in the parent block." >&2
+              exit 1
+            ''
+        );
+
       ci-pipeline-files-sync =
         pkgs.runCommand "ci-pipeline-files-sync-check"
           {

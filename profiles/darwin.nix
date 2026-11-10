@@ -60,11 +60,11 @@
   nixpkgs.hostPlatform = lib.mkDefault "aarch64-darwin";
 
   desktop = {
-    freminal.enable = true;
-    frext.enable = true;
-    wezterm.enable = true;
-    alacritty.enable = true;
-    zed.enable = true;
+    freminal.enable = lib.mkDefault true;
+    frext.enable = lib.mkDefault true;
+    wezterm.enable = lib.mkDefault true;
+    alacritty.enable = lib.mkDefault true;
+    zed.enable = lib.mkDefault true;
   };
 
   deployment.role = "desktop";
