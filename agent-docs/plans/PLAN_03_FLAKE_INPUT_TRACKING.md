@@ -46,7 +46,16 @@ The exporter observes and stays read-only: it already holds a
 `public_repo` token, runs as a `DynamicUser` with no Nix, and is
 loopback-only. Anything that needs Nix (evaluating a bump) or write
 access (opening a PR) runs in a GitHub Action on a self-hosted Linux
-runner, which has Nix and can reach the LAN Pushgateway.
+runner, which has Nix.
+
+The two meet through GitHub, not the LAN. The Pushgateway on sdrhub
+listens on `127.0.0.1:9091` only and the runners are on fredhub, so the
+Action instead writes its results to `status/flake-inputs.json` on a
+dedicated `flake-watch` branch (committed only when the content
+changes), and the exporter reads that file through the Contents API on
+its ETag path. No listener is widened and no new secret is needed. The
+Action's own liveness comes from the exporter's existing workflow
+metrics.
 
 ### Which nodes are tracked
 
@@ -55,17 +64,36 @@ node that is **not** followed to one of ours (an "owned nixpkgs", e.g.
 `niri/nixpkgs`). Owned nixpkgs nodes are where EOL pins and rebuild-only
 churn come from, so they are first-class, labelled by input path.
 
-Tag-pinned inputs (`opencode`, `nix-flatpak`) are reported, not acted
-on: `nix flake update` cannot move a tag, and Renovate owns them.
+Each node's upstream depends on how it is locked:
+
+| Locked as                          | Upstream is                                     | Example              |
+| ---------------------------------- | ----------------------------------------------- | -------------------- |
+| `github`, branch or default branch | the branch head                                 | `niri`, `nixpkgs`    |
+| `github`, release tag              | the newest release tag                          | `opencode`           |
+| `tarball` from `channels.nixos.org` | that channel's `channel_revision` (from 3.6)    | `catppuccin/nixpkgs` |
+
+Tag-pinned inputs are compared against the newest tag, never the default
+branch, or they would read as permanently outdated. They are reported,
+not acted on: `nix flake update` cannot move a tag, and Renovate owns
+them. Any other lock type is reported as untracked rather than guessed
+at.
 
 ### Exporter: one hourly pass, conditional and batched
 
 - `flake.lock` is read through the Contents API with the existing ETag
   cache, the same path `fetch_workflow_definition` already uses. A 304
   costs no rate limit.
-- Upstream heads for every tracked node come from **one** aliased
-  GraphQL query (branch or default-branch head, commit date), plus the
-  open `update-<input>` PR for each input in the same query.
+- Upstream heads for every GitHub node come from **one** aliased
+  GraphQL query (branch head, or newest tag for tag-pinned nodes, with
+  commit dates), plus the open `update-<input>` PR and its number for
+  each input in the same query.
+- How long a node has been behind is measured from the **oldest**
+  upstream commit it is missing, not the newest, so frequent upstream
+  commits cannot keep resetting the clock (niri commits several times a
+  day). For GitHub nodes that is the first commit of the REST compare
+  `locked...head`, fetched only for nodes that moved and ETag-cached.
+  Channel tarballs have no compare, so the exporter persists the time it
+  first saw the node behind in its state directory.
 - The flake pass runs hourly on its own interval; the existing 5-minute
   CI pass is unchanged.
 - New concept, new module: `src/flake/` (lock model, upstream query,
@@ -122,17 +150,25 @@ recur.
 
 Names are a starting point. 3.5 and 3.6 settle them.
 
-| Metric                                         | Source      | Labels                                 |
-| ---------------------------------------------- | ----------- | -------------------------------------- |
-| `github_flake_input_locked_timestamp_seconds`  | exporter    | `repo`, `input`, `path`, `ref`         |
-| `github_flake_input_upstream_timestamp_seconds` | exporter   | `repo`, `input`, `path`, `ref`         |
-| `github_flake_input_up_to_date`                | exporter    | `repo`, `input`, `path`, `ref`         |
-| `github_flake_input_update_pr_open`            | exporter    | `repo`, `input`                        |
-| `nixos_channel_update_timestamp_seconds`       | exporter    | `channel`                              |
-| `nixos_channel_current`                        | exporter    | `channel`                              |
-| `nixos_channel_tested_failed`                  | exporter    | `channel`                              |
-| `flake_input_impact`                           | Pushgateway | `input`, `kind`                        |
-| `flake_watch_last_run_timestamp_seconds`       | Pushgateway | none                                   |
+| Metric                                             | Labels                                    |
+| -------------------------------------------------- | ----------------------------------------- |
+| `github_flake_input_locked_timestamp_seconds`      | `repo`, `input`, `path`, `ref`, `channel` |
+| `github_flake_input_upstream_timestamp_seconds`    | `repo`, `input`, `path`, `ref`, `channel` |
+| `github_flake_input_outdated_since_timestamp_seconds` | `repo`, `input`, `path`, `ref`, `channel` |
+| `github_flake_input_commits_behind`                | `repo`, `input`, `path`, `ref`            |
+| `github_flake_input_up_to_date`                    | `repo`, `input`, `path`, `ref`, `channel` |
+| `github_flake_input_update_pr_open`                | `repo`, `input`, `number`                 |
+| `github_flake_input_impact`                        | `repo`, `input`, `kind`                   |
+| `nixos_channel_update_timestamp_seconds`           | `channel`                                 |
+| `nixos_channel_current`                            | `channel`                                 |
+| `nixos_channel_tested_failed`                      | `channel`                                 |
+
+All of these come from the exporter. `channel` is set for every node
+that tracks a NixOS channel (a `nixos-*` / `nixpkgs-*` branch, or a
+channel tarball), root inputs included, so channel alerts can join on
+it. `number` matches the label on the existing `github_pull_*` series,
+so an update PR joins to its age and check state.
+`github_flake_input_impact` is read from the watch Action's status file.
 
 The exporter's registry prefixes everything `github_`. The
 `nixos_channel_*` families need a second, unprefixed registry rendered
@@ -145,16 +181,19 @@ New groups in `modules/monitoring/master/alert-rules/github-alerts.yaml`,
 each alert with a firing and a non-firing promtool case in
 `tests/github-alerts-test.yaml`:
 
-- **`FlakeInputOutdated`**: upstream moved more than the input's
-  maximum age ago, impact is `source`, and no update PR is open.
-- **`FlakeInputUpdateStuck`**: an `update-<input>` PR has been open with
-  failing checks for more than 3 days. #2790 and #2786 would have fired
-  this.
-- **`FlakeInputOnEolChannel`**: a tracked owned nixpkgs node follows a
-  channel whose `nixos_channel_current` is 0.
+- **`FlakeInputOutdated`**: the node has been behind (from
+  `outdated_since`) for longer than the input's maximum age, impact is
+  `source`, and no update PR is open.
+- **`FlakeInputUpdateStuck`**: an `update-<input>` PR, joined on
+  `number` to `github_pull_*`, has been open with failing checks for more
+  than 3 days. #2790 and #2786 would have fired this.
+- **`FlakeInputOnEolChannel`**: any tracked node, root channel inputs
+  (`nixpkgs`, `nixpkgs-stable`, `nixpkgs-kernel`) and owned nixpkgs nodes
+  alike, tracks a `channel` whose `nixos_channel_current` is 0.
 - **`NixosChannelBlocked`**: a channel our lock tracks has not moved in
   3 days and its `tested` job is failing.
-- **`FlakeWatchStale`**: the watch Action has not pushed in 3 hours.
+- **`FlakeWatchStale`**: the watch workflow has had no successful run in
+  3 hours (`github_workflow_last_success_timestamp_seconds`).
 
 ## Execution model
 
@@ -183,8 +222,9 @@ complete until Plan 02 is.
 - [ ] **3.3 Owned-nixpkgs check.** A script that lists root inputs whose
       nixpkgs is not followed (from `flake.lock`) and fails if any lacks a
       `# NOTE:` reason in `flake.nix`, wired as a pre-commit hook and a
-      flake check. Add the missing reason for `nixvim` (it builds neovim
-      from its own pin; decide whether that is wanted, then say so).
+      flake check. Add the two missing reasons: `nixvim` (it builds neovim
+      from its own pin; decide whether that is wanted, then say so) and
+      `precommit-base` (dev shell and checks only).
       Tests: a fixture lock with a justified and an unjustified input.
 
 ### Exporter (`fredsystems/github-ci-exporter`)
@@ -192,20 +232,32 @@ complete until Plan 02 is.
 - [ ] **3.4 Lock model and hourly pass.** `src/flake/`: fetch
       `flake.lock` for each configured repo through the ETag cache, parse
       it, and derive the tracked node set (root inputs plus owned nixpkgs,
-      with paths). A `flake_repos` option and a separate `flake_interval`
-      (default `1h`, minimum enforced). Tests: wiremock Contents API,
-      follows resolution, a 304 that leaves the cached set unchanged.
+      with paths), classifying each as branch, tag or channel tarball and
+      extracting its `channel`. A `flake_repos` option and a separate
+      `flake_interval` (default `1h`, minimum enforced). Tests: wiremock
+      Contents API, follows resolution, a 304 that leaves the cached set
+      unchanged, and a fixture with this repo's `catppuccin/nixpkgs`
+      tarball node.
 - [ ] **3.5 Upstream heads and update PRs.** One aliased GraphQL query
-      for every tracked node's upstream head and each input's open
-      `update-<input>` PR, through the existing budget pre-flight.
-      Publish the `github_flake_input_*` families. Tests: query
-      construction, a batch with a deleted repo, budget exhaustion keeps
-      the last published values.
+      for every GitHub node's upstream (branch head, or newest tag for
+      tag-pinned nodes) and each input's open `update-<input>` PR with its
+      number, through the existing budget pre-flight. A REST compare for
+      each node that moved, for `outdated_since` and `commits_behind`.
+      Read `status/flake-inputs.json` from the `flake-watch` branch into
+      `github_flake_input_impact`; until 3.10 creates it, a 404 publishes
+      no impact series rather than failing the pass. Publish the
+      `github_flake_input_*` families. Tests: query construction, a
+      missing status file, a tag-pinned node on the newest tag reads up to date,
+      `outdated_since` stays put when a second upstream commit lands, a
+      batch with a deleted repo, and budget exhaustion keeping the last
+      published values.
 - [ ] **3.6 NixOS channel status.** A client for `prometheus.nixos.org`
       with its own base URL option and backoff, three instant queries per
-      pass, cached and published as `nixos_channel_*`. Tests: wiremock
-      responses, an upstream outage keeps the cached values and flags
-      collection failure.
+      pass, cached and published as `nixos_channel_*`. Channel-tarball
+      nodes take their upstream revision from `channel_revision` and their
+      `outdated_since` from the persisted first-seen time. Tests: wiremock
+      responses, a tarball node behind its channel, and an upstream outage
+      keeping the cached values and flagging collection failure.
 - [ ] **3.7 Release.** README metrics table and config docs, then tag a
       release.
 
@@ -225,11 +277,13 @@ complete until Plan 02 is.
       only in its lock, and one with a source change.
 - [ ] **3.10 Watch Action and policy file.** `flake-input-watch.yaml`,
       hourly on `[self-hosted, Linux]`: find moved branch-tracking inputs
-      with no open update PR, classify each with 3.9, push
-      `flake_input_impact` and the run timestamp to the Pushgateway, and
-      dispatch `update-flakes.yaml` with `single_input` for `source`
-      inputs under an `auto` policy. Move `MANUAL_INPUTS` into
-      `.github/flake-input-policy.json` and read it from both workflows.
+      with no open update PR, classify each with 3.9, write the results
+      to `status/flake-inputs.json` on the `flake-watch` branch (commit
+      only on change), and dispatch `update-flakes.yaml` with
+      `single_input` for `source` inputs under an `auto` policy. Move
+      `MANUAL_INPUTS` into `.github/flake-input-policy.json` and read it
+      from both workflows. The exporter side (reading the status file
+      into `github_flake_input_impact`) is part of 3.5.
 - [ ] **3.11 Alerts.** The five alerts above, with promtool cases.
 - [ ] **3.12 Dashboard.** `dashboards/flake-inputs.json` in the GitHub
       folder: per-input age and impact, open update PRs, owned nixpkgs
@@ -243,5 +297,7 @@ complete until Plan 02 is.
 - Acting on tag-pinned inputs. Renovate owns those.
 - Changing which inputs follow our nixpkgs, beyond 3.1 and the `nixvim`
   decision in 3.3. `niri.cachix.org` stays configured.
-- Non-GitHub inputs. Every input is `github` type today; the exporter
-  reports any other type as untracked rather than guessing.
+- Lock types beyond GitHub and NixOS channel tarballs. None exist today;
+  the exporter reports any other type as untracked rather than guessing.
+- Exposing the Pushgateway beyond loopback. The watch results travel
+  through GitHub instead.

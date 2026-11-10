@@ -56,15 +56,49 @@ Converted arguments join them, declared in one new module,
 | `verbose_name`, `github_email`                                    | `shared.user.fullName`, `shared.user.email`    |
 | `extraUsers`                                                      | `shared.extraUsers`                            |
 | `agentNodes`, `agentScrapeMap`, `desktopNodes`, `desktopScrapeMap` | `shared.monitoring.*` (same names)             |
-| `stateVersion` (Home Manager use)                                 | `shared.homeStateVersion`                      |
+| `stateVersion`                                                    | see below                                      |
 | `catppuccinWallpapers`                                            | `shared.catppuccinWallpapers` (package option) |
 
-Home Manager modules use their own options instead: `config.home.username`
-for the user, `lib.hm` for `hmlib`.
+`stateVersion` needs no new option. On Linux the builder sets
+`system.stateVersion` itself from the value it already validates
+(`check-state-version.nix`), and the 10 host files that do
+`system.stateVersion = stateVersion;` drop that line. On both OSes the
+Home Manager value arrives through the bridge below. nix-darwin's own
+`system.stateVersion` is an unrelated integer the Darwin hosts already
+set, and is untouched.
+
+### Home Manager gets its values through a bridge
+
+Home Manager is a separate module system: `config.shared.*` from the
+system tree is not visible inside `home-manager.users.<name>`, and the
+`homeModules` exports have no system tree at all. So the Home Manager
+side declares its own small set of options, in
+`modules/base/fleet-identity-home.nix`:
+
+| Home Manager option      | Default                    | Set by the bridge from              |
+| ------------------------ | -------------------------- | ----------------------------------- |
+| `shared.user.name`       | `config.home.username`     | `shared.user.name`                  |
+| `shared.user.fullName`   | none                       | `shared.user.fullName`              |
+| `shared.user.email`      | none                       | `shared.user.email`                 |
+| `shared.hostSystem`      | none                       | `nixpkgs.hostPlatform.system`       |
+| `home.stateVersion`      | (Home Manager's own)       | the builder's validated value       |
+
+The bridge is one entry in `home-manager.sharedModules`, added by the
+NixOS and Darwin builders, that copies those values across. Home
+Manager modules read `config.shared.*` from their own tree, and use
+`lib.hm` for what `hmlib` provided. A standalone `homeModules` consumer
+sets the options directly; `shared.user.name` falls back to
+`home.username`.
 
 ### Values with a native source use it
 
-- `system`: `pkgs.stdenv.hostPlatform.system`.
+- `system`: `pkgs.stdenv.hostPlatform.system`, **except**
+  `features/shell/nvim`. It deliberately passes nixvim a literal
+  platform string, because resolving `pkgs.stdenv` there re-enters the
+  host evaluation and recurses (see the comment in that file). It reads
+  `config.shared.hostSystem` from the bridge instead: a plain option
+  value copied from `nixpkgs.hostPlatform.system`, which never forces
+  `pkgs`.
 - `hmlib`: `lib.hm` inside the Home Manager submodule.
 - `isDarwin` in `config`: `pkgs.stdenv.hostPlatform.isDarwin`.
 - `isDesktop` in `config` (kernel pin): `config.deployment.role == "desktop"`.
@@ -133,16 +167,22 @@ and `--os darwin` report no impacted hosts; every host evaluates with no
 `evaluation warning:`; `nix build .#checks.x86_64-linux.colmena-parity`
 (or the parity script) and pre-commit pass.
 
-- [ ] **4.1 Drop dead arguments.** Remove `github_signing_key`,
-      `agentTargets`, and Home Manager's `self`, `nixvim`, `niri` and
-      `catppuccin` from all three builders and `sharedArgs`. Scope:
+- [ ] **4.1 Drop dead arguments.** Remove `github_signing_key` and
+      `agentTargets` everywhere (no module reads them; they are only
+      passed through), and remove `self`, `nixvim`, `niri` and
+      `catppuccin` from both Home Manager `extraSpecialArgs` only. Keep
+      `self` and `niri` in `sharedArgs`: `mk-system.nix` and
+      `flake/hosts/nixos.nix` read them at flake level. Scope:
       `flake.nix`, `flake/lib/mk-system.nix`,
       `flake/lib/mk-darwin-system.nix`, `flake/deployment/colmena.nix`.
 - [ ] **4.2 Declare the fleet options.** New
       `modules/base/fleet-identity.nix` declaring every option in the
-      table above. Import it from `modules/base/system.nix`, have all
-      three builders set it from the values they already pass, and keep
-      the `specialArgs` for now so nothing changes yet.
+      table above, and `modules/base/fleet-identity-home.nix` with the
+      Home Manager options and the `sharedModules` bridge. Import them
+      from `modules/base/system.nix`, have all three builders set them
+      from the values they already pass, and keep the `specialArgs` for
+      now so nothing changes yet. Test: on Daytona, Freds-MacBook-Pro and
+      fredvps (for `nik`), the Home Manager values equal the system ones.
 - [ ] **4.3 Migrate identity consumers, features/desktop.** Every file
       under `features/desktop/` reading `user`, `extraUsers`,
       `verbose_name` or `github_email` reads `config.shared.*` instead
@@ -153,9 +193,13 @@ and `--os darwin` report no impacted hosts; every host evaluates with no
       `modules/**`, `profiles/**`, `hosts/**`; `home-profiles/**` moves
       to `config.home.username`.
 - [ ] **4.6 Migrate the rest of the data arguments.** Monitoring
-      topology (`prometheus.nix`, `smartctl.nix`), `stateVersion`
-      (`home-base.nix`), `catppuccinWallpapers`, `system`, `hmlib`
-      (`features/desktop/environments/{hyprland,gnome}`), and
+      topology (`prometheus.nix`, `smartctl.nix`); `stateVersion` (the
+      builder sets `system.stateVersion`, the 10 Linux host files drop
+      their line, and `home-base.nix` relies on the bridge);
+      `catppuccinWallpapers`; `system` (with `features/shell/nvim` on
+      `config.shared.hostSystem`, verified on Daytona, maranello and
+      fredvps); `hmlib`
+      (`features/desktop/environments/{hyprland,gnome}`); and
       `kernelPkgsInput` (`kernel-pin.nix`, via an overlay-provided
       package set; `isDesktop` from `deployment.role`).
 - [ ] **4.7 Split platform and role import branches.**
