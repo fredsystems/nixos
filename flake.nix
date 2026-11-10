@@ -113,6 +113,11 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    # NOTE: deliberately NOT following our nixpkgs. nixvim builds neovim and
+    # its plugins from its own pinned nixpkgs (features/shell/nvim/default.nix
+    # sets nixvim's own nixpkgs.config, which forces that), so a host nixpkgs
+    # bump cannot break the editor. Its pin is a Hydra-built nixpkgs-unstable
+    # revision, so everything substitutes from cache.nixos.org.
     nixvim = {
       url = "github:nix-community/nixvim";
     };
@@ -151,6 +156,10 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    # NOTE: deliberately NOT following our nixpkgs. It only feeds the dev
+    # shell and the pre-commit / flake checks, never a host closure, and its
+    # own pin keeps the lint toolchain from moving underneath a commit when
+    # our nixpkgs is bumped.
     precommit-base = {
       url = "github:FredSystems/pre-commit-checks";
     };

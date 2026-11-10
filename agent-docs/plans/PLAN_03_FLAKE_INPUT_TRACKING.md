@@ -219,7 +219,7 @@ complete until Plan 02 is.
       `gitIgnoredAuthors`, so the relock and opencode-hash commits no
       longer make Renovate treat its branch as edited and stop rebasing
       and automerging it (#2802 needed a manual rebase and merge).
-- [ ] **3.3 Owned-nixpkgs check.** A script that lists root inputs whose
+- [x] **3.3 Owned-nixpkgs check.** A script that lists root inputs whose
       nixpkgs is not followed (from `flake.lock`) and fails if any lacks a
       `# NOTE:` reason in `flake.nix`, wired as a pre-commit hook and a
       flake check. Add the two missing reasons: `nixvim` (it builds neovim

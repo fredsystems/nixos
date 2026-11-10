@@ -1,0 +1,24 @@
+{
+  "nodes": {
+    "root": {
+      "inputs": {
+        "colmena": "colmena"
+      }
+    },
+    "colmena": {
+      "inputs": {
+        "nixpkgs": "nixpkgs"
+      },
+      "locked": {
+        "type": "github"
+      }
+    },
+    "nixpkgs": {
+      "locked": {
+        "type": "github"
+      }
+    }
+  },
+  "root": "root",
+  "version": 7
+}
