@@ -226,6 +226,6 @@ in
     };
 
     # ── Desktop environment helper modules ─────────────────────────────────────
-    desktop.environments.modules.enable = true;
+    desktop.environments.modules.enable = lib.mkDefault true;
   };
 }
