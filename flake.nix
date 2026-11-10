@@ -142,8 +142,13 @@
       inputs.nixpkgs.follows = "nixpkgs-stable";
     };
 
+    # Consumed through its overlay so each host builds it against its own
+    # nixpkgs (stable on servers, unstable on desktops). No public cache
+    # serves it, so there is nothing to gain from its pinned nixpkgs, and
+    # following ours keeps a second nixpkgs out of the lock.
     nixos-needsreboot = {
       url = "github:fredclausen/nixos-needsreboot";
+      inputs.nixpkgs.follows = "nixpkgs";
     };
 
     precommit-base = {

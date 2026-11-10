@@ -123,6 +123,7 @@ let
         nixpkgs.overlays = [
           (import ./../../overlays/default.nix)
           (import ./opencode-overlay.nix inputs)
+          inputs.nixos-needsreboot.overlays.default
         ];
       }
     )
