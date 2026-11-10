@@ -66,7 +66,14 @@
 
     catppuccinWallpapers = lib.mkOption {
       type = lib.types.package;
-      description = "The catppuccin wallpaper package installed on desktops.";
+      description = ''
+        The catppuccin wallpaper package installed on Linux desktops. Set by
+        flake/lib/mk-system.nix only; nix-darwin hosts never set it, and
+        nothing they import reads it (only features/desktop/environments,
+        which Darwin does not import). It deliberately has no default, so a
+        Darwin module that starts reading it fails evaluation loudly instead
+        of silently getting a placeholder.
+      '';
     };
   };
 }
