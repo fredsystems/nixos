@@ -73,13 +73,31 @@ while IFS=$'\t' read -r input node; do
   # Walk upward from the line directly above the attr, collecting the
   # contiguous run of comment lines (first non-space char is '#'); stop at
   # the first line that is not a comment (including a blank line).
+  #
+  # A NOTE only counts if it carries a reason: text after "# NOTE:" on the
+  # same line, or on a comment line below it (the walk reaches those first).
+  # A bare "# NOTE:" marker, or one followed only by a "# renovate:"
+  # annotation, is not a reason.
   has_note=0
+  text_below=0
   l=$((lineno - 1))
   while ((l >= 1)); do
     line="$(sed -n "${l}p" "$FLAKE_NIX")"
     trimmed="${line#"${line%%[![:space:]]*}"}"
     [[ "$trimmed" == \#* ]] || break
-    [[ "$trimmed" == "# NOTE:"* ]] && has_note=1
+    if [[ "$trimmed" == "# NOTE:"* ]]; then
+      reason="${trimmed#"# NOTE:"}"
+      reason="${reason//[[:space:]]/}"
+      if [[ -n "$reason" ]] || ((text_below == 1)); then
+        has_note=1
+      fi
+    else
+      body="${trimmed#\#}"
+      body="${body//[[:space:]]/}"
+      if [[ -n "$body" && "$body" != renovate:* ]]; then
+        text_below=1
+      fi
+    fi
     l=$((l - 1))
   done
 

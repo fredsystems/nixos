@@ -83,6 +83,17 @@ run blank-line
 eq "blank-line: exit 1" 1 "$RC"
 has "blank-line: names catppuccin" "catppuccin: owns its nixpkgs" "$OUT"
 
+run empty-note
+eq "empty-note: exit 1" 1 "$RC"
+has "empty-note: names catppuccin" "catppuccin: owns its nixpkgs" "$OUT"
+
+run empty-note-renovate
+eq "empty-note-renovate: exit 1" 1 "$RC"
+has "empty-note-renovate: names catppuccin" "catppuccin: owns its nixpkgs" "$OUT"
+
+run note-continued
+eq "note-continued: exit 0" 0 "$RC"
+
 # ---------------------------------------------------------------------------
 # (e) an owning input whose comment run has a `# renovate:` line after the
 # NOTE line (like opencode in the real flake.nix) -> pass
