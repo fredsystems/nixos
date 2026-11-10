@@ -16,9 +16,9 @@
 #   serverNodes  — canonical server node table from flake/hosts/servers.nix
 #   user         — primary username string
 #   verbose_name — display name string
-#   github_email, github_signing_key — git identity strings
+#   github_email — git identity string
 #   hmlib        — home-manager lib
-#   agentNodes, agentTargets, agentScrapeMap — monitoring topology
+#   agentNodes, agentScrapeMap — monitoring topology
 #   desktopNodes, desktopScrapeMap — desktop monitoring topology (consumed by
 #     prometheus.nix on the master; harmless on agent nodes that import the
 #     same module set)
@@ -29,10 +29,8 @@
   user,
   verbose_name,
   github_email,
-  github_signing_key,
   hmlib,
   agentNodes,
-  agentTargets,
   agentScrapeMap,
   desktopNodes,
   desktopScrapeMap,
@@ -153,10 +151,8 @@ let
           user
           verbose_name
           github_email
-          github_signing_key
           hmlib
           agentNodes
-          agentTargets
           agentScrapeMap
           desktopNodes
           desktopScrapeMap

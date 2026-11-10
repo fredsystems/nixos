@@ -1,7 +1,8 @@
 # Plan 04: Module interfaces
 
-- **Status:** planned
-- **Branches:** none yet. One branch per subtask, merged in order.
+- **Status:** in progress
+- **Branches:** one `plan04/4.N-*` branch and PR per subtask, stacked
+  on the previous one and merged in order.
 
 ## Goal
 
@@ -167,7 +168,7 @@ and `--os darwin` report no impacted hosts; every host evaluates with no
 `evaluation warning:`; `nix build .#checks.x86_64-linux.colmena-parity`
 (or the parity script) and pre-commit pass.
 
-- [ ] **4.1 Drop dead arguments.** Remove `github_signing_key` and
+- [x] **4.1 Drop dead arguments.** Remove `github_signing_key` and
       `agentTargets` everywhere (no module reads them; they are only
       passed through), and remove `self`, `nixvim`, `niri` and
       `catppuccin` from both Home Manager `extraSpecialArgs` only. Keep

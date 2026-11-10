@@ -14,11 +14,9 @@
   home-manager,
   catppuccin,
   nix-yazi-plugins,
-  nixvim,
   user,
   verbose_name,
   github_email,
-  github_signing_key,
   hmlib,
   ...
 }:
@@ -51,7 +49,6 @@ darwin.lib.darwinSystem {
       user
       verbose_name
       github_email
-      github_signing_key
       hmlib
       ;
     stateVersion = checkedStateVersion;
@@ -98,14 +95,10 @@ darwin.lib.darwinSystem {
         extraSpecialArgs = {
           inherit
             inputs
-            self
             user
             verbose_name
             hmlib
             github_email
-            github_signing_key
-            catppuccin
-            nixvim
             isDarwin
             ;
           stateVersion = checkedStateVersion;

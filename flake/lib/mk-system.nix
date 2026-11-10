@@ -12,10 +12,8 @@
 #   user             – primary username string
 #   verbose_name     – display name string
 #   github_email     – GitHub email string
-#   github_signing_key – SSH signing key path
 #   hmlib            – home-manager.lib
 #   agentNodes       – list of monitoring-agent hostnames
-#   agentTargets     – list of scrape target strings
 #   agentScrapeMap   – attrset of hostname → scrape address
 #   desktopNodes     – list of desktop hostnames
 #   desktopScrapeMap – attrset of desktop hostname → scrape address
@@ -42,10 +40,8 @@
   user,
   verbose_name,
   github_email,
-  github_signing_key,
   hmlib,
   agentNodes,
-  agentTargets,
   agentScrapeMap,
   desktopNodes,
   desktopScrapeMap,
@@ -81,11 +77,9 @@ let
       extraUsers
       verbose_name
       github_email
-      github_signing_key
       hmlib
       system
       agentNodes
-      agentTargets
       agentScrapeMap
       desktopNodes
       desktopScrapeMap
@@ -171,22 +165,15 @@ let
         extraSpecialArgs = {
           inherit
             inputs
-            self
             user
             verbose_name
             hmlib
             github_email
-            github_signing_key
             catppuccinInput
             nixYaziPluginsInput
             isDarwin
             ;
           stateVersion = checkedStateVersion;
-          inherit (inputs)
-            catppuccin
-            nixvim
-            niri
-            ;
         };
       };
     }
