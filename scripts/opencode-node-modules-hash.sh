@@ -71,7 +71,8 @@ compute() {
     return
   fi
 
-  got="$(grep -oE 'got: +sha256-[A-Za-z0-9+/=]+' "$build_log" | awk '{print $2}' | tail -n1)"
+  got="$(grep -oE 'got: +sha256-[A-Za-z0-9+/=]+' "$build_log" | tail -n1)"
+  got="${got##* }"
   [[ -n $got ]] || die "node_modules build for $system failed for a reason other than a hash mismatch"
   log "Upstream hash for $system is stale; real hash is $got"
   printf '%s\n' "$got"
