@@ -122,12 +122,7 @@ let
         nixpkgs.hostPlatform = lib.mkDefault system;
         nixpkgs.overlays = [
           (import ./../../overlays/default.nix)
-          # OpenCode 2 from the `opencode` flake input. Lives here rather
-          # than in overlays/default.nix because that file is a plain
-          # overlay with no access to the flake inputs.
-          (final: _: {
-            opencode = inputs.opencode.packages.${final.stdenv.hostPlatform.system}.opencode;
-          })
+          (import ./opencode-overlay.nix inputs)
         ];
       }
     )

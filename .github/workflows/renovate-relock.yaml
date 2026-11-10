@@ -12,6 +12,10 @@ name: renovate-relock
 # the repo loses reproducibility until somebody runs `nix flake lock`
 # by hand.
 #
+# When the PR moves the opencode pin, it also verifies the release's
+# node_modules hash and commits a corrected one if upstream's is stale;
+# see the opencode-hash job.
+#
 # NOTE: this workflow intentionally has NO `paths:` filter on the
 # trigger. It is configured as a required status check on the default
 # branch, and a `paths:` filter would prevent GitHub from instantiating
@@ -46,6 +50,9 @@ jobs:
     # flake.nix evaluated and re-locked with that PAT.
     if: github.event.pull_request.user.login == 'renovate[bot]' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
+    outputs:
+      pushed: ${{ steps.push.outputs.pushed }}
+      opencode: ${{ steps.opencode.outputs.check }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -73,13 +80,148 @@ jobs:
         run: nix flake lock --refresh
 
       - name: Commit and push if lock changed
+        id: push
         run: |
           if git diff --quiet flake.lock; then
             echo "flake.lock already in sync with flake.nix; nothing to do."
+            echo "pushed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           git config user.email "noreply@github.com"
           git config user.name "github[bot]"
           git add flake.lock
           git commit -m "chore(flake): relock after renovate flake.nix update"
+          git push
+          echo "pushed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Decide whether to check the opencode node_modules hash
+        # Only when the PR moves the opencode pin, and only if the hash for
+        # that revision hasn't been recorded already (i.e. this isn't the
+        # re-run triggered by our own hash commit).
+        id: opencode
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          rev_of() { jq -r '.nodes[.nodes.root.inputs.opencode].locked.rev'; }
+          git fetch --quiet --depth=1 origin "$BASE_SHA"
+          base_rev="$(git show FETCH_HEAD:flake.lock | rev_of)"
+          head_rev="$(rev_of < flake.lock)"
+          recorded_rev="$(jq -r '.rev' flake/lib/opencode-node-modules-hashes.json)"
+          if [ "$head_rev" = "$base_rev" ]; then
+            echo "opencode pin unchanged ($head_rev)."
+            echo "check=false" >> "$GITHUB_OUTPUT"
+          elif [ "$head_rev" = "$recorded_rev" ]; then
+            echo "opencode node_modules hashes for $head_rev already recorded."
+            echo "check=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "opencode pin moved $base_rev -> $head_rev; checking node_modules hashes."
+            echo "check=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  # Upstream ships the opencode node_modules fixed-output hash in
+  # nix/hashes.json, and the bot PR that updates it is regularly left
+  # unmerged when a release is tagged, which fails every opencode host build.
+  # Build upstream's node_modules on each system we deploy and, where its hash
+  # is stale, commit the real one to flake/lib/opencode-node-modules-hashes.json
+  # (applied by flake/lib/opencode-overlay.nix). This is a standing check on
+  # every opencode bump, not a workaround for one upstream PR.
+  #
+  # Skipped when relock pushed: that push re-runs this workflow against the
+  # new lock, and the hash has to be computed for that lock, not this one.
+  opencode-hash:
+    name: opencode node_modules hash (${{ matrix.system }})
+    needs: relock
+    if: needs.relock.outputs.pushed == 'false' && needs.relock.outputs.opencode == 'true'
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - system: x86_64-linux
+            runner: [self-hosted, Linux]
+          - system: aarch64-darwin
+            runner: [self-hosted, macOS]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - uses: DeterminateSystems/nix-installer-action@3138316df39ed29be04236d7ffc686fa525866aa # v23
+        with:
+          trust-runner-user: true
+          extra-conf: |
+            access-tokens = github.com=${{ github.token }}
+            accept-flake-config = true
+            substituters = http://192.168.31.14:8080/fred https://cache.nixos.org/
+            trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= fred:JjyhvRSvKfkk8r4HS0mS5r5I7dT4GociEFbrR9OgBZ0=
+
+      - name: Compute node_modules hash
+        shell: bash
+        env:
+          SYSTEM: ${{ matrix.system }}
+        run: |
+          set -euo pipefail
+          nix shell --inputs-from . nixpkgs#jq --command \
+            ./scripts/opencode-node-modules-hash.sh compute "$SYSTEM" > "$SYSTEM.hash"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: opencode-hash-${{ matrix.system }}
+          path: ${{ matrix.system }}.hash
+          retention-days: 1
+
+  opencode-hash-commit:
+    name: Commit opencode node_modules hashes
+    needs: opencode-hash
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # PAT so the push re-runs CI against the corrected hash; see relock.
+          token: ${{ secrets.PAT }}
+          ref: ${{ github.event.pull_request.head.ref }}
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          persist-credentials: true
+
+      - uses: DeterminateSystems/nix-installer-action@3138316df39ed29be04236d7ffc686fa525866aa # v23
+        with:
+          extra-conf: |
+            accept-flake-config = true
+            access-tokens = github.com=${{ github.token }}
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          pattern: opencode-hash-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/opencode-hashes
+
+      - name: Record hashes, commit and push if any were stale
+        shell: bash
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          HASH_DIR: ${{ runner.temp }}/opencode-hashes
+        run: |
+          set -euo pipefail
+          if [ "$(git rev-parse HEAD)" != "$HEAD_SHA" ]; then
+            echo "PR branch moved past $HEAD_SHA; the run for the new head will handle it."
+            exit 0
+          fi
+          for file in "$HASH_DIR"/*.hash; do
+            system="$(basename "$file" .hash)"
+            hash="$(<"$file")"
+            ./scripts/opencode-node-modules-hash.sh record "$system" "$hash"
+          done
+          if git diff --quiet flake/lib/opencode-node-modules-hashes.json; then
+            echo "Upstream node_modules hashes are correct; nothing to do."
+            exit 0
+          fi
+          version="$(nix eval --raw "$(jq -r '.nodes[.nodes.root.inputs.opencode].locked | "github:\(.owner)/\(.repo)/\(.rev)"' flake.lock)#packages.x86_64-linux.opencode.version")"
+          git config user.email "noreply@github.com"
+          git config user.name "github[bot]"
+          git add flake/lib/opencode-node-modules-hashes.json
+          git commit -m "fix(opencode): pin node_modules hashes for ${version%%+*}" \
+            -m "Upstream's nix/hashes.json is stale for this release."
           git push

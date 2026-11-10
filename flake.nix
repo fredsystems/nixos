@@ -167,6 +167,10 @@
     # ours would let a bun bump invalidate it, which is exactly the
     # hash-maintenance loop the old overlays/opencode.nix needed a daily
     # workflow for.
+    #
+    # Upstream does not always merge its hash bump before tagging, though, so
+    # renovate-relock.yaml verifies the hash on every opencode bump and
+    # flake/lib/opencode-overlay.nix applies a corrected one when it is stale.
     # renovate: datasource=git-refs depName=opencode packageName=https://github.com/anomalyco/opencode versioning=semver
     opencode = {
       url = "github:anomalyco/opencode/v2.2.4";
