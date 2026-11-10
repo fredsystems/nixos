@@ -1,16 +1,13 @@
 {
   pkgs,
-  user,
-  extraUsers ? [ ],
-  verbose_name,
-  github_email,
+  config,
   lib,
   ...
 }:
 let
-  allUsers = [ user ] ++ extraUsers;
-  full_name = verbose_name;
-  email = github_email;
+  allUsers = config.shared.allUsers;
+  full_name = config.shared.user.fullName;
+  email = config.shared.user.email;
   inherit (pkgs.stdenv.hostPlatform) isDarwin;
   isLinux = !isDarwin;
 in

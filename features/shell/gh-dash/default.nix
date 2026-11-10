@@ -1,12 +1,11 @@
 {
-  user,
-  extraUsers ? [ ],
+  config,
   lib,
   pkgs,
   ...
 }:
 let
-  allUsers = [ user ] ++ extraUsers;
+  allUsers = config.shared.allUsers;
 
   # gh-dash shells out to open the selected item in the browser. The default
   # `openGithub` builtin spawns the browser as a child that inherits gh-dash's

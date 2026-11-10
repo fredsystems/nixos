@@ -1,12 +1,11 @@
 {
   pkgs,
-  user,
-  extraUsers ? [ ],
+  config,
   lib,
   ...
 }:
 let
-  allUsers = [ user ] ++ extraUsers;
+  allUsers = config.shared.allUsers;
 in
 {
   config = {

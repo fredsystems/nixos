@@ -1,13 +1,11 @@
 {
   lib,
   config,
-  user,
-  extraUsers ? [ ],
   ...
 }:
 let
   cfg = config.ai.opencode;
-  allUsers = [ user ] ++ extraUsers;
+  allUsers = config.shared.allUsers;
 
   # Skills directory is baked into the derivation at build time. The path is
   # resolved relative to this file (`features/ai/opencode/default.nix`) and

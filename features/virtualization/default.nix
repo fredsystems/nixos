@@ -1,11 +1,10 @@
 {
   lib,
-  user,
-  extraUsers ? [ ],
+  config,
   ...
 }:
 let
-  allUsers = [ user ] ++ extraUsers;
+  allUsers = config.shared.allUsers;
 in
 {
   imports = [

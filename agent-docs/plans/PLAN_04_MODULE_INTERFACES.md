@@ -188,7 +188,7 @@ and `--os darwin` report no impacted hosts; every host evaluates with no
       under `features/desktop/` reading `user`, `extraUsers`,
       `verbose_name` or `github_email` reads `config.shared.*` instead
       and drops the argument.
-- [ ] **4.4 Migrate identity consumers, rest of features/.**
+- [x] **4.4 Migrate identity consumers, rest of features/.**
       `features/{ai,common,media,shell,virtualization}/**`.
 - [ ] **4.5 Migrate identity consumers, modules, profiles and hosts.**
       `modules/**`, `profiles/**`, `hosts/**`; `home-profiles/**` moves
