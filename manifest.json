@@ -1,5 +1,5 @@
 {
-  "generated_at": 1794340118,
+  "generated_at": 1794340574,
   "hosts": {
     "Daytona": {
       "history": [
@@ -391,6 +391,11 @@
     "fredvps": {
       "history": [
         {
+          "at": 1794340574,
+          "rev": "ef8ee77825ff1b503a0486c48e5ae4692d001e0c",
+          "toplevel": "/nix/store/zxckz7qzm7ynlnfmwnnzzxpp4flj0vdb-nixos-system-fredvps-26.05.20261105.c56a87d"
+        },
+        {
           "at": 1794327263,
           "rev": "688bdd481effddb42a86cf6744e481d36cacca3c",
           "toplevel": "/nix/store/16pfc6avmx42619784f57bkiwc23s1lg-nixos-system-fredvps-26.05.20261105.c56a87d"
@@ -509,11 +514,6 @@
           "at": 1793212734,
           "rev": "ac7b754c0fe3c457702b0ef084333af3c9115ef8",
           "toplevel": "/nix/store/pz9c0qjr7xxd3fs15372ibikwnrqidl7-nixos-system-fredvps-26.05.20261026.718f670"
-        },
-        {
-          "at": 1793204499,
-          "rev": "7cec545cc66c8f116bb7e7ebd7ba994a24bbb6cf",
-          "toplevel": "/nix/store/j235kya9lliibdbk2a4nv7yn2342h32z-nixos-system-fredvps-26.05.20261026.718f670"
         }
       ]
     },
@@ -1036,6 +1036,11 @@
     "sdrhub": {
       "history": [
         {
+          "at": 1794340574,
+          "rev": "ef8ee77825ff1b503a0486c48e5ae4692d001e0c",
+          "toplevel": "/nix/store/7wzivf1asvs8k8sp5ffss4hkb3h061w5-nixos-system-sdrhub-26.05.20261105.c56a87d"
+        },
+        {
           "at": 1794329316,
           "rev": "45077f933ebb53df553af1cda40faa7141e4fe7e",
           "toplevel": "/nix/store/zqgs2m0xray0cni6sdb6vbffh0jmjns4-nixos-system-sdrhub-26.05.20261105.c56a87d"
@@ -1154,11 +1159,6 @@
           "at": 1793569727,
           "rev": "c49c780681ed69bca8f0a7503f20ea01728319f5",
           "toplevel": "/nix/store/y7w9m7vl7jrp2032mvzw6haaxi5dfvdk-nixos-system-sdrhub-26.05.20261031.fa13731"
-        },
-        {
-          "at": 1793569509,
-          "rev": "1584b0e549bb4c65fd1cbcb34a0c9764bc55c4e6",
-          "toplevel": "/nix/store/66wqrqigkllwiqp963gyw0ncqx3kwhc8-nixos-system-sdrhub-26.05.20261031.fa13731"
         }
       ]
     },
@@ -1292,6 +1292,6 @@
       ]
     }
   },
-  "rev": "45077f933ebb53df553af1cda40faa7141e4fe7e",
+  "rev": "ef8ee77825ff1b503a0486c48e5ae4692d001e0c",
   "schema": 1
 }
