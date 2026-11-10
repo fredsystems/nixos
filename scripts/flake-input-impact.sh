@@ -263,6 +263,19 @@ PACKAGES_APPLY='ps: let sys = builtins.currentSystem; in
 # -- a fetch error, or the bumped input breaking evaluation -- is fatal:
 # swallowing it would let both fingerprints come out empty and classify a
 # real change as "none", so no PR would ever be opened for it.
+# True only for Nix's own top-level "this flake has no such output"
+# diagnostic: a single `error: flake '...' does not provide attribute ...
+# or '<attr>'` line with no evaluation trace. The same words inside a real
+# evaluation error (e.g. a thrown message, or a bumped dependency dropping an
+# attribute an existing output still uses) come with `… while ...` trace
+# lines, and must stay fatal.
+missing_output() { # attr stderr-file
+  local attr="$1" err="$2" first
+  first="$(grep -m1 '^error:' "$err" || true)"
+  [[ "$first" =~ ^error:\ flake\ \'[^\']*\'\ does\ not\ provide\ attribute\ .*\'${attr}\'$ ]] &&
+    ! grep -q '… while' "$err"
+}
+
 eval_family() {
   local attr="$1"
   local apply="$2"
@@ -270,7 +283,7 @@ eval_family() {
   local out
   if out="$(nix "${NIX_FEATURES[@]}" eval --json --impure "$@" "$FLAKE_DIR#${attr}" --apply "$apply" 2>"$TMP/family.err")"; then
     printf '%s' "$out"
-  elif grep -qE "does not provide attribute|attribute '${attr}' missing" "$TMP/family.err"; then
+  elif missing_output "$attr" "$TMP/family.err"; then
     echo "  (no $attr output; treated as empty)" >&2
     printf '{}'
   else
@@ -314,7 +327,10 @@ diff_keys() {
   '
 }
 
-BASE_FP="$(fingerprint "base (on-disk flake.lock)")" || exit 1
+# --no-update-lock-file: the baseline is the on-disk lock exactly. If
+# flake.nix and flake.lock disagree, fail rather than let nix re-resolve
+# (and rewrite) the real lock and fingerprint something else.
+BASE_FP="$(fingerprint "base (on-disk flake.lock)" --no-update-lock-file)" || exit 1
 NEW_FP="$(fingerprint "new (scratch lock, $INPUT bumped)" --reference-lock-file "$TMP/new.lock" --no-write-lock-file)" || exit 1
 
 CHANGED="$(diff_keys "$BASE_FP" "$NEW_FP")"

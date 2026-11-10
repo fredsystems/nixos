@@ -32,11 +32,16 @@
           builder = "/bin/sh";
           args = [ ];
         };
-    in
-    {
-      nixosConfigurations.testhost = {
+      # Both OS families expose the same changing host, so the suite gives
+      # the same answers whichever OS it runs on (the classifier only
+      # fingerprints its own OS's configurations).
+      testhost = {
         config.system.build.toplevel = mkDrv "toplevel-${dep-owning.thing}-${dep-source.value}";
       };
+    in
+    {
+      nixosConfigurations = { inherit testhost; };
+      darwinConfigurations = { inherit testhost; };
       devShells.${system}.default = mkDrv "devshell";
       packages.${system}.a = mkDrv "pkg-a";
     };

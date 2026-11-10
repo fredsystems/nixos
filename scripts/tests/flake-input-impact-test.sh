@@ -187,19 +187,26 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# --os darwin must refuse to run on this (Linux) machine. Darwin
-# configurations are only ever classified on the macOS pool; see the
-# header comment in scripts/flake-input-impact.sh.
+# --os for the OTHER operating system must be refused (exit 2): each OS's
+# configurations are classified only on a runner of that OS (Darwin on the
+# macOS pool, never on Linux). Works on either OS.
 # ---------------------------------------------------------------------------
 
-set +e
-run_script "dep-source" --os darwin >/dev/null 2>"$TMPROOT/stderr.log"
-rc=$?
-set -e
-if [[ $rc -eq 2 ]] && grep -q "macOS pool" "$TMPROOT/stderr.log"; then
-    ok
-else
-    bad "--os darwin on Linux must exit 2" "actual exit: $rc" "stderr:" "$(cat "$TMPROOT/stderr.log")"
+case "$(uname -s)" in
+    Linux) other_os=darwin ;;
+    Darwin) other_os=linux ;;
+    *) other_os="" ;;
+esac
+if [[ -n "$other_os" ]]; then
+    set +e
+    run_script "dep-source" --os "$other_os" >/dev/null 2>"$TMPROOT/stderr.log"
+    rc=$?
+    set -e
+    if [[ $rc -eq 2 ]] && grep -q "macOS pool" "$TMPROOT/stderr.log"; then
+        ok
+    else
+        bad "--os $other_os on $(uname -s) must exit 2" "actual exit: $rc" "stderr:" "$(cat "$TMPROOT/stderr.log")"
+    fi
 fi
 
 # ---------------------------------------------------------------------------
@@ -219,6 +226,46 @@ if [[ $rc -eq 1 ]] && [[ "$out" != "none" ]] && grep -q "boom: the bumped input 
     ok
 else
     bad "(f) broken eval must be an error" "actual exit: $rc" "stdout: $out" "stderr:" "$(cat "$TMPROOT/stderr.log")"
+fi
+
+# ---------------------------------------------------------------------------
+# (g) a thrown error whose text looks like Nix's "no such output" diagnostic
+#     is still an evaluation error -> exit 1, never treated as an empty
+#     (missing) output.
+# ---------------------------------------------------------------------------
+
+sed -i "s/value = throw \"boom: the bumped input breaks evaluation\";/value = throw \"flake 'x' does not provide attribute 'packages'\";/" "$TMPROOT/dep-source/flake.nix"
+git_commit_all "$TMPROOT/dep-source" "throw the missing-output phrase"
+
+set +e
+out="$(run_script "dep-source")"
+rc=$?
+set -e
+if [[ $rc -eq 1 ]] && [[ "$out" != "none" ]]; then
+    ok
+else
+    bad "(g) thrown missing-output phrase must be an error" "actual exit: $rc" "stdout: $out" "stderr:" "$(cat "$TMPROOT/stderr.log")"
+fi
+
+# ---------------------------------------------------------------------------
+# (h) flake.nix and its flake.lock disagree -> exit 1, and the real lock is
+#     left byte-for-byte unchanged (the baseline never re-resolves it).
+#     Last case: it leaves the consumer out of sync.
+# ---------------------------------------------------------------------------
+
+sed -i 's#dep-source.url = "git+file://#dep-extra.url = "git+file://'"$TMPROOT"'/dep-follow";\n    dep-source.url = "git+file://#' "$TMPROOT/consumer/flake.nix"
+git_commit_all "$TMPROOT/consumer" "add an input the lock does not know"
+lock_before="$(sha256sum "$TMPROOT/consumer/flake.lock")"
+
+set +e
+out="$(run_script "dep-follow")"
+rc=$?
+set -e
+lock_after="$(sha256sum "$TMPROOT/consumer/flake.lock")"
+if [[ $rc -eq 1 ]] && [[ "$lock_before" == "$lock_after" ]] && grep -q "dep-extra" "$TMPROOT/consumer/flake.nix"; then
+    ok
+else
+    bad "(h) out-of-sync lock must fail without touching flake.lock" "actual exit: $rc" "stdout: $out" "lock changed: $([[ "$lock_before" == "$lock_after" ]] && echo no || echo YES)" "stderr:" "$(cat "$TMPROOT/stderr.log")"
 fi
 
 # ---------------------------------------------------------------------------
