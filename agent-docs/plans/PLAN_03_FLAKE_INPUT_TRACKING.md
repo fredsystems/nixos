@@ -215,7 +215,7 @@ complete until Plan 02 is.
       overlay so each host builds it from its own nixpkgs, follows ours,
       and has the exported profiles apply the overlay themselves (they
       bypass `mk-system.nix`).
-- [ ] **3.2 Let Renovate keep its PRs.** Add `github[bot]` to Renovate's
+- [x] **3.2 Let Renovate keep its PRs.** Add `github[bot]` to Renovate's
       `gitIgnoredAuthors`, so the relock and opencode-hash commits no
       longer make Renovate treat its branch as edited and stop rebasing
       and automerging it (#2802 needed a manual rebase and merge).

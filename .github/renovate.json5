@@ -35,6 +35,13 @@
   prCreation: "immediate",
   automerge: true,
   platformAutomerge: true,
+  // Our own workflows push follow-up commits onto Renovate's branches:
+  // renovate-relock.yaml's relock and opencode node_modules hash commits.
+  // Without this, Renovate treats any non-Renovate commit as a manual
+  // edit and stops rebasing and automerging the PR (#2802 needed a hand
+  // rebase and merge). Every workflow commit is authored as
+  // github[bot] <noreply@github.com>, which is the only author listed.
+  gitIgnoredAuthors: ["noreply@github.com"],
   customManagers: [
     {
       // Every container image this fleet runs is centralized in
