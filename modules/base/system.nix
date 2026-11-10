@@ -14,6 +14,8 @@ in
 {
   imports = [
     ./nixpkgs-unfree.nix
+    ./fleet-identity.nix
+    ./fleet-identity-hm-bridge.nix
   ]
   ++ lib.optional isDarwin inputs.home-manager.darwinModules.default
   ++ lib.optional isDarwin ../services/homebrew.nix

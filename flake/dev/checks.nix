@@ -656,6 +656,84 @@
             ''
         );
 
+      # Guards the Home Manager bridge (modules/base/fleet-identity-hm-bridge.nix):
+      # Home Manager is a separate module tree and cannot see the system's
+      # `config.shared.*` on its own, so the bridge copies `shared.user.*` and
+      # the host's platform string into every Home Manager user's own
+      # `shared.*` option tree (modules/base/fleet-identity-home.nix). Nothing
+      # reads these options yet (see subtask 4.2), so this is the only thing
+      # that would catch the bridge silently copying the wrong value, or not
+      # copying it at all.
+      #
+      # Also asserts the system-level values equal what the builders were
+      # given, so a regression in mk-system.nix / mk-darwin-system.nix itself
+      # (not just the bridge) is caught too.
+      fleet-identity-bridge =
+        let
+          checkBridgeUser =
+            hostLabel: sys: hmUser:
+            let
+              hm = sys.config.home-manager.users.${hmUser};
+              sysUser = sys.config.shared.user;
+              sysSystem = sys.config.nixpkgs.hostPlatform.system;
+              where = "${hostLabel} HM user ${hmUser}";
+            in
+            lib.optional (hm.shared.user.name != sysUser.name)
+              "  ${where}: shared.user.name = ${hm.shared.user.name}, expected ${sysUser.name} (system shared.user.name)"
+            ++ lib.optional (
+              hm.shared.user.fullName != sysUser.fullName
+            ) "  ${where}: shared.user.fullName = ${hm.shared.user.fullName}, expected ${sysUser.fullName}"
+            ++ lib.optional (
+              hm.shared.user.email != sysUser.email
+            ) "  ${where}: shared.user.email = ${hm.shared.user.email}, expected ${sysUser.email}"
+            ++
+              lib.optional (hm.shared.hostSystem != sysSystem)
+                "  ${where}: shared.hostSystem = ${hm.shared.hostSystem}, expected ${sysSystem} (nixpkgs.hostPlatform.system)";
+
+          daytona = self.nixosConfigurations.Daytona;
+          fredvps = self.nixosConfigurations.fredvps;
+          macbook = self.darwinConfigurations.Freds-MacBook-Pro;
+
+          bridgeProblems =
+            checkBridgeUser "Daytona" daytona "fred"
+            ++ checkBridgeUser "fredvps" fredvps "fred"
+            # nik must also see the PRIMARY user ("fred") as shared.user.name,
+            # which is what preserves today's behaviour.
+            ++ checkBridgeUser "fredvps" fredvps "nik"
+            ++ checkBridgeUser "Freds-MacBook-Pro" macbook "fred";
+
+          builderProblems =
+            lib.optional (
+              daytona.config.shared.user.name != "fred"
+            ) "  Daytona: system shared.user.name = ${daytona.config.shared.user.name}, expected fred"
+            ++ lib.optional (
+              fredvps.config.shared.user.name != "fred"
+            ) "  fredvps: system shared.user.name = ${fredvps.config.shared.user.name}, expected fred"
+            ++ lib.optional (
+              macbook.config.shared.user.name != "fred"
+            ) "  Freds-MacBook-Pro: system shared.user.name = ${macbook.config.shared.user.name}, expected fred"
+            ++
+              lib.optional (fredvps.config.shared.extraUsers != [ "nik" ])
+                "  fredvps: system shared.extraUsers = [ ${lib.concatStringsSep " " fredvps.config.shared.extraUsers} ], expected [ nik ]";
+
+          problems = bridgeProblems ++ builderProblems;
+        in
+        pkgs.runCommand "fleet-identity-bridge-check" { } (
+          if problems == [ ] then
+            ''
+              echo "fleet identity bridge OK (Daytona, fredvps fred+nik, Freds-MacBook-Pro)"
+              touch "$out"
+            ''
+          else
+            ''
+              echo "fleet identity bridge is out of sync:" >&2
+              ${lib.concatMapStringsSep "\n" (p: "echo ${lib.escapeShellArg p} >&2") problems}
+              echo "" >&2
+              echo "See modules/base/fleet-identity-hm-bridge.nix and flake/lib/mk-system.nix / mk-darwin-system.nix." >&2
+              exit 1
+            ''
+        );
+
       ci-pipeline-files-sync =
         pkgs.runCommand "ci-pipeline-files-sync-check"
           {
