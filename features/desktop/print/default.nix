@@ -2,13 +2,11 @@
   lib,
   pkgs,
   config,
-  user,
-  extraUsers ? [ ],
   ...
 }:
 let
   cfg = config.desktop.print;
-  allUsers = [ user ] ++ extraUsers;
+  allUsers = config.shared.allUsers;
 
   # FIXME(vicinae-468-printer-icon): system-config-printer's .desktop ships
   # `Icon=printer`, a bare freedesktop icon name. Vicinae (our launcher,

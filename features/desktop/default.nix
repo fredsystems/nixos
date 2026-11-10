@@ -1,13 +1,11 @@
 {
   lib,
   config,
-  user,
-  extraUsers ? [ ],
   ...
 }:
 let
   cfg = config.desktop;
-  allUsers = [ user ] ++ extraUsers;
+  allUsers = config.shared.allUsers;
 in
 {
   options.desktop = {

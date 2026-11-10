@@ -2,14 +2,12 @@
   lib,
   pkgs,
   config,
-  user,
-  extraUsers ? [ ],
   isDarwin,
   ...
 }:
 let
   cfg = config.desktop.yubikey;
-  allUsers = [ user ] ++ extraUsers;
+  allUsers = config.shared.allUsers;
   isLinux = !isDarwin;
 in
 {

@@ -2,12 +2,11 @@
   lib,
   config,
   pkgs,
-  user,
-  extraUsers ? [ ],
   ...
 }:
 let
-  allUsers = [ user ] ++ extraUsers;
+  allUsers = config.shared.allUsers;
+  user = config.shared.user.name;
   cfg = config.desktop.environments.common;
 
   # Shared theme definition used for both gtk.theme (GTK3) and

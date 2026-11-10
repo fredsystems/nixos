@@ -1,14 +1,12 @@
 {
   lib,
   config,
-  user,
-  extraUsers ? [ ],
   isDarwin,
   ...
 }:
 
 let
-  allUsers = [ user ] ++ extraUsers;
+  allUsers = config.shared.allUsers;
   cfg = config.desktop.ghostty;
   t = config.terminal;
   isLinux = !isDarwin;

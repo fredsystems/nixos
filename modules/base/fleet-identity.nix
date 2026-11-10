@@ -1,4 +1,4 @@
-{ lib, ... }:
+{ config, lib, ... }:
 {
   # Fleet-wide identity and topology data, as options rather than builder
   # arguments.
@@ -36,6 +36,14 @@
       type = lib.types.listOf lib.types.str;
       default = [ ];
       description = "Additional login users that get the same per-user configuration as the primary user (previously the `extraUsers` specialArg).";
+    };
+
+    allUsers = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      readOnly = true;
+      default = [ config.shared.user.name ] ++ config.shared.extraUsers;
+      defaultText = lib.literalExpression "[ config.shared.user.name ] ++ config.shared.extraUsers";
+      description = "Every login user that gets the per-user configuration: the primary user followed by shared.extraUsers. Derived; do not set.";
     };
 
     monitoring = {

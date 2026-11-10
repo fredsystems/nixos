@@ -1,14 +1,12 @@
 {
   lib,
   config,
-  user,
-  extraUsers ? [ ],
   pkgs,
   ...
 }:
 
 let
-  allUsers = [ user ] ++ extraUsers;
+  allUsers = config.shared.allUsers;
   cfg = config.desktop.thunderbird;
 
   tbSignatures = {

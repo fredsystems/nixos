@@ -2,12 +2,10 @@
   lib,
   pkgs,
   config,
-  user,
-  extraUsers ? [ ],
   ...
 }:
 let
-  allUsers = [ user ] ++ extraUsers;
+  allUsers = config.shared.allUsers;
   cfg = config.desktop.frext;
   inherit (pkgs.stdenv.hostPlatform) isLinux;
 in

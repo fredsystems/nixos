@@ -2,12 +2,10 @@
   lib,
   config,
   pkgs,
-  user,
-  extraUsers ? [ ],
   ...
 }:
 let
-  allUsers = [ user ] ++ extraUsers;
+  allUsers = config.shared.allUsers;
   cfg = config.desktop.environments.modules.noctalia;
   shell = config.desktop.environments.shell;
   u2f = config.hardware-profile.u2f.enable;

@@ -3,14 +3,12 @@
   config,
   inputs,
   system,
-  user,
-  extraUsers ? [ ],
   ...
 }:
 let
   cfg = config.desktop.freminal;
   t = config.terminal;
-  allUsers = [ user ] ++ extraUsers;
+  allUsers = config.shared.allUsers;
 
   freminalPackage = inputs.freminal.packages.${system}.freminal;
 in

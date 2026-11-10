@@ -2,12 +2,10 @@
   lib,
   pkgs,
   config,
-  user,
-  extraUsers ? [ ],
   ...
 }:
 let
-  allUsers = [ user ] ++ extraUsers;
+  allUsers = config.shared.allUsers;
   cfg = config.desktop.environments.niri;
   inherit (config.desktop.environments.common) gtkThemeName;
   shell = config.desktop.environments.shell;

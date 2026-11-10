@@ -14,10 +14,10 @@
   lib,
   pkgs,
   config,
-  user,
   ...
 }:
 let
+  user = config.shared.user.name;
   cfg = config.desktop.clipboard;
 
   # Same secret the server container consumes, referenced rather than copied so

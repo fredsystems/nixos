@@ -3,13 +3,11 @@
   config,
   pkgs,
   catppuccinWallpapers,
-  user,
-  extraUsers ? [ ],
   ...
 }:
 let
   cfg = config.desktop.environments;
-  allUsers = [ user ] ++ extraUsers;
+  allUsers = config.shared.allUsers;
   inherit (config.desktop.environments.common) waitForWayland;
 in
 {
