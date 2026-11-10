@@ -270,6 +270,35 @@
         '';
       };
 
+      # Hermetic tests for scripts/flake-input-impact.sh: fixture flakes under
+      # scripts/tests/fixtures/flake-input-impact exercise the
+      # none/rebuild/source classification offline, with tiny flakes
+      # (`builtins.derivation`, never built) standing in for
+      # nixosConfigurations/devShells/packages.
+      #
+      # The suite runs `nix flake lock` / `nix flake update`, which cannot use
+      # the system store inside a build sandbox (its state dir is not
+      # writable). So the test harness points every `nix` at a throwaway
+      # store, state dir and config under its temp directory; locking and
+      # evaluating the fixtures never builds, so nothing else is needed. That
+      # is why `pkgs.nix` is a runtime input, and why this runs as a normal
+      # hook and flake check like the other script tests.
+      flakeInputImpactCheck = pkgs.writeShellApplication {
+        name = "check-flake-input-impact";
+        runtimeInputs = [
+          pkgs.jq
+          pkgs.git
+          pkgs.gnused
+          pkgs.gnutar
+          pkgs.gzip
+          pkgs.coreutils
+          pkgs.nix
+        ];
+        text = ''
+          bash scripts/tests/flake-input-impact-test.sh
+        '';
+      };
+
       # Validates opencode.jsonc: a structural check (offline, default --
       # unknown top-level keys and command entries missing `template`,
       # wired into both the hook and the standalone check below via
@@ -372,6 +401,15 @@
                 # The library, both scripts built on it, the tests, and the
                 # Nix half of the facts they compare against.
                 files = "^(scripts/(lib/deploy-guard|switch-preflight|colmena-apply-drifted|tests/deploy-guard-test)\\.sh|flake/lib/deploy-facts\\.nix)$";
+                pass_filenames = false;
+              };
+
+              flake-input-impact = {
+                enable = true;
+                name = "flake input impact classifier tests";
+                entry = "${pkgs.lib.getExe flakeInputImpactCheck}";
+
+                files = "^scripts/(flake-input-impact|tests/flake-input-impact-test)\\.sh$|^scripts/tests/fixtures/flake-input-impact/";
                 pass_filenames = false;
               };
 
@@ -863,6 +901,17 @@
           ''
             cd ${self}
             check-owned-nixpkgs
+            touch "$out"
+          '';
+
+      flake-input-impact =
+        pkgs.runCommand "flake-input-impact-check"
+          {
+            nativeBuildInputs = [ flakeInputImpactCheck ];
+          }
+          ''
+            cd ${self}
+            check-flake-input-impact
             touch "$out"
           '';
 
