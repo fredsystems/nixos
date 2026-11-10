@@ -176,7 +176,7 @@ and `--os darwin` report no impacted hosts; every host evaluates with no
       `flake/hosts/nixos.nix` read them at flake level. Scope:
       `flake.nix`, `flake/lib/mk-system.nix`,
       `flake/lib/mk-darwin-system.nix`, `flake/deployment/colmena.nix`.
-- [ ] **4.2 Declare the fleet options.** New
+- [x] **4.2 Declare the fleet options.** New
       `modules/base/fleet-identity.nix` declaring every option in the
       table above, and `modules/base/fleet-identity-home.nix` with the
       Home Manager options and the `sharedModules` bridge. Import them

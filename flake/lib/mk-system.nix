@@ -121,6 +121,26 @@ let
         ];
       }
     )
+    # Fleet data as options; see modules/base/fleet-identity.nix.
+    {
+      shared = {
+        user = {
+          name = user;
+          fullName = verbose_name;
+          email = github_email;
+        };
+        inherit extraUsers;
+        monitoring = {
+          inherit
+            agentNodes
+            agentScrapeMap
+            desktopNodes
+            desktopScrapeMap
+            ;
+        };
+        catppuccinWallpapers = self.packages.${system}.catppuccin-wallpapers;
+      };
+    }
     ./../../modules/base/deployment-meta.nix
     # Fleet-wide facts about the home network. Declares options only, so being
     # in every host's module set costs nothing; the two hosts that read it

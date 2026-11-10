@@ -68,6 +68,16 @@ darwin.lib.darwinSystem {
       ];
       networking.hostName = hostName;
     })
+    # Fleet data as options; see modules/base/fleet-identity.nix. Darwin has
+    # no extra users, no monitoring topology and no wallpapers; the options'
+    # defaults cover the rest.
+    (_: {
+      shared.user = {
+        name = user;
+        fullName = verbose_name;
+        email = github_email;
+      };
+    })
     ../../modules/base/deployment-meta.nix
     ../../modules/base/system.nix
     ../../hosts/darwin/${hostName}/configuration.nix
