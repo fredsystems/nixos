@@ -288,6 +288,28 @@
           bash scripts/check-opencode-jsonc.sh "$@"
         '';
       };
+
+      # Verifies that every root flake input which keeps its OWN nixpkgs
+      # (does not follow one of ours) carries a `# NOTE:` reason directly
+      # above its `<input> = {` block in flake.nix. An owned nixpkgs is
+      # sometimes the right call (a binary cache, a hash tied to upstream's
+      # toolchain) and sometimes an oversight -- nixos-needsreboot was the
+      # latter, pinned to an EOL channel with nothing flagging it. See
+      # scripts/check-owned-nixpkgs.sh's header and
+      # agent-docs/plans/PLAN_03_FLAKE_INPUT_TRACKING.md.
+      ownedNixpkgsCheck = pkgs.writeShellApplication {
+        name = "check-owned-nixpkgs";
+        runtimeInputs = [
+          pkgs.jq
+          pkgs.coreutils
+          pkgs.gnugrep
+          pkgs.gnused
+        ];
+        text = ''
+          bash scripts/tests/check-owned-nixpkgs-test.sh
+          bash scripts/check-owned-nixpkgs.sh
+        '';
+      };
     in
     {
       # precommit-base exposes composable modules (`{ hooks, excludes,
@@ -468,6 +490,14 @@
                 # scripts/check-opencode-jsonc.sh's header for the full
                 # reasoning and how to run the live-schema check manually.
                 files = "^opencode\\.jsonc$";
+                pass_filenames = false;
+              };
+
+              owned-nixpkgs = {
+                enable = true;
+                name = "inputs that keep their own nixpkgs say why";
+                entry = "${pkgs.lib.getExe ownedNixpkgsCheck}";
+                files = "^(flake\\.(nix|lock)|scripts/(check-owned-nixpkgs|tests/check-owned-nixpkgs-test)\\.sh|scripts/tests/fixtures/owned-nixpkgs/.*)$";
                 pass_filenames = false;
               };
             };
@@ -744,6 +774,17 @@
           ''
             cd ${self}
             check-opencode-jsonc --offline
+            touch "$out"
+          '';
+
+      owned-nixpkgs =
+        pkgs.runCommand "owned-nixpkgs-check"
+          {
+            nativeBuildInputs = [ ownedNixpkgsCheck ];
+          }
+          ''
+            cd ${self}
+            check-owned-nixpkgs
             touch "$out"
           '';
 
