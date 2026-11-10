@@ -255,6 +255,21 @@
         '';
       };
 
+      # Hermetic tests for the helpers scripts/rotate-home-ip.sh uses to
+      # decide what lands in fredvps's fail2ban ignoreIP list, plus a check
+      # that modules/data/home-network.nix is still in the shape the script
+      # can edit. Found broken on rotation day is the worst time to find it.
+      homeIpCheck = pkgs.writeShellApplication {
+        name = "check-home-ip";
+        runtimeInputs = [
+          pkgs.gnused
+          pkgs.coreutils
+        ];
+        text = ''
+          bash scripts/tests/home-ip-test.sh
+        '';
+      };
+
       # Validates opencode.jsonc: a structural check (offline, default --
       # unknown top-level keys and command entries missing `template`,
       # wired into both the hook and the standalone check below via
@@ -335,6 +350,14 @@
                 # The library, both scripts built on it, the tests, and the
                 # Nix half of the facts they compare against.
                 files = "^(scripts/(lib/deploy-guard|switch-preflight|colmena-apply-drifted|tests/deploy-guard-test)\\.sh|flake/lib/deploy-facts\\.nix)$";
+                pass_filenames = false;
+              };
+
+              home-ip = {
+                enable = true;
+                name = "home IP rotation helper tests";
+                entry = "${pkgs.lib.getExe homeIpCheck}";
+                files = "^(scripts/(lib/home-ip|rotate-home-ip|tests/home-ip-test)\\.sh|modules/data/home-network\\.nix)$";
                 pass_filenames = false;
               };
 
@@ -585,6 +608,17 @@
           ''
             cd ${self}
             check-deploy-guard
+            touch "$out"
+          '';
+
+      home-ip =
+        pkgs.runCommand "home-ip-check"
+          {
+            nativeBuildInputs = [ homeIpCheck ];
+          }
+          ''
+            cd ${self}
+            check-home-ip
             touch "$out"
           '';
 

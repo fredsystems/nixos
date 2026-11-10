@@ -33,8 +33,8 @@ groups:
       # The configured address no longer matches reality.
       #
       # critical, because this is the state in which a security control is
-      # pointed at the wrong address. It is also trivially fixable -- update
-      # shared.homePublicIPv4 and deploy -- so there is no reason to let it sit.
+      # pointed at the wrong address. It is also trivially fixable --
+      # scripts/rotate-home-ip.sh -- so there is no reason to let it sit.
       #
       # 30m rather than something tighter: the check runs every 10 minutes, and
       # a single anomalous sample should not page. Three consecutive
@@ -50,8 +50,8 @@ groups:
             fredvps observes this network as {{ $labels.observed }}, but the
             fleet is configured for {{ $labels.expected }}. fredvps's fail2ban
             ignoreIP list no longer covers this network and the decoy jails ban
-            on the first knock. Update shared.homePublicIPv4 in
-            modules/data/home-network.nix and deploy fredvps and sdrhub.
+            on the first knock. Run scripts/rotate-home-ip.sh from the nixos
+            repo to update shared.homePublicIPv4 and deploy fredvps and sdrhub.
 
       # The check itself cannot determine the address.
       #

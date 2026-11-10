@@ -51,13 +51,11 @@
       Current public IPv4 address of the home network, as observed by an
       off-site host.
 
-      This is an Ezee Fiber residential address (168.93.0.0/18). It rotates:
-      168.93.60.23 lasted a matter of hours on 2026-09-23 -- the same day the
-      ISP changed -- before drifting to 168.93.60.16, which in turn rotated to
-      168.93.60.69 in 2026-10, then to 168.93.61.33 in early 2026-11, and
-      then to the current value on 2026-11-10. So this is not a "set it at
-      install and forget it" value on this ISP any more than it was on the last one. Two
-      things depend on it being accurate:
+      This is an Ezee Fiber residential address (168.93.0.0/18; mirrored as
+      HOME_ISP_CIDR in scripts/rotate-home-ip.sh). It rotates often -- five
+      times in the first seven weeks on this ISP -- so this is not a "set it
+      at install and forget it" value. `git log -p` on this file is the
+      rotation history. Two things depend on it being accurate:
 
         * fredvps's fail2ban ignoreIP list. The decoy jails run maxretry = 1,
           so a single SYN to any watched port from an address not on that list
@@ -66,8 +64,11 @@
         * sdrhub's home-ip-drift check, which compares this value against what
           fredvps actually observes and alerts on mismatch.
 
-      When it rotates: update this value, deploy fredvps and sdrhub, and the
-      HomePublicIPDrifted alert clears on the next check.
+      When it rotates (HomePublicIPDrifted fires): run
+      scripts/rotate-home-ip.sh. It cross-checks the new address, updates
+      this value, opens a PR and deploys fredvps and sdrhub. Keep the value
+      on a single `default = "<ipv4>";` line; the script edits it by that
+      shape, and scripts/tests/home-ip-test.sh fails if it changes.
 
       IPv4 only, deliberately. Neither the home network nor fredclausen.com
       currently has usable IPv6 (no AAAA record, no global v6 at home), so
