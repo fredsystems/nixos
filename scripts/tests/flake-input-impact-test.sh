@@ -29,10 +29,24 @@ bad() {
 }
 
 TMPROOT="$(mktemp -d)"
-trap 'rm -rf "$TMPROOT"' EXIT
+# Store paths are read-only, so the private store below needs its write bit
+# back before it can be removed.
+trap 'chmod -R u+w "$TMPROOT" 2>/dev/null; rm -rf "$TMPROOT"' EXIT
 
-# See the matching comment in scripts/flake-input-impact.sh: the
-# pre-commit-hook / flake-check sandbox starts from a clean nix.conf.
+# Hermetic Nix: a throwaway store, state dir and config under TMPROOT, for
+# every `nix` this suite and the script under test run (NIX_CONFIG is
+# inherited). Locking and evaluating the fixtures only writes sources into
+# the store and never builds, so no daemon, profile or substituter is
+# needed. This is what lets the suite run inside the Nix build sandbox (the
+# pre-commit-check and flake-input-impact flake checks), where the system
+# store's state dir is not writable; it also keeps a local run from
+# touching the real store.
+export HOME="$TMPROOT/home"
+export NIX_STATE_DIR="$TMPROOT/nix-state"
+export NIX_CONF_DIR="$TMPROOT/nix-conf"
+export NIX_CONFIG="store = $TMPROOT/nix-store
+experimental-features = nix-command flakes"
+mkdir -p "$HOME" "$NIX_CONF_DIR"
 NIX_FEATURES=(--extra-experimental-features "nix-command flakes")
 
 git_init_commit() { # dir message
@@ -55,6 +69,9 @@ git_commit_all() { # dir message
 copy_fixture() { # name
     local name="$1"
     cp -R "$FIXTURES/$name" "$TMPROOT/$name"
+    # The fixtures may come from a read-only store path (the standalone
+    # flake check runs from ${self}), and cp keeps their modes.
+    chmod -R u+w "$TMPROOT/$name"
     # @TMPROOT@ is the only placeholder the fixtures use, standing in for
     # this run's scratch directory (unknown until mktemp runs above).
     sed -i "s#@TMPROOT@#$TMPROOT#g" "$TMPROOT/$name/flake.nix"
@@ -80,6 +97,7 @@ git_init_commit "$TMPROOT/dep-source" "init"
 # unfetchable, breaking the override test for case (c) below.
 mkdir -p "$TMPROOT/tarballs"
 cp -R "$FIXTURES/nixpkgs-owned" "$TMPROOT/nixpkgs-owned-src-v1"
+chmod -R u+w "$TMPROOT/nixpkgs-owned-src-v1"
 tar -C "$TMPROOT/nixpkgs-owned-src-v1" -czf "$TMPROOT/tarballs/nixpkgs-owned-v1.tar.gz" flake.nix
 
 copy_fixture "dep-owning"
@@ -134,6 +152,7 @@ expect_kind "(b) moved but unused" "dep-follow" "none"
 # ---------------------------------------------------------------------------
 
 cp -R "$FIXTURES/nixpkgs-owned" "$TMPROOT/nixpkgs-owned-src-v2"
+chmod -R u+w "$TMPROOT/nixpkgs-owned-src-v2"
 sed -i 's/owned-tar-v1/owned-tar-v2/' "$TMPROOT/nixpkgs-owned-src-v2/flake.nix"
 tar -C "$TMPROOT/nixpkgs-owned-src-v2" -czf "$TMPROOT/tarballs/nixpkgs-owned-v2.tar.gz" flake.nix
 

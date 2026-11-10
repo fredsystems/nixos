@@ -290,6 +290,30 @@ complete until Plan 02 is.
       folder: per-input age and impact, open update PRs, owned nixpkgs
       nodes and their channels, NixOS channel status.
 
+### Cleanup
+
+- [ ] **3.13 actionlint in pre-commit.** Surfaced during 3.9: actionlint
+      reports 9 findings in this repo, in `ci-darwin.yaml`, `ci-linux.yaml`
+      and `lint.yaml` (3 each, shellcheck SC2086 unquoted variables in the
+      `skip-if-clean` step those workflows share), and nothing runs it:
+      `precommit-base` validates workflows only against the JSON schema
+      (`check-github-workflows`). Impact: workflow shell bugs reach CI
+      unflagged. Fix, in order:
+      1. Fix the 9 findings here. This touches `ci-linux.yaml` and
+         `ci-darwin.yaml`, which are in `FORCE_ALL_FILES`, so the PR
+         builds every host.
+      2. In `FredSystems/pre-commit-checks`, enable git-hooks.nix's
+         built-in `actionlint` hook (it runs shellcheck on `run:` blocks)
+         in the base hook set, so every consuming repo gets it.
+      3. Bump `precommit-base` here.
+      Scheduling: before step 2 lands, inventory actionlint findings in
+      every repo that consumes `precommit-base` (freminal,
+      docker-acarshub, github-ci-exporter, nixos-needsreboot, ...). Each
+      one's next base bump fails until its findings are fixed.
+      Verification: `actionlint` clean here; the base's
+      `pre-commit-check` runs the hook; this repo's Lint passes after the
+      bump.
+
 ## Out of scope
 
 - Replacing `update-flakes.yaml`'s weekly run. Revisit after the watch

@@ -270,34 +270,19 @@
         '';
       };
 
-      # Hermetic tests for scripts/flake-input-impact.sh (plan 03, subtask
-      # 3.9): fixture flakes under scripts/tests/fixtures/flake-input-impact
-      # exercise the none/rebuild/source classification purely offline, with
-      # tiny flakes (`builtins.derivation`, never built) standing in for
+      # Hermetic tests for scripts/flake-input-impact.sh: fixture flakes under
+      # scripts/tests/fixtures/flake-input-impact exercise the
+      # none/rebuild/source classification offline, with tiny flakes
+      # (`builtins.derivation`, never built) standing in for
       # nixosConfigurations/devShells/packages.
       #
-      # Pre-commit hook ONLY -- no standalone `checks.flake-input-impact`,
-      # and `stages = [ "manual" ]` below so this is skipped both by a real
-      # `git commit` and by git-hooks' own aggregate `run` derivation (what
-      # `nix build .#checks.<system>.pre-commit-check` and CI's lint job
-      # build): that derivation's buildPhase calls
-      # `pre-commit run --all-files` inside a standard Nix build sandbox,
-      # which has no Nix daemon socket and no writable
-      # `/nix/var/nix/profiles` -- confirmed empirically here, not merely
-      # assumed: `nix eval` works fine in that sandbox (it did when tried in
-      # isolation), but `nix flake lock`/`update` (which this script and its
-      # tests call repeatedly, to compute a bumped lock without touching the
-      # real one) fails there with "creating directory
-      # \"/nix/var/nix/profiles\": Permission denied". A hook needing a
-      # fully working `nix flake update` cannot run inside that sandbox at
-      # all, unlike e.g. check-doc-drift.sh (above), which only needed to
-      # avoid a *runtime* `nix eval` and could route around it by baking
-      # values in at build time -- there is no equivalent workaround for
-      # locking an input against a scratch lock file.
-      # `stages = [ "manual" ]` keeps the hook reachable by name
-      # (`pre-commit run flake-input-impact --all-files`, run by a human or
-      # a dedicated CI step outside the sandbox, where a real `nix` is
-      # available) without ever being invoked automatically.
+      # The suite runs `nix flake lock` / `nix flake update`, which cannot use
+      # the system store inside a build sandbox (its state dir is not
+      # writable). So the test harness points every `nix` at a throwaway
+      # store, state dir and config under its temp directory; locking and
+      # evaluating the fixtures never builds, so nothing else is needed. That
+      # is why `pkgs.nix` is a runtime input, and why this runs as a normal
+      # hook and flake check like the other script tests.
       flakeInputImpactCheck = pkgs.writeShellApplication {
         name = "check-flake-input-impact";
         runtimeInputs = [
@@ -307,6 +292,7 @@
           pkgs.gnutar
           pkgs.gzip
           pkgs.coreutils
+          pkgs.nix
         ];
         text = ''
           bash scripts/tests/flake-input-impact-test.sh
@@ -423,13 +409,6 @@
                 name = "flake input impact classifier tests";
                 entry = "${pkgs.lib.getExe flakeInputImpactCheck}";
 
-                # Manual stage only -- see flakeInputImpactCheck's own
-                # comment above for why: it needs a fully working `nix
-                # flake update`, which the sandboxed build that both a real
-                # `git commit` and `nix build .#checks.<system>.pre-commit-
-                # check` run hooks inside of cannot provide. Run by hand:
-                # `pre-commit run flake-input-impact --all-files`.
-                stages = [ "manual" ];
                 files = "^scripts/(flake-input-impact|tests/flake-input-impact-test)\\.sh$|^scripts/tests/fixtures/flake-input-impact/";
                 pass_filenames = false;
               };
@@ -922,6 +901,17 @@
           ''
             cd ${self}
             check-owned-nixpkgs
+            touch "$out"
+          '';
+
+      flake-input-impact =
+        pkgs.runCommand "flake-input-impact-check"
+          {
+            nativeBuildInputs = [ flakeInputImpactCheck ];
+          }
+          ''
+            cd ${self}
+            check-flake-input-impact
             touch "$out"
           '';
 

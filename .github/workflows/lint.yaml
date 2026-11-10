@@ -87,15 +87,6 @@ jobs:
         # occurred when acarsdec-3 was replaced by xng on acarshub.
         run: nix build --no-link --print-build-logs .#checks.x86_64-linux.decoder-units-sync
 
-      - name: Flake input impact classifier tests
-        # Not part of pre-commit-check: the tests run `nix flake lock` /
-        # `nix flake update` against offline fixture flakes, which cannot run
-        # inside a Nix build sandbox, so the flake-input-impact hook is
-        # manual-stage only. Run them here instead, outside the sandbox, so
-        # they gate every PR. The fixtures are local path: flakes with no
-        # nixpkgs, so this needs no network and takes seconds.
-        run: bash scripts/tests/flake-input-impact-test.sh
-
       - name: Check SyncClipboard server/client version parity
         # The server image and the Linux client AppImage ship from a single
         # upstream tag but are pinned in two files, and only the image is
