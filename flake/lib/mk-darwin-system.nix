@@ -67,10 +67,7 @@ darwin.lib.darwinSystem {
     (_: {
       nixpkgs.overlays = [
         (import ./../../overlays/default.nix)
-        # OpenCode 2 from the `opencode` flake input; see mk-system.nix.
-        (final: _: {
-          opencode = inputs.opencode.packages.${final.stdenv.hostPlatform.system}.opencode;
-        })
+        (import ./opencode-overlay.nix inputs)
       ];
       networking.hostName = hostName;
     })
