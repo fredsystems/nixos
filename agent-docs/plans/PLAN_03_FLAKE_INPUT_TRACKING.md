@@ -267,14 +267,15 @@ complete until Plan 02 is.
       set `flakeRepos = [ "fredsystems/nixos" ]` in
       `modules/monitoring/master/github-ci-exporter.nix`. Verify with
       `nixos-eval-impacted-hosts`, then deploy sdrhub.
-- [ ] **3.9 Impact classification.** `scripts/flake-input-impact.sh
+- [x] **3.9 Impact classification.** `scripts/flake-input-impact.sh
       <input>`: update one input in a scratch copy and print `none`,
       `rebuild` or `source` per the table above, reusing
       `impacted-hosts.sh`'s evaluation and adding the dev shell and
-      `packages.*`. Confirm Darwin configurations evaluate on a Linux
-      runner; if not, the Darwin half runs on the macOS pool. Tests: a
-      fixture flake with a following input, an owned-nixpkgs input bumped
-      only in its lock, and one with a source change.
+      `packages.*`. Each OS is classified on its own runner: Darwin
+      configurations are evaluated only on the macOS pool, never on
+      Linux. Tests: a fixture flake with a following input, an
+      owned-nixpkgs input bumped only in its lock, and one with a source
+      change.
 - [ ] **3.10 Watch Action and policy file.** `flake-input-watch.yaml`,
       hourly on `[self-hosted, Linux]`: find moved branch-tracking inputs
       with no open update PR, classify each with 3.9, write the results
