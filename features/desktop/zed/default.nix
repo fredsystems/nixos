@@ -2,12 +2,11 @@
   lib,
   pkgs,
   config,
-  user,
-  extraUsers ? [ ],
   ...
 }:
 let
-  allUsers = [ user ] ++ extraUsers;
+  allUsers = config.shared.allUsers;
+  user = config.shared.user.name;
   cfg = config.desktop.zed;
 
   # Two-digit hex alpha from the shared terminal opacity, so Zed matches the

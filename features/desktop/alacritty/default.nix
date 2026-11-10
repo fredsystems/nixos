@@ -2,13 +2,11 @@
   lib,
   pkgs,
   config,
-  user,
-  extraUsers ? [ ],
   ...
 }:
 
 let
-  allUsers = [ user ] ++ extraUsers;
+  allUsers = config.shared.allUsers;
   cfg = config.desktop.alacritty;
 
   # Pull from the shared terminal module

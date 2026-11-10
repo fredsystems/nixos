@@ -2,12 +2,10 @@
   lib,
   pkgs,
   config,
-  user,
-  extraUsers ? [ ],
   ...
 }:
 let
-  allUsers = [ user ] ++ extraUsers;
+  allUsers = config.shared.allUsers;
   cfg = config.desktop.environments.modules.pamixer;
 in
 {

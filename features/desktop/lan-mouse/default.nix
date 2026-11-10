@@ -36,14 +36,12 @@
   pkgs,
   config,
   inputs,
-  user,
-  extraUsers ? [ ],
   isDarwin,
   ...
 }:
 let
   cfg = config.desktop.lan-mouse;
-  allUsers = [ user ] ++ extraUsers;
+  allUsers = config.shared.allUsers;
 
   # One package, both platforms. `platforms = unix ++ windows` in nixpkgs, and
   # aarch64-darwin builds of 0.11.0 are substitutable from cache.nixos.org, so

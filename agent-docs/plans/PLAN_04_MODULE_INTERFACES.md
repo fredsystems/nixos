@@ -184,7 +184,7 @@ and `--os darwin` report no impacted hosts; every host evaluates with no
       from the values they already pass, and keep the `specialArgs` for
       now so nothing changes yet. Test: on Daytona, Freds-MacBook-Pro and
       fredvps (for `nik`), the Home Manager values equal the system ones.
-- [ ] **4.3 Migrate identity consumers, features/desktop.** Every file
+- [x] **4.3 Migrate identity consumers, features/desktop.** Every file
       under `features/desktop/` reading `user`, `extraUsers`,
       `verbose_name` or `github_email` reads `config.shared.*` instead
       and drops the argument.

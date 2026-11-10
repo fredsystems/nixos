@@ -2,13 +2,11 @@
   lib,
   pkgs,
   config,
-  user,
-  extraUsers ? [ ],
   ...
 }:
 let
   cfg = config.desktop.appimage;
-  allUsers = [ user ] ++ extraUsers;
+  allUsers = config.shared.allUsers;
 in
 {
   options.desktop.appimage = {

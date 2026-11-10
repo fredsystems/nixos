@@ -3,12 +3,10 @@
   pkgs,
   config,
   hmlib,
-  user,
-  extraUsers ? [ ],
   ...
 }:
 let
-  allUsers = [ user ] ++ extraUsers;
+  allUsers = config.shared.allUsers;
   cfg = config.desktop.environments.gnome;
   inherit (config.desktop.environments.common) gtkThemeName;
 in

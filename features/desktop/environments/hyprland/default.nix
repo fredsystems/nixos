@@ -2,13 +2,11 @@
   lib,
   pkgs,
   config,
-  user,
   hmlib,
-  extraUsers ? [ ],
   ...
 }:
 let
-  allUsers = [ user ] ++ extraUsers;
+  allUsers = config.shared.allUsers;
   cfg = config.desktop.environments.hyprland;
   inherit (config.desktop.environments.common) waitForWayland gtkThemeName;
   shell = config.desktop.environments.shell;

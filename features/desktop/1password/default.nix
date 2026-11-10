@@ -1,10 +1,10 @@
 {
   lib,
   config,
-  user,
   ...
 }:
 let
+  user = config.shared.user.name;
   cfg = config.desktop.onepassword;
 in
 {
