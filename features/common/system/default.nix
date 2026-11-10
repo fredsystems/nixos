@@ -3,7 +3,6 @@
   options,
   pkgs,
   lib,
-  inputs,
   ...
 }:
 {
@@ -94,7 +93,7 @@
       hwdata
       airspy
       pciutils
-      inputs.nixos-needsreboot.packages.${config.nixpkgs.hostPlatform.system}.default
+      nixos-needsreboot
     ];
 
     services = {

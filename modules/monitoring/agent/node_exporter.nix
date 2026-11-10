@@ -2,7 +2,6 @@
   config,
   pkgs,
   lib,
-  inputs,
   ...
 }:
 let
@@ -214,9 +213,7 @@ in
           Type = "oneshot";
           ExecStart = pkgs.writeShellScript "nixos-needs-reboot-metric.sh" ''
             # Run nixos-needsreboot to create/update the /run/reboot-required sentinel
-            ${
-              inputs.nixos-needsreboot.packages.${config.nixpkgs.hostPlatform.system}.default
-            }/bin/nixos-needsreboot || true
+            ${pkgs.nixos-needsreboot}/bin/nixos-needsreboot || true
 
             NEEDS_REBOOT=0
 
