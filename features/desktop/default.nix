@@ -67,23 +67,23 @@ in
 
   config = lib.mkIf cfg.enable {
     desktop = {
-      alacritty.enable = true;
-      appimage.enable = cfg.enable_extra;
-      audio.enable = true;
-      brave.enable = true;
-      chatgpt.enable = true;
-      clipboard.enable = true;
-      discord.enable = cfg.enable_extra;
-      environments.enable = true;
-      firefox.enable = true;
-      flatpak.enable = true;
-      fonts.enable = true;
-      freminal.enable = true;
-      frext.enable = true;
-      ghostty.enable = true;
-      githubdesktop.enable = true;
-      kitty.enable = true;
-      ladybird.enable = true;
+      alacritty.enable = lib.mkDefault true;
+      appimage.enable = lib.mkDefault cfg.enable_extra;
+      audio.enable = lib.mkDefault true;
+      brave.enable = lib.mkDefault true;
+      chatgpt.enable = lib.mkDefault true;
+      clipboard.enable = lib.mkDefault true;
+      discord.enable = lib.mkDefault cfg.enable_extra;
+      environments.enable = lib.mkDefault true;
+      firefox.enable = lib.mkDefault true;
+      flatpak.enable = lib.mkDefault true;
+      fonts.enable = lib.mkDefault true;
+      freminal.enable = lib.mkDefault true;
+      frext.enable = lib.mkDefault true;
+      ghostty.enable = lib.mkDefault true;
+      githubdesktop.enable = lib.mkDefault true;
+      kitty.enable = lib.mkDefault true;
+      ladybird.enable = lib.mkDefault true;
       # No `lan-mouse.enable` line here on purpose, unlike every other entry
       # in this block. It pairs one specific machine with one specific peer
       # sitting at one specific edge of that machine's monitor layout, so
@@ -91,29 +91,29 @@ in
       # here would put a phantom screen edge on Daytona, whose desk has no
       # second computer beyond it. Hosts opt in individually; see
       # hosts/linux/maranello/configuration.nix.
-      ledger.enable = cfg.enable_extra;
-      libreoffice.enable = true;
-      missioncenter.enable = true;
-      multiviewer.enable = true;
-      music.enable = cfg.enable_extra;
-      nix-ld.enable = true;
-      obs.enable = cfg.enable_streaming;
-      onepassword.enable = true;
-      photocraft.enable = true;
-      pinta.enable = true;
-      print.enable = true;
-      sqlitebrowser.enable = true;
-      steam.enable = cfg.enable_games;
-      stockfish.enable = true;
-      thunderbird.enable = true;
-      tradingview.enable = cfg.enable_extra;
-      trezor.enable = cfg.enable_extra;
-      vlc.enable = true;
-      vscode.enable = true;
-      wezterm.enable = true;
-      wireshark.enable = true;
-      yubikey.enable = true;
-      zed.enable = true;
+      ledger.enable = lib.mkDefault cfg.enable_extra;
+      libreoffice.enable = lib.mkDefault true;
+      missioncenter.enable = lib.mkDefault true;
+      multiviewer.enable = lib.mkDefault true;
+      music.enable = lib.mkDefault cfg.enable_extra;
+      nix-ld.enable = lib.mkDefault true;
+      obs.enable = lib.mkDefault cfg.enable_streaming;
+      onepassword.enable = lib.mkDefault true;
+      photocraft.enable = lib.mkDefault true;
+      pinta.enable = lib.mkDefault true;
+      print.enable = lib.mkDefault true;
+      sqlitebrowser.enable = lib.mkDefault true;
+      steam.enable = lib.mkDefault cfg.enable_games;
+      stockfish.enable = lib.mkDefault true;
+      thunderbird.enable = lib.mkDefault true;
+      tradingview.enable = lib.mkDefault cfg.enable_extra;
+      trezor.enable = lib.mkDefault cfg.enable_extra;
+      vlc.enable = lib.mkDefault true;
+      vscode.enable = lib.mkDefault true;
+      wezterm.enable = lib.mkDefault true;
+      wireshark.enable = lib.mkDefault true;
+      yubikey.enable = lib.mkDefault true;
+      zed.enable = lib.mkDefault true;
     };
 
     home-manager.users = lib.genAttrs allUsers (_: {

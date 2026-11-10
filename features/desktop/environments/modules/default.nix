@@ -20,11 +20,11 @@ in
 
   config = lib.mkIf cfg.enable {
     desktop.environments.modules = {
-      clipboard.enable = true;
-      hyprlandextra.enable = true;
-      noctalia.enable = true;
-      pamixer.enable = true;
-      vicinae.enable = true;
+      clipboard.enable = lib.mkDefault true;
+      hyprlandextra.enable = lib.mkDefault true;
+      noctalia.enable = lib.mkDefault true;
+      pamixer.enable = lib.mkDefault true;
+      vicinae.enable = lib.mkDefault true;
     };
   };
 }

@@ -76,11 +76,11 @@ in
     };
 
     desktop.environments = {
-      common.enable = true;
-      cosmic.enable = false;
-      gnome.enable = false;
-      hyprland.enable = true;
-      niri.enable = true;
+      common.enable = lib.mkDefault true;
+      cosmic.enable = lib.mkDefault false;
+      gnome.enable = lib.mkDefault false;
+      hyprland.enable = lib.mkDefault true;
+      niri.enable = lib.mkDefault true;
     };
 
     home-manager.users = lib.genAttrs allUsers (_: {

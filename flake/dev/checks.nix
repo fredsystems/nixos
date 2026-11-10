@@ -587,6 +587,75 @@
             ''
         );
 
+      # Fan-out parents turn their sub-features on with lib.mkDefault, so a
+      # host can turn any one of them off, or a defaulted-off one on, with a
+      # plain definition. With a plain-priority value in the parent, the
+      # host's value and the parent's are equal-priority definitions and
+      # evaluation fails with "conflicting definition values".
+      #
+      # Every option set under `desktop` that has an `enable`, at any depth,
+      # is flipped on its own on a real host and read back. Discovering them
+      # from the option tree means a new fan-out block is covered without
+      # editing this check, and flipping one at a time means turning a
+      # parent off can never hide a conflict in a child it also enables.
+      # Only enable options are evaluated, not the system.
+      feature-enables-overridable =
+        let
+          # Paths (below `prefix`) of every option set with an `enable` option.
+          enablePaths =
+            opts: prefix:
+            lib.concatLists (
+              lib.mapAttrsToList (
+                name: o:
+                lib.optionals (lib.isAttrs o && !lib.isOption o) (
+                  lib.optional (o ? enable && lib.isOption o.enable) (prefix ++ [ name ])
+                  ++ enablePaths o (prefix ++ [ name ])
+                )
+              ) opts
+            );
+
+          flipProblem =
+            sys: path:
+            let
+              enablePath = path ++ [ "enable" ];
+              current = lib.getAttrFromPath enablePath sys.config;
+              flipped = sys.extendModules {
+                modules = [ (lib.setAttrByPath enablePath (!current)) ];
+              };
+              after = builtins.tryEval (lib.getAttrFromPath enablePath flipped.config);
+              name = lib.concatStringsSep "." enablePath;
+              want = lib.boolToString (!current);
+            in
+            if !after.success then
+              [ "  ${name}: setting it to ${want} fails to evaluate (conflicting definitions)" ]
+            else
+              lib.optional (after.value == current) "  ${name}: setting it to ${want} had no effect";
+
+          hosts = [
+            self.nixosConfigurations.Daytona
+            self.darwinConfigurations.Freds-MacBook-Pro
+          ];
+
+          pathsFor = sys: enablePaths sys.options.desktop [ "desktop" ];
+          problems = lib.concatMap (sys: lib.concatMap (flipProblem sys) (pathsFor sys)) hosts;
+          checked = lib.concatMap pathsFor hosts;
+        in
+        pkgs.runCommand "feature-enables-overridable-check" { } (
+          if problems == [ ] then
+            ''
+              echo "every desktop sub-feature is overridable by a host (${toString (builtins.length checked)} checked)"
+              touch "$out"
+            ''
+          else
+            ''
+              echo "desktop sub-features a host cannot override:" >&2
+              ${lib.concatMapStringsSep "\n" (p: "echo ${lib.escapeShellArg p} >&2") problems}
+              echo "" >&2
+              echo "Set them with lib.mkDefault in the block that enables them." >&2
+              exit 1
+            ''
+        );
+
       ci-pipeline-files-sync =
         pkgs.runCommand "ci-pipeline-files-sync-check"
           {
