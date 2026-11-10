@@ -1,9 +1,8 @@
 # Plan 03: Flake input tracking
 
-- **Status:** planned
-- **Branches:** none yet. 3.1 is fredsystems/nixos#2809. Exporter work
-  (3.4-3.7) lands in `fredsystems/github-ci-exporter`. The rest is in
-  this repo.
+- **Status:** in progress
+- **Branches:** 3.1 merged as #2809. Exporter work (3.4-3.7) lands in
+  `fredsystems/github-ci-exporter`. The rest is in this repo.
 
 ## Goal
 
@@ -171,11 +170,12 @@ complete until Plan 02 is.
 
 ### Groundwork
 
-- [ ] **3.1 Retire needsreboot's own nixpkgs.** fredclausen/nixos-needsreboot#19
-      (merged) moved it to `nixos-26.05`, added a Renovate regex manager
-      for the channel ref, and exported `overlays.default`. #2809 applies
-      the overlay so each host builds it from its own nixpkgs, and follows
-      ours. Done when #2809 merges.
+- [x] **3.1 Retire needsreboot's own nixpkgs.** fredclausen/nixos-needsreboot#19
+      moved it to `nixos-26.05`, added a Renovate regex manager for the
+      channel ref, and exported `overlays.default`. #2809 applies the
+      overlay so each host builds it from its own nixpkgs, follows ours,
+      and has the exported profiles apply the overlay themselves (they
+      bypass `mk-system.nix`).
 - [ ] **3.2 Let Renovate keep its PRs.** Add `github[bot]` to Renovate's
       `gitIgnoredAuthors`, so the relock and opencode-hash commits no
       longer make Renovate treat its branch as edited and stop rebasing
