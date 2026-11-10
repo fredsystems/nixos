@@ -286,7 +286,6 @@
       user = "fred";
       verbose_name = "Fred Clausen";
       github_email = "43556888+fredclausen@users.noreply.github.com";
-      github_signing_key = "~/.ssh/id_ed25519_sk.pub";
       hmlib = home-manager.lib;
 
       ##########################################################################
@@ -317,8 +316,6 @@
       agentNodes = builtins.filter (
         name: self.nixosConfigurations.${name}.config.deployment.role == "monitoring-agent"
       ) (builtins.attrNames self.nixosConfigurations);
-
-      agentTargets = map (name: "${name}.local") agentNodes;
 
       agentScrapeMap = builtins.listToAttrs (
         map (name: {
@@ -360,11 +357,9 @@
           user
           verbose_name
           github_email
-          github_signing_key
           hmlib
           serverNodes
           agentNodes
-          agentTargets
           agentScrapeMap
           desktopNodes
           desktopScrapeMap
