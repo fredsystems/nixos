@@ -1,4 +1,7 @@
 {
-  "rev": null,
-  "nodeModules": {}
+  "rev": "fedc6f208aa2bd54c1019227214568083f6380ad",
+  "nodeModules": {
+    "aarch64-darwin": "sha256-4avGyKKserdkfvdm/XPmSbR1w+p4pzdHYT9CW6dRdB8=",
+    "x86_64-linux": "sha256-1mAAHaGwJ1sqxRe0YUsPEXJpXzEsZVX0VOmxRbY75n4="
+  }
 }
