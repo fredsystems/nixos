@@ -1,5 +1,4 @@
 {
-  stateVersion,
   ...
 }:
 {
@@ -13,8 +12,6 @@
   ];
 
   networking.hostName = "nvrhub";
-
-  system.stateVersion = stateVersion;
 
   ###########################################
   # Surveillance media storage

@@ -1,13 +1,12 @@
 {
   config,
   inputs,
-  system,
-  stateVersion,
   lib,
   pkgs,
   ...
 }:
 let
+  system = config.nixpkgs.hostPlatform.system;
   unstablePkgs = import inputs.nixpkgs {
     inherit system;
     config.allowUnfreePredicate =
@@ -50,8 +49,6 @@ in
   };
 
   networking.hostName = "fredhub";
-
-  system.stateVersion = stateVersion;
 
   ci.githubRunners = {
     enable = true;

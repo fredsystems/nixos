@@ -1,11 +1,11 @@
 {
   config,
   lib,
-  system,
   ...
 }:
 let
   allUsers = config.shared.allUsers;
+  system = config.nixpkgs.hostPlatform.system;
 in
 {
   config = {
@@ -39,10 +39,10 @@ in
           # to the host's pkgs.stdenv.{host,build}Platform; on recent
           # nixos-unstable resolving those re-enters the host evaluation and
           # causes infinite recursion in the lsp/servers modules. Pin both
-          # platforms to the literal `system` string (not pkgs.stdenv.*, which
-          # would force the host pkgs evaluation that is itself part of the
-          # cycle) to break the recursion while keeping nixvim on its own
-          # nixpkgs.
+          # platforms to the `system` string from config.nixpkgs.hostPlatform.system
+          # (not pkgs.stdenv.*, which would force the host pkgs evaluation that
+          # is itself part of the cycle) to break the recursion while keeping
+          # nixvim on its own nixpkgs.
           nixpkgs = {
             config.allowUnfree = true;
             hostPlatform = system;

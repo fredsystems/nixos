@@ -1,6 +1,5 @@
 {
   config,
-  stateVersion,
   ...
 }:
 let
@@ -21,8 +20,6 @@ in
   # This host has USB SDR hardware attached; raise the global usbfs
   # transfer-buffer ceiling above the 16 MB kernel default.
   hardware-profile.usbfs.enable = true;
-
-  system.stateVersion = stateVersion;
 
   sops.secrets = {
     "docker/hfdlhub1/dumphfdl1.env" = mkContainerSecret "dumphfdl-1";

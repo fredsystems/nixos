@@ -2,7 +2,6 @@
   lib,
   pkgs,
   config,
-  hmlib,
   ...
 }:
 let
@@ -84,272 +83,276 @@ in
       };
     };
 
-    home-manager.users = lib.genAttrs allUsers (_: {
+    home-manager.users = lib.genAttrs allUsers (
+      _:
+      { lib, ... }:
+      {
 
-      # The xdg-desktop-portal daemon discovers portal *definition* files
-      # (`*.portal`) by scanning `xdg-desktop-portal/portals` under each
-      # XDG_DATA_DIRS entry, and the per-user profile
-      # (`/etc/profiles/per-user/<user>/share`) is on that path. home-manager's
-      # `wayland.windowManager.hyprland` integration installs only
-      # `xdg-desktop-portal-hyprland` into that profile, so the gtk backend's
-      # `gtk.portal` definition is absent from the user profile. The
-      # system-level `FileChooser=gtk` routing (above) then resolves to a
-      # backend the daemon reports as "Requested gtk.portal is unrecognized",
-      # and rfd/Firefox/Flatpak get "No such interface
-      # org.freedesktop.portal.FileChooser". Installing the gtk portal here
-      # places `gtk.portal` next to `hyprland.portal` in the user profile so
-      # the routing resolves. The system-level `xdg.portal.extraPortals` entry
-      # in common.nix keeps the backend's D-Bus/systemd activation wired up.
-      home.packages = [ pkgs.xdg-desktop-portal-gtk ];
+        # The xdg-desktop-portal daemon discovers portal *definition* files
+        # (`*.portal`) by scanning `xdg-desktop-portal/portals` under each
+        # XDG_DATA_DIRS entry, and the per-user profile
+        # (`/etc/profiles/per-user/<user>/share`) is on that path. home-manager's
+        # `wayland.windowManager.hyprland` integration installs only
+        # `xdg-desktop-portal-hyprland` into that profile, so the gtk backend's
+        # `gtk.portal` definition is absent from the user profile. The
+        # system-level `FileChooser=gtk` routing (above) then resolves to a
+        # backend the daemon reports as "Requested gtk.portal is unrecognized",
+        # and rfd/Firefox/Flatpak get "No such interface
+        # org.freedesktop.portal.FileChooser". Installing the gtk portal here
+        # places `gtk.portal` next to `hyprland.portal` in the user profile so
+        # the routing resolves. The system-level `xdg.portal.extraPortals` entry
+        # in common.nix keeps the backend's D-Bus/systemd activation wired up.
+        home.packages = [ pkgs.xdg-desktop-portal-gtk ];
 
-      # wayland.windowManager.hyprland generates a broken stub unit at
-      # ~/.config/systemd/user/xdg-desktop-portal-hyprland.service that only
-      # contains our ExecStartPre and has no ExecStart — causing systemd to
-      # report bad-setting and refuse to start it, shadowing the real unit in
-      # /etc/systemd/user/. Remove it after home-manager places it so only the
-      # system-level unit (with our overrideStrategy drop-in) is used.
-      home.activation.removePortalHyprlandStub = hmlib.hm.dag.entryAfter [ "writeBoundary" ] ''
-        rm -f ~/.config/systemd/user/xdg-desktop-portal-hyprland.service
-        rm -f ~/.config/systemd/user/xdg-desktop-portal-hyprland.service.d/wait-for-wayland.conf
-        rmdir --ignore-fail-on-non-empty ~/.config/systemd/user/xdg-desktop-portal-hyprland.service.d 2>/dev/null || true
-        $DRY_RUN_CMD ${pkgs.systemd}/bin/systemctl --user daemon-reload || true
-      '';
+        # wayland.windowManager.hyprland generates a broken stub unit at
+        # ~/.config/systemd/user/xdg-desktop-portal-hyprland.service that only
+        # contains our ExecStartPre and has no ExecStart — causing systemd to
+        # report bad-setting and refuse to start it, shadowing the real unit in
+        # /etc/systemd/user/. Remove it after home-manager places it so only the
+        # system-level unit (with our overrideStrategy drop-in) is used.
+        home.activation.removePortalHyprlandStub = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+          rm -f ~/.config/systemd/user/xdg-desktop-portal-hyprland.service
+          rm -f ~/.config/systemd/user/xdg-desktop-portal-hyprland.service.d/wait-for-wayland.conf
+          rmdir --ignore-fail-on-non-empty ~/.config/systemd/user/xdg-desktop-portal-hyprland.service.d 2>/dev/null || true
+          $DRY_RUN_CMD ${pkgs.systemd}/bin/systemctl --user daemon-reload || true
+        '';
 
-      catppuccin.hyprland.enable = true;
+        catppuccin.hyprland.enable = true;
 
-      wayland.windowManager.hyprland = {
-        enable = true;
+        wayland.windowManager.hyprland = {
+          enable = true;
 
-        # Migrated to the Lua API so catppuccin's `colors._var` local renders
-        # correctly. All settings live in `extraConfig` as hand-written Lua
-        # because (a) most of our keys (`exec-once`, `col.active_border`,
-        # `$mainMod`, `binde`, etc.) are not valid Lua identifiers the HM
-        # `settings` renderer can express, and (b) dispatchers are functions
-        # in the Lua API (`hl.dsp.exec_cmd(...)`), not comma-separated
-        # strings. Hosts add their own monitor/workspace/bind config via
-        # `extraConfig` as well.
-        configType = "lua";
+          # Migrated to the Lua API so catppuccin's `colors._var` local renders
+          # correctly. All settings live in `extraConfig` as hand-written Lua
+          # because (a) most of our keys (`exec-once`, `col.active_border`,
+          # `$mainMod`, `binde`, etc.) are not valid Lua identifiers the HM
+          # `settings` renderer can express, and (b) dispatchers are functions
+          # in the Lua API (`hl.dsp.exec_cmd(...)`), not comma-separated
+          # strings. Hosts add their own monitor/workspace/bind config via
+          # `extraConfig` as well.
+          configType = "lua";
 
-        extraConfig = ''
-          ----------------
-          ---- LOCALS ----
-          ----------------
+          extraConfig = ''
+            ----------------
+            ---- LOCALS ----
+            ----------------
 
-          local mainMod = "SUPER"
-          local fileManager = "yazi"
-          local terminal = "freminal"
-          local email = "thunderbird"
-          local scripts = os.getenv("HOME") .. "/.config/hyprextra/scripts"
+            local mainMod = "SUPER"
+            local fileManager = "yazi"
+            local terminal = "freminal"
+            local email = "thunderbird"
+            local scripts = os.getenv("HOME") .. "/.config/hyprextra/scripts"
 
-          ----------------
-          ---- ENV    ----
-          ----------------
+            ----------------
+            ---- ENV    ----
+            ----------------
 
-          hl.env("QT_QPA_PLATFORMTHEME", "qt6ct")
-          hl.env("XCURSOR_SIZE", "24")
+            hl.env("QT_QPA_PLATFORMTHEME", "qt6ct")
+            hl.env("XCURSOR_SIZE", "24")
 
-          ----------------
-          ---- MISC   ----
-          ----------------
+            ----------------
+            ---- MISC   ----
+            ----------------
 
-          hl.config({
-            misc = {
-              disable_splash_rendering = true,
-              disable_hyprland_logo = true,
-              -- Focus a window when it sends an xdg-activation (or X11
-              -- _NET_ACTIVE_WINDOW) request, e.g. the browser after a link
-              -- is clicked in another app. The default only marks it urgent.
-              focus_on_activate = true,
-            },
-
-            general = {
-              gaps_in = 5,
-              gaps_out = 10,
-              border_size = 4,
-              resize_on_border = true,
-              col = {
-                active_border = { colors = {"rgb(44475a)", "rgb(bd93f9)"}, angle = 90 },
-                inactive_border = "rgba(44475aaa)",
-                nogroup_border_active = { colors = {"rgb(bd93f9)", "rgb(44475a)"}, angle = 90 },
-              },
-            },
-
-            input = {
-              kb_layout = "us",
-              follow_mouse = 1,
-              numlock_by_default = true,
-              repeat_delay = 250,
-              repeat_rate = 35,
-              touchpad = {
-                natural_scroll = true,
-                disable_while_typing = true,
-                clickfinger_behavior = true,
-                scroll_factor = 0.5,
-              },
-            },
-
-            gestures = {
-              workspace_swipe_distance = 700,
-              workspace_swipe_cancel_ratio = 0.2,
-              workspace_swipe_min_speed_to_force = 5,
-              workspace_swipe_direction_lock = true,
-              workspace_swipe_direction_lock_threshold = 0,
-              workspace_swipe_create_new = true,
-            },
-
-            decoration = {
-              rounding = 20,
-              rounding_power = 2,
-
-              shadow = {
-                enabled = true,
-                range = 4,
-                offset = "1 2",
-                color = "rgba(1E202966)",
-                render_power = 3,
-                scale = 0.97,
+            hl.config({
+              misc = {
+                disable_splash_rendering = true,
+                disable_hyprland_logo = true,
+                -- Focus a window when it sends an xdg-activation (or X11
+                -- _NET_ACTIVE_WINDOW) request, e.g. the browser after a link
+                -- is clicked in another app. The default only marks it urgent.
+                focus_on_activate = true,
               },
 
-              blur = {
-                enabled = true,
-                xray = true,
-                size = 3,
-                passes = 2,
-                vibrancy = 0.1696,
-              },
-            },
-
-            group = {
-              groupbar = {
+              general = {
+                gaps_in = 5,
+                gaps_out = 10,
+                border_size = 4,
+                resize_on_border = true,
                 col = {
-                  active = { colors = {"rgb(bd93f9)", "rgb(44475a)"}, angle = 90 },
-                  inactive = "rgba(282a36dd)",
+                  active_border = { colors = {"rgb(44475a)", "rgb(bd93f9)"}, angle = 90 },
+                  inactive_border = "rgba(44475aaa)",
+                  nogroup_border_active = { colors = {"rgb(bd93f9)", "rgb(44475a)"}, angle = 90 },
                 },
               },
-            },
 
-            binds = {
-              scroll_event_delay = 0,
-            },
+              input = {
+                kb_layout = "us",
+                follow_mouse = 1,
+                numlock_by_default = true,
+                repeat_delay = 250,
+                repeat_rate = 35,
+                touchpad = {
+                  natural_scroll = true,
+                  disable_while_typing = true,
+                  clickfinger_behavior = true,
+                  scroll_factor = 0.5,
+                },
+              },
 
-            animations = {
-              enabled = true,
-            },
-          })
+              gestures = {
+                workspace_swipe_distance = 700,
+                workspace_swipe_cancel_ratio = 0.2,
+                workspace_swipe_min_speed_to_force = 5,
+                workspace_swipe_direction_lock = true,
+                workspace_swipe_direction_lock_threshold = 0,
+                workspace_swipe_create_new = true,
+              },
 
-          --------------------
-          ---- GESTURES   ----
-          --------------------
+              decoration = {
+                rounding = 20,
+                rounding_power = 2,
 
-          hl.gesture({ fingers = 3, direction = "horizontal", action = "workspace" })
-          hl.gesture({ fingers = 4, direction = "horizontal", action = "workspace" })
+                shadow = {
+                  enabled = true,
+                  range = 4,
+                  offset = "1 2",
+                  color = "rgba(1E202966)",
+                  render_power = 3,
+                  scale = 0.97,
+                },
 
-          --------------------
-          ---- ANIMATIONS ----
-          --------------------
+                blur = {
+                  enabled = true,
+                  xray = true,
+                  size = 3,
+                  passes = 2,
+                  vibrancy = 0.1696,
+                },
+              },
 
-          hl.curve("myBezier", { type = "bezier", points = { {0.05, 0.9}, {0.1, 1.05} } })
+              group = {
+                groupbar = {
+                  col = {
+                    active = { colors = {"rgb(bd93f9)", "rgb(44475a)"}, angle = 90 },
+                    inactive = "rgba(282a36dd)",
+                  },
+                },
+              },
 
-          hl.animation({ leaf = "windows",     enabled = true, speed = 7,  bezier = "myBezier" })
-          hl.animation({ leaf = "windowsOut",  enabled = true, speed = 7,  bezier = "default", style = "popin 80%" })
-          hl.animation({ leaf = "border",      enabled = true, speed = 10, bezier = "default" })
-          hl.animation({ leaf = "borderangle", enabled = true, speed = 8,  bezier = "default" })
-          hl.animation({ leaf = "fade",        enabled = true, speed = 7,  bezier = "default" })
-          hl.animation({ leaf = "workspaces",  enabled = true, speed = 6,  bezier = "default" })
+              binds = {
+                scroll_event_delay = 0,
+              },
 
-          --------------------
-          ---- AUTOSTART  ----
-          --------------------
+              animations = {
+                enabled = true,
+              },
+            })
 
-          hl.on("hyprland.start", function()
-            hl.exec_cmd("gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark'")
-            hl.exec_cmd("gsettings set org.gnome.desktop.interface gtk-theme '${gtkThemeName}'")
-          ${shellStartup}
-            hl.exec_cmd("systemctl restart --user sway-audio-idle-inhibit")
-            hl.exec_cmd("systemctl restart --user syncclipboard")
-            hl.exec_cmd("systemctl restart --user network-manager-applet")
-            hl.exec_cmd("systemctl restart --user udiskie-agent")
-            hl.exec_cmd("systemctl restart --user solaar")
-            hl.exec_cmd("blueman-applet")
-            hl.exec_cmd("sleep 5 && 1password --silent")
-          end)
+            --------------------
+            ---- GESTURES   ----
+            --------------------
 
-          --------------------
-          ---- KEYBINDS   ----
-          --------------------
+            hl.gesture({ fingers = 3, direction = "horizontal", action = "workspace" })
+            hl.gesture({ fingers = 4, direction = "horizontal", action = "workspace" })
 
-          hl.bind("SUPER + SHIFT + X", function()
-              hl.dispatch(hl.dsp.window.float({ action = "toggle" }))
-          end)
+            --------------------
+            ---- ANIMATIONS ----
+            --------------------
 
-          hl.bind(mainMod .. " + F",         hl.dsp.exec_cmd("firefox"))
-          hl.bind(mainMod .. " + E",         hl.dsp.exec_cmd(email))
-          hl.bind(mainMod .. " + T",         hl.dsp.exec_cmd(terminal))
-          hl.bind(mainMod .. " + SHIFT + T", hl.dsp.exec_cmd("wezterm start -- bash"))
-          hl.bind(mainMod .. " + CTRL + T",  hl.dsp.exec_cmd("freminal --shell bash"))
-          hl.bind(mainMod .. " + A",         hl.dsp.exec_cmd("freminal --hide-menu-bar yazi"))
-          hl.bind(mainMod .. " + SHIFT + S", hl.dsp.exec_cmd(${luaString shell.commands.idleInhibitToggle}))
-          hl.bind("ALT + SPACE",             hl.dsp.exec_cmd("vicinae toggle"))
-          hl.bind(mainMod .. " + C",         hl.dsp.window.close())
-          hl.bind(mainMod .. " + M",         hl.dsp.exit())
-          hl.bind(mainMod .. " + L",         hl.dsp.exec_cmd(scripts .. "/pauseandsleep.sh"))
+            hl.curve("myBezier", { type = "bezier", points = { {0.05, 0.9}, {0.1, 1.05} } })
 
-          -- Move windows with mainMod + arrow keys
-          hl.bind(mainMod .. " + left",  hl.dsp.window.move({ direction = "l" }))
-          hl.bind(mainMod .. " + right", hl.dsp.window.move({ direction = "r" }))
-          hl.bind(mainMod .. " + up",    hl.dsp.window.move({ direction = "u" }))
-          hl.bind(mainMod .. " + down",  hl.dsp.window.move({ direction = "d" }))
+            hl.animation({ leaf = "windows",     enabled = true, speed = 7,  bezier = "myBezier" })
+            hl.animation({ leaf = "windowsOut",  enabled = true, speed = 7,  bezier = "default", style = "popin 80%" })
+            hl.animation({ leaf = "border",      enabled = true, speed = 10, bezier = "default" })
+            hl.animation({ leaf = "borderangle", enabled = true, speed = 8,  bezier = "default" })
+            hl.animation({ leaf = "fade",        enabled = true, speed = 7,  bezier = "default" })
+            hl.animation({ leaf = "workspaces",  enabled = true, speed = 6,  bezier = "default" })
 
-          -- Move focus with mainMod + SHIFT + arrow keys
-          hl.bind(mainMod .. " + SHIFT + left",  hl.dsp.focus({ direction = "l" }))
-          hl.bind(mainMod .. " + SHIFT + right", hl.dsp.focus({ direction = "r" }))
-          hl.bind(mainMod .. " + SHIFT + up",    hl.dsp.focus({ direction = "u" }))
-          hl.bind(mainMod .. " + SHIFT + down",  hl.dsp.focus({ direction = "d" }))
+            --------------------
+            ---- AUTOSTART  ----
+            --------------------
 
-          hl.bind("Print",                 hl.dsp.exec_cmd("grim"))
-          hl.bind(mainMod .. " + Print",   hl.dsp.exec_cmd("grim -g \"$(slurp)\""))
+            hl.on("hyprland.start", function()
+              hl.exec_cmd("gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark'")
+              hl.exec_cmd("gsettings set org.gnome.desktop.interface gtk-theme '${gtkThemeName}'")
+            ${shellStartup}
+              hl.exec_cmd("systemctl restart --user sway-audio-idle-inhibit")
+              hl.exec_cmd("systemctl restart --user syncclipboard")
+              hl.exec_cmd("systemctl restart --user network-manager-applet")
+              hl.exec_cmd("systemctl restart --user udiskie-agent")
+              hl.exec_cmd("systemctl restart --user solaar")
+              hl.exec_cmd("blueman-applet")
+              hl.exec_cmd("sleep 5 && 1password --silent")
+            end)
 
-          -- Switch workspaces with mainMod + [0-9]
-          for i = 1, 10 do
-            local key = i % 10 -- 10 maps to key 0
-            hl.bind(mainMod .. " + " .. key,           hl.dsp.focus({ workspace = i }))
-            hl.bind(mainMod .. " + SHIFT + " .. key,   hl.dsp.window.move({ workspace = i }))
-          end
+            --------------------
+            ---- KEYBINDS   ----
+            --------------------
 
-          -- Scroll through workspaces with mainMod + scroll / mouse forward/back
-          hl.bind(mainMod .. " + mouse_down", hl.dsp.focus({ workspace = "e+1" }))
-          hl.bind(mainMod .. " + mouse_up",   hl.dsp.focus({ workspace = "e-1" }))
-          hl.bind(mainMod .. " + mouse:276",  hl.dsp.focus({ workspace = "e-1" })) -- Back
-          hl.bind(mainMod .. " + mouse:275",  hl.dsp.focus({ workspace = "e+1" })) -- Forward
+            hl.bind("SUPER + SHIFT + X", function()
+                hl.dispatch(hl.dsp.window.float({ action = "toggle" }))
+            end)
 
-          -- Multimedia (locked + repeating)
-          hl.bind("XF86AudioRaiseVolume", hl.dsp.exec_cmd(${luaString shell.commands.volumeUp}),   { locked = true, repeating = true })
-          hl.bind("XF86AudioLowerVolume", hl.dsp.exec_cmd(${luaString shell.commands.volumeDown}), { locked = true, repeating = true })
-          hl.bind("XF86AudioMute",        hl.dsp.exec_cmd(${luaString shell.commands.volumeMute}), { locked = true, repeating = true })
-          hl.bind("XF86AudioMicMute",     hl.dsp.exec_cmd(${luaString shell.commands.micMute}),    { locked = true, repeating = true })
-          hl.bind("XF86AudioPlay",        hl.dsp.exec_cmd("playerctl play-pause"),               { locked = true, repeating = true })
-          hl.bind("XF86AudioPause",       hl.dsp.exec_cmd("playerctl play-pause"),               { locked = true, repeating = true })
-          hl.bind("XF86AudioNext",        hl.dsp.exec_cmd("playerctl next"),                     { locked = true, repeating = true })
-          hl.bind("XF86AudioPrev",        hl.dsp.exec_cmd("playerctl previous"),                 { locked = true, repeating = true })
+            hl.bind(mainMod .. " + F",         hl.dsp.exec_cmd("firefox"))
+            hl.bind(mainMod .. " + E",         hl.dsp.exec_cmd(email))
+            hl.bind(mainMod .. " + T",         hl.dsp.exec_cmd(terminal))
+            hl.bind(mainMod .. " + SHIFT + T", hl.dsp.exec_cmd("wezterm start -- bash"))
+            hl.bind(mainMod .. " + CTRL + T",  hl.dsp.exec_cmd("freminal --shell bash"))
+            hl.bind(mainMod .. " + A",         hl.dsp.exec_cmd("freminal --hide-menu-bar yazi"))
+            hl.bind(mainMod .. " + SHIFT + S", hl.dsp.exec_cmd(${luaString shell.commands.idleInhibitToggle}))
+            hl.bind("ALT + SPACE",             hl.dsp.exec_cmd("vicinae toggle"))
+            hl.bind(mainMod .. " + C",         hl.dsp.window.close())
+            hl.bind(mainMod .. " + M",         hl.dsp.exit())
+            hl.bind(mainMod .. " + L",         hl.dsp.exec_cmd(scripts .. "/pauseandsleep.sh"))
 
-          hl.bind("XF86KbdBrightnessUp",   hl.dsp.exec_cmd(scripts .. "/kbbacklight.sh --inc"), { locked = true, repeating = true })
-          hl.bind("XF86KbdBrightnessDown", hl.dsp.exec_cmd(scripts .. "/kbbacklight.sh --dec"), { locked = true, repeating = true })
-          hl.bind("XF86SelectiveScreenshot",       hl.dsp.exec_cmd("grim -g \"$(slurp)\""),             { locked = true, repeating = true })
-          hl.bind("XF86Display",                   hl.dsp.exec_cmd(scripts .. "/pauseandsleep.sh"),     { locked = true, repeating = true })
-          hl.bind("code:248",                      hl.dsp.exec_cmd(terminal),                           { locked = true, repeating = true })
-          hl.bind("XF86Favorites",                 hl.dsp.exec_cmd("fuzzel"),                           { locked = true, repeating = true })
-          hl.bind(mainMod .. " + XF86MonBrightnessUp",   hl.dsp.exec_cmd(scripts .. "/kbbacklight.sh --inc"), { locked = true, repeating = true })
-          hl.bind(mainMod .. " + XF86MonBrightnessDown", hl.dsp.exec_cmd(scripts .. "/kbbacklight.sh --dec"), { locked = true, repeating = true })
+            -- Move windows with mainMod + arrow keys
+            hl.bind(mainMod .. " + left",  hl.dsp.window.move({ direction = "l" }))
+            hl.bind(mainMod .. " + right", hl.dsp.window.move({ direction = "r" }))
+            hl.bind(mainMod .. " + up",    hl.dsp.window.move({ direction = "u" }))
+            hl.bind(mainMod .. " + down",  hl.dsp.window.move({ direction = "d" }))
 
-          -- Move/resize windows with mainMod + LMB/RMB and dragging
-          hl.bind(mainMod .. " + mouse:272", hl.dsp.window.drag(),   { mouse = true })
-          hl.bind(mainMod .. " + mouse:273", hl.dsp.window.resize(), { mouse = true })
+            -- Move focus with mainMod + SHIFT + arrow keys
+            hl.bind(mainMod .. " + SHIFT + left",  hl.dsp.focus({ direction = "l" }))
+            hl.bind(mainMod .. " + SHIFT + right", hl.dsp.focus({ direction = "r" }))
+            hl.bind(mainMod .. " + SHIFT + up",    hl.dsp.focus({ direction = "u" }))
+            hl.bind(mainMod .. " + SHIFT + down",  hl.dsp.focus({ direction = "d" }))
 
-          -- Lock lid on close
-          hl.bind("switch:off:Lid Switch", hl.dsp.exec_cmd(scripts .. "/pauseandsleep.sh"), { locked = true })
-        '';
-      };
+            hl.bind("Print",                 hl.dsp.exec_cmd("grim"))
+            hl.bind(mainMod .. " + Print",   hl.dsp.exec_cmd("grim -g \"$(slurp)\""))
 
-    });
+            -- Switch workspaces with mainMod + [0-9]
+            for i = 1, 10 do
+              local key = i % 10 -- 10 maps to key 0
+              hl.bind(mainMod .. " + " .. key,           hl.dsp.focus({ workspace = i }))
+              hl.bind(mainMod .. " + SHIFT + " .. key,   hl.dsp.window.move({ workspace = i }))
+            end
+
+            -- Scroll through workspaces with mainMod + scroll / mouse forward/back
+            hl.bind(mainMod .. " + mouse_down", hl.dsp.focus({ workspace = "e+1" }))
+            hl.bind(mainMod .. " + mouse_up",   hl.dsp.focus({ workspace = "e-1" }))
+            hl.bind(mainMod .. " + mouse:276",  hl.dsp.focus({ workspace = "e-1" })) -- Back
+            hl.bind(mainMod .. " + mouse:275",  hl.dsp.focus({ workspace = "e+1" })) -- Forward
+
+            -- Multimedia (locked + repeating)
+            hl.bind("XF86AudioRaiseVolume", hl.dsp.exec_cmd(${luaString shell.commands.volumeUp}),   { locked = true, repeating = true })
+            hl.bind("XF86AudioLowerVolume", hl.dsp.exec_cmd(${luaString shell.commands.volumeDown}), { locked = true, repeating = true })
+            hl.bind("XF86AudioMute",        hl.dsp.exec_cmd(${luaString shell.commands.volumeMute}), { locked = true, repeating = true })
+            hl.bind("XF86AudioMicMute",     hl.dsp.exec_cmd(${luaString shell.commands.micMute}),    { locked = true, repeating = true })
+            hl.bind("XF86AudioPlay",        hl.dsp.exec_cmd("playerctl play-pause"),               { locked = true, repeating = true })
+            hl.bind("XF86AudioPause",       hl.dsp.exec_cmd("playerctl play-pause"),               { locked = true, repeating = true })
+            hl.bind("XF86AudioNext",        hl.dsp.exec_cmd("playerctl next"),                     { locked = true, repeating = true })
+            hl.bind("XF86AudioPrev",        hl.dsp.exec_cmd("playerctl previous"),                 { locked = true, repeating = true })
+
+            hl.bind("XF86KbdBrightnessUp",   hl.dsp.exec_cmd(scripts .. "/kbbacklight.sh --inc"), { locked = true, repeating = true })
+            hl.bind("XF86KbdBrightnessDown", hl.dsp.exec_cmd(scripts .. "/kbbacklight.sh --dec"), { locked = true, repeating = true })
+            hl.bind("XF86SelectiveScreenshot",       hl.dsp.exec_cmd("grim -g \"$(slurp)\""),             { locked = true, repeating = true })
+            hl.bind("XF86Display",                   hl.dsp.exec_cmd(scripts .. "/pauseandsleep.sh"),     { locked = true, repeating = true })
+            hl.bind("code:248",                      hl.dsp.exec_cmd(terminal),                           { locked = true, repeating = true })
+            hl.bind("XF86Favorites",                 hl.dsp.exec_cmd("fuzzel"),                           { locked = true, repeating = true })
+            hl.bind(mainMod .. " + XF86MonBrightnessUp",   hl.dsp.exec_cmd(scripts .. "/kbbacklight.sh --inc"), { locked = true, repeating = true })
+            hl.bind(mainMod .. " + XF86MonBrightnessDown", hl.dsp.exec_cmd(scripts .. "/kbbacklight.sh --dec"), { locked = true, repeating = true })
+
+            -- Move/resize windows with mainMod + LMB/RMB and dragging
+            hl.bind(mainMod .. " + mouse:272", hl.dsp.window.drag(),   { mouse = true })
+            hl.bind(mainMod .. " + mouse:273", hl.dsp.window.resize(), { mouse = true })
+
+            -- Lock lid on close
+            hl.bind("switch:off:Lid Switch", hl.dsp.exec_cmd(scripts .. "/pauseandsleep.sh"), { locked = true })
+          '';
+        };
+
+      }
+    );
   };
 }

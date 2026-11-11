@@ -1,7 +1,6 @@
 {
   config,
   pkgs,
-  stateVersion,
   ...
 }:
 let
@@ -20,8 +19,6 @@ in
   ];
 
   networking.hostName = "hfdlhub2";
-
-  system.stateVersion = stateVersion;
 
   sops.secrets = {
     "docker/hfdlhub2.env" = mkContainerSecrets [

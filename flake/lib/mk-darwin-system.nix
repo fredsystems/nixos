@@ -77,6 +77,12 @@ darwin.lib.darwinSystem {
         fullName = verbose_name;
         email = github_email;
       };
+
+      # mkDefault: a host can still give one Home Manager user (e.g. an extra
+      # user) its own home.stateVersion without a conflicting definition.
+      home-manager.sharedModules = [
+        ({ lib, ... }: { home.stateVersion = lib.mkDefault checkedStateVersion; })
+      ];
     })
     ../../modules/base/deployment-meta.nix
     ../../modules/base/system.nix

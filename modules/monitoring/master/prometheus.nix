@@ -2,13 +2,15 @@
   config,
   lib,
   pkgs,
-  agentNodes,
-  agentScrapeMap,
-  desktopNodes,
-  desktopScrapeMap,
   ...
 }:
 let
+  inherit (config.shared.monitoring)
+    agentNodes
+    agentScrapeMap
+    desktopNodes
+    desktopScrapeMap
+    ;
   user = config.shared.user.name;
   agentHosts = agentNodes;
   desktopHosts = builtins.filter (h: h != "Daytona") desktopNodes;

@@ -1,6 +1,5 @@
 {
   config,
-  stateVersion,
   ...
 }:
 {
@@ -15,8 +14,6 @@
   # This host has USB SDR hardware attached; raise the global usbfs
   # transfer-buffer ceiling above the 16 MB kernel default.
   hardware-profile.usbfs.enable = true;
-
-  system.stateVersion = stateVersion;
 
   # acars_router on sdrhub connects in to xng's ZMQ PUB socket
   # (AR_RECV_ZMQ_XNG), same as it does for acarshub.
