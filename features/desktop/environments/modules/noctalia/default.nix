@@ -189,6 +189,16 @@ let
       };
     };
 
+    dock = {
+      enabled = true;
+      # Desktop entry IDs (the .desktop filename), not display names.
+      pinned = [
+        "brave-browser"
+        "freminal"
+        "discord"
+      ];
+    };
+
     # Every monitor gets its own no-repeat shuffle over the whole nested
     # library. Noctalia remembers which images each monitor has shown in
     # ~/.local/state/noctalia/wallpaper_shuffle.json and repeats nothing
