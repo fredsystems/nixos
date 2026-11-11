@@ -84,9 +84,6 @@ let
       desktopNodes
       desktopScrapeMap
       isDesktop
-      catppuccinInput
-      sopsNixInput
-      nixYaziPluginsInput
       kernelPkgsInput
       isDarwin
       ;
@@ -118,6 +115,11 @@ let
           (import ./../../overlays/default.nix)
           (import ./opencode-overlay.nix inputs)
           inputs.nixos-needsreboot.overlays.default
+          # freminal from its own flake (features/desktop/freminal reads
+          # pkgs.freminal), built as that flake builds it.
+          (final: _: {
+            inherit (inputs.freminal.packages.${final.stdenv.hostPlatform.system}) freminal;
+          })
           # Exposes the kernel-pin nixpkgs tree (see modules/system/kernel-pin.nix)
           # as pkgs.kernelPinPkgs, importing kernelPkgsInput once per host with
           # only the fleet's unfree predicate threaded through.
@@ -155,7 +157,16 @@ let
       # user) its own home.stateVersion without a conflicting definition.
       home-manager.sharedModules = [
         ({ lib, ... }: { home.stateVersion = lib.mkDefault checkedStateVersion; })
-      ];
+        # External home-manager modules, from the channel this host uses.
+        # Shared modules apply to every Home Manager user (fred and any
+        # extraUsers), which is who imported them before.
+        (import ./../../modules/base/home-catppuccin.nix { catppuccin = catppuccinInput; })
+        inputs.nixvim.homeModules.nixvim
+        nixYaziPluginsInput.legacyPackages.${system}.homeManagerModules.default
+      ]
+      # features/desktop/lan-mouse configures programs.lan-mouse; only
+      # desktops import features/desktop.
+      ++ pkgsInput.lib.optionals isDesktop [ inputs.lan-mouse.homeManagerModules.default ];
     }
     ./../../modules/base/deployment-meta.nix
     # Linux-only half of deployment-meta.nix (systemd-specific assertions and
@@ -178,6 +189,8 @@ let
     # nixosModule, the kernel pin, etc.); see that file's own header.
     # mk-darwin-system.nix imports modules/base/system-darwin.nix instead.
     (import ./../../modules/base/system-linux.nix { inherit isDesktop; })
+    # catppuccin's NixOS module, from the channel this host uses.
+    catppuccinInput.nixosModules.catppuccin
     # NOTE: do NOT bake the flake's git revision into this system.
     #
     # An earlier revision of this file wrote `self.rev` to
@@ -221,8 +234,6 @@ let
             verbose_name
             hmlib
             github_email
-            catppuccinInput
-            nixYaziPluginsInput
             isDarwin
             ;
           stateVersion = checkedStateVersion;

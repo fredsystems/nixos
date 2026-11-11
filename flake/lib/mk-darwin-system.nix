@@ -54,9 +54,6 @@ darwin.lib.darwinSystem {
     stateVersion = checkedStateVersion;
 
     inherit isDarwin;
-    sopsNixInput = inputs.sops-nix;
-    catppuccinInput = catppuccin;
-    nixYaziPluginsInput = nix-yazi-plugins;
     extraUsers = [ ];
   };
 
@@ -65,6 +62,11 @@ darwin.lib.darwinSystem {
       nixpkgs.overlays = [
         (import ./../../overlays/default.nix)
         (import ./opencode-overlay.nix inputs)
+        # freminal from its own flake (features/desktop/freminal reads
+        # pkgs.freminal); mk-system.nix applies the same overlay.
+        (final: _: {
+          inherit (inputs.freminal.packages.${final.stdenv.hostPlatform.system}) freminal;
+        })
       ];
       networking.hostName = hostName;
     })
@@ -82,6 +84,13 @@ darwin.lib.darwinSystem {
       # user) its own home.stateVersion without a conflicting definition.
       home-manager.sharedModules = [
         ({ lib, ... }: { home.stateVersion = lib.mkDefault checkedStateVersion; })
+        # External home-manager modules; mk-system.nix wires the same set.
+        (import ../../modules/base/home-catppuccin.nix { inherit catppuccin; })
+        inputs.nixvim.homeModules.nixvim
+        nix-yazi-plugins.legacyPackages.${system}.homeManagerModules.default
+        # For hosts that import features/desktop/lan-mouse (the Mac Studio);
+        # inert where programs.lan-mouse stays disabled.
+        inputs.lan-mouse.homeManagerModules.default
       ];
     })
     ../../modules/base/deployment-meta.nix
@@ -127,8 +136,6 @@ darwin.lib.darwinSystem {
             isDarwin
             ;
           stateVersion = checkedStateVersion;
-          catppuccinInput = catppuccin;
-          nixYaziPluginsInput = nix-yazi-plugins;
         };
       };
 

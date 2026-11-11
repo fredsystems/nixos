@@ -215,7 +215,7 @@ and `--os darwin` report no impacted hosts; every host evaluates with no
       the caller that needs it, and is reachable for
       `module-reachability`. Remaining `isDarwin` config uses move to
       `pkgs.stdenv.hostPlatform`.
-- [ ] **4.8 Builder-wired external modules.** Move the `sops-nix`,
+- [x] **4.8 Builder-wired external modules.** Move the `sops-nix`,
       `catppuccin`, Home Manager Darwin, `nixvim`, `lan-mouse` and
       yazi-plugin imports into the builders (`home-manager.sharedModules`
       for Home Manager), including `hosts/linux/fredvps/nik-home.nix`.

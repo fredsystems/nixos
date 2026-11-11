@@ -12,14 +12,12 @@
 }:
 {
   config,
-  inputs,
-
-  catppuccinInput ? inputs.catppuccin,
   ...
 }:
 {
+  # catppuccin's NixOS module is wired by mk-system.nix, from the channel it
+  # chooses for this host.
   imports = [
-    catppuccinInput.nixosModules.catppuccin
     (import ../../features { inherit isDesktop; })
     ../../modules/base/user.nix
     ../../modules/system/kernel-pin.nix

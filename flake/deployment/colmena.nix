@@ -39,9 +39,6 @@
 let
   inherit (inputs)
     nixpkgs
-    catppuccin-stable
-    sops-nix-stable
-    nix-yazi-plugins-stable
     nixpkgs-kernel
     ;
 
@@ -169,25 +166,19 @@ let
         # at all -- one contract enforced on one of two entry points, and the
         # deploy path being the lax one. Raised in review on PR #2243.
         extraUsers = [ ];
-        catppuccinInput = catppuccin-stable;
-        sopsNixInput = sops-nix-stable;
-        nixYaziPluginsInput = nix-yazi-plugins-stable;
         kernelPkgsInput = nixpkgs-kernel;
         catppuccinWallpapers = self.packages."x86_64-linux".catppuccin-wallpapers;
       };
 
-      # Per-node overrides derived from the serverNodes table.
-      # Channel-sensitive args (catppuccinInput, sopsNixInput,
-      # nixYaziPluginsInput) are read from the node entry so they stay in
-      # sync with the nixosConfigurations channel selection automatically.
+      # Per-node overrides derived from the serverNodes table. The
+      # channel-sensitive external modules (catppuccin, sops-nix, the yazi
+      # plugins) are no arguments at all: mkNode reuses mkSystem's module
+      # list, which already wires each node's chosen input.
       nodeSpecialArgs = builtins.mapAttrs (name: node: {
         # No `or` fallback: required, and format-checked by the same validator
         # mkSystem and mkDarwinSystem use.
         stateVersion = import ../lib/check-state-version.nix "colmena: node '${name}'" node.stateVersion;
         extraUsers = node.extraUsers or [ ];
-        catppuccinInput = node.catppuccinInput or catppuccin-stable;
-        sopsNixInput = node.sopsNixInput or sops-nix-stable;
-        nixYaziPluginsInput = node.nixYaziPluginsInput or nix-yazi-plugins-stable;
       }) serverNodes;
     };
   }

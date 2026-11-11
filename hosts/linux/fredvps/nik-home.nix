@@ -2,11 +2,7 @@
 # Mirrors fred's setup; identity fields are defined locally here rather than
 # relying on the global specialArgs (user / verbose_name / github_email)
 # which belong to fred.
-{
-  inputs,
-  catppuccinInput,
-  ...
-}:
+_:
 let
   username = "nik";
   homeDir = import ../../../modules/lib/home-dir.nix { inherit username; };
@@ -18,8 +14,8 @@ in
   # (xdg dirs, mimeApps, fontconfig) — no user-specific fields, safe to reuse.
   imports = [
     ../../../modules/base/home-base.nix
-    catppuccinInput.homeModules.catppuccin
-    inputs.nixvim.homeModules.nixvim
+    # catppuccin's and nixvim's home-manager modules come from the builder's
+    # home-manager.sharedModules, which apply to every user.
   ];
 
   home = {

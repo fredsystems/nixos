@@ -37,7 +37,6 @@
   lib,
   pkgs,
   config,
-  inputs,
   ...
 }:
 let
@@ -233,8 +232,9 @@ in
 
   config = lib.mkIf cfg.enable {
     home-manager.users = lib.genAttrs allUsers (_: {
-      imports = [ inputs.lan-mouse.homeManagerModules.default ];
-
+      # programs.lan-mouse comes from upstream's home-manager module, which
+      # flake/lib/mk-system.nix adds to home-manager.sharedModules for
+      # desktops.
       programs.lan-mouse = {
         enable = true;
         inherit package settings;
