@@ -151,7 +151,11 @@ let
       };
 
       system.stateVersion = checkedStateVersion;
-      home-manager.sharedModules = [ { home.stateVersion = checkedStateVersion; } ];
+      # mkDefault: a host can still give one Home Manager user (e.g. an extra
+      # user) its own home.stateVersion without a conflicting definition.
+      home-manager.sharedModules = [
+        ({ lib, ... }: { home.stateVersion = lib.mkDefault checkedStateVersion; })
+      ];
     }
     ./../../modules/base/deployment-meta.nix
     # Fleet-wide facts about the home network. Declares options only, so being
