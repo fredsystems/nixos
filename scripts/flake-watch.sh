@@ -9,17 +9,26 @@
 # The workflow runs hourly:
 #
 #   candidates     branch-tracking GitHub root inputs, from flake.lock
-#   resolve-heads  each candidate's upstream head, via `git ls-remote`
-#                  (no API budget); inputs whose ref turns out to be a tag
-#                  are dropped -- `nix flake update` cannot move a tag, and
-#                  Renovate owns those
-#   plan           which moved inputs need classifying on which OS
-#   (classify)     scripts/flake-input-impact.sh, once per OS, on that OS's
-#                  own runner (Darwin is never evaluated from Linux)
-#   merge          the new status file, and the inputs to dispatch
-#                  update-flakes.yaml for
+#   resolve-heads    each candidate's upstream head, via `git ls-remote`
+#                    (no API budget); inputs whose ref turns out to be a tag
+#                    are dropped -- `nix flake update` cannot move a tag, and
+#                    Renovate owns those. A failed lookup is kept, marked
+#                    `unresolved`, and its last status entry carried forward
+#   plan             which moved inputs need classifying on which OS, each
+#                    with the revisions it is planned for
+#   (classify)       scripts/flake-input-impact.sh, once per OS, on that OS's
+#                    own runner (Darwin is never evaluated from Linux); a
+#                    result is kept only if it classified the planned
+#                    upstream revision
+#   merge            the new status file, and the inputs to dispatch
+#                    update-flakes.yaml for
+#   mark-dispatched  records the dispatches that succeeded
 #
 # Every subcommand except resolve-heads is pure: JSON files in, JSON out.
+# Publishing (.github/scripts/flake-watch-publish.sh) runs merge against the
+# latest status file each time, so the find job and each OS's classify job
+# can publish independently and in any order: an OS whose runner is offline
+# holds up nothing.
 #
 # Status file (status/flake-inputs.json on the flake-watch branch, read by
 # github-ci-exporter into github_flake_input_impact):
@@ -31,7 +40,9 @@
 #         "kinds": { "linux": "none|rebuild|source", "darwin": "..." },
 #         "upstream_rev": "<upstream head the kinds were classified for>",
 #         "locked_rev": "<our locked rev at the time>",
-#         "classified_at": "<ISO 8601 UTC>"
+#         "classified_at": "<ISO 8601 UTC>",
+#         "dispatched_rev": "<upstream_rev, once update-flakes was dispatched>",
+#         "dispatched_at": "<ISO 8601 UTC>"
 #       }
 #     }
 #   }
@@ -47,11 +58,17 @@
 #   flake-watch.sh plan --heads FILE --open-prs FILE --previous FILE
 #   flake-watch.sh merge --plan FILE --previous FILE --policy FILE
 #                        --linux FILE --darwin FILE --now ISO8601
+#   flake-watch.sh mark-dispatched --status FILE --inputs FILE --now ISO8601
 #
 # --open-prs is a JSON array of input names with an open `update-<input>`
 # PR. --previous is the current status file, or {} when there is none yet.
 # --linux / --darwin are {"<input>": "<kind>"} objects of this run's fresh
 # classifications (either may be {}, e.g. when that OS's runner was down).
+#
+# A source change under the auto policy is dispatched when its upstream
+# revision has not been dispatched yet, and again if FLAKE_WATCH_DISPATCH_
+# RETRY_SECONDS (default 6h) pass with still no update PR, i.e. the update
+# run failed before opening one.
 #
 # Environment: FLAKE_WATCH_GIT overrides the git used by resolve-heads
 # (tests substitute a fake).
@@ -73,10 +90,13 @@ die() {
 CMD="$1"
 shift
 
+# How long after a dispatch with still no update PR it is tried again.
+DISPATCH_RETRY_SECONDS="${FLAKE_WATCH_DISPATCH_RETRY_SECONDS:-21600}"
+
 declare -A ARGS=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --lock | --candidates | --heads | --open-prs | --previous | --policy | --plan | --linux | --darwin | --now)
+    --lock | --candidates | --heads | --open-prs | --previous | --policy | --plan | --linux | --darwin | --now | --status | --inputs)
       [[ $# -ge 2 ]] || die "$1 requires a value"
       ARGS["${1#--}"]="$2"
       shift 2
@@ -128,8 +148,17 @@ cmd_candidates() {
   ' "${ARGS[lock]}"
 }
 
-# Resolves one candidate row (JSON) to the row plus `upstream_rev`, or
-# prints nothing when it is a tag or cannot be resolved this hour.
+# A failed lookup says nothing about the input's state, so it is kept,
+# marked unresolved, and plan / merge carry its last entry forward instead
+# of treating it as caught up.
+unresolved() { # row input url error
+  echo "::warning title=flake-watch::$2: git ls-remote $3 failed; keeping its last status this hour: $4" >&2
+  jq -c '. + {unresolved: true}' <<<"$1"
+}
+
+# Resolves one candidate row (JSON) to the row plus `upstream_rev`; to the
+# row marked `unresolved` when the lookup failed; or to nothing when the ref
+# is a tag or does not exist upstream (both definite answers).
 resolve_one() {
   local row="$1" git="${FLAKE_WATCH_GIT:-git}"
   local input owner repo ref url refs head
@@ -141,13 +170,13 @@ resolve_one() {
 
   if [[ -z "$ref" ]]; then
     if ! refs="$("$git" ls-remote "$url" HEAD 2>&1)"; then
-      echo "::warning title=flake-watch::$input: git ls-remote $url failed; skipping this hour: $refs" >&2
+      unresolved "$row" "$input" "$url" "$refs"
       return 0
     fi
     head="$(awk '$2 == "HEAD" { print $1; exit }' <<<"$refs")"
   else
     if ! refs="$("$git" ls-remote "$url" "refs/heads/$ref" "refs/tags/$ref" 2>&1)"; then
-      echo "::warning title=flake-watch::$input: git ls-remote $url failed; skipping this hour: $refs" >&2
+      unresolved "$row" "$input" "$url" "$refs"
       return 0
     fi
     # A branch wins over a tag of the same name, as it does for Nix's own
@@ -196,6 +225,7 @@ cmd_plan() {
     --slurpfile prev "${ARGS[previous]}" '
     ($prev[0].inputs // {}) as $p
     | [ $heads[0][]
+        | select(.unresolved != true)
         | select(.upstream_rev != .locked_rev)
         | {
             input,
@@ -215,10 +245,11 @@ cmd_plan() {
               or $e.locked_rev != $m.locked_rev
               or (($e.kinds // {}) | has($os) | not)
             )
-          | .input
+          | { input, upstream_rev, locked_rev }
         ];
     {
       moved: $moved,
+      unresolved: [ $heads[0][] | select(.unresolved == true) | .input ],
       classify: { linux: needs("linux"), darwin: needs("darwin") }
     }
   '
@@ -232,9 +263,11 @@ cmd_merge() {
     --slurpfile policy "${ARGS[policy]}" \
     --slurpfile linux "${ARGS[linux]}" \
     --slurpfile darwin "${ARGS[darwin]}" \
-    --arg now "${ARGS[now]}" '
+    --arg now "${ARGS[now]}" \
+    --argjson retry "$DISPATCH_RETRY_SECONDS" '
     ($prev[0].inputs // {}) as $p
     | ($policy[0].defaults.policy // "auto") as $default_policy
+    | ($now | fromdateiso8601) as $now_s
     | [ $plan[0].moved[]
         | . as $m
         | ($p[$m.input] // null) as $e
@@ -249,28 +282,53 @@ cmd_merge() {
             ((if $same then ($e.kinds // {}) else {} end) + $fresh) as $kinds
             | select($kinds != {})
             | {
+                kinds: $kinds,
+                upstream_rev: $m.upstream_rev,
+                locked_rev: $m.locked_rev,
+                classified_at: (if $fresh != {} then $now else $e.classified_at end)
+              }
+              # A dispatch is only recorded once it succeeded
+              # (mark-dispatched), and only for this upstream revision.
+              + (if $same and ($e.dispatched_rev // null) == $m.upstream_rev
+                 then { dispatched_rev: $e.dispatched_rev, dispatched_at: $e.dispatched_at }
+                 else {} end)
+            | . as $entry
+            | {
                 input: $m.input,
-                entry: {
-                  kinds: $kinds,
-                  upstream_rev: $m.upstream_rev,
-                  locked_rev: $m.locked_rev,
-                  classified_at: (if $fresh != {} then $now else $e.classified_at end)
-                },
-                # Dispatch once per upstream revision: when this run first
-                # finds a source change, not on every hour that follows.
+                entry: $entry,
                 dispatch: (
                   (($policy[0].inputs[$m.input].policy // $default_policy) == "auto")
                   and ([$kinds[]] | index("source") != null)
-                  and (($same and ([($e.kinds // {})[]] | index("source") != null)) | not)
+                  and (
+                    ($entry.dispatched_rev // null) != $m.upstream_rev
+                    # Dispatched, but still no update PR long after: the
+                    # update run failed before opening one. Try again.
+                    or (($entry.dispatched_at | fromdateiso8601) <= ($now_s - $retry))
+                  )
                 )
               }
           end
       ] as $rows
+    # A failed lookup is no evidence the input caught up: keep its entry.
+    | [ $plan[0].unresolved[]? as $u | select($p[$u] != null) | { input: $u, entry: $p[$u], dispatch: false } ] as $kept
     | {
-        status: { version: 1, inputs: ($rows | map({ key: .input, value: .entry }) | from_entries) },
+        status: { version: 1, inputs: ($rows + $kept | map({ key: .input, value: .entry }) | from_entries) },
         dispatch: [ $rows[] | select(.dispatch) | .input ]
       }
   '
+}
+
+# Records that update-flakes.yaml was dispatched for these inputs at their
+# current upstream revision. Run only for dispatches that succeeded, so a
+# failed one is retried next hour.
+cmd_mark_dispatched() {
+  need status inputs now
+  jq -c --slurpfile dispatched "${ARGS[inputs]}" --arg now "${ARGS[now]}" '
+    .inputs |= with_entries(
+      if (.key | IN($dispatched[0][])) then
+        .value += { dispatched_rev: .value.upstream_rev, dispatched_at: $now }
+      else . end)
+  ' "${ARGS[status]}"
 }
 
 case "$CMD" in
@@ -278,9 +336,10 @@ case "$CMD" in
   resolve-heads) cmd_resolve_heads ;;
   plan) cmd_plan ;;
   merge) cmd_merge ;;
+  mark-dispatched) cmd_mark_dispatched ;;
   -h | --help)
     usage
     exit 0
     ;;
-  *) die "unknown subcommand: $CMD (candidates, resolve-heads, plan, merge)" ;;
+  *) die "unknown subcommand: $CMD (candidates, resolve-heads, plan, merge, mark-dispatched)" ;;
 esac

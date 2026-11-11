@@ -44,8 +44,11 @@
 # Output:
 #   Plain mode (default): exactly one word on stdout -- "none", "rebuild"
 #   or "source" -- with all progress/reasons on stderr.
-#   --json: {"input": ..., "kind": ..., "changed": [<attrs whose outPath
-#   differs between base and new>]} on stdout.
+#   --json: {"input": ..., "kind": ..., "rev": <the bumped revision that was
+#   classified, or null for a lock type without one>, "changed": [<attrs
+#   whose outPath differs between base and new>]} on stdout. `rev` lets a
+#   caller confirm it classified the upstream revision it meant to (upstream
+#   can move between deciding to classify and running this).
 #
 # Exit codes: 0 on any successful classification (including "none"); 2 on
 # a usage/validation error (unknown input, wrong --os for this machine);
@@ -229,7 +232,8 @@ emit() {
   local changed_json="${1:-[]}"
   if [[ $JSON -eq 1 ]]; then
     jq -cn --arg input "$INPUT" --arg kind "$kind" --argjson changed "$changed_json" \
-      '{input: $input, kind: $kind, changed: $changed}'
+      --argjson new "$NEW_LOCKED" \
+      '{input: $input, kind: $kind, rev: ($new.rev // null), changed: $changed}'
   else
     printf '%s\n' "$kind"
   fi

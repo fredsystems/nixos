@@ -290,8 +290,11 @@ complete until Plan 02 is.
       decisions live in `scripts/flake-watch.sh` (tested by
       `scripts/tests/flake-watch-test.sh`), Darwin is classified on the
       macOS pool, and a status entry is reused while both revisions are
-      unchanged, so a quiet hour commits nothing and a source change is
-      dispatched once per upstream revision.
+      unchanged, so a quiet hour commits nothing. A dispatch is recorded
+      only once it succeeded and is retried after 6 hours with no update
+      PR. There is no central publish job: `find` and each OS's classify
+      job publish into the latest file, so an offline runner pool holds up
+      only its own OS.
 - [ ] **3.11 Alerts.** The five alerts above, with promtool cases.
 - [ ] **3.12 Dashboard.** `dashboards/flake-inputs.json` in the GitHub
       folder: per-input age and impact, open update PRs, owned nixpkgs
