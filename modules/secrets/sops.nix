@@ -3,7 +3,6 @@
   pkgs,
   inputs,
   lib,
-  isDarwin,
   sopsNixInput ? inputs.sops-nix,
   ...
 }:
@@ -11,18 +10,16 @@ let
   cfg = config.sops_secrets.enable_secrets;
   user = config.shared.user.name;
   username = user;
-  isLinux = !isDarwin;
 
-  homeDir = import ../lib/home-dir.nix { inherit username isDarwin; };
+  homeDir = import ../lib/home-dir.nix {
+    inherit username;
+    isDarwin = pkgs.stdenv.hostPlatform.isDarwin;
+  };
 in
 {
   options.sops_secrets.enable_secrets = {
     enable = lib.mkEnableOption "SOPS-encrypted secrets (SSH keys, GPG key, sops-nix module wiring)";
   };
-
-  imports =
-    lib.optional isLinux sopsNixInput.nixosModules.sops
-    ++ lib.optional isDarwin sopsNixInput.darwinModules.sops;
 
   config = lib.mkIf cfg.enable {
     environment.systemPackages = [
@@ -30,7 +27,7 @@ in
     ];
 
     sops = {
-      package = lib.mkIf isLinux (
+      package = lib.mkIf pkgs.stdenv.hostPlatform.isLinux (
         (pkgs.callPackage sopsNixInput { }).sops-install-secrets.overrideAttrs (old: {
           # Only change the go-modules FOD (fixed-output derivation) environment.
           # Do NOT set env.GOPROXY / env.GONOSUMDB here: overrideAttrs does a

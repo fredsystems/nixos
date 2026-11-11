@@ -2,12 +2,10 @@
   lib,
   pkgs,
   config,
-  isDarwin,
   ...
 }:
 let
   cfg = config.ai.local-llm;
-  isLinux = !isDarwin;
 in
 {
   options.ai.local-llm = {
@@ -58,7 +56,7 @@ in
     };
   };
 
-  imports = lib.optional isLinux ./linux.nix;
+  imports = [ ./linux.nix ];
 
   config = lib.mkIf cfg.enable {
     nixpkgsUnfree.allowed = [ "open-webui" ];

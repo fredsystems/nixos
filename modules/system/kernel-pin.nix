@@ -7,10 +7,11 @@
 # on their own monthly, manual-merge cadence via .github/workflows/update-flakes.yaml.
 #
 # Scope:
-#   * Servers (deployment.role != "desktop", isDarwin = false): pin applied.
+#   * Servers (deployment.role != "desktop"): pin applied.
 #   * Desktops / laptops (deployment.role == "desktop"): no-op.  Daytona and
 #     maranello keep their own boot.kernelPackages = pkgs.linuxPackages_latest.
-#   * Darwin (isDarwin = true): no-op.
+#   * This module is only ever imported on Linux (modules/base/system-linux.nix);
+#     it is never reached on Darwin.
 #
 # The pin uses lib.mkDefault so an individual server can still override
 # (e.g. to test a newer kernel) by setting boot.kernelPackages explicitly.
@@ -18,11 +19,10 @@
   config,
   lib,
   pkgs,
-  isDarwin ? false,
   ...
 }:
 let
-  pinActive = config.deployment.role != "desktop" && !isDarwin;
+  pinActive = config.deployment.role != "desktop";
 in
 {
   # pkgs.kernelPinPkgs is provided by an overlay in flake/lib/mk-system.nix,

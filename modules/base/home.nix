@@ -2,7 +2,6 @@
   lib,
   options,
   pkgs,
-  isDarwin,
   inputs,
   config,
   catppuccinInput ? inputs.catppuccin,
@@ -10,7 +9,6 @@
 }:
 
 let
-  isLinux = !isDarwin;
   verbose_name = config.shared.user.fullName;
   github_email = config.shared.user.email;
 
@@ -45,8 +43,7 @@ in
     ../../modules/base/home-base.nix
     catppuccinInput.homeModules.catppuccin
     inputs.nixvim.homeModules.nixvim
-  ]
-  ++ lib.optional isLinux ./home-linux.nix;
+  ];
 
   ##########################################################################
   ## catppuccin (home-manager)

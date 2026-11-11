@@ -27,21 +27,23 @@
 # THIS MODULE IS A THIN WRAPPER
 #
 # The systemd unit, the launchd agent and the config.toml rendering all come
-# from upstream's own home-manager module (`inputs.lan-mouse`). This file only
-# supplies the parts that module deliberately leaves alone: the NixOS-level
-# firewall hole, the choice of package per platform, and an option surface
-# shaped like the rest of `features/desktop`.
+# from upstream's own home-manager module (`inputs.lan-mouse`). This file
+# supplies the choice of package per platform and an option surface shaped
+# like the rest of `features/desktop`. The NixOS-level firewall hole and the
+# systemd restart policy are Linux-only options that nix-darwin and its
+# Home Manager tree do not declare, so they live in ./linux.nix instead,
+# imported only by features/desktop/default.nix (Linux).
 {
   lib,
   pkgs,
   config,
   inputs,
-  isDarwin,
   ...
 }:
 let
   cfg = config.desktop.lan-mouse;
   allUsers = config.shared.allUsers;
+  isDarwin = pkgs.stdenv.hostPlatform.isDarwin;
 
   # One package, both platforms. `platforms = unix ++ windows` in nixpkgs, and
   # aarch64-darwin builds of 0.11.0 are substitutable from cache.nixos.org, so
@@ -229,51 +231,23 @@ in
     };
   };
 
-  config = lib.mkIf cfg.enable (
-    {
-      home-manager.users = lib.genAttrs allUsers (
-        _:
-        {
-          imports = [ inputs.lan-mouse.homeManagerModules.default ];
+  config = lib.mkIf cfg.enable {
+    home-manager.users = lib.genAttrs allUsers (_: {
+      imports = [ inputs.lan-mouse.homeManagerModules.default ];
 
-          programs.lan-mouse = {
-            enable = true;
-            inherit package settings;
+      programs.lan-mouse = {
+        enable = true;
+        inherit package settings;
 
-            # Set explicitly rather than left to their defaults, which are
-            # `pkgs.stdenv.isLinux` / `pkgs.stdenv.isDarwin` -- deprecated
-            # aliases that emit `evaluation warning: stdenv.isLinux is
-            # deprecated`. This repo's CI fails on any evaluation warning
-            # (ci-linux.yaml), so an unset default here is a broken build, not a
-            # cosmetic nit. Assigning both means the defaults are never forced.
-            systemd = !isDarwin;
-            launchd = isDarwin;
-          };
-        }
-        // lib.optionalAttrs (!isDarwin) {
-          # Upstream's unit sets only Type and ExecStart, so a crash leaves
-          # input sharing dead until the next login with no indication beyond
-          # the pointer refusing to cross the edge. These merge into their
-          # definition rather than replacing it -- no keys overlap. Matches what
-          # features/desktop/clipboard does for the same reason.
-          #
-          # Ordering is handled separately: their `Install.WantedBy` is
-          # `hyprland-session.target`, and maranello's home.nix additionally
-          # restarts the unit from `hl.on("hyprland.start")`, which is what
-          # guarantees the layer-shell capture surfaces are created against
-          # outputs that actually exist.
-          systemd.user.services.lan-mouse.Service = {
-            Restart = "always";
-            RestartSec = "5s";
-          };
-        }
-      );
-    }
-    # `networking.firewall` does not exist on nix-darwin, so this cannot be a
-    # `lib.mkIf` on the same attrset -- the option would still be looked up.
-    // lib.optionalAttrs (!isDarwin) {
-      # UDP, not TCP: lan-mouse carries input events over DTLS.
-      networking.firewall.allowedUDPPorts = lib.mkIf cfg.openFirewall [ cfg.port ];
-    }
-  );
+        # Set explicitly rather than left to their defaults, which are
+        # `pkgs.stdenv.isLinux` / `pkgs.stdenv.isDarwin` -- deprecated
+        # aliases that emit `evaluation warning: stdenv.isLinux is
+        # deprecated`. This repo's CI fails on any evaluation warning
+        # (ci-linux.yaml), so an unset default here is a broken build, not a
+        # cosmetic nit. Assigning both means the defaults are never forced.
+        systemd = !isDarwin;
+        launchd = isDarwin;
+      };
+    });
+  };
 }

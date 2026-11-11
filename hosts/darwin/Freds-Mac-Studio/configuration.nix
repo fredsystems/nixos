@@ -6,6 +6,7 @@
   imports = [
     ../../../profiles/darwin.nix
     ../../../modules/services/github-runners.nix
+    ../../../modules/services/github-runners-darwin.nix
 
     # Imported here rather than in profiles/darwin.nix because this is the
     # only Mac on the desk maranello sits at. Freds-MacBook-Pro is portable

@@ -2,20 +2,16 @@
   lib,
   pkgs,
   config,
-  isDarwin,
   ...
 }:
 let
   cfg = config.desktop.yubikey;
   allUsers = config.shared.allUsers;
-  isLinux = !isDarwin;
 in
 {
   options.desktop.yubikey = {
     enable = lib.mkEnableOption "Yubikey Manager";
   };
-
-  imports = lib.optional isLinux ./linux.nix ++ lib.optional isDarwin ./mac.nix;
 
   config = lib.mkIf cfg.enable {
     home-manager.users = lib.genAttrs allUsers (_: {

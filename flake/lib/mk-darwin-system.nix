@@ -85,7 +85,16 @@ darwin.lib.darwinSystem {
       ];
     })
     ../../modules/base/deployment-meta.nix
+    # sops-nix's own Darwin module. Wired here rather than from
+    # modules/secrets/sops.nix so that file does not need to choose between
+    # nixosModules.sops and darwinModules.sops; mk-system.nix wires the Linux
+    # half the same way.
+    inputs.sops-nix.darwinModules.sops
     ../../modules/base/system.nix
+    # Darwin-only half of modules/base/system.nix (Home Manager's Darwin
+    # module, homebrew.nix); see that file's own header. mk-system.nix
+    # imports modules/base/system-linux.nix instead.
+    ../../modules/base/system-darwin.nix
     ../../hosts/darwin/${hostName}/configuration.nix
     home-manager.darwinModules.home-manager
 

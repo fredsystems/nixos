@@ -23,6 +23,7 @@ in
     ../features/desktop/wezterm
     ../features/desktop/zed
     ../features/desktop/yubikey
+    ../features/desktop/yubikey/mac.nix
   ];
 
   environment = {
