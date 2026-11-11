@@ -9,7 +9,6 @@
 # All module paths are relative to the flake root (two levels up from here).
 {
   inputs,
-  self,
   darwin,
   home-manager,
   catppuccin,
@@ -17,7 +16,6 @@
   user,
   verbose_name,
   github_email,
-  hmlib,
   ...
 }:
 
@@ -29,7 +27,6 @@
   system ? "aarch64-darwin",
 }:
 let
-  isDarwin = true;
 
   # Same contract as mkSystem, which had a format guard while this path had
   # none. On Darwin this value feeds home-manager's home.stateVersion only --
@@ -41,21 +38,8 @@ let
       stateVersion;
 in
 darwin.lib.darwinSystem {
-  specialArgs = {
-    inherit
-      inputs
-      self
-      system
-      user
-      verbose_name
-      github_email
-      hmlib
-      ;
-    stateVersion = checkedStateVersion;
-
-    inherit isDarwin;
-    extraUsers = [ ];
-  };
+  # `inputs` is the only module argument; see mk-system.nix.
+  specialArgs = { inherit inputs; };
 
   modules = [
     (_: {
@@ -126,17 +110,7 @@ darwin.lib.darwinSystem {
           catppuccin.enable = true;
         };
 
-        extraSpecialArgs = {
-          inherit
-            inputs
-            user
-            verbose_name
-            hmlib
-            github_email
-            isDarwin
-            ;
-          stateVersion = checkedStateVersion;
-        };
+        extraSpecialArgs = { inherit inputs; };
       };
 
       # Darwin Nix settings

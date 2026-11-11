@@ -295,7 +295,6 @@
       user = "fred";
       verbose_name = "Fred Clausen";
       github_email = "43556888+fredclausen@users.noreply.github.com";
-      hmlib = home-manager.lib;
 
       ##########################################################################
       ## Supported systems                                                    ##
@@ -366,7 +365,6 @@
           user
           verbose_name
           github_email
-          hmlib
           serverNodes
           agentNodes
           agentScrapeMap
