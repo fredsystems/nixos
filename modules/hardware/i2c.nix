@@ -7,6 +7,11 @@ let
   user = config.shared.user.name;
 in
 {
+  # Declares the shared.user.name this module reads, so the exported
+  # hardware module works standalone (the builders import it too; the module
+  # system de-duplicates it).
+  imports = [ ../base/fleet-identity.nix ];
+
   options.hardware-profile.i2c = {
     enable = lib.mkEnableOption "I2C device support";
   };

@@ -194,7 +194,8 @@ and `--os darwin` report no impacted hosts; every host evaluates with no
       `modules/**`, `profiles/**`, `hosts/**`; Home Manager modules
       (`home-profiles/**`, `hosts/darwin/*/home.nix`,
       `modules/base/home*.nix`) read the Home Manager-side
-      `config.shared.user.*`, which defaults to `home.username` for
+      `config.shared.user.*`; of those, `shared.user.name` defaults to
+      `home.username` for
       standalone use.
 - [ ] **4.6 Migrate the rest of the data arguments.** Monitoring
       topology (`prometheus.nix`, `smartctl.nix`); `stateVersion` (the

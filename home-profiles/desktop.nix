@@ -8,6 +8,10 @@ let
 in
 {
   imports = [
+    # Declares the Home Manager-side shared.user.* this profile reads, so the
+    # exported homeModules work standalone. Under the builders the bridge
+    # imports the same file; the module system de-duplicates it.
+    ../modules/base/fleet-identity-home.nix
     ../modules/data/sync-hosts.nix
     ../modules/data/nas-mounts.nix
     ../modules/services/sync-compose.nix

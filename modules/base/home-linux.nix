@@ -18,7 +18,11 @@ in
   ## HOME BASE SETTINGS — Linux Only
   ##########################################################################
   home = {
-    username = user;
+    # mkDefault: shared.user.name itself defaults to home.username, so a
+    # normal-priority definition here would be circular for a standalone
+    # Home Manager consumer with no bridge. With the bridge the value is the
+    # same either way.
+    username = lib.mkDefault user;
     homeDirectory = homeDir;
   };
 
