@@ -4,12 +4,12 @@
   inputs,
   lib,
   isDarwin,
-  user,
   sopsNixInput ? inputs.sops-nix,
   ...
 }:
 let
   cfg = config.sops_secrets.enable_secrets;
+  user = config.shared.user.name;
   username = user;
   isLinux = !isDarwin;
 

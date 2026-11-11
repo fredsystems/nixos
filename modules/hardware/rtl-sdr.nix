@@ -2,10 +2,17 @@
   config,
   lib,
   pkgs,
-  user,
   ...
 }:
+let
+  user = config.shared.user.name;
+in
 {
+  # Declares the shared.user.name this module reads, so the exported
+  # hardware module works standalone (the builders import it too; the module
+  # system de-duplicates it).
+  imports = [ ../base/fleet-identity.nix ];
+
   options.hardware-profile.rtl-sdr = {
     enable = lib.mkEnableOption "RTL-SDR USB device support";
   };

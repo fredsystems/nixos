@@ -190,9 +190,13 @@ and `--os darwin` report no impacted hosts; every host evaluates with no
       and drops the argument.
 - [x] **4.4 Migrate identity consumers, rest of features/.**
       `features/{ai,common,media,shell,virtualization}/**`.
-- [ ] **4.5 Migrate identity consumers, modules, profiles and hosts.**
-      `modules/**`, `profiles/**`, `hosts/**`; `home-profiles/**` moves
-      to `config.home.username`.
+- [x] **4.5 Migrate identity consumers, modules, profiles and hosts.**
+      `modules/**`, `profiles/**`, `hosts/**`; Home Manager modules
+      (`home-profiles/**`, `hosts/darwin/*/home.nix`,
+      `modules/base/home*.nix`) read the Home Manager-side
+      `config.shared.user.*`; of those, `shared.user.name` defaults to
+      `home.username` for
+      standalone use.
 - [ ] **4.6 Migrate the rest of the data arguments.** Monitoring
       topology (`prometheus.nix`, `smartctl.nix`); `stateVersion` (the
       builder sets `system.stateVersion`, the 10 Linux host files drop

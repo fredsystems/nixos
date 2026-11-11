@@ -2,10 +2,12 @@
   config,
   lib,
   pkgs,
-  user,
   ...
 }:
 
+let
+  user = config.shared.user.name;
+in
 {
   imports = [
     ../modules/hardware

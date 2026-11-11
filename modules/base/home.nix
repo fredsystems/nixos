@@ -4,14 +4,15 @@
   pkgs,
   isDarwin,
   inputs,
-  verbose_name,
-  github_email,
+  config,
   catppuccinInput ? inputs.catppuccin,
   ...
 }:
 
 let
   isLinux = !isDarwin;
+  verbose_name = config.shared.user.fullName;
+  github_email = config.shared.user.email;
 
   # home-manager renamed `programs.gemini-cli` to `programs.antigravity-cli`.
   # The release-25.11 catppuccin input (server hosts) still ships a functional

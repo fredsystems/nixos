@@ -6,10 +6,10 @@
   agentScrapeMap,
   desktopNodes,
   desktopScrapeMap,
-  user,
   ...
 }:
 let
+  user = config.shared.user.name;
   agentHosts = agentNodes;
   desktopHosts = builtins.filter (h: h != "Daytona") desktopNodes;
 

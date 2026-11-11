@@ -1,9 +1,12 @@
 {
   pkgs,
-  user,
+  config,
   stateVersion,
   ...
 }:
+let
+  user = config.shared.user.name;
+in
 {
   imports = [
     ./hardware-configuration.nix
