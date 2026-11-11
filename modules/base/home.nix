@@ -1,30 +1,13 @@
 {
   lib,
   options,
-  pkgs,
-  inputs,
   config,
-  catppuccinInput ? inputs.catppuccin,
   ...
 }:
 
 let
   verbose_name = config.shared.user.fullName;
   github_email = config.shared.user.email;
-
-  # home-manager renamed `programs.gemini-cli` to `programs.antigravity-cli`.
-  # The release-25.11 catppuccin input (server hosts) still ships a functional
-  # `gemini-cli` module that sets the now-renamed `programs.gemini-cli` option,
-  # tripping a fatal "option has been renamed" evaluation warning. Setting
-  # `catppuccin.gemini-cli.enable = false` suppresses it there. The unstable
-  # catppuccin input (desktop/darwin) replaced that module with a
-  # `mkRemovedOptionModule` stub, so *defining* the option there is a fatal
-  # assertion. Detect which variant is present by reading the module source:
-  # the functional module references `programs.gemini-cli`, the stub does not.
-  geminiCliModule = "${catppuccinInput}/modules/home-manager/gemini-cli.nix";
-  catppuccinHasFunctionalGeminiCli =
-    builtins.pathExists geminiCliModule
-    && lib.hasInfix "programs.gemini-cli" (builtins.readFile geminiCliModule);
 
   yubikeyMap = {
     "13380413" = "~/.ssh/id_ed25519_sk.pub";
@@ -39,10 +22,10 @@ in
   ##########################################################################
   ## Shared Home-Manager module imports
   ##########################################################################
+  # catppuccin's and nixvim's home-manager modules are wired by the builders
+  # through home-manager.sharedModules (see ./home-catppuccin.nix).
   imports = [
     ../../modules/base/home-base.nix
-    catppuccinInput.homeModules.catppuccin
-    inputs.nixvim.homeModules.nixvim
   ];
 
   ##########################################################################
@@ -59,32 +42,11 @@ in
     flavor = "mocha";
     accent = "mauve";
 
-    # catppuccin's flake module defaults `sources` to its own packages
-    # (built from its pinned nixpkgs, served by catppuccin.cachix.org), but
-    # as ONE whole-set mkDefault: any normal-priority
-    # `catppuccin.sources.<port>` definition discards it, and catppuccin
-    # then rebuilds EVERY port with our pkgs. Restating the default per
-    # port means a single-port override only replaces that port.
-    #
-    # The fallback costs cache misses and local builds. On Darwin it is
-    # worse: several ports (starship, bottom, palette, ...)
-    # importTOML/importJSON their source -- import-from-derivation -- so
-    # any eval of a Darwin host on a non-Darwin machine needs those
-    # aarch64-darwin outputs substitutable and dies with "platform
-    # mismatch" otherwise. A per-port lazygit override did exactly that on
-    # #2644, back when CI's find-darwin job ran on Linux.
-    sources = builtins.mapAttrs (
-      _: lib.mkDefault
-    ) catppuccinInput.packages.${pkgs.stdenv.hostPlatform.system};
+    # `sources` and the gemini-cli guard depend on which catppuccin input
+    # this host uses; see ./home-catppuccin.nix.
   }
   // lib.optionalAttrs (options.catppuccin ? autoEnable) {
     autoEnable = true;
-  }
-  // lib.optionalAttrs catppuccinHasFunctionalGeminiCli {
-    # See `geminiCliModule` note above: only disable where the functional
-    # module exists (stable). On unstable it is a removed-option stub and
-    # defining it would be a fatal assertion.
-    gemini-cli.enable = false;
   };
 
   ##########################################################################

@@ -1,7 +1,6 @@
 {
   pkgs,
   lib,
-  inputs,
   config,
   ...
 }:
@@ -10,7 +9,6 @@ let
 in
 {
   imports = [
-    inputs.home-manager.darwinModules.default
     ../modules/secrets/sops.nix
     ../features/shell
     ../features/common/btop

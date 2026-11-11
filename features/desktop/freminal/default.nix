@@ -1,16 +1,15 @@
 {
   lib,
   config,
-  inputs,
+  pkgs,
   ...
 }:
 let
   cfg = config.desktop.freminal;
   t = config.terminal;
   allUsers = config.shared.allUsers;
-  system = config.nixpkgs.hostPlatform.system;
-
-  freminalPackage = inputs.freminal.packages.${system}.freminal;
+  # From the freminal flake, via the overlay both builders apply.
+  freminalPackage = pkgs.freminal;
 in
 {
   imports = [ ../../../modules/terminal/common.nix ];

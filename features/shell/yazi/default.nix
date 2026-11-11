@@ -2,26 +2,22 @@
   pkgs,
   config,
   lib,
-  system,
-  nixYaziPluginsInput,
-  isDarwin ? false,
   ...
 }:
 let
   allUsers = config.shared.allUsers;
+  inherit (pkgs.stdenv.hostPlatform) isDarwin;
 in
 {
   config = {
     home-manager.users = lib.genAttrs allUsers (_: {
-      # nix-yazi-plugins's home-manager module — used for plugins that need
-      # more than a static plugin-directory link (e.g. starship.yazi's
-      # require("starship"):setup() call in init.lua). Plugins that are
-      # just a directory link (clipboard, piper above) go straight through
-      # home-manager's own `programs.yazi.plugins`/`settings` instead.
-      imports = [
-        nixYaziPluginsInput.legacyPackages.${system}.homeManagerModules.default
-      ];
-
+      # nix-yazi-plugins's home-manager module (used for plugins that need
+      # more than a static plugin-directory link, e.g. starship.yazi's
+      # require("starship"):setup() call in init.lua) is wired by the
+      # builders through home-manager.sharedModules, from the channel they
+      # choose. Plugins that are just a directory link (clipboard, piper
+      # above) go straight through home-manager's own
+      # `programs.yazi.plugins`/`settings` instead.
       home.packages =
         (with pkgs; [
           # plugins for yazi

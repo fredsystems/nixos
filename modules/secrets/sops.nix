@@ -1,9 +1,8 @@
 {
   config,
+  options,
   pkgs,
-  inputs,
   lib,
-  sopsNixInput ? inputs.sops-nix,
   ...
 }:
 let
@@ -28,7 +27,9 @@ in
 
     sops = {
       package = lib.mkIf pkgs.stdenv.hostPlatform.isLinux (
-        (pkgs.callPackage sopsNixInput { }).sops-install-secrets.overrideAttrs (old: {
+        # sops-nix's own default package, from whichever sops-nix the builder
+        # wired in (stable or unstable), rather than re-importing the input.
+        options.sops.package.default.overrideAttrs (old: {
           # Only change the go-modules FOD (fixed-output derivation) environment.
           # Do NOT set env.GOPROXY / env.GONOSUMDB here: overrideAttrs does a
           # shallow merge, so writing env.X = "..." replaces the entire `env`
