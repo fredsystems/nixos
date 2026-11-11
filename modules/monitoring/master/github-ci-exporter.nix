@@ -115,6 +115,14 @@
     # `for:` clause on GitHubCIFailingDefaultBranch.
     interval = "5m";
 
+    # Flake input tracking (agent-docs/plans/PLAN_03_FLAKE_INPUT_TRACKING.md):
+    # per-input upstream heads, update PRs, outdated-since and impact for
+    # this repo's flake.lock, plus NixOS channel status from
+    # prometheus.nixos.org. Runs on its own hourly flakeInterval (the module
+    # default), so the public APIs see one lookup an hour, not one every
+    # 5-minute cycle.
+    flakeRepos = [ "fredsystems/nixos" ];
+
     # Archived repositories and repositories with no workflow files are
     # dropped automatically; the denylist is only for anything that survives
     # those filters and still is not worth watching.
