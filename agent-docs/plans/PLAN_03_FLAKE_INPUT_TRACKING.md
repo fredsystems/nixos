@@ -265,10 +265,12 @@ complete until Plan 02 is.
 
 ### This repo
 
-- [ ] **3.8 Wire the exporter.** Bump the `github-ci-exporter` input and
+- [x] **3.8 Wire the exporter.** Bump the `github-ci-exporter` input and
       set `flakeRepos = [ "fredsystems/nixos" ]` in
       `modules/monitoring/master/github-ci-exporter.nix`. Verify with
-      `nixos-eval-impacted-hosts`, then deploy sdrhub.
+      `nixos-eval-impacted-hosts`, then deploy sdrhub. Done: #2825,
+      deployed 2026-11-11; sdrhub publishes 34 `github_flake_input_*`
+      node series and `nixos_channel_*` for 4 channels.
 - [x] **3.9 Impact classification.** `scripts/flake-input-impact.sh
       <input>`: update one input in a scratch copy and print `none`,
       `rebuild` or `source` per the table above, reusing
