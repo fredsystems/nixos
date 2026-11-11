@@ -51,7 +51,10 @@ jobs:
           # single_input get validated against a flake.lock that isn't the
           # one update-flake actually updates.
           ref: main
-          sparse-checkout: flake.lock
+          sparse-checkout: |
+            flake.lock
+            .github/flake-input-policy.json
+          sparse-checkout-cone-mode: false
           persist-credentials: false
 
       - id: split
@@ -61,8 +64,10 @@ jobs:
         # filtered out of the matrix entirely so they never appear as
         # jobs in the run summary.
         #
-        # MANUAL_INPUTS is the single source of truth for which inputs
-        # are held back from the weekly auto-merge run.
+        # MANUAL_INPUTS (the inputs held back from the weekly auto-merge
+        # run) comes from .github/flake-input-policy.json, the one policy
+        # source shared with flake-input-watch.yaml; see
+        # scripts/check-flake-input-policy.sh.
         #
         # single_input takes over the whole selection when set: it is
         # validated against flake.lock's actual input keys (the one
@@ -73,12 +78,19 @@ jobs:
         # manually-dispatched single run of a manual-policy input (e.g.
         # nixpkgs-kernel) still doesn't auto-merge.
         env:
-          MANUAL_INPUTS: '["nixpkgs-kernel"]'
           EVENT: ${{ github.event_name }}
           SCHEDULE: ${{ github.event.schedule }}
           TARGET: ${{ github.event.inputs.target }}
           SINGLE_INPUT: ${{ github.event.inputs.single_input }}
         run: |
+          # Each root input's effective policy: its own entry, else the
+          # default.
+          MANUAL_INPUTS="$(jq -c --slurpfile lock flake.lock '
+            (.defaults.policy // "auto") as $d
+            | (.inputs // {}) as $i
+            | [$lock[0].nodes.root.inputs | keys[] | select(($i[.].policy // $d) == "manual")]
+          ' .github/flake-input-policy.json)"
+
           if [[ -n "$SINGLE_INPUT" ]]; then
             if ! jq -e --arg name "$SINGLE_INPUT" \
               '.nodes.root.inputs | keys | index($name) != null' flake.lock >/dev/null

@@ -158,7 +158,7 @@ Names are a starting point. 3.5 and 3.6 settle them.
 | `github_flake_input_commits_behind`                | `repo`, `input`, `path`, `ref`            |
 | `github_flake_input_up_to_date`                    | `repo`, `input`, `path`, `ref`, `channel` |
 | `github_flake_input_update_pr_open`                | `repo`, `input`, `number`                 |
-| `github_flake_input_impact`                        | `repo`, `input`, `kind`                   |
+| `github_flake_input_impact`                        | `repo`, `input`, `os`, `kind`             |
 | `nixos_channel_update_timestamp_seconds`           | `channel`                                 |
 | `nixos_channel_current`                            | `channel`                                 |
 | `nixos_channel_tested_failed`                      | `channel`                                 |
@@ -168,7 +168,9 @@ that tracks a NixOS channel (a `nixos-*` / `nixpkgs-*` branch, or a
 channel tarball), root inputs included, so channel alerts can join on
 it. `number` matches the label on the existing `github_pull_*` series,
 so an update PR joins to its age and check state.
-`github_flake_input_impact` is read from the watch Action's status file.
+`github_flake_input_impact` is read from the watch Action's status file,
+one series per OS (`linux`, `darwin`) the input was classified on, since
+each OS is evaluated on its own runner.
 
 The exporter's registry prefixes everything `github_`. The
 `nixos_channel_*` families need a second, unprefixed registry rendered
@@ -276,7 +278,7 @@ complete until Plan 02 is.
       Linux. Tests: a fixture flake with a following input, an
       owned-nixpkgs input bumped only in its lock, and one with a source
       change.
-- [ ] **3.10 Watch Action and policy file.** `flake-input-watch.yaml`,
+- [x] **3.10 Watch Action and policy file.** `flake-input-watch.yaml`,
       hourly on `[self-hosted, Linux]`: find moved branch-tracking inputs
       with no open update PR, classify each with 3.9, write the results
       to `status/flake-inputs.json` on the `flake-watch` branch (commit
@@ -284,7 +286,12 @@ complete until Plan 02 is.
       `single_input` for `source` inputs under an `auto` policy. Move
       `MANUAL_INPUTS` into `.github/flake-input-policy.json` and read it
       from both workflows. The exporter side (reading the status file
-      into `github_flake_input_impact`) is part of 3.5.
+      into `github_flake_input_impact`) is part of 3.5. Done: the
+      decisions live in `scripts/flake-watch.sh` (tested by
+      `scripts/tests/flake-watch-test.sh`), Darwin is classified on the
+      macOS pool, and a status entry is reused while both revisions are
+      unchanged, so a quiet hour commits nothing and a source change is
+      dispatched once per upstream revision.
 - [ ] **3.11 Alerts.** The five alerts above, with promtool cases.
 - [ ] **3.12 Dashboard.** `dashboards/flake-inputs.json` in the GitHub
       folder: per-input age and impact, open update PRs, owned nixpkgs
