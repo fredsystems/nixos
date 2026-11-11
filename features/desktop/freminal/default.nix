@@ -2,13 +2,13 @@
   lib,
   config,
   inputs,
-  system,
   ...
 }:
 let
   cfg = config.desktop.freminal;
   t = config.terminal;
   allUsers = config.shared.allUsers;
+  system = config.nixpkgs.hostPlatform.system;
 
   freminalPackage = inputs.freminal.packages.${system}.freminal;
 in

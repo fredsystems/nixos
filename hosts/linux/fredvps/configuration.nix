@@ -1,7 +1,6 @@
 {
   lib,
   pkgs,
-  stateVersion,
   config,
   ...
 }:
@@ -245,8 +244,6 @@ in
       };
     };
   };
-
-  system.stateVersion = stateVersion;
 
   networking = {
     hostName = "fredvps";

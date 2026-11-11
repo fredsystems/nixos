@@ -1,7 +1,6 @@
 {
   config,
   inputs,
-  stateVersion,
   lib,
   pkgs,
   ...
@@ -1932,8 +1931,6 @@ in
       '';
     }
   ];
-
-  system.stateVersion = stateVersion;
 
   system.activationScripts.adsbDockerCompose = {
     text = ''

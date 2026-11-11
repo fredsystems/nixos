@@ -1,6 +1,5 @@
 {
   config,
-  stateVersion,
   ...
 }:
 let
@@ -22,7 +21,6 @@ in
   # transfer-buffer ceiling above the 16 MB kernel default.
   hardware-profile.usbfs.enable = true;
 
-  system.stateVersion = stateVersion;
   networking = {
     firewall = {
       allowedTCPPorts = [ 5555 ];

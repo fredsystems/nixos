@@ -1,7 +1,6 @@
 {
   pkgs,
   config,
-  stateVersion,
   lib,
   ...
 }:
@@ -114,8 +113,6 @@ in
       "hid_apple" # optional but helpful for Keychron
     ];
   };
-
-  system.stateVersion = stateVersion;
 
   services = {
     # Same 2x2 arrangement as the desktop session (./monitors.nix).

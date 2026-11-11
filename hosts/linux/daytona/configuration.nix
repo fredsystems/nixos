@@ -1,7 +1,6 @@
 {
   pkgs,
   config,
-  stateVersion,
   ...
 }:
 let
@@ -147,8 +146,6 @@ in
   powerManagement.enable = false;
 
   environment.systemPackages = [ ];
-
-  system.stateVersion = stateVersion;
 
   sops.secrets = {
     "fred-yubi" = {

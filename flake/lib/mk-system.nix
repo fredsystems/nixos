@@ -118,6 +118,15 @@ let
           (import ./../../overlays/default.nix)
           (import ./opencode-overlay.nix inputs)
           inputs.nixos-needsreboot.overlays.default
+          # Exposes the kernel-pin nixpkgs tree (see modules/system/kernel-pin.nix)
+          # as pkgs.kernelPinPkgs, importing kernelPkgsInput once per host with
+          # only the fleet's unfree predicate threaded through.
+          (final: _: {
+            kernelPinPkgs = import kernelPkgsInput {
+              inherit (final.stdenv.hostPlatform) system;
+              config.allowUnfreePredicate = final.config.allowUnfreePredicate;
+            };
+          })
         ];
       }
     )
@@ -140,6 +149,9 @@ let
         };
         catppuccinWallpapers = self.packages.${system}.catppuccin-wallpapers;
       };
+
+      system.stateVersion = checkedStateVersion;
+      home-manager.sharedModules = [ { home.stateVersion = checkedStateVersion; } ];
     }
     ./../../modules/base/deployment-meta.nix
     # Fleet-wide facts about the home network. Declares options only, so being

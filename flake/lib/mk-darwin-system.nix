@@ -77,6 +77,8 @@ darwin.lib.darwinSystem {
         fullName = verbose_name;
         email = github_email;
       };
+
+      home-manager.sharedModules = [ { home.stateVersion = checkedStateVersion; } ];
     })
     ../../modules/base/deployment-meta.nix
     ../../modules/base/system.nix

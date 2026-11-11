@@ -46,11 +46,11 @@
   config,
   lib,
   pkgs,
-  agentNodes,
-  agentScrapeMap,
   ...
 }:
 let
+  inherit (config.shared.monitoring) agentNodes agentScrapeMap;
+
   # 9633 is the exporter's upstream default. Confirmed unused elsewhere in
   # this repo (the taken set is 80, 443, 2269, 3333, 4567, 5432, 5678, 6379,
   # 8078, 9090, 9093, 9100).

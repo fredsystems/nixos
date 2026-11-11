@@ -2,12 +2,12 @@
   lib,
   config,
   pkgs,
-  catppuccinWallpapers,
   ...
 }:
 let
   cfg = config.desktop.environments;
   allUsers = config.shared.allUsers;
+  catppuccinWallpapers = config.shared.catppuccinWallpapers;
   inherit (config.desktop.environments.common) waitForWayland;
 in
 {

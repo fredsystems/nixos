@@ -93,13 +93,13 @@ sets the options directly; `shared.user.name` falls back to
 
 ### Values with a native source use it
 
-- `system`: `pkgs.stdenv.hostPlatform.system`, **except**
-  `features/shell/nvim`. It deliberately passes nixvim a literal
-  platform string, because resolving `pkgs.stdenv` there re-enters the
-  host evaluation and recurses (see the comment in that file). It reads
-  `config.shared.hostSystem` from the bridge instead: a plain option
-  value copied from `nixpkgs.hostPlatform.system`, which never forces
-  `pkgs`.
+- `system`: `config.nixpkgs.hostPlatform.system` in system-level
+  modules, a plain option value that never forces `pkgs`. That matters
+  for `features/shell/nvim`, which deliberately passes nixvim a literal
+  platform string because resolving `pkgs.stdenv` there re-enters the
+  host evaluation and recurses (see the comment in that file). Home
+  Manager modules use the bridged `config.shared.hostSystem`, which is
+  the same value.
 - `hmlib`: `lib.hm` inside the Home Manager submodule.
 - `isDarwin` in `config`: `pkgs.stdenv.hostPlatform.isDarwin`.
 - `isDesktop` in `config` (kernel pin): `config.deployment.role == "desktop"`.
@@ -197,13 +197,12 @@ and `--os darwin` report no impacted hosts; every host evaluates with no
       `config.shared.user.*`; of those, `shared.user.name` defaults to
       `home.username` for
       standalone use.
-- [ ] **4.6 Migrate the rest of the data arguments.** Monitoring
+- [x] **4.6 Migrate the rest of the data arguments.** Monitoring
       topology (`prometheus.nix`, `smartctl.nix`); `stateVersion` (the
       builder sets `system.stateVersion`, the 10 Linux host files drop
       their line, and `home-base.nix` relies on the bridge);
-      `catppuccinWallpapers`; `system` (with `features/shell/nvim` on
-      `config.shared.hostSystem`, verified on Daytona, maranello and
-      fredvps); `hmlib`
+      `catppuccinWallpapers`; `system` (from `config.nixpkgs.hostPlatform.system`, nvim
+      included, verified on Daytona, maranello and fredvps); `hmlib`
       (`features/desktop/environments/{hyprland,gnome}`); and
       `kernelPkgsInput` (`kernel-pin.nix`, via an overlay-provided
       package set; `isDesktop` from `deployment.role`).
@@ -244,6 +243,22 @@ and `--os darwin` report no impacted hosts; every host evaluates with no
 - [ ] **4.13 Documentation.** `MODULES.md` (exports are standalone;
       what each one brings), `agents.md` (the "`inputs` is the only
       specialArg" rule), and a short note in `flake/lib/mk-system.nix`.
+
+### Cleanup
+
+- [ ] **4.14 The gnome environment no longer evaluates.** Surfaced during
+      4.6 (verifying its `hmlib` change, by enabling
+      `desktop.environments.gnome` on Daytona). Two pre-existing failures,
+      identical on `main`: `services.upower.enable` conflicts
+      (`features/desktop/environments/common.nix` sets `true`, nixpkgs'
+      gnome module sets `false`), and the feature references
+      `gnome-photos`, which nixpkgs removed. Impact: none today (gnome is
+      off on every host), but `desktop.environments.gnome.enable = true`
+      cannot be used. Fix: decide whether to keep the gnome environment;
+      if so, make common.nix's upower setting `lib.mkDefault` and drop or
+      replace `gnome-photos` (nixpkgs suggests `loupe` or `shotwell`).
+      Verification: Daytona with gnome enabled evaluates its toplevel.
+      Not scheduled against this plan's subtasks; independent.
 
 ## Out of scope
 
