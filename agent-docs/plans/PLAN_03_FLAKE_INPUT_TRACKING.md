@@ -258,8 +258,9 @@ complete until Plan 02 is.
       `outdated_since` from the persisted first-seen time. Tests: wiremock
       responses, a tarball node behind its channel, and an upstream outage
       keeping the cached values and flagging collection failure.
-- [ ] **3.7 Release.** README metrics table and config docs, then tag a
-      release.
+- [x] **3.7 Release.** README metrics table and config docs
+      (fredsystems/github-ci-exporter#30-#33). No tag: the exporter has
+      never been tagged and this repo consumes it from `main`.
 
 ### This repo
 
