@@ -306,10 +306,14 @@ complete until Plan 02 is.
          built-in `actionlint` hook (it runs shellcheck on `run:` blocks)
          in the base hook set, so every consuming repo gets it.
       3. Bump `precommit-base` here.
-      Scheduling: before step 2 lands, inventory actionlint findings in
-      every repo that consumes `precommit-base` (freminal,
-      docker-acarshub, github-ci-exporter, nixos-needsreboot, ...). Each
-      one's next base bump fails until its findings are fixed.
+      Scheduling: the inventory (2026-11-11) found 44 consuming repos, 27
+      clean and 17 with 158 findings, 102 of them in
+      sdr-enthusiasts/common-github-workflows; about 20 are `runner-label`
+      findings that need a `.github/actionlint.yaml`, not workflow
+      changes. Decision: enable it for every consumer now and fix each
+      repo as its base bump fails, rather than an opt-in flag. Step 1 is
+      #2820; step 2 is fredsystems/pre-commit-checks#88; step 3 waits on
+      both.
       Verification: `actionlint` clean here; the base's
       `pre-commit-check` runs the hook; this repo's Lint passes after the
       bump.
