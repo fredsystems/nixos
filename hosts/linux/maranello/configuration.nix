@@ -1,11 +1,12 @@
 {
   pkgs,
-  user,
+  config,
   stateVersion,
   lib,
   ...
 }:
 let
+  user = config.shared.user.name;
   monitors = import ./monitors.nix;
 in
 {

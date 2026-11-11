@@ -1,9 +1,11 @@
 {
   config,
   lib,
-  user,
   ...
 }:
+let
+  user = config.shared.user.name;
+in
 {
   options.hardware-profile.i2c = {
     enable = lib.mkEnableOption "I2C device support";

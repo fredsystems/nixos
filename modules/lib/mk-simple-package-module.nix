@@ -51,12 +51,10 @@ else
     lib,
     pkgs,
     config,
-    user,
-    extraUsers ? [ ],
     ...
   }:
   let
-    allUsers = [ user ] ++ extraUsers;
+    allUsers = config.shared.allUsers;
     path = lib.splitString "." optionPath;
     cfg = lib.getAttrFromPath path config;
   in

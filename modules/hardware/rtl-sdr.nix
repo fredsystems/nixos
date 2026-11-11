@@ -2,9 +2,11 @@
   config,
   lib,
   pkgs,
-  user,
   ...
 }:
+let
+  user = config.shared.user.name;
+in
 {
   options.hardware-profile.rtl-sdr = {
     enable = lib.mkEnableOption "RTL-SDR USB device support";

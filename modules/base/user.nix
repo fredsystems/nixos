@@ -1,14 +1,13 @@
 {
   pkgs,
   lib,
-  user,
-  extraUsers ? [ ],
-  verbose_name,
+  config,
   ...
 }:
 let
-  username = user;
-  full_name = verbose_name;
+  username = config.shared.user.name;
+  full_name = config.shared.user.fullName;
+  inherit (config.shared) extraUsers;
 in
 {
   imports = [

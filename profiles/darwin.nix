@@ -2,9 +2,12 @@
   pkgs,
   lib,
   inputs,
-  user,
+  config,
   ...
 }:
+let
+  user = config.shared.user.name;
+in
 {
   imports = [
     inputs.home-manager.darwinModules.default

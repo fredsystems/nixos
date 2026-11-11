@@ -1,10 +1,9 @@
 {
-  user,
   config,
   ...
 }:
 let
-  username = user;
+  username = config.shared.user.name;
 in
 {
   # ------------------------------

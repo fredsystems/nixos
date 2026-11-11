@@ -1,10 +1,11 @@
 {
-  user,
+  config,
   lib,
   options,
   ...
 }:
 let
+  user = config.shared.user.name;
   # This module is only ever imported when isLinux (see modules/base/home.nix),
   # so isDarwin is hardcoded rather than threaded through as an argument.
   homeDir = import ../lib/home-dir.nix {

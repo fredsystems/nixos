@@ -1,11 +1,10 @@
 {
-  user,
   config,
   lib,
   ...
 }:
 let
-  username = user;
+  username = config.shared.user.name;
 in
 {
   imports = [
