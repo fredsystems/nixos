@@ -436,6 +436,9 @@
           # metric). Hosts built by flake/lib/mk-system.nix get the overlay
           # there; consumers of these exports bypass it, so the profiles bring
           # the overlay themselves.
+          # The profiles set sops.secrets, and the builders (not
+          # modules/secrets/sops.nix) now import sops-nix's module, so the
+          # exports below that bypass the builders import it themselves.
           needsrebootOverlay = {
             nixpkgs.overlays = [ inputs.nixos-needsreboot.overlays.default ];
           };
@@ -445,12 +448,14 @@
           desktop-common = {
             imports = [
               ./profiles/desktop.nix
+              inputs.sops-nix.nixosModules.sops
               needsrebootOverlay
             ];
           };
           adsb-hub = {
             imports = [
               ./profiles/adsb-hub.nix
+              inputs.sops-nix.nixosModules.sops
               needsrebootOverlay
             ];
           };
@@ -485,6 +490,7 @@
             imports = [
               ./profiles/desktop.nix
               ./profiles/adsb-hub.nix
+              inputs.sops-nix.nixosModules.sops
               ./modules/hardware
               ./modules/data/nas-mounts.nix
               ./modules/data/wifi-networks.nix

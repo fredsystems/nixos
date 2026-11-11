@@ -1,7 +1,4 @@
-{
-  ...
-}:
-{
+_: {
   imports = [
     ./nixpkgs-unfree.nix
     ./fleet-identity.nix
