@@ -13,6 +13,7 @@
 #
 # Usage:
 #   scripts/flake-input-impact.sh [--flake DIR] [--os linux|darwin|auto] [--json] <input>
+#   scripts/flake-input-impact.sh [--flake DIR] [--os linux|darwin|auto] --base-fingerprint
 #
 # DIR defaults to the git toplevel of the cwd. <input> must be a key of
 # `.nodes.root.inputs` in DIR/flake.lock.
@@ -50,6 +51,10 @@
 #   caller confirm it classified the upstream revision it meant to (upstream
 #   can move between deciding to classify and running this).
 #
+#   --base-fingerprint: one sha256 of the base fingerprint alone (what the
+#   flake builds on this OS with its lock as is), no <input>. The watch
+#   Action reuses a cached classification only while this is unchanged.
+#
 # Exit codes: 0 on any successful classification (including "none"); 2 on
 # a usage/validation error (unknown input, wrong --os for this machine);
 # 1 on an evaluation failure.
@@ -58,11 +63,13 @@ set -euo pipefail
 usage() {
   cat >&2 <<'EOF'
 Usage: scripts/flake-input-impact.sh [--flake DIR] [--os linux|darwin|auto] [--json] <input>
+       scripts/flake-input-impact.sh [--flake DIR] [--os linux|darwin|auto] --base-fingerprint
 EOF
 }
 
 FLAKE_DIR=""
 JSON=0
+BASE_ONLY=0
 OS_ARG="auto"
 INPUT=""
 
@@ -96,6 +103,10 @@ while [[ $# -gt 0 ]]; do
       JSON=1
       shift
       ;;
+    --base-fingerprint)
+      BASE_ONLY=1
+      shift
+      ;;
     -h | --help)
       usage
       exit 0
@@ -116,7 +127,12 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ -z "$INPUT" ]]; then
+if [[ $BASE_ONLY -eq 1 && -n "$INPUT" ]]; then
+  echo "ERROR: --base-fingerprint takes no <input>" >&2
+  usage
+  exit 2
+fi
+if [[ $BASE_ONLY -eq 0 && -z "$INPUT" ]]; then
   echo "ERROR: missing <input>" >&2
   usage
   exit 2
@@ -183,70 +199,7 @@ case "$OS" in
 esac
 
 # ---------------------------------------------------------------------------
-# 1. Validate the input is a real root input.
-# ---------------------------------------------------------------------------
-
-ROOT_INPUTS_JSON="$(jq -c '.nodes.root.inputs // {}' "$FLAKE_DIR/flake.lock")"
-NODE_NAME="$(jq -r --arg i "$INPUT" '.[$i] // empty' <<<"$ROOT_INPUTS_JSON")"
-if [[ -z "$NODE_NAME" ]]; then
-  printf 'ERROR: %q is not a root input in %s/flake.lock\n' "$INPUT" "$FLAKE_DIR" >&2
-  exit 2
-fi
-
-echo "input: $INPUT (lock node: $NODE_NAME)  flake: $FLAKE_DIR  os: $OS" >&2
-
-# ---------------------------------------------------------------------------
-# 2. Bump the input in a scratch lock file; short-circuit if it didn't move.
-# ---------------------------------------------------------------------------
-
-echo "==> nix flake update $INPUT (scratch lock, not touching flake.lock)" >&2
-if ! nix "${NIX_FEATURES[@]}" flake update "$INPUT" --flake "$FLAKE_DIR" --output-lock-file "$TMP/new.lock" --impure \
-  >"$TMP/update.out" 2>"$TMP/update.err"; then
-  echo "ERROR: nix flake update $INPUT failed:" >&2
-  tail -n 30 "$TMP/update.err" >&2
-  exit 1
-fi
-cat "$TMP/update.err" >&2
-
-old_node_locked() { jq -c --arg n "$NODE_NAME" '.nodes[$n].locked' "$FLAKE_DIR/flake.lock"; }
-new_node_locked() { jq -c --arg n "$NODE_NAME" '.nodes[$n].locked' "$TMP/new.lock"; }
-
-OLD_LOCKED="$(old_node_locked)"
-NEW_LOCKED="$(new_node_locked)"
-
-node_moved() {
-  # Compares the two `locked` objects on `rev` when both have one
-  # (git/github-ish), else on `narHash` (tarball, path, and anything else).
-  jq -n --argjson old "$OLD_LOCKED" --argjson new "$NEW_LOCKED" '
-    (if ($old | has("rev")) and ($new | has("rev")) then
-       ($old.rev != $new.rev)
-     else
-       ($old.narHash != $new.narHash)
-     end)
-  '
-}
-
-emit() {
-  local kind="$1"
-  shift
-  local changed_json="${1:-[]}"
-  if [[ $JSON -eq 1 ]]; then
-    jq -cn --arg input "$INPUT" --arg kind "$kind" --argjson changed "$changed_json" \
-      --argjson new "$NEW_LOCKED" \
-      '{input: $input, kind: $kind, rev: ($new.rev // null), changed: $changed}'
-  else
-    printf '%s\n' "$kind"
-  fi
-  exit 0
-}
-
-if [[ "$(node_moved)" != "true" ]]; then
-  echo "reason: upstream has not moved (locked rev/narHash unchanged)" >&2
-  emit "none"
-fi
-
-# ---------------------------------------------------------------------------
-# 3. Output fingerprints: base (on-disk lock) vs. new (scratch lock).
+# Output fingerprints (used below, and alone by --base-fingerprint).
 # ---------------------------------------------------------------------------
 
 # These are Nix expressions (single-quoted deliberately: `${...}` below is
@@ -330,6 +283,82 @@ diff_keys() {
     ($old | keys) + ($new | keys) | unique | map(select(($old[.] // null) != ($new[.] // null)))
   '
 }
+
+if [[ $BASE_ONLY -eq 1 ]]; then
+  # One hash of what this flake builds on this OS as it stands: a cached
+  # classification is valid only while this is unchanged, because a change to
+  # our own config can change what bumping an input would do.
+  BASE_FP="$(fingerprint "base (on-disk flake.lock)" --no-update-lock-file)" || exit 1
+  jq -cS . <<<"$BASE_FP" | sha256sum | cut -d' ' -f1
+  exit 0
+fi
+
+# ---------------------------------------------------------------------------
+# 1. Validate the input is a real root input.
+# ---------------------------------------------------------------------------
+
+ROOT_INPUTS_JSON="$(jq -c '.nodes.root.inputs // {}' "$FLAKE_DIR/flake.lock")"
+NODE_NAME="$(jq -r --arg i "$INPUT" '.[$i] // empty' <<<"$ROOT_INPUTS_JSON")"
+if [[ -z "$NODE_NAME" ]]; then
+  printf 'ERROR: %q is not a root input in %s/flake.lock\n' "$INPUT" "$FLAKE_DIR" >&2
+  exit 2
+fi
+
+echo "input: $INPUT (lock node: $NODE_NAME)  flake: $FLAKE_DIR  os: $OS" >&2
+
+# ---------------------------------------------------------------------------
+# 2. Bump the input in a scratch lock file; short-circuit if it didn't move.
+# ---------------------------------------------------------------------------
+
+echo "==> nix flake update $INPUT (scratch lock, not touching flake.lock)" >&2
+if ! nix "${NIX_FEATURES[@]}" flake update "$INPUT" --flake "$FLAKE_DIR" --output-lock-file "$TMP/new.lock" --impure \
+  >"$TMP/update.out" 2>"$TMP/update.err"; then
+  echo "ERROR: nix flake update $INPUT failed:" >&2
+  tail -n 30 "$TMP/update.err" >&2
+  exit 1
+fi
+cat "$TMP/update.err" >&2
+
+old_node_locked() { jq -c --arg n "$NODE_NAME" '.nodes[$n].locked' "$FLAKE_DIR/flake.lock"; }
+new_node_locked() { jq -c --arg n "$NODE_NAME" '.nodes[$n].locked' "$TMP/new.lock"; }
+
+OLD_LOCKED="$(old_node_locked)"
+NEW_LOCKED="$(new_node_locked)"
+
+node_moved() {
+  # Compares the two `locked` objects on `rev` when both have one
+  # (git/github-ish), else on `narHash` (tarball, path, and anything else).
+  jq -n --argjson old "$OLD_LOCKED" --argjson new "$NEW_LOCKED" '
+    (if ($old | has("rev")) and ($new | has("rev")) then
+       ($old.rev != $new.rev)
+     else
+       ($old.narHash != $new.narHash)
+     end)
+  '
+}
+
+emit() {
+  local kind="$1"
+  shift
+  local changed_json="${1:-[]}"
+  if [[ $JSON -eq 1 ]]; then
+    jq -cn --arg input "$INPUT" --arg kind "$kind" --argjson changed "$changed_json" \
+      --argjson new "$NEW_LOCKED" \
+      '{input: $input, kind: $kind, rev: ($new.rev // null), changed: $changed}'
+  else
+    printf '%s\n' "$kind"
+  fi
+  exit 0
+}
+
+if [[ "$(node_moved)" != "true" ]]; then
+  echo "reason: upstream has not moved (locked rev/narHash unchanged)" >&2
+  emit "none"
+fi
+
+# ---------------------------------------------------------------------------
+# 3. Output fingerprints: base (on-disk lock) vs. new (scratch lock).
+# ---------------------------------------------------------------------------
 
 # --no-update-lock-file: the baseline is the on-disk lock exactly. If
 # flake.nix and flake.lock disagree, fail rather than let nix re-resolve
