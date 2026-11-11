@@ -28,13 +28,16 @@
 # Publishing (.github/scripts/flake-watch-publish.sh) runs merge against the
 # latest status file each time, so the find job and each OS's classify job
 # can publish independently and in any order: an OS whose runner is offline
-# holds up nothing.
+# holds up nothing. A publication whose plan is older than the file's
+# planned_at (a classify job that finished after the next hour published)
+# only adds results that still match an entry's revisions.
 #
 # Status file (status/flake-inputs.json on the flake-watch branch, read by
 # github-ci-exporter into github_flake_input_impact):
 #
 #   {
 #     "version": 1,
+#     "planned_at": "<ISO 8601 UTC of the newest plan merged in>",
 #     "inputs": {
 #       "<input>": {
 #         "kinds": { "linux": "none|rebuild|source", "darwin": "..." },
@@ -55,7 +58,7 @@
 # Usage:
 #   flake-watch.sh candidates --lock FILE
 #   flake-watch.sh resolve-heads --candidates FILE
-#   flake-watch.sh plan --heads FILE --open-prs FILE --previous FILE
+#   flake-watch.sh plan --heads FILE --open-prs FILE --previous FILE --now ISO8601
 #   flake-watch.sh merge --plan FILE --previous FILE --policy FILE
 #                        --linux FILE --darwin FILE --now ISO8601
 #   flake-watch.sh mark-dispatched --status FILE --inputs FILE --now ISO8601
@@ -218,11 +221,12 @@ cmd_resolve_heads() {
 }
 
 cmd_plan() {
-  need heads open-prs previous
+  need heads open-prs previous now
   jq -cn \
     --slurpfile heads "${ARGS[heads]}" \
     --slurpfile prs "${ARGS[open-prs]}" \
-    --slurpfile prev "${ARGS[previous]}" '
+    --slurpfile prev "${ARGS[previous]}" \
+    --arg now "${ARGS[now]}" '
     ($prev[0].inputs // {}) as $p
     | [ $heads[0][]
         | select(.unresolved != true)
@@ -248,6 +252,7 @@ cmd_plan() {
           | { input, upstream_rev, locked_rev }
         ];
     {
+      planned_at: $now,
       moved: $moved,
       unresolved: [ $heads[0][] | select(.unresolved == true) | .input ],
       classify: { linux: needs("linux"), darwin: needs("darwin") }
@@ -268,7 +273,26 @@ cmd_merge() {
     ($prev[0].inputs // {}) as $p
     | ($policy[0].defaults.policy // "auto") as $default_policy
     | ($now | fromdateiso8601) as $now_s
-    | [ $plan[0].moved[]
+    | (($prev[0].planned_at // "") > $plan[0].planned_at) as $stale
+    | if $stale then
+        # A newer run already published (a classify job can finish long
+        # after the next hour planned, e.g. a queued macOS job). Its plan is
+        # authoritative: keep every entry, dispatch nothing, and add only the
+        # fresh kinds that were computed for the revisions an entry still has.
+        {
+          status: ($prev[0] | .inputs |= with_entries(
+            .key as $i
+            # Entries this older plan knows nothing about pass through.
+            | (first($plan[0].moved[] | select(.input == $i)) // null) as $m
+            | if $m != null and .value.upstream_rev == $m.upstream_rev and .value.locked_rev == $m.locked_rev then
+                ({ linux: $linux[0][$i], darwin: $darwin[0][$i] } | with_entries(select(.value != null))) as $fresh
+                | if $fresh == {} then . else .value.kinds += $fresh | .value.classified_at = $now end
+              else . end
+          )),
+          dispatch: []
+        }
+      else
+      [ $plan[0].moved[]
         | . as $m
         | ($p[$m.input] // null) as $e
         | ($e != null and $e.upstream_rev == $m.upstream_rev and $e.locked_rev == $m.locked_rev) as $same
@@ -312,9 +336,14 @@ cmd_merge() {
     # A failed lookup is no evidence the input caught up: keep its entry.
     | [ $plan[0].unresolved[]? as $u | select($p[$u] != null) | { input: $u, entry: $p[$u], dispatch: false } ] as $kept
     | {
-        status: { version: 1, inputs: ($rows + $kept | map({ key: .input, value: .entry }) | from_entries) },
+        status: {
+          version: 1,
+          planned_at: $plan[0].planned_at,
+          inputs: ($rows + $kept | map({ key: .input, value: .entry }) | from_entries)
+        },
         dispatch: [ $rows[] | select(.dispatch) | .input ]
       }
+      end
   '
 }
 

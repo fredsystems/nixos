@@ -126,6 +126,8 @@ has "resolve-heads: failed lookup warned" "down: git ls-remote" "$(cat "$T/heads
 # plan
 # ---------------------------------------------------------------------------
 
+PLAN_AT="2026-11-11T11:00:00Z"
+
 cat >"$T/heads-plan.json" <<'EOF'
 [
   { "input": "a", "upstream_rev": "a1", "locked_rev": "a0" },
@@ -144,7 +146,7 @@ cat >"$T/prev.json" <<'EOF'
   "u": { "kinds": { "linux": "source" }, "upstream_rev": "u1", "locked_rev": "u0", "classified_at": "2026-11-11T00:00:00Z" }
 } }
 EOF
-bash "$WATCH" plan --heads "$T/heads-plan.json" --open-prs "$T/prs.json" --previous "$T/prev.json" >"$T/plan.json"
+bash "$WATCH" plan --heads "$T/heads-plan.json" --open-prs "$T/prs.json" --previous "$T/prev.json" --now "$PLAN_AT" >"$T/plan.json"
 eq "plan: up-to-date and unresolved inputs are not moved" "a b c e" "$(jq -r '[.moved[].input] | join(" ")' "$T/plan.json")"
 eq "plan: unresolved inputs listed" '["u"]' "$(jq -c '.unresolved' "$T/plan.json")"
 eq "plan: open PR recorded" "true" "$(jq -r '.moved[] | select(.input == "c") | .pr_open' "$T/plan.json")"
@@ -156,7 +158,7 @@ eq "plan darwin: a missing OS kind is asked for again" \
     "a b e" "$(jq -r '[.classify.darwin[].input] | join(" ")' "$T/plan.json")"
 
 echo '{}' >"$T/empty.json"
-bash "$WATCH" plan --heads "$T/heads-plan.json" --open-prs "$T/prs.json" --previous "$T/empty.json" >"$T/plan-first.json"
+bash "$WATCH" plan --heads "$T/heads-plan.json" --open-prs "$T/prs.json" --previous "$T/empty.json" --now "$PLAN_AT" >"$T/plan-first.json"
 eq "plan: no previous status file classifies everything moved without a PR" \
     "a b e" "$(jq -r '[.classify.linux[].input] | join(" ")' "$T/plan-first.json")"
 
@@ -193,7 +195,7 @@ eq "merge: status version" "1" "$(jq -r '.status.version' "$T/merged.json")"
 
 # A dispatch that never succeeded is not recorded, so it is asked for again.
 jq .status "$T/merged.json" >"$T/prev-undispatched.json"
-bash "$WATCH" plan --heads "$T/heads-plan.json" --open-prs "$T/prs.json" --previous "$T/prev-undispatched.json" >"$T/plan2.json"
+bash "$WATCH" plan --heads "$T/heads-plan.json" --open-prs "$T/prs.json" --previous "$T/prev-undispatched.json" --now "$PLAN_AT" >"$T/plan2.json"
 merge "$T/plan2.json" "$T/prev-undispatched.json" "$T/empty.json" "$T/empty.json" "2026-11-11T13:00:00Z" >"$T/merged-retry.json"
 eq "merge: an unrecorded dispatch is asked for again" '["a","b"]' "$(jq -c '.dispatch' "$T/merged-retry.json")"
 
@@ -204,7 +206,7 @@ eq "mark-dispatched: records the dispatched revision and time" \
     "a1 $NOW" "$(jq -r '.inputs.a | "\(.dispatched_rev) \(.dispatched_at)"' "$T/prev2.json")"
 eq "mark-dispatched: leaves other inputs alone" "false" "$(jq '.inputs.e | has("dispatched_rev")' "$T/prev2.json")"
 
-bash "$WATCH" plan --heads "$T/heads-plan.json" --open-prs "$T/prs.json" --previous "$T/prev2.json" >"$T/plan3.json"
+bash "$WATCH" plan --heads "$T/heads-plan.json" --open-prs "$T/prs.json" --previous "$T/prev2.json" --now "$PLAN_AT" >"$T/plan3.json"
 eq "plan, next hour: nothing to classify on Linux" "" "$(jq -r '[.classify.linux[].input] | join(" ")' "$T/plan3.json")"
 merge "$T/plan3.json" "$T/prev2.json" "$T/empty.json" "$T/empty.json" "2026-11-11T13:00:00Z" >"$T/merged3.json"
 eq "merge, next hour: byte-identical status" "$(jq -S . "$T/prev2.json")" "$(jq -S .status "$T/merged3.json")"
@@ -221,7 +223,7 @@ eq "merge: dispatched 6h ago with no PR: dispatched again" '["a","b"]' "$(jq -c 
 
 # A new upstream revision drops the old dispatch record.
 jq '[.[] | if .input == "a" then .upstream_rev = "a2" else . end]' "$T/heads-plan.json" >"$T/heads-a2.json"
-bash "$WATCH" plan --heads "$T/heads-a2.json" --open-prs "$T/prs.json" --previous "$T/prev2.json" >"$T/plan6.json"
+bash "$WATCH" plan --heads "$T/heads-a2.json" --open-prs "$T/prs.json" --previous "$T/prev2.json" --now "$PLAN_AT" >"$T/plan6.json"
 echo '{"a": "source"}' >"$T/lin-a.json"
 merge "$T/plan6.json" "$T/prev2.json" "$T/lin-a.json" "$T/empty.json" "2026-11-11T13:00:00Z" >"$T/merged6.json"
 eq "merge: a new upstream revision is dispatched" '["a"]' "$(jq -c '.dispatch' "$T/merged6.json")"
@@ -229,16 +231,36 @@ eq "merge: ...without the old record" "false" "$(jq '.status.inputs.a | has("dis
 
 # An open PR carries the previous entry unchanged and never dispatches.
 echo '["a"]' >"$T/prs-a.json"
-bash "$WATCH" plan --heads "$T/heads-plan.json" --open-prs "$T/prs-a.json" --previous "$T/prev2.json" >"$T/plan7.json"
+bash "$WATCH" plan --heads "$T/heads-plan.json" --open-prs "$T/prs-a.json" --previous "$T/prev2.json" --now "$PLAN_AT" >"$T/plan7.json"
 merge "$T/plan7.json" "$T/prev2.json" "$T/empty.json" "$T/empty.json" "2026-11-11T18:00:00Z" >"$T/merged7.json"
 eq "merge: PR-open input keeps its entry" "$(jq -c '.inputs.a' "$T/prev2.json")" "$(jq -c '.status.inputs.a' "$T/merged7.json")"
 eq "merge: PR-open input is not dispatched" '["b"]' "$(jq -c '.dispatch' "$T/merged7.json")"
 
 # An input that caught up disappears from the status.
 jq '[.[] | if .input == "a" then .locked_rev = .upstream_rev else . end]' "$T/heads-plan.json" >"$T/heads-caught.json"
-bash "$WATCH" plan --heads "$T/heads-caught.json" --open-prs "$T/prs.json" --previous "$T/prev2.json" >"$T/plan8.json"
+bash "$WATCH" plan --heads "$T/heads-caught.json" --open-prs "$T/prs.json" --previous "$T/prev2.json" --now "$PLAN_AT" >"$T/plan8.json"
 merge "$T/plan8.json" "$T/prev2.json" "$T/empty.json" "$T/empty.json" "2026-11-11T13:00:00Z" >"$T/merged8.json"
 eq "merge: a caught-up input is dropped" "false" "$(jq '.status.inputs | has("a")' "$T/merged8.json")"
+
+# A publication from an older plan (a classify job finishing after the next
+# hour already published) never overwrites the newer status.
+jq '.planned_at = "2026-11-11T09:00:00Z"' "$T/plan3.json" >"$T/plan-old.json"
+jq '. + {planned_at: "2026-11-11T12:00:00Z", inputs: (.inputs + {
+      z: { kinds: { linux: "rebuild" }, upstream_rev: "z1", locked_rev: "z0", classified_at: "t" } })}' \
+    "$T/prev2.json" >"$T/prev-newer.json"
+echo '{"a": "rebuild", "b": "none"}' >"$T/dar-old.json"
+jq '.moved |= map(if .input == "b" then .upstream_rev = "b-old" else . end)' "$T/plan-old.json" >"$T/plan-old-b.json"
+merge "$T/plan-old-b.json" "$T/prev-newer.json" "$T/empty.json" "$T/dar-old.json" "2026-11-11T13:00:00Z" >"$T/merged-stale.json"
+eq "merge, stale plan: nothing dispatched" "[]" "$(jq -c '.dispatch' "$T/merged-stale.json")"
+eq "merge, stale plan: an entry the old plan does not know is kept" \
+    "$(jq -c '.inputs.z' "$T/prev-newer.json")" "$(jq -c '.status.inputs.z' "$T/merged-stale.json")"
+eq "merge, stale plan: a result for revisions the entry still has is added" \
+    '{"darwin":"rebuild","linux":"source"}' "$(jq -cS '.status.inputs.a.kinds' "$T/merged-stale.json")"
+eq "merge, stale plan: a result for older revisions is not" \
+    "$(jq -c '.inputs.b' "$T/prev-newer.json")" "$(jq -c '.status.inputs.b' "$T/merged-stale.json")"
+eq "merge, stale plan: planned_at does not go backwards" \
+    "2026-11-11T12:00:00Z" "$(jq -r '.status.planned_at' "$T/merged-stale.json")"
+eq "merge: a current plan records its planned_at" "$PLAN_AT" "$(jq -r '.status.planned_at' "$T/merged.json")"
 
 set +e
 OUT="$(bash "$WATCH" merge --plan "$T/plan.json" 2>&1)"

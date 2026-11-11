@@ -85,7 +85,8 @@ jobs:
           fi
 
           scripts/flake-watch.sh plan --heads watch/heads.json \
-            --open-prs watch/open-prs.json --previous watch/previous.json > watch/plan.json
+            --open-prs watch/open-prs.json --previous watch/previous.json \
+            --now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > watch/plan.json
 
           {
             # The classify jobs evaluate exactly this commit of main, whose
