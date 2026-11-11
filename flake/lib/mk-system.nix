@@ -158,6 +158,15 @@ let
       ];
     }
     ./../../modules/base/deployment-meta.nix
+    # Linux-only half of deployment-meta.nix (systemd-specific assertions and
+    # the tailscale-address-drift unit); see that file's own header. Not
+    # imported by mk-darwin-system.nix.
+    ./../../modules/base/deployment-meta-linux.nix
+    # sops-nix's own NixOS module. Wired here rather than from
+    # modules/secrets/sops.nix so that file does not need to choose between
+    # nixosModules.sops and darwinModules.sops; mk-darwin-system.nix wires the
+    # Darwin half the same way.
+    sopsNixInput.nixosModules.sops
     # Fleet-wide facts about the home network. Declares options only, so being
     # in every host's module set costs nothing; the two hosts that read it
     # (fredvps's ignoreIP, sdrhub's drift check) must agree on one value, and
@@ -165,6 +174,10 @@ let
     ./../../modules/data/home-network.nix
     ./../../hosts/linux/${hostName}/configuration.nix
     ./../../modules/base/system.nix
+    # Linux-only half of modules/base/system.nix (features/, catppuccin's
+    # nixosModule, the kernel pin, etc.); see that file's own header.
+    # mk-darwin-system.nix imports modules/base/system-darwin.nix instead.
+    (import ./../../modules/base/system-linux.nix { inherit isDesktop; })
     # NOTE: do NOT bake the flake's git revision into this system.
     #
     # An earlier revision of this file wrote `self.rev` to
@@ -193,6 +206,9 @@ let
           # shared HM baseline
           imports = [
             ./../../modules/base/home.nix
+            # Linux-only half of home.nix (XDG, fonts, home directory); see
+            # that file's own header. mk-darwin-system.nix does not add this.
+            ./../../modules/base/home-linux.nix
             ./../../modules/services/attic/attic_client.nix
           ]
           ++ hmModules;

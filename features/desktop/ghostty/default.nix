@@ -1,7 +1,6 @@
 {
   lib,
   config,
-  isDarwin,
   ...
 }:
 
@@ -9,10 +8,9 @@ let
   allUsers = config.shared.allUsers;
   cfg = config.desktop.ghostty;
   t = config.terminal;
-  isLinux = !isDarwin;
 in
 {
-  imports = [ ../../../modules/terminal/common.nix ] ++ lib.optional isLinux ./linux-xdg.nix;
+  imports = [ ../../../modules/terminal/common.nix ];
 
   options.desktop.ghostty = {
     enable = lib.mkEnableOption "Ghostty terminal emulator";

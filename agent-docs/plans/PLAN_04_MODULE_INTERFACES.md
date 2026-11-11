@@ -206,7 +206,7 @@ and `--os darwin` report no impacted hosts; every host evaluates with no
       (`features/desktop/environments/{hyprland,gnome}`); and
       `kernelPkgsInput` (`kernel-pin.nix`, via an overlay-provided
       package set; `isDesktop` from `deployment.role`).
-- [ ] **4.7 Split platform and role import branches.**
+- [x] **4.7 Split platform and role import branches.**
       `modules/base/system.nix`, `modules/base/home.nix`,
       `modules/secrets/sops.nix`, `features/default.nix` (the builder
       lists `features/desktop` and `features/virtualization` for

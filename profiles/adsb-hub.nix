@@ -4,6 +4,7 @@
     ../modules/services/adsb-docker-units.nix
     ../modules/monitoring/agent
     ../modules/services/github-runners.nix
+    ../modules/services/github-runners-linux.nix
     ../modules/secrets/sops.nix
     ../modules/data/docker-image-pins.nix
   ];

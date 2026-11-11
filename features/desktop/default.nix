@@ -35,10 +35,12 @@ in
     ./freminal
     ./frext
     ./ghostty
+    ./ghostty/linux-xdg.nix
     ./githubdesktop
     ./kitty
     ./ladybird
     ./lan-mouse
+    ./lan-mouse/linux.nix
     ./ledger-live
     ./libreoffice
     ./missioncenter
@@ -58,8 +60,10 @@ in
     ./vlc
     ./vscode
     ./wezterm
+    ./wezterm/linux-xdg.nix
     ./wireshark
     ./yubikey
+    ./yubikey/linux.nix
     ./zed
   ];
 

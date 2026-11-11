@@ -473,7 +473,12 @@
           docker-image-pins = import ./modules/data/docker-image-pins.nix;
 
           # Service modules
-          github-runners = import ./modules/services/github-runners.nix;
+          github-runners = {
+            imports = [
+              ./modules/services/github-runners.nix
+              ./modules/services/github-runners-linux.nix
+            ];
+          };
 
           # Default: all common modules
           default = {
@@ -485,6 +490,7 @@
               ./modules/data/wifi-networks.nix
               ./modules/data/sync-hosts.nix
               ./modules/services/github-runners.nix
+              ./modules/services/github-runners-linux.nix
               needsrebootOverlay
             ];
           };

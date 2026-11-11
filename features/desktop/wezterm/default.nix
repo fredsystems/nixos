@@ -1,7 +1,6 @@
 {
   lib,
   config,
-  isDarwin,
   ...
 }:
 
@@ -11,15 +10,13 @@ let
 
   # Pull shared settings from terminal/common.nix
   t = config.terminal;
-
-  isLinux = !isDarwin;
 in
 {
   options.desktop.wezterm = {
     enable = lib.mkEnableOption "WezTerm terminal emulator";
   };
 
-  imports = [ ../../../modules/terminal/common.nix ] ++ lib.optional isLinux ./linux-xdg.nix;
+  imports = [ ../../../modules/terminal/common.nix ];
 
   config = lib.mkIf cfg.enable {
     home-manager.users = lib.genAttrs allUsers (_: {
