@@ -94,21 +94,25 @@ for attempt in 1 2 3 4 5; do
   bash "$WATCH" merge --plan "$PLAN" --previous "$WORK/previous.json" --policy "$POLICY" \
     --linux "$LINUX" --darwin "$DARWIN" --now "$now" >"$WORK/merged.json"
 
-  while IFS= read -r input; do
+  # Each dispatch is remembered with the revision it was for, so a retry
+  # after a lost push race neither repeats it nor credits it to a newer
+  # revision (which is then dispatched in its own right).
+  while IFS=$'\t' read -r input rev; do
     [[ -n "$input" ]] || continue
-    if jq -e --arg i "$input" 'index($i) != null' "$WORK/dispatched.json" >/dev/null; then
+    if jq -e --arg i "$input" --arg r "$rev" 'any(.[]; .input == $i and .rev == $r)' \
+      "$WORK/dispatched.json" >/dev/null; then
       continue
     fi
     echo "dispatching update-flakes for $input"
     if "$GH" workflow run update-flakes.yaml -R "$REPO" --ref main \
       -f target=auto -f single_input="$input"; then
-      jq --arg i "$input" '. + [$i]' "$WORK/dispatched.json" >"$WORK/d.tmp"
+      jq --arg i "$input" --arg r "$rev" '. + [{input: $i, rev: $r}]' "$WORK/dispatched.json" >"$WORK/d.tmp"
       mv "$WORK/d.tmp" "$WORK/dispatched.json"
     else
       # Not recorded, so the next publish tries again.
       echo "::warning title=flake-watch::dispatching update-flakes for $input failed; retrying next hour" >&2
     fi
-  done < <(jq -r '.dispatch[]' "$WORK/merged.json")
+  done < <(jq -r '.status.inputs as $s | .dispatch[] | [., $s[.].upstream_rev] | @tsv' "$WORK/merged.json")
 
   jq '.status' "$WORK/merged.json" >"$WORK/status.json"
   bash "$WATCH" mark-dispatched --status "$WORK/status.json" --inputs "$WORK/dispatched.json" \

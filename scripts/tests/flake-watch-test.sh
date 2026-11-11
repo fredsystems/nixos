@@ -200,11 +200,14 @@ merge "$T/plan2.json" "$T/prev-undispatched.json" "$T/empty.json" "$T/empty.json
 eq "merge: an unrecorded dispatch is asked for again" '["a","b"]' "$(jq -c '.dispatch' "$T/merged-retry.json")"
 
 # Once recorded, the same revision is not dispatched again...
-echo '["a","b"]' >"$T/done.json"
+echo '[{"input":"a","rev":"a1"},{"input":"b","rev":"b1"}]' >"$T/done.json"
 bash "$WATCH" mark-dispatched --status "$T/prev-undispatched.json" --inputs "$T/done.json" --now "$NOW" >"$T/prev2.json"
 eq "mark-dispatched: records the dispatched revision and time" \
     "a1 $NOW" "$(jq -r '.inputs.a | "\(.dispatched_rev) \(.dispatched_at)"' "$T/prev2.json")"
 eq "mark-dispatched: leaves other inputs alone" "false" "$(jq '.inputs.e | has("dispatched_rev")' "$T/prev2.json")"
+echo '[{"input":"a","rev":"a0-older"}]' >"$T/done-old.json"
+eq "mark-dispatched: a dispatch of an older revision does not mark the current one" "false" \
+    "$(bash "$WATCH" mark-dispatched --status "$T/prev-undispatched.json" --inputs "$T/done-old.json" --now "$NOW" | jq '.inputs.a | has("dispatched_rev")')"
 
 bash "$WATCH" plan --heads "$T/heads-plan.json" --open-prs "$T/prs.json" --previous "$T/prev2.json" --now "$PLAN_AT" >"$T/plan3.json"
 eq "plan, next hour: nothing to classify on Linux" "" "$(jq -r '[.classify.linux[].input] | join(" ")' "$T/plan3.json")"
@@ -258,6 +261,11 @@ eq "merge, stale plan: a result for revisions the entry still has is added" \
     '{"darwin":"rebuild","linux":"source"}' "$(jq -cS '.status.inputs.a.kinds' "$T/merged-stale.json")"
 eq "merge, stale plan: a result for older revisions is not" \
     "$(jq -c '.inputs.b' "$T/prev-newer.json")" "$(jq -c '.status.inputs.b' "$T/merged-stale.json")"
+# A stale result for an OS the newer entry already classified does not
+# replace it (prev-newer has a: linux=source; the stale job says rebuild).
+echo '{"a": "rebuild"}' >"$T/lin-old.json"
+merge "$T/plan-old-b.json" "$T/prev-newer.json" "$T/lin-old.json" "$T/empty.json" "2026-11-11T13:00:00Z" >"$T/merged-stale2.json"
+eq "merge, stale plan: a newer kind for the same OS wins" "source" "$(jq -r '.status.inputs.a.kinds.linux' "$T/merged-stale2.json")"
 eq "merge, stale plan: planned_at does not go backwards" \
     "2026-11-11T12:00:00Z" "$(jq -r '.status.planned_at' "$T/merged-stale.json")"
 eq "merge: a current plan records its planned_at" "$PLAN_AT" "$(jq -r '.status.planned_at' "$T/merged.json")"

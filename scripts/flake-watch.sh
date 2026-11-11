@@ -62,6 +62,7 @@
 #   flake-watch.sh merge --plan FILE --previous FILE --policy FILE
 #                        --linux FILE --darwin FILE --now ISO8601
 #   flake-watch.sh mark-dispatched --status FILE --inputs FILE --now ISO8601
+#                  (--inputs: [{"input", "rev"}] of dispatches that succeeded)
 #
 # --open-prs is a JSON array of input names with an open `update-<input>`
 # PR. --previous is the current status file, or {} when there is none yet.
@@ -284,9 +285,12 @@ cmd_merge() {
             .key as $i
             # Entries this older plan knows nothing about pass through.
             | (first($plan[0].moved[] | select(.input == $i)) // null) as $m
+            | (.value.kinds // {}) as $e_kinds
             | if $m != null and .value.upstream_rev == $m.upstream_rev and .value.locked_rev == $m.locked_rev then
                 ({ linux: $linux[0][$i], darwin: $darwin[0][$i] } | with_entries(select(.value != null))) as $fresh
-                | if $fresh == {} then . else .value.kinds += $fresh | .value.classified_at = $now end
+                # Existing kinds win: they come from the newer publication.
+                | ($fresh | with_entries(select(.key as $os | $e_kinds | has($os) | not))) as $new
+                | if $new == {} then . else .value.kinds = ($e_kinds + $new) | .value.classified_at = $now end
               else . end
           )),
           dispatch: []
@@ -347,16 +351,20 @@ cmd_merge() {
   '
 }
 
-# Records that update-flakes.yaml was dispatched for these inputs at their
-# current upstream revision. Run only for dispatches that succeeded, so a
-# failed one is retried next hour.
+# Records the dispatches that succeeded, given as [{"input", "rev"}]: an
+# entry is marked only if its upstream_rev is still the revision that was
+# dispatched, so a dispatch of an older revision (made before losing a push
+# race to a newer status) cannot mark the newer one, which is then still
+# dispatched in its own right.
 cmd_mark_dispatched() {
   need status inputs now
   jq -c --slurpfile dispatched "${ARGS[inputs]}" --arg now "${ARGS[now]}" '
     .inputs |= with_entries(
-      if (.key | IN($dispatched[0][])) then
-        .value += { dispatched_rev: .value.upstream_rev, dispatched_at: $now }
-      else . end)
+      .key as $i
+      | .value.upstream_rev as $i_rev
+      | if any($dispatched[0][]; .input == $i and .rev == $i_rev) then
+          .value += { dispatched_rev: .value.upstream_rev, dispatched_at: $now }
+        else . end)
   ' "${ARGS[status]}"
 }
 
