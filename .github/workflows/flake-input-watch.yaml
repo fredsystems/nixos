@@ -1,0 +1,241 @@
+---
+name: flake-input-watch
+
+# Hourly: find branch-tracking flake inputs that have moved upstream and
+# have no open update PR, classify what bumping each would change (by
+# evaluation only, never building; scripts/flake-input-impact.sh), record
+# the result in status/flake-inputs.json on the flake-watch branch for
+# github-ci-exporter, and dispatch update-flakes.yaml straight away for an
+# auto-policy input whose bump changes source rather than only rebuilding.
+# See agent-docs/plans/PLAN_03_FLAKE_INPUT_TRACKING.md.
+#
+# The decisions live in scripts/flake-watch.sh (tested); this file only
+# moves data between runners. Darwin is classified on the macOS pool and
+# never from Linux (catppuccin's import-from-derivation; see
+# scripts/flake-input-impact.sh's header).
+#
+# There is no central publish job. find publishes the bookkeeping (caught-up
+# inputs dropped, overdue dispatches retried) and each classify job publishes
+# its own OS's results, each merging into the latest status file
+# (.github/scripts/flake-watch-publish.sh). So an offline runner pool, whose
+# job can sit queued for up to a day, holds up nothing but its own OS; and
+# each OS has its own concurrency group, so that queued job does not block
+# the other OS's next runs either.
+#
+# Liveness: the exporter's github_workflow_last_success_timestamp_seconds
+# for this workflow feeds FlakeWatchStale.
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  find:
+    name: Find moved inputs
+    runs-on: ubuntu-latest
+    concurrency:
+      group: flake-input-watch-find
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      pull-requests: read
+      actions: write
+    outputs:
+      sha: ${{ steps.plan.outputs.sha }}
+      linux: ${{ steps.plan.outputs.linux }}
+      darwin: ${{ steps.plan.outputs.darwin }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+
+      - id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          mkdir -p watch
+          scripts/flake-watch.sh candidates --lock flake.lock > watch/candidates.json
+          scripts/flake-watch.sh resolve-heads --candidates watch/candidates.json > watch/heads.json
+
+          # Inputs with an open update-<input> PR from this repository
+          # (fredsystems/flake-update-action's branch). A fork PR with a
+          # branch of that name must not suppress the real update.
+          gh pr list -R "$REPO" --state open --limit 200 --json headRefName,isCrossRepository \
+            --jq '[.[] | select(.isCrossRepository | not) | .headRefName
+                   | select(startswith("update-")) | ltrimstr("update-")]' \
+            > watch/open-prs.json
+
+          # The current status file; {} before the first publish.
+          if ! gh api -H "Accept: application/vnd.github.raw" \
+            "repos/$REPO/contents/status/flake-inputs.json?ref=flake-watch" \
+            > watch/previous.json 2> watch/previous.err; then
+            if grep -q "HTTP 404" watch/previous.err; then
+              echo '{}' > watch/previous.json
+            else
+              cat watch/previous.err >&2
+              exit 1
+            fi
+          fi
+
+          scripts/flake-watch.sh plan --heads watch/heads.json \
+            --open-prs watch/open-prs.json --previous watch/previous.json \
+            --now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > watch/plan.json
+
+          {
+            # The classify jobs evaluate exactly this commit of main, whose
+            # flake.lock the plan's locked revisions came from.
+            echo "sha=$(git rev-parse HEAD)"
+            echo "linux=$(jq -c '.classify.linux' watch/plan.json)"
+            echo "darwin=$(jq -c '.classify.darwin' watch/plan.json)"
+          } >> "$GITHUB_OUTPUT"
+          jq -r '"moved: \([.moved[].input] | join(", "))\nclassify (linux): \(.classify.linux | join(", "))\nclassify (darwin): \(.classify.darwin | join(", "))"' watch/plan.json
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: watch-plan
+          path: watch/
+          retention-days: 3
+
+      - name: Publish bookkeeping
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          echo '{}' > watch/none.json
+          .github/scripts/flake-watch-publish.sh watch/plan.json \
+            .github/flake-input-policy.json watch/none.json watch/none.json
+
+  classify-linux:
+    name: Classify (Linux)
+    needs: find
+    if: needs.find.outputs.linux != '[]'
+    concurrency:
+      group: flake-input-watch-linux
+      cancel-in-progress: false
+    timeout-minutes: 120
+    runs-on: [self-hosted, Linux]
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.find.outputs.sha }}
+          persist-credentials: false
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@3138316df39ed29be04236d7ffc686fa525866aa # v23
+        with:
+          trust-runner-user: true
+          extra-conf: |
+            access-tokens = github.com=${{ github.token }}
+            accept-flake-config = true
+
+      # Self-hosted runners have no jq, and macOS's own bash is 3.2 (these
+      # scripts need 4+): take them, and GNU coreutils, from the flake's
+      # nixpkgs, as ci-linux.yaml's find-systems does for jq.
+      - name: Tools from the flake's nixpkgs
+        run: |
+          nix build --no-link --print-out-paths --inputs-from . \
+            nixpkgs#bashInteractive nixpkgs#jq nixpkgs#coreutils |
+            while IFS= read -r p; do echo "$p/bin" >> "$GITHUB_PATH"; done
+
+      - name: Classify
+        id: classify
+        continue-on-error: true
+        env:
+          INPUTS: ${{ needs.find.outputs.linux }}
+        run: .github/scripts/flake-watch-classify.sh linux
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: watch-plan
+          path: watch
+
+      # Whatever did classify is published even if some input failed; the
+      # failures are asked again next hour.
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          echo '{}' > none.json
+          [[ -f impact-linux.json ]] || echo '{}' > impact-linux.json
+          .github/scripts/flake-watch-publish.sh watch/plan.json .github/flake-input-policy.json impact-linux.json none.json
+
+      # Keep the run red when an input could not be classified.
+      - name: Report classification failures
+        if: steps.classify.outcome == 'failure'
+        run: exit 1
+
+  classify-darwin:
+    name: Classify (Darwin)
+    needs: find
+    if: needs.find.outputs.darwin != '[]'
+    concurrency:
+      group: flake-input-watch-darwin
+      cancel-in-progress: false
+    timeout-minutes: 120
+    runs-on: [self-hosted, macOS]
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.find.outputs.sha }}
+          persist-credentials: false
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@3138316df39ed29be04236d7ffc686fa525866aa # v23
+        with:
+          trust-runner-user: true
+          extra-conf: |
+            access-tokens = github.com=${{ github.token }}
+            accept-flake-config = true
+            substituters = http://192.168.31.14:8080/fred https://catppuccin.cachix.org https://cache.nixos.org/
+            trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= fred:JjyhvRSvKfkk8r4HS0mS5r5I7dT4GociEFbrR9OgBZ0= catppuccin.cachix.org-1:noG/4HkbhJb+lUAdKrph6LaozJvAeEEZj4N732IysmU=
+
+      # Self-hosted runners have no jq, and macOS's own bash is 3.2 (these
+      # scripts need 4+): take them, and GNU coreutils, from the flake's
+      # nixpkgs, as ci-linux.yaml's find-systems does for jq.
+      - name: Tools from the flake's nixpkgs
+        run: |
+          nix build --no-link --print-out-paths --inputs-from . \
+            nixpkgs#bashInteractive nixpkgs#jq nixpkgs#coreutils |
+            while IFS= read -r p; do echo "$p/bin" >> "$GITHUB_PATH"; done
+
+      - name: Classify
+        id: classify
+        continue-on-error: true
+        env:
+          INPUTS: ${{ needs.find.outputs.darwin }}
+        run: .github/scripts/flake-watch-classify.sh darwin
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: watch-plan
+          path: watch
+
+      # Whatever did classify is published even if some input failed; the
+      # failures are asked again next hour.
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          echo '{}' > none.json
+          [[ -f impact-darwin.json ]] || echo '{}' > impact-darwin.json
+          .github/scripts/flake-watch-publish.sh watch/plan.json .github/flake-input-policy.json none.json impact-darwin.json
+
+      # Keep the run red when an input could not be classified.
+      - name: Report classification failures
+        if: steps.classify.outcome == 'failure'
+        run: exit 1

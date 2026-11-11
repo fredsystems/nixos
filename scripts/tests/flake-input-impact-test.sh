@@ -14,6 +14,15 @@
 
 set -euo pipefail
 
+# Run from a git hook (pre-commit at `git commit` time), git exports
+# GIT_INDEX_FILE, GIT_DIR and friends. Left set, every git command below
+# would act on the repository being committed instead of the scratch ones
+# this suite creates -- it once rewrote the real index as a mass deletion.
+# (env + sed, not compgen: Nix's minimal bash has no compgen.)
+for var in $(env | sed -n 's/^\(GIT_[A-Za-z0-9_]*\)=.*/\1/p'); do
+    unset "$var"
+done
+
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SCRIPT="$ROOT/scripts/flake-input-impact.sh"
 FIXTURES="$ROOT/scripts/tests/fixtures/flake-input-impact"
@@ -170,6 +179,19 @@ sed -i 's/src-v1/src-v2/' "$TMPROOT/dep-source/flake.nix"
 git_commit_all "$TMPROOT/dep-source" "bump value"
 
 expect_kind "(d) own source change, used" "dep-source" "source"
+
+# --json reports the bumped revision it classified, which callers compare
+# against the revision they planned for.
+if json="$(run_script "dep-source" --json)"; then
+    expected_rev="$(git -C "$TMPROOT/dep-source" rev-parse HEAD)"
+    if [[ "$(jq -r .kind <<<"$json") $(jq -r .rev <<<"$json")" == "source $expected_rev" ]]; then
+        ok
+    else
+        bad "(d) --json kind and rev" "expected: source $expected_rev" "actual: $json"
+    fi
+else
+    bad "(d) --json" "script failed" "stderr:" "$(cat "$TMPROOT/stderr.log")"
+fi
 
 # ---------------------------------------------------------------------------
 # (e) unknown input -> exit 2

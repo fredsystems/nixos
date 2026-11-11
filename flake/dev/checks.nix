@@ -299,6 +299,26 @@
         '';
       };
 
+      # Hermetic tests for the hourly flake input watch
+      # (.github/workflows/flake-input-watch.yaml): scripts/flake-watch.sh's
+      # candidates / resolve-heads / plan / merge decisions, the flake-watch
+      # branch publisher, and scripts/check-flake-input-policy.sh, which also
+      # validates the real .github/flake-input-policy.json against flake.lock.
+      # No network: a fake git and a local bare repository stand in.
+      flakeWatchCheck = pkgs.writeShellApplication {
+        name = "check-flake-watch";
+        runtimeInputs = [
+          pkgs.jq
+          pkgs.git
+          pkgs.gawk
+          pkgs.gnused
+          pkgs.coreutils
+        ];
+        text = ''
+          bash scripts/tests/flake-watch-test.sh
+        '';
+      };
+
       # Validates opencode.jsonc: a structural check (offline, default --
       # unknown top-level keys and command entries missing `template`,
       # wired into both the hook and the standalone check below via
@@ -410,6 +430,14 @@
                 entry = "${pkgs.lib.getExe flakeInputImpactCheck}";
 
                 files = "^scripts/(flake-input-impact|tests/flake-input-impact-test)\\.sh$|^scripts/tests/fixtures/flake-input-impact/";
+                pass_filenames = false;
+              };
+
+              flake-watch = {
+                enable = true;
+                name = "flake input watch and policy tests";
+                entry = "${pkgs.lib.getExe flakeWatchCheck}";
+                files = "^(scripts/(flake-watch|check-flake-input-policy|tests/flake-watch-test)\\.sh|\\.github/scripts/flake-watch-[a-z]+\\.sh|\\.github/flake-input-policy\\.json|flake\\.lock)$";
                 pass_filenames = false;
               };
 
@@ -912,6 +940,17 @@
           ''
             cd ${self}
             check-flake-input-impact
+            touch "$out"
+          '';
+
+      flake-watch =
+        pkgs.runCommand "flake-watch-check"
+          {
+            nativeBuildInputs = [ flakeWatchCheck ];
+          }
+          ''
+            cd ${self}
+            check-flake-watch
             touch "$out"
           '';
 

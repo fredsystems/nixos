@@ -1,0 +1,15 @@
+{
+  "$comment": "Per-input update policy. Read by update-flakes.yaml (which inputs are held back from the weekly auto-merge run) and flake-input-watch.yaml (which inputs get an update PR as soon as a source change lands), and by the flake input alerts' maximum ages. policy: auto | manual. max_age_days: how long an input may be behind with a source change and no update PR before FlakeInputOutdated fires. Validated by scripts/check-flake-input-policy.sh.",
+  "version": 1,
+  "defaults": {
+    "policy": "auto",
+    "max_age_days": 7
+  },
+  "inputs": {
+    "nixpkgs-kernel": {
+      "$comment": "Server kernel bumps need a planned reboot, so they are reviewed by hand on the monthly run.",
+      "policy": "manual",
+      "max_age_days": 45
+    }
+  }
+}
