@@ -40,7 +40,6 @@
   user,
   verbose_name,
   github_email,
-  hmlib,
   agentNodes,
   agentScrapeMap,
   desktopNodes,
@@ -63,34 +62,16 @@
   isDesktop ? false,
 }:
 let
-  isDarwin = pkgsInput.lib.hasSuffix "darwin" system;
 
   # stateVersion is required and format-checked. The validator is shared with
   # mkDarwinSystem and colmena so the three construction paths cannot drift
   # into enforcing different contracts. See flake/lib/check-state-version.nix.
   checkedStateVersion = import ./check-state-version.nix "mkSystem: host '${hostName}'" stateVersion;
 
-  _specialArgs = {
-    inherit
-      inputs
-      user
-      extraUsers
-      verbose_name
-      github_email
-      hmlib
-      system
-      agentNodes
-      agentScrapeMap
-      desktopNodes
-      desktopScrapeMap
-      isDesktop
-      kernelPkgsInput
-      isDarwin
-      ;
-    stateVersion = checkedStateVersion;
-
-    catppuccinWallpapers = self.packages.${system}.catppuccin-wallpapers;
-  };
+  # `inputs` is the only module argument the builder passes (Plan 04): every
+  # other value reaches modules as a shared.* option or through the module
+  # list itself.
+  _specialArgs = { inherit inputs; };
 
   _modules = [
     # Set nixpkgs.hostPlatform explicitly (the modern way to declare the
@@ -227,17 +208,7 @@ let
           ++ hmModules;
         };
 
-        extraSpecialArgs = {
-          inherit
-            inputs
-            user
-            verbose_name
-            hmlib
-            github_email
-            isDarwin
-            ;
-          stateVersion = checkedStateVersion;
-        };
+        extraSpecialArgs = { inherit inputs; };
       };
     }
   ]

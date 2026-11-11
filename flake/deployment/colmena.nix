@@ -26,20 +26,11 @@
   inputs,
   self,
   serverNodes,
-  user,
-  verbose_name,
-  github_email,
-  hmlib,
-  agentNodes,
-  agentScrapeMap,
-  desktopNodes,
-  desktopScrapeMap,
   ...
 }:
 let
   inherit (inputs)
     nixpkgs
-    nixpkgs-kernel
     ;
 
   # The colmena flake input — renamed to avoid clashing with the `colmena`
@@ -140,46 +131,12 @@ let
         withShadowedSystem pkgs
       ) serverNodes;
 
-      # Shared specialArgs forwarded to every node as true specialArgs
-      # (bypasses the NixOS option system — no infinite-recursion risk).
-      specialArgs = {
-        inherit
-          inputs
-          user
-          verbose_name
-          github_email
-          hmlib
-          agentNodes
-          agentScrapeMap
-          desktopNodes
-          desktopScrapeMap
-          ;
-        system = "x86_64-linux";
-        isDarwin = false;
-        isDesktop = false;
-        # Conservative defaults; overridden per-node in nodeSpecialArgs.
-        #
-        # stateVersion is deliberately NOT defaulted here. Colmena builds its
-        # node arguments independently of mkSystem, so a default here would let
-        # a server entry that omits stateVersion deploy with an implicit value
-        # while `nix eval .#nixosConfigurations.<host>` refuses to evaluate it
-        # at all -- one contract enforced on one of two entry points, and the
-        # deploy path being the lax one. Raised in review on PR #2243.
-        extraUsers = [ ];
-        kernelPkgsInput = nixpkgs-kernel;
-        catppuccinWallpapers = self.packages."x86_64-linux".catppuccin-wallpapers;
-      };
-
-      # Per-node overrides derived from the serverNodes table. The
-      # channel-sensitive external modules (catppuccin, sops-nix, the yazi
-      # plugins) are no arguments at all: mkNode reuses mkSystem's module
-      # list, which already wires each node's chosen input.
-      nodeSpecialArgs = builtins.mapAttrs (name: node: {
-        # No `or` fallback: required, and format-checked by the same validator
-        # mkSystem and mkDarwinSystem use.
-        stateVersion = import ../lib/check-state-version.nix "colmena: node '${name}'" node.stateVersion;
-        extraUsers = node.extraUsers or [ ];
-      }) serverNodes;
+      # `inputs` is the only module argument, as in mkSystem. Everything that
+      # used to differ per node (stateVersion, extraUsers, channel inputs)
+      # lives in the module list mkNode reuses from mkSystem, so the deploy
+      # path enforces exactly the contract `nix eval` does: mkSystem
+      # format-checks stateVersion and sets system.stateVersion itself.
+      specialArgs = { inherit inputs; };
     };
   }
   // builtins.mapAttrs mkNode serverNodes;

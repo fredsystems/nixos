@@ -221,7 +221,7 @@ and `--os darwin` report no impacted hosts; every host evaluates with no
       for Home Manager), including `hosts/linux/fredvps/nik-home.nix`.
       Input packages (`freminal`) via overlays. Drop
       `catppuccinInput`, `sopsNixInput`, `nixYaziPluginsInput`.
-- [ ] **4.9 Reduce the builders to `inputs`.** NixOS, Darwin, Colmena
+- [x] **4.9 Reduce the builders to `inputs`.** NixOS, Darwin, Colmena
       and both Home Manager paths pass only `inputs`. Every remaining
       reader of a removed argument has been migrated, so this is
       deletion only.
