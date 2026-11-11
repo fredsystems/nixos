@@ -229,6 +229,12 @@ and `--os darwin` report no impacted hosts; every host evaluates with no
       and `homeModules` in `flake.nix` per the decision above, and fix
       `profiles/desktop.nix` to import `features/desktop`, and the
       hardware exports to import `modules/base/nixpkgs-unfree.nix`.
+      Decide at activation (raised in review on #2824): the exports
+      currently bundle third-party modules such as sops-nix's, which
+      conflicts ("already declared") with a consumer that imports its own
+      revision of the same module. Choose between bundling (simplest for a
+      standalone consumer), letting the consumer supply them (each export
+      documents what it needs), or offering both.
 - [ ] **4.11 Make `nixosModules.default` coherent.** It combines both
       profiles. Either it evaluates standalone once 4.10 lands, or it is
       redefined as the set that does (decide from 4.10's result, before
