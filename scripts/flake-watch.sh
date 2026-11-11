@@ -30,7 +30,7 @@
 # can publish independently and in any order: an OS whose runner is offline
 # holds up nothing. A publication whose plan is older than the file's
 # planned_at (a classify job that finished after the next hour published)
-# only adds results that still match an entry's revisions.
+# changes nothing; anything it would have added is asked again.
 #
 # Status file (status/flake-inputs.json on the flake-watch branch, read by
 # github-ci-exporter into github_flake_input_impact):
@@ -278,23 +278,11 @@ cmd_merge() {
     | if $stale then
         # A newer run already published (a classify job can finish long
         # after the next hour planned, e.g. a queued macOS job). Its plan is
-        # authoritative: keep every entry, dispatch nothing, and add only the
-        # fresh kinds that were computed for the revisions an entry still has.
-        {
-          status: ($prev[0] | .inputs |= with_entries(
-            .key as $i
-            # Entries this older plan knows nothing about pass through.
-            | (first($plan[0].moved[] | select(.input == $i)) // null) as $m
-            | (.value.kinds // {}) as $e_kinds
-            | if $m != null and .value.upstream_rev == $m.upstream_rev and .value.locked_rev == $m.locked_rev then
-                ({ linux: $linux[0][$i], darwin: $darwin[0][$i] } | with_entries(select(.value != null))) as $fresh
-                # Existing kinds win: they come from the newer publication.
-                | ($fresh | with_entries(select(.key as $os | $e_kinds | has($os) | not))) as $new
-                | if $new == {} then . else .value.kinds = ($e_kinds + $new) | .value.classified_at = $now end
-              else . end
-          )),
-          dispatch: []
-        }
+        # authoritative, and the results of this job were computed against an
+        # older checkout of main, which can classify differently even for
+        # the same input revisions. So change nothing: keep every entry,
+        # dispatch nothing, and leave any missing kind for the next plan.
+        { status: $prev[0], dispatch: [] }
       else
       [ $plan[0].moved[]
         | . as $m

@@ -257,10 +257,10 @@ merge "$T/plan-old-b.json" "$T/prev-newer.json" "$T/empty.json" "$T/dar-old.json
 eq "merge, stale plan: nothing dispatched" "[]" "$(jq -c '.dispatch' "$T/merged-stale.json")"
 eq "merge, stale plan: an entry the old plan does not know is kept" \
     "$(jq -c '.inputs.z' "$T/prev-newer.json")" "$(jq -c '.status.inputs.z' "$T/merged-stale.json")"
-eq "merge, stale plan: a result for revisions the entry still has is added" \
-    '{"darwin":"rebuild","linux":"source"}' "$(jq -cS '.status.inputs.a.kinds' "$T/merged-stale.json")"
-eq "merge, stale plan: a result for older revisions is not" \
-    "$(jq -c '.inputs.b' "$T/prev-newer.json")" "$(jq -c '.status.inputs.b' "$T/merged-stale.json")"
+eq "merge, stale plan: even a result for revisions the entry still has is not added" \
+    '{"linux":"source"}' "$(jq -cS '.status.inputs.a.kinds' "$T/merged-stale.json")"
+eq "merge, stale plan: the status is left exactly as the newer run published it" \
+    "$(jq -S . "$T/prev-newer.json")" "$(jq -S .status "$T/merged-stale.json")"
 # A stale result for an OS the newer entry already classified does not
 # replace it (prev-newer has a: linux=source; the stale job says rebuild).
 echo '{"a": "rebuild"}' >"$T/lin-old.json"
