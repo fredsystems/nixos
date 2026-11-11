@@ -235,6 +235,10 @@ and `--os darwin` report no impacted hosts; every host evaluates with no
       revision of the same module. Choose between bundling (simplest for a
       standalone consumer), letting the consumer supply them (each export
       documents what it needs), or offering both.
+      Also document, in `MODULES.md`, the `shared.*` options each export
+      reads that a consumer must set (raised in review on #2828:
+      `adsb-hub` now reads `shared.user.name` where it took the `user`
+      module argument).
 - [ ] **4.11 Make `nixosModules.default` coherent.** It combines both
       profiles. Either it evaluates standalone once 4.10 lands, or it is
       redefined as the set that does (decide from 4.10's result, before
