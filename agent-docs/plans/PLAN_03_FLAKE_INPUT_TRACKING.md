@@ -292,7 +292,7 @@ complete until Plan 02 is.
 
 ### Cleanup
 
-- [ ] **3.13 actionlint in pre-commit.** Surfaced during 3.9: actionlint
+- [x] **3.13 actionlint in pre-commit.** Surfaced during 3.9: actionlint
       reports 9 findings in this repo, in `ci-darwin.yaml`, `ci-linux.yaml`
       and `lint.yaml` (3 each, shellcheck SC2086 unquoted variables in the
       `skip-if-clean` step those workflows share), and nothing runs it:
