@@ -26,6 +26,13 @@ let
       "0.${toString (minor + 1)}.0"
     else
       "0.0.${toString (patch + 1)}";
+  # npm semver (what upstream checks with) only lets a prerelease satisfy a
+  # range when the range names a prerelease of the same X.Y.Z. Nix's
+  # versionOlder alone would accept e.g. 2.0.0-pre.1 as below 2.0.0.
+  core = v: builtins.head (lib.splitString "-" v);
+  isPrerelease = v: lib.hasInfix "-" v;
+  prereleaseAllowed =
+    !(isPrerelease bun.version) || (isPrerelease required && core bun.version == core required);
 in
 assert lib.assertMsg (lib.hasPrefix "bun@" packageManager)
   "OpenCode's package.json packageManager is '${packageManager}', not bun@<version>";
@@ -33,5 +40,6 @@ assert lib.assertMsg (lib.hasPrefix "bun@" packageManager)
   inherit required;
   range = "^${required}";
   inherit (bun) version;
-  compatible = lib.versionAtLeast bun.version required && lib.versionOlder bun.version below;
+  compatible =
+    prereleaseAllowed && lib.versionAtLeast bun.version required && lib.versionOlder bun.version below;
 }

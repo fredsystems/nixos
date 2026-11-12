@@ -319,6 +319,18 @@
               expr = compatible "bun@0.4.4" "0.5.0";
               expected = false;
             };
+            testPrereleaseOfNextMajor = {
+              expr = compatible "bun@1.4.4" "2.0.0-pre.1";
+              expected = false;
+            };
+            testPrereleaseInRange = {
+              expr = compatible "bun@1.4.4" "1.5.0-canary.1";
+              expected = false;
+            };
+            testPrereleaseOfPinnedPrerelease = {
+              expr = compatible "bun@1.4.4-beta.1" "1.4.4-beta.2";
+              expected = true;
+            };
             testBuildMetadata = {
               expr = compatible "bun@1.4.4+deadbeef" "1.4.4";
               expected = true;
