@@ -176,14 +176,13 @@
     # to a release tag: v2 releases are tags, `dev` is not a release.
     #
     # NOTE: deliberately NOT following our nixpkgs. Upstream keeps the
-    # node_modules fixed-output hash per release in nix/hashes.json, and that
-    # hash is only valid for the bun in upstream's pinned nixpkgs. Following
-    # ours would let a bun bump invalidate it, which is exactly the
-    # hash-maintenance loop the old overlays/opencode.nix needed a daily
-    # workflow for.
+    # node_modules fixed-output hash depends on Bun as well as the release.
+    # Keep its toolchain independent of fleet updates. The relock workflow
+    # advances only opencode/nixpkgs when package.json requires a newer Bun;
+    # upstream's Nix recipe otherwise merely warns and builds a broken CLI.
     #
     # Upstream does not always merge its hash bump before tagging, though, so
-    # renovate-relock.yaml verifies the hash on every opencode bump and
+    # renovate-relock.yaml verifies the hash on release/toolchain changes and
     # flake/lib/opencode-overlay.nix applies a corrected one when it is stale.
     # renovate: datasource=git-refs depName=opencode packageName=https://github.com/anomalyco/opencode versioning=semver
     opencode = {

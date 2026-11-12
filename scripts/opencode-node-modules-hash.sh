@@ -4,7 +4,8 @@
 #
 # Upstream keeps the hash per system in nix/hashes.json, updated by a bot PR
 # that is not always merged before a release is tagged. This builds upstream's
-# node_modules derivation for the release locked in flake.lock: if it builds,
+# node_modules using THIS repo's complete flake.lock, including opencode/nixpkgs:
+# if it builds,
 # upstream's hash is right; if it fails with a hash mismatch, the "got:" hash
 # is the real one. Real hashes are written to
 # flake/lib/opencode-node-modules-hashes.json, which
@@ -20,10 +21,11 @@
 #       Build node_modules for SYSTEM (default: this machine's) and print the
 #       real hash on stdout. Progress goes to stderr.
 #   opencode-node-modules-hash.sh record SYSTEM HASH
-#       Record HASH for SYSTEM. If it equals upstream's hash, SYSTEM's entry
-#       is dropped instead (and the file is left alone if it belongs to an
-#       older revision), so a correct upstream hash produces no change.
+#       Record HASH for SYSTEM, keyed by both OpenCode and nixpkgs revisions.
 #
+# `relock` advances only opencode/nixpkgs when upstream's release lock uses
+# an older Bun than package.json requires. `identity` prints the two locked
+# revisions that determine the dependency hash (also used by CI's skip gate).
 # Requires nix and jq.
 
 set -euo pipefail
@@ -31,6 +33,7 @@ set -euo pipefail
 repo_root="$(git rev-parse --show-toplevel)"
 lock_file="$repo_root/flake.lock"
 hashes_file="$repo_root/flake/lib/opencode-node-modules-hashes.json"
+flake_expr="builtins.getFlake $(jq -Rn --arg path "$repo_root" '$path')"
 
 log() { printf '%s\n' "$*" >&2; }
 die() {
@@ -42,11 +45,33 @@ locked() {
   jq -r --arg field "$1" '.nodes[.nodes.root.inputs.opencode].locked[$field]' "$lock_file"
 }
 
-upstream_ref() {
-  local type
-  type="$(locked type)"
-  [[ $type == github ]] || die "opencode input is locked as type '$type'; only github is supported"
-  printf 'github:%s/%s/%s\n' "$(locked owner)" "$(locked repo)" "$(locked rev)"
+package_expr() {
+  case "$1" in
+    x86_64-linux | aarch64-linux | aarch64-darwin) ;;
+    *) die "unsupported system: $1" ;;
+  esac
+  printf '(%s).inputs.opencode.packages.%s.opencode' "$flake_expr" "$1"
+}
+
+identity() {
+  nix eval --impure --json --expr "let f = ($flake_expr); in {
+    rev = f.inputs.opencode.rev;
+    nixpkgsRev = f.inputs.opencode.inputs.nixpkgs.rev;
+  }"
+}
+
+relock() {
+  local compatible
+  compatible="let f = ($flake_expr); p = f.inputs.opencode.inputs.nixpkgs;
+    required = builtins.replaceStrings [ \"bun@\" ] [ \"\" ]
+      (builtins.fromJSON (builtins.readFile (f.inputs.opencode + \"/package.json\"))).packageManager;
+    in p.lib.versionAtLeast p.legacyPackages.x86_64-linux.bun.version required"
+  if [[ $(nix eval --impure --json --expr "$compatible") != true ]]; then
+    log "OpenCode's locked Bun is too old; updating only opencode/nixpkgs."
+    nix flake update --flake "$repo_root" opencode/nixpkgs >&2
+  fi
+  [[ $(nix eval --impure --json --expr "$compatible") == true ]] ||
+    die "opencode/nixpkgs still does not provide the Bun version required by OpenCode"
 }
 
 current_system() {
@@ -54,18 +79,17 @@ current_system() {
 }
 
 upstream_hash() {
-  nix eval --raw "$(upstream_ref)#packages.$1.opencode.node_modules.outputHash"
+  nix eval --impure --raw --expr "($(package_expr "$1")).node_modules.outputHash"
 }
 
 compute() {
-  local system="$1" ref expected got
-  ref="$(upstream_ref)"
+  local system="$1" expected got
   expected="$(upstream_hash "$system")"
-  log "Building $ref node_modules for $system (upstream hash $expected)"
+  log "Building locked OpenCode node_modules for $system (upstream hash $expected)"
 
   build_log="$(mktemp)"
   trap 'rm -f "$build_log"' EXIT
-  if nix build --no-link --print-build-logs "$ref#packages.$system.opencode.node_modules" 2>&1 | tee "$build_log" >&2; then
+  if nix build --impure --no-link --print-build-logs --expr "($(package_expr "$system")).node_modules" 2>&1 | tee "$build_log" >&2; then
     log "Upstream hash for $system is correct."
     printf '%s\n' "$expected"
     return
@@ -79,19 +103,14 @@ compute() {
 }
 
 record() {
-  local system="$1" hash="$2" rev upstream tmp
+  local system="$1" hash="$2" rev nixpkgs_rev tmp
   [[ $hash =~ ^sha256-[A-Za-z0-9+/=]+$ ]] || die "not an SRI sha256 hash: '$hash'"
   rev="$(locked rev)"
-  upstream="$(upstream_hash "$system")"
+  nixpkgs_rev="$(identity | jq -r .nixpkgsRev)"
 
   tmp="$(mktemp)"
-  jq --arg rev "$rev" --arg system "$system" --arg hash "$hash" --arg upstream "$upstream" '
-    if $hash == $upstream then
-      if .rev == $rev then del(.nodeModules[$system]) else . end
-    else
-      (if .rev == $rev then . else { rev: $rev, nodeModules: {} } end)
-      | .nodeModules[$system] = $hash
-    end
+  jq --arg rev "$rev" --arg nixpkgsRev "$nixpkgs_rev" --arg system "$system" --arg hash "$hash" '
+    .nodeModules[$system] = {rev: $rev, nixpkgsRev: $nixpkgsRev, hash: $hash}
   ' "$hashes_file" >"$tmp"
   mv "$tmp" "$hashes_file"
   log "Recorded $system for opencode $rev: $(jq -c . "$hashes_file")"
@@ -99,6 +118,8 @@ record() {
 
 cmd="${1:-update}"
 case "$cmd" in
+  relock) relock ;;
+  identity) identity ;;
   update)
     system="$(current_system)"
     record "$system" "$(compute "$system")"
@@ -111,6 +132,6 @@ case "$cmd" in
     record "$2" "$3"
     ;;
   *)
-    die "unknown command '$cmd' (expected update, compute or record)"
+    die "unknown command '$cmd' (expected relock, identity, update, compute or record)"
     ;;
 esac
