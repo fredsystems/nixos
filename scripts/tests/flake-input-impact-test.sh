@@ -194,6 +194,37 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# --base-fingerprint: one hash of what the flake builds; stable, insensitive
+# to changes that build nothing different, sensitive to ones that do.
+# Its edits to the consumer touch no inputs, so later cases are unaffected.
+# ---------------------------------------------------------------------------
+
+base_fp() {
+    bash "$SCRIPT" --flake "$TMPROOT/consumer" --base-fingerprint 2>"$TMPROOT/stderr.log"
+}
+if h1="$(base_fp)" && [[ "$h1" =~ ^[0-9a-f]{64}$ ]]; then
+    ok
+    if [[ "$(base_fp)" == "$h1" ]]; then ok; else bad "--base-fingerprint is stable"; fi
+
+    printf '\n# a comment builds nothing different\n' >>"$TMPROOT/consumer/flake.nix"
+    git_commit_all "$TMPROOT/consumer" "comment only"
+    if [[ "$(base_fp)" == "$h1" ]]; then ok; else bad "--base-fingerprint ignores a change that builds nothing different"; fi
+
+    sed -i 's/mkDrv "pkg-a"/mkDrv "pkg-a-renamed"/' "$TMPROOT/consumer/flake.nix"
+    git_commit_all "$TMPROOT/consumer" "change an output"
+    if h2="$(base_fp)" && [[ "$h2" != "$h1" ]]; then ok; else bad "--base-fingerprint changes when an output does" "before: $h1" "after: ${h2:-}"; fi
+else
+    bad "--base-fingerprint prints a sha256" "got: ${h1:-}" "stderr:" "$(cat "$TMPROOT/stderr.log")"
+fi
+
+set +e
+bash "$SCRIPT" --flake "$TMPROOT/consumer" --base-fingerprint dep-source >/dev/null 2>&1
+rc=$?
+set -e
+if [[ $rc -eq 2 ]]; then ok; else bad "--base-fingerprint with an input is a usage error" "exit: $rc"; fi
+
+
+# ---------------------------------------------------------------------------
 # (e) unknown input -> exit 2
 # ---------------------------------------------------------------------------
 
