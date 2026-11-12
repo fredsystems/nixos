@@ -1,0 +1,291 @@
+# promtool unit tests for the flake input and NixOS channel alerts in
+# github-alerts.yaml (groups github-flake-inputs and nixos-channels).
+#
+# Run with:
+#   nix build .#checks.x86_64-linux.prometheus-alert-rules
+#
+# flake-input-policy-rules.yaml is generated from
+# .github/flake-input-policy.json (modules/monitoring/master/
+# flake-input-policy-rules.nix) and placed next to the rule files by the
+# check, so these tests run against the real policy: a 7 day default and 45
+# days for nixpkgs-kernel. A change to the policy that these cases depend on
+# fails here.
+#
+# Timestamps are relative to promtool's clock, which starts at 0, so "behind
+# for 8 days" is an outdated_since of -8 days.
+#
+# Keep every `interval:` at 5m or below; see github-alerts-test.yaml.
+rule_files:
+  - ../github-alerts.yaml
+  - ../flake-input-policy-rules.yaml
+
+evaluation_interval: 1m
+
+tests:
+  # ---------------------------------------------------------------------------
+  # FlakeInputOutdated
+  # ---------------------------------------------------------------------------
+
+  - interval: 5m
+    name: FlakeInputOutdated fires past the default age with a source impact and no PR
+    input_series:
+      # 8 days behind (default max 7d). The owned nixpkgs is behind longer
+      # and counts against its input.
+      - series: 'github_flake_input_outdated_since_timestamp_seconds{repo="fredsystems/nixos", input="niri", path="niri"}'
+        values: "-691200+0x30"
+      - series: 'github_flake_input_outdated_since_timestamp_seconds{repo="fredsystems/nixos", input="niri", path="niri/nixpkgs"}'
+        values: "-864000+0x30"
+      - series: 'github_flake_input_impact{repo="fredsystems/nixos", input="niri", os="linux", kind="source"}'
+        values: "1+0x30"
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: FlakeInputOutdated
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              repo: fredsystems/nixos
+              input: niri
+            exp_annotations:
+              summary: "Flake input niri in fredsystems/nixos has been behind for 10d 1h 30m 0s"
+              description: "Bumping it changes source, it is past its maximum age in .github/flake-input-policy.json, and no update-niri PR is open."
+
+  - interval: 5m
+    name: FlakeInputOutdated uses an input's own maximum age, not the default
+    input_series:
+      # nixpkgs-kernel is 10 days behind: past the default, but its policy
+      # allows 45.
+      - series: 'github_flake_input_outdated_since_timestamp_seconds{repo="fredsystems/nixos", input="nixpkgs-kernel", path="nixpkgs-kernel"}'
+        values: "-864000+0x30"
+      - series: 'github_flake_input_impact{repo="fredsystems/nixos", input="nixpkgs-kernel", os="linux", kind="source"}'
+        values: "1+0x30"
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: FlakeInputOutdated
+        exp_alerts: []
+
+  - interval: 5m
+    name: FlakeInputOutdated fires for an override input past its own age
+    input_series:
+      - series: 'github_flake_input_outdated_since_timestamp_seconds{repo="fredsystems/nixos", input="nixpkgs-kernel", path="nixpkgs-kernel"}'
+        values: "-3974400+0x30"
+      - series: 'github_flake_input_impact{repo="fredsystems/nixos", input="nixpkgs-kernel", os="linux", kind="source"}'
+        values: "1+0x30"
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: FlakeInputOutdated
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              repo: fredsystems/nixos
+              input: nixpkgs-kernel
+            exp_annotations:
+              summary: "Flake input nixpkgs-kernel in fredsystems/nixos has been behind for 46d 1h 30m 0s"
+              description: "Bumping it changes source, it is past its maximum age in .github/flake-input-policy.json, and no update-nixpkgs-kernel PR is open."
+
+  - interval: 5m
+    name: FlakeInputOutdated stays quiet for a rebuild-only impact
+    input_series:
+      - series: 'github_flake_input_outdated_since_timestamp_seconds{repo="fredsystems/nixos", input="colmena", path="colmena"}'
+        values: "-1728000+0x30"
+      - series: 'github_flake_input_impact{repo="fredsystems/nixos", input="colmena", os="linux", kind="rebuild"}'
+        values: "1+0x30"
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: FlakeInputOutdated
+        exp_alerts: []
+
+  - interval: 5m
+    name: FlakeInputOutdated stays quiet while an update PR is open
+    input_series:
+      - series: 'github_flake_input_outdated_since_timestamp_seconds{repo="fredsystems/nixos", input="nixpkgs", path="nixpkgs"}'
+        values: "-1728000+0x30"
+      - series: 'github_flake_input_impact{repo="fredsystems/nixos", input="nixpkgs", os="linux", kind="source"}'
+        values: "1+0x30"
+      - series: 'github_flake_input_update_pr_open{repo="fredsystems/nixos", input="nixpkgs", number="2790"}'
+        values: "1+0x30"
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: FlakeInputOutdated
+        exp_alerts: []
+
+  # ---------------------------------------------------------------------------
+  # FlakeInputUpdateStuck
+  # ---------------------------------------------------------------------------
+
+  - interval: 5m
+    name: FlakeInputUpdateStuck fires for an update PR failing for over 3 days
+    input_series:
+      - series: 'github_flake_input_update_pr_open{repo="fredsystems/nixos", input="nixpkgs", number="2790"}'
+        values: "1+0x30"
+      - series: 'github_pull_needs_attention{org="fredsystems", repo="nixos", number="2790", author="fredclausen", author_kind="human", draft="false", checks="failure", mergeable="conflicting", auto_merge="true"}'
+        values: "1+0x30"
+      - series: 'github_pull_created_timestamp_seconds{org="fredsystems", repo="nixos", number="2790", author="fredclausen", author_kind="human", draft="false", checks="failure", mergeable="conflicting", auto_merge="true"}'
+        values: "-345600+0x30"
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: FlakeInputUpdateStuck
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              repo: fredsystems/nixos
+              flake_repo: fredsystems/nixos
+              input: nixpkgs
+              number: "2790"
+            exp_annotations:
+              summary: "Update PR #2790 for nixpkgs is stuck in fredsystems/nixos"
+              description: "update-nixpkgs has been open for over 3 days with failing checks."
+
+  - interval: 5m
+    name: FlakeInputUpdateStuck stays quiet for a recent failing PR, a green old one, or another repo's PR
+    input_series:
+      # Failing, but opened 1 day ago.
+      - series: 'github_flake_input_update_pr_open{repo="fredsystems/nixos", input="niri", number="2801"}'
+        values: "1+0x30"
+      - series: 'github_pull_needs_attention{org="fredsystems", repo="nixos", number="2801", author="fredclausen", author_kind="human", draft="false", checks="failure", mergeable="mergeable", auto_merge="true"}'
+        values: "1+0x30"
+      - series: 'github_pull_created_timestamp_seconds{org="fredsystems", repo="nixos", number="2801", author="fredclausen", author_kind="human", draft="false", checks="failure", mergeable="mergeable", auto_merge="true"}'
+        values: "-86400+0x30"
+      # Old, but its checks pass.
+      - series: 'github_flake_input_update_pr_open{repo="fredsystems/nixos", input="catppuccin", number="2786"}'
+        values: "1+0x30"
+      - series: 'github_pull_needs_attention{org="fredsystems", repo="nixos", number="2786", author="fredclausen", author_kind="human", draft="false", checks="success", mergeable="mergeable", auto_merge="false"}'
+        values: "1+0x30"
+      - series: 'github_pull_created_timestamp_seconds{org="fredsystems", repo="nixos", number="2786", author="fredclausen", author_kind="human", draft="false", checks="success", mergeable="mergeable", auto_merge="false"}'
+        values: "-345600+0x30"
+      # Same number, failing and old, but in a different repository.
+      - series: 'github_flake_input_update_pr_open{repo="fredsystems/nixos", input="sops-nix", number="77"}'
+        values: "1+0x30"
+      - series: 'github_pull_needs_attention{org="fredsystems", repo="freminal", number="77", author="renovate", author_kind="bot", draft="false", checks="failure", mergeable="mergeable", auto_merge="true"}'
+        values: "1+0x30"
+      - series: 'github_pull_created_timestamp_seconds{org="fredsystems", repo="freminal", number="77", author="renovate", author_kind="bot", draft="false", checks="failure", mergeable="mergeable", auto_merge="true"}'
+        values: "-345600+0x30"
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: FlakeInputUpdateStuck
+        exp_alerts: []
+
+  # ---------------------------------------------------------------------------
+  # FlakeInputOnEolChannel
+  # ---------------------------------------------------------------------------
+
+  - interval: 5m
+    name: FlakeInputOnEolChannel fires for an owned nixpkgs on an EOL channel
+    input_series:
+      - series: 'github_flake_input_locked_timestamp_seconds{repo="fredsystems/nixos", input="nixos-needsreboot", path="nixos-needsreboot/nixpkgs", ref="nixos-25.11", channel="nixos-25.11"}'
+        values: "1+0x30"
+      - series: 'nixos_channel_current{channel="nixos-25.11"}'
+        values: "0+0x30"
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: FlakeInputOnEolChannel
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              repo: fredsystems/nixos
+              input: nixos-needsreboot
+              path: nixos-needsreboot/nixpkgs
+              channel: nixos-25.11
+            exp_annotations:
+              summary: "nixos-needsreboot/nixpkgs in fredsystems/nixos follows end-of-life channel nixos-25.11"
+              description: "nixos_channel_current is 0 for nixos-25.11. Move the ref to a supported channel; flake updates cannot leave it on their own."
+
+  - interval: 5m
+    name: FlakeInputOnEolChannel stays quiet on a supported channel and for nodes without one
+    input_series:
+      - series: 'github_flake_input_locked_timestamp_seconds{repo="fredsystems/nixos", input="nixpkgs-stable", path="nixpkgs-stable", ref="nixos-26.05", channel="nixos-26.05"}'
+        values: "1+0x30"
+      - series: 'github_flake_input_locked_timestamp_seconds{repo="fredsystems/nixos", input="niri", path="niri", ref="", channel=""}'
+        values: "1+0x30"
+      - series: 'nixos_channel_current{channel="nixos-26.05"}'
+        values: "1+0x30"
+      - series: 'nixos_channel_current{channel="nixos-25.11"}'
+        values: "0+0x30"
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: FlakeInputOnEolChannel
+        exp_alerts: []
+
+  # ---------------------------------------------------------------------------
+  # NixosChannelBlocked
+  # ---------------------------------------------------------------------------
+
+  - interval: 5m
+    name: NixosChannelBlocked fires for a followed channel stuck 3 days with tested failing
+    input_series:
+      - series: 'nixos_channel_update_timestamp_seconds{channel="nixos-unstable"}'
+        values: "-259200+0x30"
+      - series: 'nixos_channel_tested_failed{channel="nixos-unstable"}'
+        values: "1+0x30"
+      - series: 'github_flake_input_locked_timestamp_seconds{repo="fredsystems/nixos", input="nixpkgs", path="nixpkgs", ref="nixos-unstable", channel="nixos-unstable"}'
+        values: "1+0x30"
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: NixosChannelBlocked
+        exp_alerts:
+          - exp_labels:
+              severity: info
+              channel: nixos-unstable
+            exp_annotations:
+              summary: "NixOS channel nixos-unstable has not moved in 3d 1h 30m 0s"
+              description: "Its tested job is failing on Hydra, so the channel is blocked upstream. Inputs following it cannot update until it moves."
+
+  - interval: 5m
+    name: NixosChannelBlocked stays quiet when tested passes, the channel moved, or nothing follows it
+    input_series:
+      # Stuck, but tested passes: just quiet upstream.
+      - series: 'nixos_channel_update_timestamp_seconds{channel="nixos-26.05"}'
+        values: "-345600+0x30"
+      - series: 'nixos_channel_tested_failed{channel="nixos-26.05"}'
+        values: "0+0x30"
+      - series: 'github_flake_input_locked_timestamp_seconds{repo="fredsystems/nixos", input="nixpkgs-stable", path="nixpkgs-stable", ref="nixos-26.05", channel="nixos-26.05"}'
+        values: "1+0x30"
+      # tested failing, but the channel moved a day ago.
+      - series: 'nixos_channel_update_timestamp_seconds{channel="nixos-unstable"}'
+        values: "-86400+0x30"
+      - series: 'nixos_channel_tested_failed{channel="nixos-unstable"}'
+        values: "1+0x30"
+      - series: 'github_flake_input_locked_timestamp_seconds{repo="fredsystems/nixos", input="nixpkgs", path="nixpkgs", ref="nixos-unstable", channel="nixos-unstable"}'
+        values: "1+0x30"
+      # Stuck and failing, but no tracked node follows it.
+      - series: 'nixos_channel_update_timestamp_seconds{channel="nixos-26.05-small"}'
+        values: "-345600+0x30"
+      - series: 'nixos_channel_tested_failed{channel="nixos-26.05-small"}'
+        values: "1+0x30"
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: NixosChannelBlocked
+        exp_alerts: []
+
+  # ---------------------------------------------------------------------------
+  # FlakeWatchStale
+  # ---------------------------------------------------------------------------
+
+  - interval: 5m
+    name: FlakeWatchStale fires when the watch has not succeeded in over 6 hours
+    input_series:
+      - series: 'github_workflow_last_success_timestamp_seconds{org="fredsystems", repo="nixos", workflow="flake-input-watch"}'
+        values: "-25200+0x30"
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: FlakeWatchStale
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              org: fredsystems
+              repo: nixos
+              workflow: flake-input-watch
+            exp_annotations:
+              summary: "flake-input-watch has not succeeded in 8h 30m 0s"
+              description: "Flake input impact and update dispatches are stale. Check the workflow's recent runs in fredsystems/nixos."
+
+  - interval: 5m
+    name: FlakeWatchStale stays quiet after a recent success, and for other workflows
+    input_series:
+      - series: 'github_workflow_last_success_timestamp_seconds{org="fredsystems", repo="nixos", workflow="flake-input-watch"}'
+        values: "-3600+0x30"
+      - series: 'github_workflow_last_success_timestamp_seconds{org="fredsystems", repo="nixos", workflow="update-flakes"}'
+        values: "-86400+0x30"
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: FlakeWatchStale
+        exp_alerts: []

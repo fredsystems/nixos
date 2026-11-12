@@ -226,3 +226,127 @@ groups:
         annotations:
           summary: "GitHub API budget low for {{ $labels.resource }}"
           description: "Only {{ $value }} requests remain in the {{ $labels.resource }} pool. The exporter will start skipping cycles as it approaches its reserve."
+
+  # Flake inputs of the repositories github-ci-exporter tracks (flake_repos),
+  # and the NixOS channels they follow. See
+  # agent-docs/plans/PLAN_03_FLAKE_INPUT_TRACKING.md.
+  #
+  # JOINS
+  #
+  # The github_flake_input_* families label the repository as
+  # repo="owner/name"; the github_pull_* families split it into org and repo.
+  # Joins between them build a common flake_repo label on both sides
+  # (label_replace on one, label_join on the other) rather than relying on
+  # either convention.
+  - name: github-flake-inputs
+    rules:
+      # A root input has been behind upstream for longer than its policy
+      # allows, bumping it changes source (not just a rebuild of an owned
+      # nixpkgs; see the impact classification), and no update PR is open.
+      #
+      # Age is from the oldest upstream commit the input is missing, so busy
+      # upstreams cannot keep resetting it, and it is the input's worst node:
+      # an owned nixpkgs that is behind counts against its input.
+      #
+      # The maximum age comes from .github/flake-input-policy.json through
+      # flake_input_policy:*max_age_seconds (generated recording rules; see
+      # modules/monitoring/master/flake-input-policy-rules.nix): the input's
+      # own value where it has one, the default otherwise.
+      #
+      # Normally an auto-policy source change gets its update PR from the
+      # watch Action within the hour, so this mostly fires for manual-policy
+      # inputs, or when that dispatch keeps failing.
+      - alert: FlakeInputOutdated
+        expr: |
+          (
+            (
+              max by (repo, input) (time() - github_flake_input_outdated_since_timestamp_seconds)
+                > on (input) group_left () flake_input_policy:max_age_seconds
+            )
+            or
+            (
+              max by (repo, input) (time() - github_flake_input_outdated_since_timestamp_seconds)
+                > on () group_left () flake_input_policy:default_max_age_seconds
+              unless on (input) flake_input_policy:max_age_seconds
+            )
+          )
+          and on (repo, input) (github_flake_input_impact{kind="source"} == 1)
+          unless on (repo, input) (github_flake_input_update_pr_open == 1)
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Flake input {{ $labels.input }} in {{ $labels.repo }} has been behind for {{ $value | humanizeDuration }}"
+          description: "Bumping it changes source, it is past its maximum age in .github/flake-input-policy.json, and no update-{{ $labels.input }} PR is open."
+
+      # An update-<input> PR that has been open for more than 3 days and whose
+      # checks are failing: the bump is blocked, usually on an upstream fix
+      # (#2790 and #2786 sat like this for days on brave and catppuccin).
+      # Joined on the PR number the exporter records for each input's open
+      # update PR.
+      - alert: FlakeInputUpdateStuck
+        expr: |
+          label_replace(github_flake_input_update_pr_open == 1, "flake_repo", "$1", "repo", "(.*)")
+          and on (flake_repo, number)
+          label_join(github_pull_needs_attention{checks="failure"} == 1, "flake_repo", "/", "org", "repo")
+          and on (flake_repo, number)
+          label_join(
+            time() - github_pull_created_timestamp_seconds > 3 * 24 * 3600,
+            "flake_repo", "/", "org", "repo"
+          )
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Update PR #{{ $labels.number }} for {{ $labels.input }} is stuck in {{ $labels.repo }}"
+          description: "update-{{ $labels.input }} has been open for over 3 days with failing checks."
+
+      # A tracked node follows a NixOS channel that is no longer supported:
+      # `nix flake update` follows a ref and can never leave it, so the input
+      # silently stops receiving fixes. Root channel inputs and owned nixpkgs
+      # nodes alike (nixos-needsreboot sat on nixos-25.11 exactly this way).
+      - alert: FlakeInputOnEolChannel
+        expr: |
+          count by (repo, input, path, channel) (github_flake_input_locked_timestamp_seconds{channel!=""})
+          and on (channel) (nixos_channel_current == 0)
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.path }} in {{ $labels.repo }} follows end-of-life channel {{ $labels.channel }}"
+          description: "nixos_channel_current is 0 for {{ $labels.channel }}. Move the ref to a supported channel; flake updates cannot leave it on their own."
+
+  - name: nixos-channels
+    rules:
+      # A channel our locks follow has not advanced in 3 days and its tested
+      # job is failing on Hydra: updates are blocked upstream, not on us.
+      # nixos-unstable sat for three days like this while the brave re-add
+      # waited behind it. Only channels some tracked node follows.
+      - alert: NixosChannelBlocked
+        expr: |
+          (time() - nixos_channel_update_timestamp_seconds > 3 * 24 * 3600)
+          and on (channel) (nixos_channel_tested_failed == 1)
+          and on (channel) count by (channel) (github_flake_input_locked_timestamp_seconds{channel!=""})
+        for: 1h
+        labels:
+          severity: info
+        annotations:
+          summary: "NixOS channel {{ $labels.channel }} has not moved in {{ $value | humanizeDuration }}"
+          description: "Its tested job is failing on Hydra, so the channel is blocked upstream. Inputs following it cannot update until it moves."
+
+      # The flake-input-watch workflow has not succeeded recently, so impact
+      # classifications and source-change dispatches are going stale.
+      #
+      # 6h rather than the plan's 3h: GitHub drops and delays scheduled runs
+      # heavily (its first night ran twice in fourteen hours), and the alert
+      # is about the watch being broken, not about GitHub's scheduler.
+      - alert: FlakeWatchStale
+        expr: |
+          time() - github_workflow_last_success_timestamp_seconds{org="fredsystems", repo="nixos", workflow="flake-input-watch"}
+            > 6 * 3600
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "flake-input-watch has not succeeded in {{ $value | humanizeDuration }}"
+          description: "Flake input impact and update dispatches are stale. Check the workflow's recent runs in fredsystems/nixos."

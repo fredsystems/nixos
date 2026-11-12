@@ -349,6 +349,9 @@ in
         ./alert-rules/capacity-alerts.yaml
         ./alert-rules/fail2ban-alerts.yaml
         ./alert-rules/github-alerts.yaml
+        # Per-input maximum ages for FlakeInputOutdated, generated from
+        # .github/flake-input-policy.json.
+        (import ./flake-input-policy-rules.nix pkgs)
         ./alert-rules/frigate-alerts.yaml
       ];
 

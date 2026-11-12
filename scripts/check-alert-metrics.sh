@@ -215,8 +215,23 @@ fi
 #     jq filter produces nothing. The companion fwupd_updates_available is
 #     always emitted and is checked normally, so a broken exporter is still
 #     caught.
+#
+#   github_flake_input_update_pr_open
+#     github-ci-exporter emits one series per open update-<input> PR of a
+#     tracked flake repository. With no update PR open -- the normal state
+#     between weekly runs -- there is none. FlakeInputOutdated and
+#     FlakeInputUpdateStuck use it as a join; the always-present
+#     github_flake_input_locked_timestamp_seconds is checked normally.
+#
+#   github_flake_input_impact
+#     Republished from the flake-input-watch status file, which lists only
+#     inputs that are behind upstream. With every input up to date it is
+#     empty, and before the watch first succeeds there is no file at all.
+#     FlakeWatchStale covers the watch itself going quiet.
 CONDITIONAL_METRICS=(
     fwupd_device_update_info
+    github_flake_input_update_pr_open
+    github_flake_input_impact
 )
 
 is_conditional() {
