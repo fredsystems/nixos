@@ -279,7 +279,11 @@ and `--os darwin` report no impacted hosts; every host evaluates with no
       specialArg" rule), and a short note in `flake/lib/mk-system.nix`.
       Includes: MODULES.md's "Combining Modules" and "Using lib.mkDefault"
       examples predate 4.10 and omit `nixosModules.dependencies` (noted
-      during 4.11).
+      during 4.11). Also document the Attic push-to-no-push migration:
+      switching `programs.atticClient.tokenFile` from a path back to
+      `null` leaves a regular `~/.config/attic/config.toml` that Home
+      Manager then refuses to replace, so it must be removed first (raised
+      in review on #2843; a pre-existing behaviour of `attic_client.nix`).
 
 ### Cleanup
 
