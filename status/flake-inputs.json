@@ -3,9 +3,9 @@
     "flake-utils": {
       "bases": {
         "darwin": "58f8958a729efd0fd020e6c2b033bc0a59dc9bf1cacb7427abf13dab3ab7e378",
-        "linux": "7c5187e693993f0a28d21b209eb59dc5b20589a3ec097db1d94d04890b0624e2"
+        "linux": "1c1483ca83a0c53c9b6827814613f60102c6493d4fa85ae47bd9aff8cd67d0fa"
       },
-      "classified_at": "2026-11-12T18:23:58Z",
+      "classified_at": "2026-11-12T18:29:27Z",
       "kinds": {
         "darwin": "none",
         "linux": "none"
@@ -16,9 +16,9 @@
     "home-manager-stable": {
       "bases": {
         "darwin": "58f8958a729efd0fd020e6c2b033bc0a59dc9bf1cacb7427abf13dab3ab7e378",
-        "linux": "7c5187e693993f0a28d21b209eb59dc5b20589a3ec097db1d94d04890b0624e2"
+        "linux": "1c1483ca83a0c53c9b6827814613f60102c6493d4fa85ae47bd9aff8cd67d0fa"
       },
-      "classified_at": "2026-11-12T18:23:58Z",
+      "classified_at": "2026-11-12T18:29:27Z",
       "kinds": {
         "darwin": "none",
         "linux": "none"
@@ -28,11 +28,13 @@
     },
     "niri": {
       "bases": {
-        "darwin": "58f8958a729efd0fd020e6c2b033bc0a59dc9bf1cacb7427abf13dab3ab7e378"
+        "darwin": "58f8958a729efd0fd020e6c2b033bc0a59dc9bf1cacb7427abf13dab3ab7e378",
+        "linux": "1c1483ca83a0c53c9b6827814613f60102c6493d4fa85ae47bd9aff8cd67d0fa"
       },
-      "classified_at": "2026-11-12T18:23:58Z",
+      "classified_at": "2026-11-12T18:29:27Z",
       "kinds": {
-        "darwin": "none"
+        "darwin": "none",
+        "linux": "none"
       },
       "locked_rev": "8471ad71a8f49527fdd98a81316720fb1b793368",
       "upstream_rev": "3e3dc12e56a7d2bf235a08169a9f3137e8694e99"
@@ -40,9 +42,9 @@
     "nixpkgs-kernel": {
       "bases": {
         "darwin": "58f8958a729efd0fd020e6c2b033bc0a59dc9bf1cacb7427abf13dab3ab7e378",
-        "linux": "7c5187e693993f0a28d21b209eb59dc5b20589a3ec097db1d94d04890b0624e2"
+        "linux": "1c1483ca83a0c53c9b6827814613f60102c6493d4fa85ae47bd9aff8cd67d0fa"
       },
-      "classified_at": "2026-11-12T18:23:58Z",
+      "classified_at": "2026-11-12T18:29:27Z",
       "kinds": {
         "darwin": "none",
         "linux": "source"
