@@ -249,6 +249,13 @@ eq "merge: a new base with no fresh result drops that OS's cached kind" "null" "
 eq "merge: ...but keeps the other OS's kind" "source" "$(jq -r '.status.inputs.b.kinds.darwin' "$T/merged-new.json")"
 echo '{"base": "B2", "kinds": {"a": "none"}}' >"$T/lin-new-a.json"
 merge "$T/plan3.json" "$T/prev2.json" "$T/lin-new-a.json" "$T/empty.json" "2026-11-11T13:00:00Z" >"$T/merged-new-a.json"
+# Every cached kind invalidated, nothing fresh: the entry still keeps its
+# dispatch record for this revision, so the dispatch is not repeated early.
+echo '{"base": "B2", "kinds": {}}' >"$T/both-new.json"
+merge "$T/plan3.json" "$T/prev2.json" "$T/both-new.json" "$T/both-new.json" "2026-11-11T13:00:00Z" >"$T/merged-none.json"
+eq "merge: all kinds invalidated keeps the dispatch record" "a1 {}" \
+    "$(jq -r '.status.inputs.a | "\(.dispatched_rev) \(.kinds | tojson)"' "$T/merged-none.json")"
+eq "merge: ...and does not dispatch again" "[]" "$(jq -c '.dispatch' "$T/merged-none.json")"
 eq "merge: a new base with a fresh result records both" "none B2" "$(jq -r '.status.inputs.a | "\(.kinds.linux) \(.bases.linux)"' "$T/merged-new-a.json")"
 
 # ...until the retry interval passes with still no update PR.

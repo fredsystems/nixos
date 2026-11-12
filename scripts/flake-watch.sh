@@ -324,7 +324,15 @@ cmd_merge() {
             # Keep what is known, for the dashboard.
             (if $e != null then { input: $m.input, entry: $e, dispatch: false } else empty end)
           else
-            select($kinds != {})
+            # A dispatch is only recorded once it succeeded (mark-dispatched),
+            # and only for this upstream revision.
+            (if $same and ($e.dispatched_rev // null) == $m.upstream_rev
+             then { dispatched_rev: $e.dispatched_rev, dispatched_at: $e.dispatched_at }
+             else {} end) as $dispatched
+            # An entry with no surviving kind is still kept while it records a
+            # dispatch for this revision; dropping it would forget the dispatch
+            # and dispatch again before the retry interval.
+            | select($kinds != {} or $dispatched != {})
             | {
                 kinds: $kinds,
                 bases: $bases,
@@ -332,11 +340,7 @@ cmd_merge() {
                 locked_rev: $m.locked_rev,
                 classified_at: (if $any_fresh then $now else $e.classified_at end)
               }
-              # A dispatch is only recorded once it succeeded
-              # (mark-dispatched), and only for this upstream revision.
-              + (if $same and ($e.dispatched_rev // null) == $m.upstream_rev
-                 then { dispatched_rev: $e.dispatched_rev, dispatched_at: $e.dispatched_at }
-                 else {} end)
+              + $dispatched
             | . as $entry
             | {
                 input: $m.input,
