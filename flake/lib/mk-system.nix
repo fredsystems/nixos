@@ -4,8 +4,9 @@
 # machines.  Server machines additionally expose `_colmena` so that the
 # Colmena output can reuse the same modules / specialArgs without duplication.
 #
-# Everything below is a BUILDER parameter, not a module argument: modules get
-# only `inputs` (specialArgs and Home Manager's extraSpecialArgs alike). The
+# Everything below is a BUILDER parameter, not a module argument: beyond the
+# standard ones (config, lib, pkgs, ...), the only extra module argument is
+# `inputs` (specialArgs and Home Manager's extraSpecialArgs alike). The
 # builder turns the rest into shared.* options (modules/base/fleet-identity*.nix)
 # or into what it puts in the module list -- which channel's catppuccin,
 # sops-nix and nix-yazi-plugins, which OS- and role-specific halves -- so a
