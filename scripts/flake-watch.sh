@@ -65,7 +65,9 @@
 # Usage:
 #   flake-watch.sh candidates --lock FILE
 #   flake-watch.sh resolve-heads --candidates FILE
+#   flake-watch.sh pr-revs --open-prs FILE   (needs REPO; reads each PR branch)
 #   flake-watch.sh plan --heads FILE --open-prs FILE --previous FILE --now ISO8601
+#                       [--pr-revs FILE]
 #   flake-watch.sh merge --plan FILE --previous FILE --policy FILE
 #                        --linux FILE --darwin FILE --now ISO8601
 #   flake-watch.sh summary --plan FILE
@@ -108,7 +110,7 @@ DISPATCH_RETRY_SECONDS="${FLAKE_WATCH_DISPATCH_RETRY_SECONDS:-21600}"
 declare -A ARGS=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --lock | --candidates | --heads | --open-prs | --previous | --policy | --plan | --linux | --darwin | --now | --status | --inputs)
+    --lock | --candidates | --heads | --open-prs | --pr-revs | --previous | --policy | --plan | --linux | --darwin | --now | --status | --inputs)
       [[ $# -ge 2 ]] || die "$1 requires a value"
       ARGS["${1#--}"]="$2"
       shift 2
@@ -229,12 +231,40 @@ cmd_resolve_heads() {
   cat /dev/null "$dir"/* 2>/dev/null | jq -cs .
 }
 
+# For each input with an open update-<input> PR, the revision that PR's
+# branch locks for it: {"<input>": "<rev>"}. A branch or lock that cannot be
+# read is left out, which plan treats as "not stale". Needs REPO (owner/name)
+# and gh (FLAKE_WATCH_GH overrides it for tests).
+cmd_pr_revs() {
+  need open-prs
+  : "${REPO:?pr-revs needs REPO=owner/name}"
+  local gh="${FLAKE_WATCH_GH:-gh}" out='{}' input lock rev
+  while IFS= read -r input; do
+    [[ -n "$input" ]] || continue
+    if ! lock="$("$gh" api -H "Accept: application/vnd.github.raw" \
+      "repos/$REPO/contents/flake.lock?ref=update-$input" 2>/dev/null)"; then
+      echo "::warning title=flake-watch::could not read flake.lock on update-$input; not refreshing it this hour" >&2
+      continue
+    fi
+    rev="$(jq -r --arg i "$input" '
+      (.nodes.root.inputs[$i] // null) as $n
+      | if ($n | type) == "string" then (.nodes[$n].locked.rev // empty) else empty end
+    ' <<<"$lock" 2>/dev/null || true)"
+    [[ -n "$rev" ]] || continue
+    out="$(jq -c --arg i "$input" --arg r "$rev" '. + {($i): $r}' <<<"$out")"
+  done < <(jq -r '.[]' "${ARGS[open-prs]}")
+  printf '%s\n' "$out"
+}
+
 cmd_plan() {
   need heads open-prs previous now
+  local pr_revs="${ARGS[pr-revs]:-}"
+  [[ -z "$pr_revs" || -r "$pr_revs" ]] || die "--pr-revs: no such file: $pr_revs"
   jq -cn \
     --slurpfile heads "${ARGS[heads]}" \
     --slurpfile prs "${ARGS[open-prs]}" \
     --slurpfile prev "${ARGS[previous]}" \
+    --argjson prrevs "$(if [[ -n "$pr_revs" ]]; then cat "$pr_revs"; else echo '{}'; fi)" \
     --arg now "${ARGS[now]}" '
     ($prev[0].inputs // {}) as $p
     | [ $heads[0][]
@@ -244,8 +274,13 @@ cmd_plan() {
             input,
             upstream_rev,
             locked_rev,
-            pr_open: (.input as $i | $prs[0] | index($i) != null)
+            pr_open: (.input as $i | $prs[0] | index($i) != null),
+            pr_rev: ($prrevs[.input] // null)
           }
+        # An open update PR whose branch locks an older revision than
+        # upstream is stale: it is refreshed rather than waited on. A PR
+        # revision that could not be read is never stale.
+        | .pr_stale = (.pr_open and .pr_rev != null and .pr_rev != .upstream_rev)
       ] as $moved
     # Every moved input without an update PR is a candidate on each OS. The
     # classify job, which can compute the base fingerprint of main, decides which
@@ -319,9 +354,32 @@ cmd_merge() {
         | ([ $per_os[] | select(.fresh) ] | length > 0) as $any_fresh
         | ($per_os | map({ key: .os, value: .kind }) | from_entries) as $kinds
         | ($per_os | map(select(.base != null) | { key: .os, value: .base }) | from_entries) as $bases
-        | if $m.pr_open then
-            # An update PR is already open: nothing to classify or dispatch.
-            # Keep what is known, for the dashboard.
+        | if $m.pr_open and ($m.pr_stale // false) then
+            # An update PR is open but its branch is behind upstream (stuck on
+            # a failure, say, while upstream moved on): dispatch update-flakes
+            # again, which updates that same PR branch. Once per upstream
+            # revision, retried like any dispatch; kinds are kept only for
+            # the same revisions.
+            (if $same and ($e.dispatched_rev // null) == $m.upstream_rev
+             then { dispatched_rev: $e.dispatched_rev, dispatched_at: $e.dispatched_at }
+             else {} end) as $dispatched
+            | ((if $same then ($e | del(.dispatched_rev, .dispatched_at)) else { kinds: {} } end)
+               + { upstream_rev: $m.upstream_rev, locked_rev: $m.locked_rev }
+               + $dispatched) as $entry
+            | {
+                input: $m.input,
+                entry: $entry,
+                dispatch: (
+                  (($policy[0].inputs[$m.input].policy // $default_policy) == "auto")
+                  and (
+                    ($entry.dispatched_rev // null) != $m.upstream_rev
+                    or (($entry.dispatched_at | fromdateiso8601) <= ($now_s - $retry))
+                  )
+                )
+              }
+          elif $m.pr_open then
+            # An update PR is already open and current: nothing to classify or
+            # dispatch. Keep what is known, for the dashboard.
             (if $e != null then { input: $m.input, entry: $e, dispatch: false } else empty end)
           else
             # A dispatch is only recorded once it succeeded (mark-dispatched),
@@ -395,6 +453,7 @@ cmd_summary() {
   jq -r '
     "moved: \([.moved[].input] | join(", "))",
     "unresolved: \(.unresolved | join(", "))",
+    "stale update PRs to refresh: \([.moved[] | select(.pr_stale // false) | .input] | join(", "))",
     "classify (linux): \([.classify.linux[].input] | join(", "))",
     "classify (darwin): \([.classify.darwin[].input] | join(", "))"
   ' "${ARGS[plan]}"
@@ -406,10 +465,11 @@ case "$CMD" in
   plan) cmd_plan ;;
   merge) cmd_merge ;;
   mark-dispatched) cmd_mark_dispatched ;;
+  pr-revs) cmd_pr_revs ;;
   summary) cmd_summary ;;
   -h | --help)
     usage
     exit 0
     ;;
-  *) die "unknown subcommand: $CMD (candidates, resolve-heads, plan, merge, mark-dispatched, summary)" ;;
+  *) die "unknown subcommand: $CMD (candidates, resolve-heads, pr-revs, plan, merge, mark-dispatched, summary)" ;;
 esac

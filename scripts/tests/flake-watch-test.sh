@@ -376,6 +376,80 @@ eq "publish: commit count unchanged" "$before" "$(commits)"
 eq "publish: nothing dispatched" "" "$(cat "$T/gh.log")"
 
 # ---------------------------------------------------------------------------
+# stale update PRs: pr-revs, plan, merge
+# ---------------------------------------------------------------------------
+
+# Fake gh: serves a flake.lock per update-<input> branch; "gone" has none.
+{
+    printf '#!%s\n' "$(command -v bash)"
+    cat <<'EOF'
+# api -H ... repos/o/r/contents/flake.lock?ref=update-<input>
+url="${!#}"
+case "$url" in
+  *ref=update-stuck) echo '{"nodes":{"root":{"inputs":{"stuck":"stuck"}},"stuck":{"locked":{"rev":"s1"}}}}' ;;
+  *ref=update-current) echo '{"nodes":{"root":{"inputs":{"current":"current"}},"current":{"locked":{"rev":"c2"}}}}' ;;
+  *ref=update-manualpr) echo '{"nodes":{"root":{"inputs":{"manualpr":"manualpr"}},"manualpr":{"locked":{"rev":"m1"}}}}' ;;
+  *) echo "HTTP 404" >&2; exit 1 ;;
+esac
+EOF
+} >"$T/fake-gh-lock"
+chmod +x "$T/fake-gh-lock"
+
+echo '["stuck","current","manualpr","gone"]' >"$T/stale-prs.json"
+FLAKE_WATCH_GH="$T/fake-gh-lock" REPO=o/r bash "$WATCH" pr-revs --open-prs "$T/stale-prs.json" >"$T/pr-revs.json" 2>"$T/pr-revs.err"
+eq "pr-revs: each readable PR branch's locked revision; an unreadable one is left out" \
+    '{"current":"c2","manualpr":"m1","stuck":"s1"}' "$(jq -cS . "$T/pr-revs.json")"
+has "pr-revs: warns about the unreadable branch" "update-gone" "$(cat "$T/pr-revs.err")"
+
+cat >"$T/heads-stale.json" <<'EOF'
+[
+  { "input": "stuck", "upstream_rev": "s3", "locked_rev": "s0" },
+  { "input": "current", "upstream_rev": "c2", "locked_rev": "c0" },
+  { "input": "manualpr", "upstream_rev": "m2", "locked_rev": "m0" },
+  { "input": "gone", "upstream_rev": "g2", "locked_rev": "g0" }
+]
+EOF
+bash "$WATCH" plan --heads "$T/heads-stale.json" --open-prs "$T/stale-prs.json" --pr-revs "$T/pr-revs.json" \
+    --previous "$T/empty.json" --now "$PLAN_AT" >"$T/plan-stale.json"
+eq "plan: a PR behind upstream is stale; a current one, or one whose revision is unknown, is not" \
+    "stuck manualpr" "$(jq -r '[.moved[] | select(.pr_stale) | .input] | join(" ")' "$T/plan-stale.json")"
+eq "plan: open PRs are still not classified" "" "$(jq -r '[.classify.linux[].input] | join(" ")' "$T/plan-stale.json")"
+has "summary: lists stale PRs to refresh" "stale update PRs to refresh: stuck, manualpr" \
+    "$(bash "$WATCH" summary --plan "$T/plan-stale.json")"
+
+cat >"$T/policy-stale.json" <<'EOF'
+{ "version": 1, "defaults": { "policy": "auto", "max_age_days": 7 },
+  "inputs": { "manualpr": { "policy": "manual" } } }
+EOF
+mergeS() { # plan previous now
+    bash "$WATCH" merge --plan "$1" --previous "$2" --policy "$T/policy-stale.json" \
+        --linux "$T/empty.json" --darwin "$T/empty.json" --now "$3"
+}
+mergeS "$T/plan-stale.json" "$T/empty.json" "$NOW" >"$T/merged-stale-pr.json"
+eq "merge: a stale PR under auto is refreshed; under manual it is not; current ones are left alone" \
+    '["stuck"]' "$(jq -c '.dispatch' "$T/merged-stale-pr.json")"
+eq "merge: the stale PR gets an entry for its revisions" "s3 s0" \
+    "$(jq -r '.status.inputs.stuck | "\(.upstream_rev) \(.locked_rev)"' "$T/merged-stale-pr.json")"
+
+# Once the refresh dispatch is recorded, the next hour does not repeat it...
+jq .status "$T/merged-stale-pr.json" >"$T/prev-stale.json"
+echo '[{"input":"stuck","rev":"s3"}]' >"$T/done-stale.json"
+bash "$WATCH" mark-dispatched --status "$T/prev-stale.json" --inputs "$T/done-stale.json" --now "$NOW" >"$T/prev-stale2.json"
+mergeS "$T/plan-stale.json" "$T/prev-stale2.json" "2026-11-11T13:00:00Z" >"$T/merged-stale-pr2.json"
+eq "merge: a recorded refresh is not repeated" "[]" "$(jq -c '.dispatch' "$T/merged-stale-pr2.json")"
+eq "merge: ...and keeps its record" "s3" "$(jq -r '.status.inputs.stuck.dispatched_rev' "$T/merged-stale-pr2.json")"
+# ...unless the PR is still behind after the retry interval.
+mergeS "$T/plan-stale.json" "$T/prev-stale2.json" "2026-11-11T18:00:00Z" >"$T/merged-stale-pr3.json"
+eq "merge: still stale 6h later, refreshed again" '["stuck"]' "$(jq -c '.dispatch' "$T/merged-stale-pr3.json")"
+
+# Once the refresh landed on the PR branch, the PR is current again.
+echo '{"stuck":"s3","current":"c2","manualpr":"m1"}' >"$T/pr-revs-after.json"
+bash "$WATCH" plan --heads "$T/heads-stale.json" --open-prs "$T/stale-prs.json" --pr-revs "$T/pr-revs-after.json" \
+    --previous "$T/prev-stale2.json" --now "$PLAN_AT" >"$T/plan-after.json"
+mergeS "$T/plan-after.json" "$T/prev-stale2.json" "2026-11-11T18:00:00Z" >"$T/merged-after.json"
+eq "merge: a refreshed PR is no longer stale and not dispatched" "[]" "$(jq -c '.dispatch' "$T/merged-after.json")"
+
+# ---------------------------------------------------------------------------
 # classify (fake scripts/flake-input-impact.sh)
 # ---------------------------------------------------------------------------
 
