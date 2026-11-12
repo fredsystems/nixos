@@ -145,10 +145,12 @@ jobs:
   # Upstream ships the opencode node_modules fixed-output hash in
   # nix/hashes.json, and the bot PR that updates it is regularly left
   # unmerged when a release is tagged, which fails every opencode host build.
-  # Build upstream's node_modules on each system we deploy and, where its hash
-  # is stale, commit the real one to flake/lib/opencode-node-modules-hashes.json
+  # Build upstream's node_modules against this repo's lock on each system we
+  # deploy and commit the real hash to
+  # flake/lib/opencode-node-modules-hashes.json, keyed by release + toolchain
   # (applied by flake/lib/opencode-overlay.nix). This is a standing check on
-  # every opencode bump, not a workaround for one upstream PR.
+  # every opencode or opencode/nixpkgs change, not a workaround for one
+  # upstream PR.
   #
   # Skipped when relock pushed: that push re-runs this workflow against the
   # new lock, and the hash has to be computed for that lock, not this one.
@@ -202,6 +204,11 @@ jobs:
   opencode-hash-commit:
     name: Commit opencode node_modules hashes
     needs: opencode-hash
+    # A job's implicit success() covers every ancestor, not just `needs`
+    # (actions/runner#2205). relock fails on purpose while hashes are
+    # missing, so without this the repair would always be skipped and the
+    # PR held with nothing to unblock it.
+    if: always() && !cancelled() && needs.opencode-hash.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -241,13 +248,13 @@ jobs:
             ./scripts/opencode-node-modules-hash.sh record "$system" "$hash"
           done
           if git diff --quiet flake/lib/opencode-node-modules-hashes.json; then
-            echo "Upstream node_modules hashes are correct; nothing to do."
+            echo "node_modules hashes already recorded for this release and toolchain; nothing to do."
             exit 0
           fi
           version="$(jq -r '.nodes[.nodes.root.inputs.opencode].original.ref' flake.lock)"
           git config user.email "noreply@github.com"
           git config user.name "github[bot]"
           git add flake/lib/opencode-node-modules-hashes.json
-          git commit -m "fix(opencode): pin node_modules hashes for ${version%%+*}" \
-            -m "Upstream's nix/hashes.json is stale for this release."
+          git commit -m "fix(opencode): record node_modules hashes for ${version%%+*}" \
+            -m "Verified against this repo's locked opencode release and opencode/nixpkgs toolchain."
           git push
