@@ -2,10 +2,10 @@
   "inputs": {
     "flake-utils": {
       "bases": {
-        "darwin": "58f8958a729efd0fd020e6c2b033bc0a59dc9bf1cacb7427abf13dab3ab7e378",
+        "darwin": "67c25099b36f42b666a9347323009b5ff570efe34bfde4e312579fee8829a901",
         "linux": "1c1483ca83a0c53c9b6827814613f60102c6493d4fa85ae47bd9aff8cd67d0fa"
       },
-      "classified_at": "2026-11-12T18:29:27Z",
+      "classified_at": "2026-11-12T23:44:09Z",
       "kinds": {
         "darwin": "none",
         "linux": "none"
@@ -15,10 +15,10 @@
     },
     "home-manager-stable": {
       "bases": {
-        "darwin": "58f8958a729efd0fd020e6c2b033bc0a59dc9bf1cacb7427abf13dab3ab7e378",
+        "darwin": "67c25099b36f42b666a9347323009b5ff570efe34bfde4e312579fee8829a901",
         "linux": "1c1483ca83a0c53c9b6827814613f60102c6493d4fa85ae47bd9aff8cd67d0fa"
       },
-      "classified_at": "2026-11-12T18:29:27Z",
+      "classified_at": "2026-11-12T23:44:09Z",
       "kinds": {
         "darwin": "none",
         "linux": "none"
@@ -28,10 +28,10 @@
     },
     "niri": {
       "bases": {
-        "darwin": "58f8958a729efd0fd020e6c2b033bc0a59dc9bf1cacb7427abf13dab3ab7e378",
+        "darwin": "67c25099b36f42b666a9347323009b5ff570efe34bfde4e312579fee8829a901",
         "linux": "1c1483ca83a0c53c9b6827814613f60102c6493d4fa85ae47bd9aff8cd67d0fa"
       },
-      "classified_at": "2026-11-12T18:29:27Z",
+      "classified_at": "2026-11-12T23:44:09Z",
       "kinds": {
         "darwin": "none",
         "linux": "none"
@@ -48,10 +48,10 @@
     },
     "nixpkgs-kernel": {
       "bases": {
-        "darwin": "58f8958a729efd0fd020e6c2b033bc0a59dc9bf1cacb7427abf13dab3ab7e378",
+        "darwin": "67c25099b36f42b666a9347323009b5ff570efe34bfde4e312579fee8829a901",
         "linux": "1c1483ca83a0c53c9b6827814613f60102c6493d4fa85ae47bd9aff8cd67d0fa"
       },
-      "classified_at": "2026-11-12T18:29:27Z",
+      "classified_at": "2026-11-12T23:44:09Z",
       "kinds": {
         "darwin": "none",
         "linux": "source"
