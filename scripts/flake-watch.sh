@@ -14,12 +14,17 @@
 #                    are dropped -- `nix flake update` cannot move a tag, and
 #                    Renovate owns those. A failed lookup is kept, marked
 #                    `unresolved`, and its last status entry carried forward
-#   plan             which moved inputs need classifying on which OS, each
-#                    with the revisions it is planned for
+#   plan             the moved inputs without an update PR, per OS, each
+#                    with the revisions it is planned for and any kind
+#                    cached for them (with the base fingerprint it was
+#                    computed against)
 #   (classify)       scripts/flake-input-impact.sh, once per OS, on that OS's
-#                    own runner (Darwin is never evaluated from Linux); a
-#                    result is kept only if it classified the planned
-#                    upstream revision
+#                    own runner (Darwin is never evaluated from Linux). It
+#                    computes main's base fingerprint first and reuses a
+#                    cached kind only while that is unchanged, so a merge
+#                    that changes what we build reclassifies; a result is
+#                    kept only if it classified the planned upstream
+#                    revision
 #   merge            the new status file, and the inputs to dispatch
 #                    update-flakes.yaml for
 #   mark-dispatched  records the dispatches that succeeded
@@ -41,6 +46,8 @@
 #     "inputs": {
 #       "<input>": {
 #         "kinds": { "linux": "none|rebuild|source", "darwin": "..." },
+#         "bases": { "linux": "<base fingerprint each kind was computed
+#                    against>", "darwin": "..." },
 #         "upstream_rev": "<upstream head the kinds were classified for>",
 #         "locked_rev": "<our locked rev at the time>",
 #         "classified_at": "<ISO 8601 UTC>",
@@ -240,18 +247,24 @@ cmd_plan() {
             pr_open: (.input as $i | $prs[0] | index($i) != null)
           }
       ] as $moved
+    # Every moved input without an update PR is a candidate on each OS. The
+    # classify job, which can compute the base fingerprint of main, decides which
+    # need evaluating: a cached kind is reused only while the fingerprint it
+    # was computed against is unchanged (a merge to main can change what
+    # bumping an input would do).
     | def needs($os):
         [ $moved[]
           | select(.pr_open | not)
           | . as $m
           | ($p[$m.input] // null) as $e
-          | select(
-              $e == null
-              or $e.upstream_rev != $m.upstream_rev
-              or $e.locked_rev != $m.locked_rev
-              or (($e.kinds // {}) | has($os) | not)
-            )
-          | { input, upstream_rev, locked_rev }
+          | ($e != null and $e.upstream_rev == $m.upstream_rev and $e.locked_rev == $m.locked_rev) as $same
+          | {
+              input,
+              upstream_rev,
+              locked_rev,
+              cached_kind: (if $same then (($e.kinds // {})[$os] // null) else null end),
+              cached_base: (if $same then (($e.bases // {})[$os] // null) else null end)
+            }
         ];
     {
       planned_at: $now,
@@ -289,20 +302,35 @@ cmd_merge() {
         | . as $m
         | ($p[$m.input] // null) as $e
         | ($e != null and $e.upstream_rev == $m.upstream_rev and $e.locked_rev == $m.locked_rev) as $same
-        | ({ linux: $linux[0][$m.input], darwin: $darwin[0][$m.input] }
-           | with_entries(select(.value != null))) as $fresh
+        # Per OS: a fresh result in this publication wins; otherwise the cached
+        # kind is kept only if it was computed against the same base
+        # fingerprint this publication saw (or it saw none: the bookkeeping of
+        # the find job, which evaluates nothing).
+        | [ [ ["linux", $linux[0]], ["darwin", $darwin[0]] ][]
+           | .[0] as $os | .[1] as $res
+           | (($res.kinds // {})[$m.input] // null) as $new
+           | (($e.kinds // {})[$os] // null) as $old
+           | (($e.bases // {})[$os] // null) as $old_base
+           | if $new != null then { os: $os, kind: $new, base: $res.base, fresh: true }
+             elif $same and $old != null and ($res.base == null or $old_base == $res.base)
+               then { os: $os, kind: $old, base: $old_base, fresh: false }
+             else empty end
+          ] as $per_os
+        | ([ $per_os[] | select(.fresh) ] | length > 0) as $any_fresh
+        | ($per_os | map({ key: .os, value: .kind }) | from_entries) as $kinds
+        | ($per_os | map(select(.base != null) | { key: .os, value: .base }) | from_entries) as $bases
         | if $m.pr_open then
             # An update PR is already open: nothing to classify or dispatch.
             # Keep what is known, for the dashboard.
             (if $e != null then { input: $m.input, entry: $e, dispatch: false } else empty end)
           else
-            ((if $same then ($e.kinds // {}) else {} end) + $fresh) as $kinds
-            | select($kinds != {})
+            select($kinds != {})
             | {
                 kinds: $kinds,
+                bases: $bases,
                 upstream_rev: $m.upstream_rev,
                 locked_rev: $m.locked_rev,
-                classified_at: (if $fresh != {} then $now else $e.classified_at end)
+                classified_at: (if $any_fresh then $now else $e.classified_at end)
               }
               # A dispatch is only recorded once it succeeded
               # (mark-dispatched), and only for this upstream revision.

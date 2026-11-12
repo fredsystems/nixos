@@ -150,12 +150,15 @@ bash "$WATCH" plan --heads "$T/heads-plan.json" --open-prs "$T/prs.json" --previ
 eq "plan: up-to-date and unresolved inputs are not moved" "a b c e" "$(jq -r '[.moved[].input] | join(" ")' "$T/plan.json")"
 eq "plan: unresolved inputs listed" '["u"]' "$(jq -c '.unresolved' "$T/plan.json")"
 eq "plan: open PR recorded" "true" "$(jq -r '.moved[] | select(.input == "c") | .pr_open' "$T/plan.json")"
-eq "plan linux: new, PR-free inputs and moved-again ones; a known kind is reused" \
-    "a e" "$(jq -r '[.classify.linux[].input] | join(" ")' "$T/plan.json")"
-eq "plan: each classify entry carries the revisions it is planned for" \
-    '{"input":"e","upstream_rev":"e2","locked_rev":"e0"}' "$(jq -c '.classify.linux[1]' "$T/plan.json")"
-eq "plan darwin: a missing OS kind is asked for again" \
-    "a b e" "$(jq -r '[.classify.darwin[].input] | join(" ")' "$T/plan.json")"
+eq "plan linux: every moved input without an update PR is a candidate" \
+    "a b e" "$(jq -r '[.classify.linux[].input] | join(" ")' "$T/plan.json")"
+eq "plan: a candidate carries its planned revisions; nothing cached for a moved-again input" \
+    '{"input":"e","upstream_rev":"e2","locked_rev":"e0","cached_kind":null,"cached_base":null}' \
+    "$(jq -c '.classify.linux[] | select(.input == "e")' "$T/plan.json")"
+eq "plan: a kind for the same revisions is offered as cached (with its base, none here)" \
+    '"rebuild" null' "$(jq -r '.classify.linux[] | select(.input == "b") | "\(.cached_kind | tojson) \(.cached_base | tojson)"' "$T/plan.json")"
+eq "plan darwin: same candidates, nothing cached for b on darwin" \
+    "a b e null" "$(jq -r '([.classify.darwin[].input] | join(" ")) + " " + (.classify.darwin[] | select(.input == "b") | .cached_kind | tojson)' "$T/plan.json")"
 
 # summary is what the workflow logs; it must accept the plan's real shape.
 set +e
@@ -165,7 +168,7 @@ set -e
 eq "summary: succeeds on a real plan" 0 "$RC"
 has "summary: lists the moved inputs" "moved: a, b, c, e" "$SUMMARY"
 has "summary: lists the unresolved inputs" "unresolved: u" "$SUMMARY"
-has "summary: lists linux classification by name" "classify (linux): a, e" "$SUMMARY"
+has "summary: lists linux classification by name" "classify (linux): a, b, e" "$SUMMARY"
 has "summary: lists darwin classification by name" "classify (darwin): a, b, e" "$SUMMARY"
 
 echo '{}' >"$T/empty.json"
@@ -186,16 +189,16 @@ merge() { # plan previous linux darwin now
     bash "$WATCH" merge --plan "$1" --previous "$2" --policy "$T/policy.json" \
         --linux "$3" --darwin "$4" --now "$5"
 }
-echo '{"a": "source", "e": "source"}' >"$T/lin.json"
-echo '{"b": "source"}' >"$T/dar.json"
+echo '{"base": "B1", "kinds": {"a": "source", "e": "source"}}' >"$T/lin.json"
+echo '{"base": "B1", "kinds": {"b": "source"}}' >"$T/dar.json"
 merge "$T/plan.json" "$T/prev.json" "$T/lin.json" "$T/dar.json" "$NOW" >"$T/merged.json"
 
 eq "merge: status keeps moved, classified inputs and the unresolved one (PR-open c has no entry)" \
     "a b e u" "$(jq -r '.status.inputs | keys | join(" ")' "$T/merged.json")"
 eq "merge: an unresolved input's entry is carried unchanged" \
     "$(jq -c '.inputs.u' "$T/prev.json")" "$(jq -c '.status.inputs.u' "$T/merged.json")"
-eq "merge: a fresh OS result joins the reused one" \
-    '{"darwin":"source","linux":"rebuild"}' "$(jq -cS '.status.inputs.b.kinds' "$T/merged.json")"
+eq "merge: a cached kind with no recorded base is dropped once a base is known (asked again)" \
+    '{"darwin":"source"}' "$(jq -cS '.status.inputs.b.kinds' "$T/merged.json")"
 eq "merge: kinds from an older upstream revision are dropped" \
     '{"linux":"source"}' "$(jq -cS '.status.inputs.e.kinds' "$T/merged.json")"
 eq "merge: revisions recorded" "e2 e0" "$(jq -r '.status.inputs.e | "\(.upstream_rev) \(.locked_rev)"' "$T/merged.json")"
@@ -221,15 +224,32 @@ eq "mark-dispatched: a dispatch of an older revision does not mark the current o
     "$(bash "$WATCH" mark-dispatched --status "$T/prev-undispatched.json" --inputs "$T/done-old.json" --now "$NOW" | jq '.inputs.a | has("dispatched_rev")')"
 
 bash "$WATCH" plan --heads "$T/heads-plan.json" --open-prs "$T/prs.json" --previous "$T/prev2.json" --now "$PLAN_AT" >"$T/plan3.json"
-eq "plan, next hour: nothing to classify on Linux" "" "$(jq -r '[.classify.linux[].input] | join(" ")' "$T/plan3.json")"
+eq "plan, next hour: the cached kind comes with the base it was computed against" \
+    "source B1" "$(jq -r '.classify.linux[] | select(.input == "a") | "\(.cached_kind) \(.cached_base)"' "$T/plan3.json")"
 merge "$T/plan3.json" "$T/prev2.json" "$T/empty.json" "$T/empty.json" "2026-11-11T13:00:00Z" >"$T/merged3.json"
 eq "merge, next hour: byte-identical status" "$(jq -S . "$T/prev2.json")" "$(jq -S .status "$T/merged3.json")"
 eq "merge, next hour: no repeat dispatch" "[]" "$(jq -c '.dispatch' "$T/merged3.json")"
 
-echo '{"a": "source"}' >"$T/dar-a.json"
+echo '{"base": "B1", "kinds": {"a": "source"}}' >"$T/dar-a.json"
 merge "$T/plan3.json" "$T/prev2.json" "$T/empty.json" "$T/dar-a.json" "2026-11-11T13:00:00Z" >"$T/merged4.json"
 eq "merge: a second OS's source result does not re-dispatch" "[]" "$(jq -c '.dispatch' "$T/merged4.json")"
 eq "merge: ...and keeps the dispatch record" "a1" "$(jq -r '.status.inputs.a.dispatched_rev' "$T/merged4.json")"
+
+# Base fingerprints: a classify job that saw the same base keeps cached
+# kinds; one that saw a different base (main changed what it builds) drops
+# them unless it reclassified; the find job (no base) keeps everything.
+eq "merge: a fresh kind records its base" "B1" "$(jq -r '.status.inputs.a.bases.linux' "$T/merged.json")"
+echo '{"base": "B1", "kinds": {}}' >"$T/lin-same.json"
+merge "$T/plan3.json" "$T/prev2.json" "$T/lin-same.json" "$T/empty.json" "2026-11-11T13:00:00Z" >"$T/merged-same.json"
+eq "merge: same base, no fresh result: the cached kind stays" "source" "$(jq -r '.status.inputs.a.kinds.linux' "$T/merged-same.json")"
+eq "merge: ...and the status is unchanged" "$(jq -S . "$T/prev2.json")" "$(jq -S .status "$T/merged-same.json")"
+echo '{"base": "B2", "kinds": {}}' >"$T/lin-new.json"
+merge "$T/plan3.json" "$T/prev2.json" "$T/lin-new.json" "$T/empty.json" "2026-11-11T13:00:00Z" >"$T/merged-new.json"
+eq "merge: a new base with no fresh result drops that OS's cached kind" "null" "$(jq -r '.status.inputs.a.kinds.linux' "$T/merged-new.json")"
+eq "merge: ...but keeps the other OS's kind" "source" "$(jq -r '.status.inputs.b.kinds.darwin' "$T/merged-new.json")"
+echo '{"base": "B2", "kinds": {"a": "none"}}' >"$T/lin-new-a.json"
+merge "$T/plan3.json" "$T/prev2.json" "$T/lin-new-a.json" "$T/empty.json" "2026-11-11T13:00:00Z" >"$T/merged-new-a.json"
+eq "merge: a new base with a fresh result records both" "none B2" "$(jq -r '.status.inputs.a | "\(.kinds.linux) \(.bases.linux)"' "$T/merged-new-a.json")"
 
 # ...until the retry interval passes with still no update PR.
 merge "$T/plan3.json" "$T/prev2.json" "$T/empty.json" "$T/empty.json" "2026-11-11T18:00:00Z" >"$T/merged5.json"
@@ -238,7 +258,7 @@ eq "merge: dispatched 6h ago with no PR: dispatched again" '["a","b"]' "$(jq -c 
 # A new upstream revision drops the old dispatch record.
 jq '[.[] | if .input == "a" then .upstream_rev = "a2" else . end]' "$T/heads-plan.json" >"$T/heads-a2.json"
 bash "$WATCH" plan --heads "$T/heads-a2.json" --open-prs "$T/prs.json" --previous "$T/prev2.json" --now "$PLAN_AT" >"$T/plan6.json"
-echo '{"a": "source"}' >"$T/lin-a.json"
+echo '{"base": "B1", "kinds": {"a": "source"}}' >"$T/lin-a.json"
 merge "$T/plan6.json" "$T/prev2.json" "$T/lin-a.json" "$T/empty.json" "2026-11-11T13:00:00Z" >"$T/merged6.json"
 eq "merge: a new upstream revision is dispatched" '["a"]' "$(jq -c '.dispatch' "$T/merged6.json")"
 eq "merge: ...without the old record" "false" "$(jq '.status.inputs.a | has("dispatched_rev")' "$T/merged6.json")"
@@ -262,7 +282,7 @@ jq '.planned_at = "2026-11-11T09:00:00Z"' "$T/plan3.json" >"$T/plan-old.json"
 jq '. + {planned_at: "2026-11-11T12:00:00Z", inputs: (.inputs + {
       z: { kinds: { linux: "rebuild" }, upstream_rev: "z1", locked_rev: "z0", classified_at: "t" } })}' \
     "$T/prev2.json" >"$T/prev-newer.json"
-echo '{"a": "rebuild", "b": "none"}' >"$T/dar-old.json"
+echo '{"base": "B1", "kinds": {"a": "rebuild", "b": "none"}}' >"$T/dar-old.json"
 jq '.moved |= map(if .input == "b" then .upstream_rev = "b-old" else . end)' "$T/plan-old.json" >"$T/plan-old-b.json"
 merge "$T/plan-old-b.json" "$T/prev-newer.json" "$T/empty.json" "$T/dar-old.json" "2026-11-11T13:00:00Z" >"$T/merged-stale.json"
 eq "merge, stale plan: nothing dispatched" "[]" "$(jq -c '.dispatch' "$T/merged-stale.json")"
@@ -274,7 +294,7 @@ eq "merge, stale plan: the status is left exactly as the newer run published it"
     "$(jq -S . "$T/prev-newer.json")" "$(jq -S .status "$T/merged-stale.json")"
 # A stale result for an OS the newer entry already classified does not
 # replace it (prev-newer has a: linux=source; the stale job says rebuild).
-echo '{"a": "rebuild"}' >"$T/lin-old.json"
+echo '{"base": "B1", "kinds": {"a": "rebuild"}}' >"$T/lin-old.json"
 merge "$T/plan-old-b.json" "$T/prev-newer.json" "$T/lin-old.json" "$T/empty.json" "2026-11-11T13:00:00Z" >"$T/merged-stale2.json"
 eq "merge, stale plan: a newer kind for the same OS wins" "source" "$(jq -r '.status.inputs.a.kinds.linux' "$T/merged-stale2.json")"
 eq "merge, stale plan: planned_at does not go backwards" \
@@ -357,9 +377,13 @@ mkdir -p "$T/classify/scripts"
 {
     printf '#!%s\n' "$(command -v bash)"
     cat <<'EOF'
-# --os OS --json INPUT; "moved" reports a newer revision than planned.
+# --os OS --json INPUT, or --os OS --base-fingerprint; "moved" reports a
+# newer revision than planned.
 input="${!#}"
 case "$input" in
+  --base-fingerprint) echo "B1" ;;
+  cached) echo "evaluated a cached input" >&2; exit 1 ;;
+  rebased) echo '{"input":"rebased","kind":"source","rev":"r4","changed":[]}' ;;
   ok) echo '{"input":"ok","kind":"source","rev":"r1","changed":[]}' ;;
   moved) echo '{"input":"moved","kind":"none","rev":"r9","changed":[]}' ;;
   broken) exit 1 ;;
@@ -369,12 +393,14 @@ EOF
 chmod +x "$T/classify/scripts/flake-input-impact.sh"
 
 set +e
-OUT="$(cd "$T/classify" && INPUTS='[{"input":"ok","upstream_rev":"r1"},{"input":"moved","upstream_rev":"r2"},{"input":"broken","upstream_rev":"r3"}]' \
+OUT="$(cd "$T/classify" && INPUTS='[{"input":"ok","upstream_rev":"r1"},{"input":"moved","upstream_rev":"r2"},{"input":"broken","upstream_rev":"r3"},{"input":"cached","upstream_rev":"r5","cached_kind":"rebuild","cached_base":"B1"},{"input":"rebased","upstream_rev":"r4","cached_kind":"none","cached_base":"B0"}]' \
     bash "$CLASSIFY" linux 2>&1)"
 RC=$?
 set -e
 eq "classify: a result for the planned revision is kept; a moved or failed one is not" \
-    '{"ok":"source"}' "$(jq -c . "$T/classify/impact-linux.json")"
+    '{"ok":"source","rebased":"source"}' "$(jq -cS .kinds "$T/classify/impact-linux.json")"
+eq "classify: the base fingerprint is recorded" "B1" "$(jq -r .base "$T/classify/impact-linux.json")"
+has "classify: a kind cached against the same base is not evaluated again" "cached: rebuild (cached; base unchanged)" "$OUT"
 has "classify: says the input moved since planning" "moved moved again since planning" "$OUT"
 eq "classify: a failed input fails the step, after writing the results" 1 "$RC"
 
