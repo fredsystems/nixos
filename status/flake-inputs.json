@@ -2,10 +2,10 @@
   "inputs": {
     "flake-utils": {
       "bases": {
-        "darwin": "47102473b41501ada0eb9742fa7b882973068e7e1dba99b5fee3b34b1ef5a588",
+        "darwin": "58f8958a729efd0fd020e6c2b033bc0a59dc9bf1cacb7427abf13dab3ab7e378",
         "linux": "7c5187e693993f0a28d21b209eb59dc5b20589a3ec097db1d94d04890b0624e2"
       },
-      "classified_at": "2026-11-12T17:53:39Z",
+      "classified_at": "2026-11-12T18:23:58Z",
       "kinds": {
         "darwin": "none",
         "linux": "none"
@@ -15,10 +15,10 @@
     },
     "home-manager-stable": {
       "bases": {
-        "darwin": "47102473b41501ada0eb9742fa7b882973068e7e1dba99b5fee3b34b1ef5a588",
+        "darwin": "58f8958a729efd0fd020e6c2b033bc0a59dc9bf1cacb7427abf13dab3ab7e378",
         "linux": "7c5187e693993f0a28d21b209eb59dc5b20589a3ec097db1d94d04890b0624e2"
       },
-      "classified_at": "2026-11-12T17:53:39Z",
+      "classified_at": "2026-11-12T18:23:58Z",
       "kinds": {
         "darwin": "none",
         "linux": "none"
@@ -26,12 +26,23 @@
       "locked_rev": "24f2190587513b9c2f73db112a17844ae912d965",
       "upstream_rev": "6eb2d33d1d0c95a37ef6443c88e6c1686012ee8b"
     },
+    "niri": {
+      "bases": {
+        "darwin": "58f8958a729efd0fd020e6c2b033bc0a59dc9bf1cacb7427abf13dab3ab7e378"
+      },
+      "classified_at": "2026-11-12T18:23:58Z",
+      "kinds": {
+        "darwin": "none"
+      },
+      "locked_rev": "8471ad71a8f49527fdd98a81316720fb1b793368",
+      "upstream_rev": "3e3dc12e56a7d2bf235a08169a9f3137e8694e99"
+    },
     "nixpkgs-kernel": {
       "bases": {
-        "darwin": "47102473b41501ada0eb9742fa7b882973068e7e1dba99b5fee3b34b1ef5a588",
+        "darwin": "58f8958a729efd0fd020e6c2b033bc0a59dc9bf1cacb7427abf13dab3ab7e378",
         "linux": "7c5187e693993f0a28d21b209eb59dc5b20589a3ec097db1d94d04890b0624e2"
       },
-      "classified_at": "2026-11-12T17:53:39Z",
+      "classified_at": "2026-11-12T18:23:58Z",
       "kinds": {
         "darwin": "none",
         "linux": "source"
