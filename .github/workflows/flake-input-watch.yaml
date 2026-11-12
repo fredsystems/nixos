@@ -95,7 +95,7 @@ jobs:
             echo "linux=$(jq -c '.classify.linux' watch/plan.json)"
             echo "darwin=$(jq -c '.classify.darwin' watch/plan.json)"
           } >> "$GITHUB_OUTPUT"
-          jq -r '"moved: \([.moved[].input] | join(", "))\nclassify (linux): \(.classify.linux | join(", "))\nclassify (darwin): \(.classify.darwin | join(", "))"' watch/plan.json
+          scripts/flake-watch.sh summary --plan watch/plan.json
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:

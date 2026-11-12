@@ -61,6 +61,7 @@
 #   flake-watch.sh plan --heads FILE --open-prs FILE --previous FILE --now ISO8601
 #   flake-watch.sh merge --plan FILE --previous FILE --policy FILE
 #                        --linux FILE --darwin FILE --now ISO8601
+#   flake-watch.sh summary --plan FILE
 #   flake-watch.sh mark-dispatched --status FILE --inputs FILE --now ISO8601
 #                  (--inputs: [{"input", "rev"}] of dispatches that succeeded)
 #
@@ -356,15 +357,27 @@ cmd_mark_dispatched() {
   ' "${ARGS[status]}"
 }
 
+# One line each for the run log: what moved, and what is classified where.
+cmd_summary() {
+  need plan
+  jq -r '
+    "moved: \([.moved[].input] | join(", "))",
+    "unresolved: \(.unresolved | join(", "))",
+    "classify (linux): \([.classify.linux[].input] | join(", "))",
+    "classify (darwin): \([.classify.darwin[].input] | join(", "))"
+  ' "${ARGS[plan]}"
+}
+
 case "$CMD" in
   candidates) cmd_candidates ;;
   resolve-heads) cmd_resolve_heads ;;
   plan) cmd_plan ;;
   merge) cmd_merge ;;
   mark-dispatched) cmd_mark_dispatched ;;
+  summary) cmd_summary ;;
   -h | --help)
     usage
     exit 0
     ;;
-  *) die "unknown subcommand: $CMD (candidates, resolve-heads, plan, merge, mark-dispatched)" ;;
+  *) die "unknown subcommand: $CMD (candidates, resolve-heads, plan, merge, mark-dispatched, summary)" ;;
 esac
