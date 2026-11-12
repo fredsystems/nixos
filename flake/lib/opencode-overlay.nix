@@ -11,14 +11,26 @@
 # opencode PRs by renovate-relock.yaml). An entry only applies to the exact
 # opencode AND nixpkgs revisions it was computed for. Updating Bun can change
 # the dependency hash without changing the OpenCode release.
+#
+# Upstream's release lock can also pin a nixpkgs whose Bun does not satisfy
+# package.json's packageManager (2.2.7 locked Bun 1.4.2 against bun@1.4.4),
+# and its recipe downgrades the build script's Bun check to a warning, so the
+# result builds and passes `--version` but its server crashes on start. The
+# assert refuses that toolchain at evaluation time, the postPatch
+# re-arms upstream's own check at build time, and the install check starts
+# the server.
 inputs: final: _:
 let
   inherit (final.stdenv.hostPlatform) system;
+  inherit (final) lib;
   upstream = inputs.opencode.packages.${system}.opencode;
   toolchain = inputs.opencode.inputs.nixpkgs;
-  requiredBun =
-    final.lib.removePrefix "bun@"
-      (builtins.fromJSON (builtins.readFile (inputs.opencode + "/package.json"))).packageManager;
+  toolchainPkgs = toolchain.legacyPackages.${system};
+  bun = import ./opencode-bun.nix {
+    inherit (toolchain) lib;
+    inherit (lib.importJSON (inputs.opencode + "/package.json")) packageManager;
+    inherit (toolchainPkgs) bun;
+  };
   pinned = builtins.fromJSON (builtins.readFile ./opencode-node-modules-hashes.json);
   entry = pinned.nodeModules.${system} or null;
   hash =
@@ -26,16 +38,26 @@ let
       entry.hash
     else
       null;
+  # The text upstream's postPatch substitutes in for the build script's throw.
+  # Only undone when present: if upstream drops or rewords the relaxation, the
+  # evaluation-time assert still guards the toolchain.
+  relaxedCheck = "console.warn(`Warning: This script requires bun@";
 in
 {
   opencode =
-    assert final.lib.assertMsg
-      (final.lib.versionAtLeast toolchain.legacyPackages.${system}.bun.version requiredBun)
-      "OpenCode requires Bun >= ${requiredBun}; run scripts/opencode-node-modules-hash.sh relock and refresh its hashes";
+    assert lib.assertMsg bun.compatible
+      "OpenCode requires Bun ${bun.range}, but opencode/nixpkgs (${toolchain.rev}) has Bun ${bun.version} for ${system}; run scripts/opencode-node-modules-hash.sh relock and refresh its hashes";
     upstream.overrideAttrs (old: {
       __darwinAllowLocalNetworking = true;
       node_modules =
         if hash == null then upstream.node_modules else upstream.node_modules.override { inherit hash; };
+
+      postPatch =
+        (old.postPatch or "")
+        + lib.optionalString (lib.hasInfix relaxedCheck (old.postPatch or "")) ''
+          substituteInPlace packages/script/src/index.ts \
+            --replace-fail '${relaxedCheck}' 'throw new Error(`This script requires bun@'
+        '';
 
       # --version never loads the server module that failed on Bun 1.4.2.
       # Exercise it in every package build, including the Linux/Darwin CI
@@ -58,7 +80,7 @@ in
               exit 1
             fi
             url=$(sed -n 's/^server listening on \(http:\/\/127.0.0.1:[0-9]*\).*$/\1/p' server.log | head -n1)
-            if [ -n "$url" ] && ${toolchain.legacyPackages.${system}.curl}/bin/curl \
+            if [ -n "$url" ] && ${toolchainPkgs.curl}/bin/curl \
               --silent --fail --max-time 1 --user opencode:build-smoke "$url/api/info" >info.json; then
               echo "OpenCode server startup check passed"
               exit 0

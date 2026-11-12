@@ -1,22 +1,28 @@
 #!/usr/bin/env bash
 # Hermetic regression coverage for consumer-lock evaluation and toolchain keys.
+# Runs from a hook and from a Nix build sandbox (flake/dev/checks.nix), which
+# has no /usr/bin/env, so generated mocks get this bash's absolute path.
 set -euo pipefail
+bash_shebang="#!$(command -v bash)"
 root="$(cd "$(dirname "$0")/../.." && pwd)"
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 mkdir -p "$work/repo/scripts" "$work/repo/flake/lib" "$work/bin"
 cp "$root/scripts/opencode-node-modules-hash.sh" "$work/repo/scripts/"
+chmod 0755 "$work/repo/scripts/opencode-node-modules-hash.sh" # read-only when copied from the store
 git -C "$work/repo" init --quiet
 printf '{"nodes":{"root":{"inputs":{"opencode":"opencode"}},"opencode":{"locked":{"rev":"release"}}}}\n' > "$work/repo/flake.lock"
 export MOCK_NIXPKGS_REV=toolchain-a MOCK_LOG="$work/calls" MOCK_READY="$work/ready"
-cat > "$work/bin/nix" <<'MOCK'
-#!/usr/bin/env bash
+{
+  echo "$bash_shebang"
+  cat <<'MOCK'
 set -euo pipefail
 printf '%s\n' "$*" >> "$MOCK_LOG"
 case "$*" in
   *github:*) echo 'standalone upstream evaluation ignores consumer lock' >&2; exit 1 ;;
-  'flake update --flake '*'/repo opencode/nixpkgs') touch "$MOCK_READY" ;;
-  *'versionAtLeast'*) if [[ -f $MOCK_READY ]]; then echo true; else echo false; fi ;;
+  'flake update --flake '*'/repo opencode/nixpkgs') [[ -n ${MOCK_NEVER_READY:-} ]] || touch "$MOCK_READY" ;;
+  *'opencode-bun.nix'*'aarch64-darwin'*)
+    if [[ -f $MOCK_READY ]]; then echo '{"compatible":true}'; else echo '{"compatible":false}'; fi ;;
   *'nixpkgsRev = '*) printf '{"rev":"release","nixpkgsRev":"%s"}\n' "$MOCK_NIXPKGS_REV" ;;
   *'builtins.getFlake '*'.node_modules.outputHash') echo sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA= ;;
   'build '*builtins.getFlake*'.node_modules')
@@ -26,25 +32,32 @@ case "$*" in
   *) echo "Unexpected nix call: $*" >&2; exit 1 ;;
 esac
 MOCK
+} > "$work/bin/nix"
 chmod +x "$work/bin/nix"
 export PATH="$work/bin:$PATH"
 cd "$work/repo"
 script=./scripts/opencode-node-modules-hash.sh
-hash=$($script compute x86_64-linux)
+run() { bash "$script" "$@"; }
+hash=$(run compute x86_64-linux)
 [[ $hash == sha256-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB= ]]
 echo '{"nodeModules":{"aarch64-darwin":{"rev":"release","nixpkgsRev":"toolchain-a","hash":"old-darwin"}}}' > flake/lib/opencode-node-modules-hashes.json
-$script record x86_64-linux "$hash"
+run record x86_64-linux "$hash"
 jq -e '.nodeModules["x86_64-linux"].nixpkgsRev == "toolchain-a" and .nodeModules["aarch64-darwin"].hash == "old-darwin"' flake/lib/opencode-node-modules-hashes.json >/dev/null
 export MOCK_NIXPKGS_REV=toolchain-b
-$script record x86_64-linux "$hash"
+run record x86_64-linux "$hash"
 jq -e '.nodeModules["x86_64-linux"].nixpkgsRev == "toolchain-b" and .nodeModules["aarch64-darwin"] == {rev:"release", nixpkgsRev:"toolchain-a", hash:"old-darwin"}' flake/lib/opencode-node-modules-hashes.json >/dev/null
-$script relock
+if MOCK_NEVER_READY=1 run relock 2>/dev/null; then
+  echo 'relock accepted a toolchain that is still incompatible after the bump' >&2
+  exit 1
+fi
+[[ ! -f $MOCK_READY ]]
+run relock
 [[ -f $MOCK_READY ]]
 updates_before=$(grep -c '^flake update ' "$MOCK_LOG")
-$script relock
+run relock
 updates_after=$(grep -c '^flake update ' "$MOCK_LOG")
 [[ $updates_after -eq $updates_before ]] # already compatible: no update
-if $script compute invalid-system >/dev/null 2>&1; then
+if run compute invalid-system >/dev/null 2>&1; then
   echo 'unsupported system was accepted' >&2
   exit 1
 fi
@@ -58,15 +71,18 @@ awk '
   body { exit }
 ' "$root/.github/workflows/renovate-relock.yaml" > "$work/relock-step.sh"
 [[ -s $work/relock-step.sh ]]
-printf '#!/usr/bin/env bash\nexit 0\n' > "$script"
-cat > "$work/bin/nix" <<'MOCK'
-#!/usr/bin/env bash
+# The step runs the script directly, so the stub needs a usable shebang.
+printf '%s\nexit 0\n' "$bash_shebang" > "$script"
+{
+  echo "$bash_shebang"
+  cat <<'MOCK'
 case "$MOCK_DIAGNOSTIC" in
   clean) ;;
   warning) echo 'warning: fixture diagnostic' >&2 ;;
   error) echo 'error: fixture diagnostic' >&2; exit 1 ;;
 esac
 MOCK
+} > "$work/bin/nix"
 export GITHUB_OUTPUT="$work/outputs" MOCK_DIAGNOSTIC=clean
 bash "$work/relock-step.sh"
 [[ ! -s $GITHUB_OUTPUT ]]

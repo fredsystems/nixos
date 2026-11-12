@@ -23,8 +23,9 @@
 #   opencode-node-modules-hash.sh record SYSTEM HASH
 #       Record HASH for SYSTEM, keyed by both OpenCode and nixpkgs revisions.
 #
-# `relock` advances only opencode/nixpkgs when upstream's release lock uses
-# an older Bun than package.json requires. `identity` prints the two locked
+# `relock` advances only opencode/nixpkgs when upstream's release lock has a
+# Bun outside package.json's `^packageManager` range on any deployed system
+# (flake/lib/opencode-bun.nix decides). `identity` prints the two locked
 # revisions that determine the dependency hash (also used by CI's skip gate).
 # Requires nix and jq.
 
@@ -34,6 +35,7 @@ repo_root="$(git rev-parse --show-toplevel)"
 lock_file="$repo_root/flake.lock"
 hashes_file="$repo_root/flake/lib/opencode-node-modules-hashes.json"
 flake_expr="builtins.getFlake $(jq -Rn --arg path "$repo_root" '$path')"
+bun_nix="$(jq -Rn --arg path "$repo_root/flake/lib/opencode-bun.nix" '$path')"
 
 log() { printf '%s\n' "$*" >&2; }
 die() {
@@ -60,18 +62,38 @@ identity() {
   }"
 }
 
+# Bun compatibility of the locked opencode/nixpkgs for every deployed system,
+# judged by flake/lib/opencode-bun.nix (the same rule the overlay asserts).
+bun_status() {
+  nix eval --impure --json --expr "let
+    f = ($flake_expr);
+    p = f.inputs.opencode.inputs.nixpkgs;
+    check = system: import (/. + $bun_nix) {
+      inherit (p) lib;
+      inherit (p.lib.importJSON (f.inputs.opencode + \"/package.json\")) packageManager;
+      inherit (p.legacyPackages.\${system}) bun;
+    };
+    systems = [ \"x86_64-linux\" \"aarch64-darwin\" ];
+    results = map check systems;
+  in {
+    range = (builtins.head results).range;
+    bun = builtins.listToAttrs (map (s: { name = s; value = (check s).version; }) systems);
+    compatible = builtins.all (r: r.compatible) results;
+  }"
+}
+
 relock() {
-  local compatible
-  compatible="let f = ($flake_expr); p = f.inputs.opencode.inputs.nixpkgs;
-    required = builtins.replaceStrings [ \"bun@\" ] [ \"\" ]
-      (builtins.fromJSON (builtins.readFile (f.inputs.opencode + \"/package.json\"))).packageManager;
-    in p.lib.versionAtLeast p.legacyPackages.x86_64-linux.bun.version required"
-  if [[ $(nix eval --impure --json --expr "$compatible") != true ]]; then
-    log "OpenCode's locked Bun is too old; updating only opencode/nixpkgs."
+  local status
+  status="$(bun_status)"
+  if [[ $(jq -r .compatible <<<"$status") != true ]]; then
+    log "OpenCode's locked Bun does not satisfy its packageManager pin: $(jq -c . <<<"$status")"
+    log "Updating only opencode/nixpkgs."
     nix flake update --flake "$repo_root" opencode/nixpkgs >&2
+    status="$(bun_status)"
   fi
-  [[ $(nix eval --impure --json --expr "$compatible") == true ]] ||
-    die "opencode/nixpkgs still does not provide the Bun version required by OpenCode"
+  [[ $(jq -r .compatible <<<"$status") == true ]] ||
+    die "opencode/nixpkgs still does not provide a Bun OpenCode accepts: $(jq -c . <<<"$status")"
+  log "OpenCode Bun is compatible: $(jq -c . <<<"$status")"
 }
 
 current_system() {
