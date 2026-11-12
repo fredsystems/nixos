@@ -84,8 +84,13 @@ jobs:
             fi
           fi
 
+          # What each open update PR's branch locks, so a PR left behind
+          # upstream (stuck on a failure) is refreshed instead of waited on.
+          scripts/flake-watch.sh pr-revs --open-prs watch/open-prs.json > watch/pr-revs.json
+
           scripts/flake-watch.sh plan --heads watch/heads.json \
-            --open-prs watch/open-prs.json --previous watch/previous.json \
+            --open-prs watch/open-prs.json --pr-revs watch/pr-revs.json \
+            --previous watch/previous.json \
             --now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > watch/plan.json
 
           {
