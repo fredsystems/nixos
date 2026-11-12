@@ -1,0 +1,1138 @@
+{
+  "uid": "github-flake-inputs",
+  "title": "Flake Inputs",
+  "description": "Flake input freshness, update impact and NixOS channel status (agent-docs/plans/PLAN_03_FLAKE_INPUT_TRACKING.md).",
+  "tags": ["github", "flake", "nixos"],
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 1,
+  "editable": true,
+  "graphTooltip": 0,
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
+  "refresh": "5m",
+  "templating": {
+    "list": []
+  },
+  "annotations": {
+    "list": []
+  },
+  "links": [],
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "Flake inputs",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "panels": []
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Inputs behind upstream",
+      "description": "Root inputs with any tracked node (the input itself or its owned nixpkgs) behind its upstream.",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 1
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "count(max by (repo, input) (github_flake_input_up_to_date == 0)) or vector(0)",
+          "legendFormat": "",
+          "instant": true,
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Source changes waiting",
+      "description": "Inputs whose bump changes source on at least one OS, per the flake-input-watch impact classification. Auto-policy ones get an update PR within the hour.",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 1
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "count(count by (repo, input) (github_flake_input_impact{kind=\"source\"} == 1)) or vector(0)",
+          "legendFormat": "",
+          "instant": true,
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Open update PRs",
+      "description": "update-<input> pull requests currently open.",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 1
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "blue",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "count(github_flake_input_update_pr_open == 1) or vector(0)",
+          "legendFormat": "",
+          "instant": true,
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Stuck update PRs",
+      "description": "Update PRs open over 3 days with failing checks (the FlakeInputUpdateStuck condition).",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 1
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "count(\n  label_replace(github_flake_input_update_pr_open == 1, \"flake_repo\", \"$1\", \"repo\", \"(.*)\")\n  and on (flake_repo, number)\n  label_join(github_pull_needs_attention{checks=\"failure\"} == 1, \"flake_repo\", \"/\", \"org\", \"repo\")\n  and on (flake_repo, number)\n  label_join(time() - github_pull_created_timestamp_seconds > 3 * 24 * 3600, \"flake_repo\", \"/\", \"org\", \"repo\")\n) or vector(0)",
+          "legendFormat": "",
+          "instant": true,
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "table",
+      "title": "Behind upstream, by input",
+      "description": "Per root input: how long it has been behind (from the oldest upstream commit it is missing, so busy upstreams do not reset it) and how many commits. Tag-pinned and channel-tarball nodes have no commit count.",
+      "gridPos": {
+        "h": 10,
+        "w": 14,
+        "x": 0,
+        "y": 5
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": ["sum"],
+          "countRows": false,
+          "fields": ""
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Behind for"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "legendFormat": "",
+          "instant": true,
+          "format": "table",
+          "expr": "max by (repo, input) (time() - github_flake_input_outdated_since_timestamp_seconds)",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "legendFormat": "",
+          "instant": true,
+          "format": "table",
+          "expr": "max by (repo, input) (github_flake_input_commits_behind)",
+          "refId": "B"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "job": true,
+              "instance": true,
+              "hostname": true,
+              "role": true
+            },
+            "renameByName": {
+              "repo": "Repository",
+              "input": "Input",
+              "Value #A": "Behind for",
+              "Value #B": "Commits behind"
+            },
+            "indexByName": {}
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "field": "Behind for",
+                "desc": true
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "table",
+      "title": "Impact of bumping (by OS)",
+      "description": "What bumping each moved input would change, classified by evaluation on each OS's own runner: none (nothing we ship), rebuild (only an owned nixpkgs moved) or source.",
+      "gridPos": {
+        "h": 10,
+        "w": 10,
+        "x": 14,
+        "y": 5
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": ["sum"],
+          "countRows": false,
+          "fields": ""
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Impact"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "source": {
+                        "color": "orange",
+                        "index": 0,
+                        "text": "source"
+                      },
+                      "rebuild": {
+                        "color": "blue",
+                        "index": 1,
+                        "text": "rebuild"
+                      },
+                      "none": {
+                        "color": "green",
+                        "index": 2,
+                        "text": "none"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "legendFormat": "",
+          "instant": true,
+          "format": "table",
+          "expr": "github_flake_input_impact == 1",
+          "refId": "A"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "job": true,
+              "instance": true,
+              "hostname": true,
+              "role": true,
+              "Value": true
+            },
+            "renameByName": {
+              "repo": "Repository",
+              "input": "Input",
+              "os": "OS",
+              "kind": "Impact"
+            },
+            "indexByName": {}
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "field": "Input",
+                "desc": false
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "table",
+      "title": "Update PRs by input",
+      "description": "update-<input> PRs and their numbers; check state and age are on the GitHub CI dashboard.",
+      "gridPos": {
+        "h": 7,
+        "w": 10,
+        "x": 0,
+        "y": 15
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": ["sum"],
+          "countRows": false,
+          "fields": ""
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "legendFormat": "",
+          "instant": true,
+          "format": "table",
+          "expr": "github_flake_input_update_pr_open == 1",
+          "refId": "A"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "job": true,
+              "instance": true,
+              "hostname": true,
+              "role": true,
+              "Value": true
+            },
+            "renameByName": {
+              "repo": "Repository",
+              "input": "Input",
+              "number": "PR"
+            },
+            "indexByName": {}
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "field": "Input",
+                "desc": false
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Inputs behind over time",
+      "description": "Root inputs with any node behind upstream.",
+      "gridPos": {
+        "h": 7,
+        "w": 14,
+        "x": 10,
+        "y": 15
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "count(max by (repo, input) (github_flake_input_up_to_date == 0)) or vector(0)",
+          "legendFormat": "behind",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "type": "row",
+      "title": "Owned nixpkgs",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 22
+      },
+      "panels": []
+    },
+    {
+      "id": 11,
+      "type": "table",
+      "title": "Owned nixpkgs nodes",
+      "description": "Nested nixpkgs that an input keeps for itself instead of following ours (each needs a NOTE in flake.nix saying why). Where EOL pins and rebuild-only churn come from.",
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 23
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": ["sum"],
+          "countRows": false,
+          "fields": ""
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Lock age"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Up to date"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "1": {
+                        "color": "green",
+                        "index": 0,
+                        "text": "yes"
+                      },
+                      "0": {
+                        "color": "orange",
+                        "index": 1,
+                        "text": "behind"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "legendFormat": "",
+          "instant": true,
+          "format": "table",
+          "expr": "github_flake_input_up_to_date{path=~\".+/.+\"}",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "legendFormat": "",
+          "instant": true,
+          "format": "table",
+          "expr": "time() - github_flake_input_locked_timestamp_seconds{path=~\".+/.+\"}",
+          "refId": "B"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "job": true,
+              "instance": true,
+              "hostname": true,
+              "role": true
+            },
+            "renameByName": {
+              "repo": "Repository",
+              "input": "Input",
+              "path": "Node",
+              "ref": "Ref",
+              "channel": "Channel",
+              "Value #A": "Up to date",
+              "Value #B": "Lock age"
+            },
+            "indexByName": {}
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "field": "Node",
+                "desc": false
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "type": "row",
+      "title": "NixOS channels",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 32
+      },
+      "panels": []
+    },
+    {
+      "id": 13,
+      "type": "table",
+      "title": "Channels our locks follow",
+      "description": "From prometheus.nixos.org, refreshed hourly by github-ci-exporter. Supported = still a current channel; tested = the Hydra job that gates every channel advance.",
+      "gridPos": {
+        "h": 8,
+        "w": 18,
+        "x": 0,
+        "y": 33
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": ["sum"],
+          "countRows": false,
+          "fields": ""
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Since last update"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Supported"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "1": {
+                        "color": "green",
+                        "index": 0,
+                        "text": "current"
+                      },
+                      "0": {
+                        "color": "red",
+                        "index": 1,
+                        "text": "end of life"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "tested"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": {
+                        "color": "green",
+                        "index": 0,
+                        "text": "passing"
+                      },
+                      "1": {
+                        "color": "red",
+                        "index": 1,
+                        "text": "failing"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "legendFormat": "",
+          "instant": true,
+          "format": "table",
+          "expr": "nixos_channel_current",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "legendFormat": "",
+          "instant": true,
+          "format": "table",
+          "expr": "nixos_channel_tested_failed",
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "legendFormat": "",
+          "instant": true,
+          "format": "table",
+          "expr": "time() - nixos_channel_update_timestamp_seconds",
+          "refId": "C"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "job": true,
+              "instance": true,
+              "hostname": true,
+              "role": true
+            },
+            "renameByName": {
+              "channel": "Channel",
+              "Value #A": "Supported",
+              "Value #B": "tested",
+              "Value #C": "Since last update"
+            },
+            "indexByName": {}
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "field": "Channel",
+                "desc": false
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "type": "stat",
+      "title": "Channel status lookup",
+      "description": "1 when the last fetch from prometheus.nixos.org succeeded. While 0, the channel data above is the last good copy.",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 33
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "nixos_channel_status_up",
+          "legendFormat": "",
+          "instant": true,
+          "refId": "A"
+        }
+      ]
+    }
+  ]
+}

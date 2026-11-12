@@ -299,7 +299,7 @@ complete until Plan 02 is.
       job publish into the latest file, so an offline runner pool holds up
       only its own OS.
 - [ ] **3.11 Alerts.** The five alerts above, with promtool cases.
-- [ ] **3.12 Dashboard.** `dashboards/flake-inputs.json` in the GitHub
+- [x] **3.12 Dashboard.** `dashboards/flake-inputs.json` in the GitHub
       folder: per-input age and impact, open update PRs, owned nixpkgs
       nodes and their channels, NixOS channel status.
 

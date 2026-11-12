@@ -118,6 +118,13 @@
       group = "grafana";
       mode = "0444";
     };
+
+    "grafana/provisioning/dashboards/github/flake-inputs.json" = {
+      source = ./dashboards/flake-inputs.json;
+      user = "grafana";
+      group = "grafana";
+      mode = "0444";
+    };
   };
 
   services = {
