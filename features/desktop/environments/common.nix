@@ -197,7 +197,9 @@ in
       gvfs.enable = true;
 
       # ── Power state information ───────────────────────────────────────────────
-      upower.enable = true;
+      # mkDefault: nixpkgs' GNOME module sets this itself, and a plain
+      # definition here conflicted with it, so GNOME could not be enabled.
+      upower.enable = lib.mkDefault true;
     };
 
     # ── dconf ──────────────────────────────────────────────────────────────────
