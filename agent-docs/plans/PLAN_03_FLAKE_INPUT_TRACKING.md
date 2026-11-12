@@ -298,7 +298,11 @@ complete until Plan 02 is.
       PR. There is no central publish job: `find` and each OS's classify
       job publish into the latest file, so an offline runner pool holds up
       only its own OS.
-- [ ] **3.11 Alerts.** The five alerts above, with promtool cases.
+- [x] **3.11 Alerts.** The five alerts above, with promtool cases.
+      Done: per-input maximum ages are recording rules generated from
+      `.github/flake-input-policy.json`, tested by promtool as deployed;
+      `FlakeWatchStale` waits 6h, not 3h, because GitHub drops scheduled
+      runs heavily.
 - [x] **3.12 Dashboard.** `dashboards/flake-inputs.json` in the GitHub
       folder: per-input age and impact, open update PRs, owned nixpkgs
       nodes and their channels, NixOS channel status.

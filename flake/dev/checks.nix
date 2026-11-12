@@ -57,9 +57,16 @@
       # health=ok, so an expression that can never be true looks identical to a
       # healthy rule with nothing to report. Five such rules accumulated here
       # before anyone noticed.
+      #
+      # The rules generated from .github/flake-input-policy.json are copied in
+      # next to the hand-written ones, from the same Nix expression
+      # prometheus.nix loads, so the tests exercise exactly what is deployed.
       alertRuleCheck = pkgs.writeShellApplication {
         name = "check-prometheus-alert-rules";
-        runtimeInputs = [ pkgs.prometheus.cli ];
+        runtimeInputs = [
+          pkgs.prometheus.cli
+          pkgs.coreutils
+        ];
         text = ''
           rules_dir="modules/monitoring/master/alert-rules"
 
@@ -68,13 +75,20 @@
             exit 1
           fi
 
+          # A scratch copy: the tree is read-only inside the flake check.
+          work="$(mktemp -d)"
+          trap 'rm -rf "$work"' EXIT
+          cp -R "$rules_dir"/. "$work"/
+          chmod -R u+w "$work"
+          cp ${import ../../modules/monitoring/master/flake-input-policy-rules.nix pkgs} "$work/flake-input-policy-rules.yaml"
+
           echo "==> promtool check rules"
-          promtool check rules "$rules_dir"/*.yaml
+          promtool check rules "$work"/*.yaml
 
           echo "==> promtool test rules"
           # promtool resolves rule_files relative to the test file, so the unit
           # tests must be run from their own directory.
-          cd "$rules_dir/tests"
+          cd "$work/tests"
           promtool test rules ./*.yaml
         '';
       };
@@ -396,7 +410,9 @@
                 # off because the script globs the directory itself: a rule file
                 # and its test file must always be validated together, and
                 # promtool needs the whole set to resolve rule_files.
-                files = "^modules/monitoring/master/alert-rules/.*\\.ya?ml$";
+                # Also the policy file and its generator: FlakeInputOutdated's
+                # tests run against the rules generated from them.
+                files = "^(modules/monitoring/master/alert-rules/.*\\.ya?ml|modules/monitoring/master/flake-input-policy-rules\\.nix|\\.github/flake-input-policy\\.json)$";
                 pass_filenames = false;
               };
 
