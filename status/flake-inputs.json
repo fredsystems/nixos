@@ -3,9 +3,9 @@
     "flake-utils": {
       "bases": {
         "darwin": "67c25099b36f42b666a9347323009b5ff570efe34bfde4e312579fee8829a901",
-        "linux": "1c1483ca83a0c53c9b6827814613f60102c6493d4fa85ae47bd9aff8cd67d0fa"
+        "linux": "e4a128f89306728ce3017ca3f952b4e04f9d3b854e43e31f0d9557c2beacd8ac"
       },
-      "classified_at": "2026-11-12T23:44:09Z",
+      "classified_at": "2026-11-12T23:52:53Z",
       "kinds": {
         "darwin": "none",
         "linux": "none"
@@ -16,9 +16,9 @@
     "home-manager-stable": {
       "bases": {
         "darwin": "67c25099b36f42b666a9347323009b5ff570efe34bfde4e312579fee8829a901",
-        "linux": "1c1483ca83a0c53c9b6827814613f60102c6493d4fa85ae47bd9aff8cd67d0fa"
+        "linux": "e4a128f89306728ce3017ca3f952b4e04f9d3b854e43e31f0d9557c2beacd8ac"
       },
-      "classified_at": "2026-11-12T23:44:09Z",
+      "classified_at": "2026-11-12T23:52:53Z",
       "kinds": {
         "darwin": "none",
         "linux": "none"
@@ -29,9 +29,9 @@
     "niri": {
       "bases": {
         "darwin": "67c25099b36f42b666a9347323009b5ff570efe34bfde4e312579fee8829a901",
-        "linux": "1c1483ca83a0c53c9b6827814613f60102c6493d4fa85ae47bd9aff8cd67d0fa"
+        "linux": "e4a128f89306728ce3017ca3f952b4e04f9d3b854e43e31f0d9557c2beacd8ac"
       },
-      "classified_at": "2026-11-12T23:44:09Z",
+      "classified_at": "2026-11-12T23:52:53Z",
       "kinds": {
         "darwin": "none",
         "linux": "none"
@@ -49,9 +49,9 @@
     "nixpkgs-kernel": {
       "bases": {
         "darwin": "67c25099b36f42b666a9347323009b5ff570efe34bfde4e312579fee8829a901",
-        "linux": "1c1483ca83a0c53c9b6827814613f60102c6493d4fa85ae47bd9aff8cd67d0fa"
+        "linux": "e4a128f89306728ce3017ca3f952b4e04f9d3b854e43e31f0d9557c2beacd8ac"
       },
-      "classified_at": "2026-11-12T23:44:09Z",
+      "classified_at": "2026-11-12T23:52:53Z",
       "kinds": {
         "darwin": "none",
         "linux": "source"
