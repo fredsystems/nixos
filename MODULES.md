@@ -53,8 +53,8 @@ What each export needs from that set:
 | Export                                     | Third-party modules it needs                                         |
 | ------------------------------------------ | -------------------------------------------------------------------- |
 | `adsb-hub`                                 | sops-nix, home-manager                                               |
-| `desktop-common`, `default`                | all of the above                                                     |
-| hardware, data and `github-runners` exports | none                                                                |
+| `desktop-common`                           | all of the above                                                     |
+| `default`, hardware, data, `github-runners` | none                                                                |
 
 ### Settings a consumer provides
 
@@ -70,7 +70,7 @@ exports themselves:
   };
   users.users.alice.isNormalUser = true;
 
-  # desktop-common and default configure Home Manager for that user
+  # desktop-common configures Home Manager for that user
   home-manager.users.alice.home.stateVersion = "26.05";
 }
 ```
@@ -95,6 +95,14 @@ own). Included in `dependencies`; import it alone when you bring your own
 third-party modules. Overlays never conflict with yours.
 
 ## Available NixOS Modules
+
+### `nixosModules.default`
+
+The library: every export that is not a profile (the hardware, data and
+`github-runners` modules), with no role and nothing enabled on its own. It
+needs no third-party modules. Pick a profile, `desktop-common` or `adsb-hub`,
+explicitly; the two describe different kinds of machine, so `default` does
+not include either.
 
 ### Profiles
 
@@ -313,15 +321,6 @@ Flexible GitHub Actions self-hosted runners with automatic cleanup.
 - Support for custom runners alongside auto-generated ones
 - Ephemeral runners by default
 - Per-runner token file and repository override support
-
-#### `nixosModules.default`
-
-Convenience module that imports all common modules. Includes:
-
-- Both profiles (desktop-common, adsb-hub)
-- All hardware profiles
-- All shared modules
-- GitHub runners module
 
 ## Available Home Manager Modules
 
