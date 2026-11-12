@@ -1,8 +1,10 @@
 # Plan 04: Module interfaces
 
-- **Status:** in progress
-- **Branches:** one `plan04/4.N-*` branch and PR per subtask, stacked
-  on the previous one and merged in order.
+- **Status:** complete (merged 2026-11-12), ahead of Plan 02 by the
+  owner's decision; see "Execution model".
+- **Branches:** one `plan04/4.N-*` branch and PR per subtask, merged in
+  order (4.1-4.9 #2811-#2828, 4.10 #2843, 4.11 #2844, 4.12 #2845, 4.13
+  #2846, 4.14 #2848, 4.15 #2849).
 
 ## Goal
 
@@ -157,9 +159,12 @@ Strictly sequential. 4.2 is the foundation every migration builds on,
 and most subtasks edit the three builders, so concurrent branches would
 conflict on them. One branch and PR per subtask, merged in order.
 
-Plan 02 and Plan 03 are in progress. Under `plan-sequencing-discipline`,
-4.x PRs can merge as they finish, but Plan 04 cannot be marked complete
-until both are.
+**Completed ahead of Plan 02, as a documented exception** to
+`plan-sequencing-discipline`'s contiguous-prefix rule. Plan 03 is
+complete; Plan 02 is still in progress and, having started, cannot be
+renumbered. The owner decided (2026-11-12) that this plan completes
+regardless, because nothing in it depends on Plan 02 (the receiver
+comparison) or the other way round.
 
 ## Subtasks
 
