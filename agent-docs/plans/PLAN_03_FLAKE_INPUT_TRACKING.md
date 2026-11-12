@@ -231,7 +231,7 @@ complete until Plan 02 is.
 
 ### Exporter (`fredsystems/github-ci-exporter`)
 
-- [ ] **3.4 Lock model and hourly pass.** `src/flake/`: fetch
+- [x] **3.4 Lock model and hourly pass.** `src/flake/`: fetch
       `flake.lock` for each configured repo through the ETag cache, parse
       it, and derive the tracked node set (root inputs plus owned nixpkgs,
       with paths), classifying each as branch, tag or channel tarball and
@@ -240,7 +240,7 @@ complete until Plan 02 is.
       Contents API, follows resolution, a 304 that leaves the cached set
       unchanged, and a fixture with this repo's `catppuccin/nixpkgs`
       tarball node.
-- [ ] **3.5 Upstream heads and update PRs.** One aliased GraphQL query
+- [x] **3.5 Upstream heads and update PRs.** One aliased GraphQL query
       for every GitHub node's upstream (branch head, or newest tag for
       tag-pinned nodes) and each input's open `update-<input>` PR with its
       number, through the existing budget pre-flight. A REST compare for
@@ -253,7 +253,7 @@ complete until Plan 02 is.
       `outdated_since` stays put when a second upstream commit lands, a
       batch with a deleted repo, and budget exhaustion keeping the last
       published values.
-- [ ] **3.6 NixOS channel status.** A client for `prometheus.nixos.org`
+- [x] **3.6 NixOS channel status.** A client for `prometheus.nixos.org`
       with its own base URL option and backoff, three instant queries per
       pass, cached and published as `nixos_channel_*`. Channel-tarball
       nodes take their upstream revision from `channel_revision` and their
