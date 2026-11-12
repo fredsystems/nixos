@@ -180,6 +180,32 @@ git_commit_all "$TMPROOT/dep-source" "bump value"
 
 expect_kind "(d) own source change, used" "dep-source" "source"
 
+# A failing mktemp must stop the script, not leave TMP at the working
+# directory for the exit trap to rm -rf.
+mkdir -p "$TMPROOT/cwd-guard"
+echo keep >"$TMPROOT/cwd-guard/sentinel"
+set +e
+(cd "$TMPROOT/cwd-guard" && TMPDIR="$TMPROOT/does-not-exist" bash "$SCRIPT" --flake "$TMPROOT/consumer" "dep-source" >/dev/null 2>"$TMPROOT/stderr.log")
+rc=$?
+set -e
+if [[ $rc -ne 0 && -f "$TMPROOT/cwd-guard/sentinel" ]]; then
+    ok
+else
+    bad "a failing mktemp stops the script and leaves the working directory alone" "exit: $rc" "sentinel present: $([[ -f "$TMPROOT/cwd-guard/sentinel" ]] && echo yes || echo no)"
+fi
+
+# The same classification with the scratch directory reached through a
+# symlink, as macOS's /tmp and /var are (both point into /private). Nix
+# refuses a --reference-lock-file under a symlinked path, which failed every
+# Darwin classification until the script resolved its scratch directory.
+mkdir -p "$TMPROOT/real-tmp"
+ln -s "$TMPROOT/real-tmp" "$TMPROOT/linked-tmp"
+if actual="$(TMPDIR="$TMPROOT/linked-tmp" run_script "dep-source")" && [[ "$actual" == "source" ]]; then
+    ok
+else
+    bad "(d) through a symlinked TMPDIR" "expected: source" "actual: ${actual:-}" "stderr:" "$(cat "$TMPROOT/stderr.log")"
+fi
+
 # --json reports the bumped revision it classified, which callers compare
 # against the revision they planned for.
 if json="$(run_script "dep-source" --json)"; then
