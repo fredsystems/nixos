@@ -157,6 +157,17 @@ eq "plan: each classify entry carries the revisions it is planned for" \
 eq "plan darwin: a missing OS kind is asked for again" \
     "a b e" "$(jq -r '[.classify.darwin[].input] | join(" ")' "$T/plan.json")"
 
+# summary is what the workflow logs; it must accept the plan's real shape.
+set +e
+SUMMARY="$(bash "$WATCH" summary --plan "$T/plan.json" 2>&1)"
+RC=$?
+set -e
+eq "summary: succeeds on a real plan" 0 "$RC"
+has "summary: lists the moved inputs" "moved: a, b, c, e" "$SUMMARY"
+has "summary: lists the unresolved inputs" "unresolved: u" "$SUMMARY"
+has "summary: lists linux classification by name" "classify (linux): a, e" "$SUMMARY"
+has "summary: lists darwin classification by name" "classify (darwin): a, b, e" "$SUMMARY"
+
 echo '{}' >"$T/empty.json"
 bash "$WATCH" plan --heads "$T/heads-plan.json" --open-prs "$T/prs.json" --previous "$T/empty.json" --now "$PLAN_AT" >"$T/plan-first.json"
 eq "plan: no previous status file classifies everything moved without a PR" \
