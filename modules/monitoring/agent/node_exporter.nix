@@ -1,5 +1,6 @@
 {
   config,
+  options,
   pkgs,
   lib,
   ...
@@ -97,18 +98,25 @@ let
   # declares is the one that answers. Delete the fallback, and the regex
   # parsing it needs, once stable has `settings`.
   #
-  # `or` rather than a `hasStructuredSettings`-style option-tree probe: a
-  # missing attribute on `config` is an ordinary attrset miss, so the default
-  # arm already selects the right dialect without a second mechanism.
+  # Which dialect is decided by asking the option tree, as
+  # modules/base/journald.nix does, not by `or` on config: where nixpkgs has
+  # the structured option, `extraConfig` is still *declared* (as a removed
+  # option), so reading it throws rather than falling back. Our desktops never
+  # reached that read only because journald.nix sets the structured option
+  # first; an export evaluated without journald.nix did.
   #
   # If neither is set, or the value doesn't parse, this evaluates to null and
   # the systemd unit below simply omits node_journal_max_bytes rather than
   # emitting a hardcoded/wrong constant.
+  hasStructuredSettings = options ? services.journald.settings;
+
   structuredSystemMaxUse = config.services.journald.settings.Journal.SystemMaxUse or null;
 
   legacySystemMaxUse =
     let
-      lines = lib.splitString "\n" (config.services.journald.extraConfig or "");
+      lines = lib.splitString "\n" (
+        if hasStructuredSettings then "" else config.services.journald.extraConfig or ""
+      );
       line = lib.findFirst (l: builtins.match "[[:space:]]*SystemMaxUse=.*" l != null) null lines;
       match = if line == null then null else builtins.match "[[:space:]]*SystemMaxUse=(.*)" line;
     in
