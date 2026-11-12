@@ -138,23 +138,20 @@ in
       ];
     };
 
-    # Everything above except `dependencies`; add that too unless you supply
-    # the third-party modules yourself.
+    # The library: every export that is not a profile (hardware, data,
+    # github-runners). No role and nothing enabled on its own; pick a
+    # profile (desktop-common or adsb-hub) explicitly. Needs no third-party
+    # modules, so it works without `dependencies`.
     default = {
       imports = [
-        ../profiles/desktop.nix
-        ../features/desktop
-        ../profiles/adsb-hub.nix
         ../modules/hardware
         ../modules/data/nas-mounts.nix
         ../modules/data/wifi-networks.nix
         ../modules/data/sync-hosts.nix
+        ../modules/data/docker-image-pins.nix
         ../modules/services/github-runners.nix
         ../modules/services/github-runners-linux.nix
-        wallpapers
       ]
-      ++ fleetIdentity
-      ++ deploymentMeta
       ++ unfree;
     };
   };

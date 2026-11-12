@@ -255,7 +255,7 @@ and `--os darwin` report no impacted hosts; every host evaluates with no
       the removed `services.journald.extraConfig` through `or`, which
       throws on unstable unless `journald.nix` happened to set the
       structured option first.
-- [ ] **4.11 Make `nixosModules.default` coherent.** It combines both
+- [x] **4.11 Make `nixosModules.default` coherent.** It combines both
       profiles. Either it evaluates standalone once 4.10 lands, or it is
       redefined as the set that does (decide from 4.10's result, before
       starting 4.11). 4.10's result: its toplevel evaluates with
@@ -263,6 +263,10 @@ and `--os darwin` report no impacted hosts; every host evaluates with no
       yet coherent: both profiles set `deployment.role` with `mkDefault`
       ("desktop" and "monitoring-agent"), so reading the role fails
       (raised in review on #2843). 4.11 resolves that.
+      Done. **Decided: `default` is the library** (owner's choice): every
+      non-profile export, no role, no third-party modules needed. The two
+      profiles describe different kinds of machine, so a consumer picks one
+      explicitly.
 - [ ] **4.12 Standalone export check.** `exports-standalone` in
       `flake/dev/checks.nix`: evaluate every `nixosModules.*` attr in a
       bare `nixosSystem` (minimal stub: host platform, root filesystem,
@@ -273,6 +277,9 @@ and `--os darwin` report no impacted hosts; every host evaluates with no
 - [ ] **4.13 Documentation.** `MODULES.md` (exports are standalone;
       what each one brings), `agents.md` (the "`inputs` is the only
       specialArg" rule), and a short note in `flake/lib/mk-system.nix`.
+      Includes: MODULES.md's "Combining Modules" and "Using lib.mkDefault"
+      examples predate 4.10 and omit `nixosModules.dependencies` (noted
+      during 4.11).
 
 ### Cleanup
 
