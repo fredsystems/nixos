@@ -294,7 +294,7 @@ and `--os darwin` report no impacted hosts; every host evaluates with no
 
 ### Cleanup
 
-- [ ] **4.14 The gnome environment no longer evaluates.** Surfaced during
+- [x] **4.14 The gnome environment no longer evaluates.** Surfaced during
       4.6 (verifying its `hmlib` change, by enabling
       `desktop.environments.gnome` on Daytona). Two pre-existing failures,
       identical on `main`: `services.upower.enable` conflicts
@@ -306,7 +306,11 @@ and `--os darwin` report no impacted hosts; every host evaluates with no
       if so, make common.nix's upower setting `lib.mkDefault` and drop or
       replace `gnome-photos` (nixpkgs suggests `loupe` or `shotwell`).
       Verification: Daytona with gnome enabled evaluates its toplevel.
-      Not scheduled against this plan's subtasks; independent.
+      Not scheduled against this plan's subtasks; independent. Done: kept
+      (owner's decision); common.nix's upower is `lib.mkDefault`, and
+      `gnome-photos` came off the exclude list (nixpkgs no longer ships
+      it, so there is nothing to replace). Daytona with GNOME enabled
+      evaluates.
 - [ ] **4.15 Check-only Nix checks never run in CI.** Surfaced during 4.12:
       `lint.yaml` builds only `pre-commit-check`, `decoder-units-sync` and
       (now) `exports-standalone`. Flake checks that are not also pre-commit
