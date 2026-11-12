@@ -589,7 +589,14 @@
           # only, so it costs nothing.
           checks-in-ci =
             let
-              lintYaml = builtins.readFile (self + "/.github/workflows/lint.yaml");
+              # Comment lines dropped, so a commented-out build step does not
+              # count as coverage. (Not "everything after #": the check
+              # references themselves are `.#checks.<system>.<name>`.)
+              lintYaml = lib.concatStringsSep "\n" (
+                lib.filter (line: builtins.match "[[:space:]]*#.*" line == null) (
+                  lib.splitString "\n" (builtins.readFile (self + "/.github/workflows/lint.yaml"))
+                )
+              );
               inLint = lib.unique (
                 lib.concatMap (m: if lib.isList m then m else [ ]) (
                   builtins.split "checks\\.x86_64-linux\\.([a-z0-9-]+)" lintYaml
