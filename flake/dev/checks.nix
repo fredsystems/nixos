@@ -490,10 +490,10 @@
                 name = "MODULES.md / desktop-server host-split drift";
                 entry = "${pkgs.lib.getExe docDriftCheck}";
 
-                # flake.nix is where the `nixosModules` attrset itself is
-                # declared (module add/rename/removal), so it is the actual
+                # flake/exports.nix is where the `nixosModules` attrset itself
+                # is declared (module add/rename/removal), so it is the actual
                 # trigger for MODULES.md drift, not modules/*.nix directly.
-                files = "^(MODULES\\.md|flake\\.nix|flake/hosts/servers\\.nix|\\.github/workflows/ci-linux\\.yaml)$";
+                files = "^(MODULES\\.md|flake\\.nix|flake/exports\\.nix|flake/hosts/servers\\.nix|\\.github/workflows/ci-linux\\.yaml)$";
                 pass_filenames = false;
               };
 
@@ -1064,6 +1064,151 @@
               echo "overlays/default.nix to ${actual}. If upstream fixed the bug," >&2
               echo "drop the patch and resolve its entry in" >&2
               echo ".github/tracked-upstream-fixes.json." >&2
+              exit 1
+            ''
+        );
+    }
+    # Every export evaluates in a bare nixosSystem / homeManagerConfiguration
+    # with no specialArgs (agent-docs/plans/PLAN_04_MODULE_INTERFACES.md,
+    # 4.12; see flake/exports.nix and MODULES.md for the two ways to use
+    # them). Keyed off the exports' attribute names, so a new export is
+    # covered without touching this check. Linux only: the exports are NixOS
+    # modules, and catppuccin's import-from-derivation would need Linux
+    # builds on any other platform.
+    // lib.optionalAttrs (lib.hasSuffix "-linux" system) {
+      exports-standalone =
+        let
+          inherit (self) nixosModules homeModules;
+
+          # The smallest host a NixOS evaluation accepts.
+          stub = {
+            nixpkgs.hostPlatform = system;
+            boot.loader.grub.enable = false;
+            fileSystems."/" = {
+              device = "nodev";
+              fsType = "ext4";
+            };
+            system.stateVersion = "26.05";
+          };
+
+          # The settings MODULES.md tells a consumer to provide, applied only
+          # where an export declares the options, so the same module serves
+          # every export.
+          consumer =
+            { options, lib, ... }:
+            {
+              config = lib.mkMerge [
+                # Unconditional: Home Manager's NixOS module looks the user up
+                # here even for exports that declare no shared.* options.
+                { users.users.alice.isNormalUser = true; }
+                (lib.optionalAttrs (options ? shared.user) {
+                  shared.user = {
+                    name = "alice";
+                    fullName = "Alice Example";
+                    email = "alice@example.com";
+                  };
+                })
+                (lib.optionalAttrs (options ? home-manager.users) {
+                  home-manager.users.alice.home.stateVersion = "26.05";
+                })
+              ];
+            };
+
+          # Exports documented in MODULES.md as needing third-party modules,
+          # so only checked with `dependencies`. Every other export must also
+          # evaluate entirely on its own.
+          needsDependencies = [
+            "adsb-hub"
+            "desktop-common"
+          ];
+
+          evaluates =
+            modules:
+            (builtins.tryEval (
+              builtins.seq
+                (inputs.nixpkgs.lib.nixosSystem { inherit modules; }).config.system.build.toplevel.drvPath
+                true
+            )).value;
+
+          hmEvaluates =
+            module:
+            (builtins.tryEval (
+              builtins.seq
+                (inputs.home-manager.lib.homeManagerConfiguration {
+                  pkgs = import inputs.nixpkgs {
+                    inherit system;
+                    config.allowUnfree = true;
+                  };
+                  modules = [
+                    module
+                    {
+                      home = {
+                        username = "alice";
+                        homeDirectory = "/home/alice";
+                        stateVersion = "26.05";
+                      };
+                    }
+                  ];
+                }).activationPackage.drvPath
+                true
+            )).value;
+
+          nixosProblems = lib.concatMap (
+            name:
+            let
+              export = nixosModules.${name};
+            in
+            lib.optional (
+              !evaluates [
+                export
+                nixosModules.dependencies
+                stub
+                consumer
+              ]
+            ) "  nixosModules.${name} + dependencies"
+            ++ lib.optional (
+              !(lib.elem name needsDependencies)
+              && !evaluates [
+                export
+                stub
+                consumer
+              ]
+            ) "  nixosModules.${name} on its own"
+          ) (lib.attrNames nixosModules);
+
+          # The "bring your own" path (MODULES.md): overlays plus the
+          # consumer's own, differently pinned, sops-nix and home-manager.
+          ownModulesProblems = lib.optional (
+            !evaluates [
+              nixosModules.adsb-hub
+              nixosModules.overlays
+              inputs.sops-nix-stable.nixosModules.sops
+              inputs.home-manager-stable.nixosModules.home-manager
+              stub
+              consumer
+            ]
+          ) "  nixosModules.adsb-hub + overlays + the consumer's own sops-nix and home-manager";
+
+          hmProblems = lib.concatMap (
+            name: lib.optional (!hmEvaluates homeModules.${name}) "  homeModules.${name} on its own"
+          ) (lib.attrNames homeModules);
+
+          problems = nixosProblems ++ ownModulesProblems ++ hmProblems;
+        in
+        pkgs.runCommand "exports-standalone-check" { } (
+          if problems == [ ] then
+            ''
+              echo "exports-standalone OK: ${toString (lib.length (lib.attrNames nixosModules))} nixosModules, ${toString (lib.length (lib.attrNames homeModules))} homeModules"
+              touch "$out"
+            ''
+          else
+            ''
+              echo "These exports do not evaluate in a bare configuration:" >&2
+              ${lib.concatMapStringsSep "\n" (p: "echo ${lib.escapeShellArg p} >&2") problems}
+              echo "" >&2
+              echo "Each must work as MODULES.md documents, with no specialArgs. To see" >&2
+              echo "the error, evaluate the same modules with nixpkgs.lib.nixosSystem" >&2
+              echo "(see flake/exports.nix for what each export imports)." >&2
               exit 1
             ''
         );

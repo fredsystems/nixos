@@ -40,7 +40,11 @@ let
         lib.mkDefault
           inputs.self.packages.${config.nixpkgs.hostPlatform.system}.catppuccin-wallpapers;
     };
+  # `key`s make importing either module twice harmless: the module system
+  # de-duplicates by key, and several of the modules `dependencies` imports
+  # are values, not paths, so without one they would be declared twice.
   overlays = {
+    key = "github:FredSystems/nixos#nixosModules.overlays";
     nixpkgs.overlays = [
       (import ../overlays/default.nix)
       (import ./lib/opencode-overlay.nix inputs)
@@ -70,6 +74,7 @@ in
     dependencies =
       { config, ... }:
       {
+        key = "github:FredSystems/nixos#nixosModules.dependencies";
         imports = [
           overlays
           inputs.sops-nix.nixosModules.sops
