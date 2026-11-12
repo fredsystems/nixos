@@ -602,7 +602,10 @@
                   builtins.split "checks\\.x86_64-linux\\.([a-z0-9-]+)" lintYaml
                 )
               );
-              missing = lib.filter (c: !(lib.elem c (lib.attrNames localHooks)) && !(lib.elem c inLint)) (
+              # Only enabled hooks run inside pre-commit-check, so only they
+              # count as coverage; a disabled one reopens the gap.
+              enabledHooks = lib.attrNames (lib.filterAttrs (_: h: h.enable or false) localHooks);
+              missing = lib.filter (c: !(lib.elem c enabledHooks) && !(lib.elem c inLint)) (
                 lib.attrNames self.checks.${system}
               );
             in
