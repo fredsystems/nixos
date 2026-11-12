@@ -396,193 +396,248 @@
 
           baseHooks = base.hooks // excludeBinaries base.hooks;
 
+          # Repo-local hooks, named so checks-in-ci can tell which flake
+          # checks already run in CI through pre-commit-check.
+          localHooks = {
+            prometheus-alert-rules = {
+              enable = true;
+              name = "prometheus alert rules (promtool check + test)";
+              entry = "${pkgs.lib.getExe alertRuleCheck}";
+
+              # Fires when a rule file or its tests change. pass_filenames is
+              # off because the script globs the directory itself: a rule file
+              # and its test file must always be validated together, and
+              # promtool needs the whole set to resolve rule_files.
+              # Also the policy file and its generator: FlakeInputOutdated's
+              # tests run against the rules generated from them.
+              files = "^(modules/monitoring/master/alert-rules/.*\\.ya?ml|modules/monitoring/master/flake-input-policy-rules\\.nix|\\.github/flake-input-policy\\.json)$";
+              pass_filenames = false;
+            };
+
+            ci-pipeline-files-sync = {
+              enable = true;
+              name = "CI pipeline files force-all-hosts sync (2 locations)";
+              entry = "${pkgs.lib.getExe ciPipelineFilesSync}";
+
+              # Fires on the two workflow files plus every file either
+              # workflow shells out to directly and scripts/impacted-hosts.sh
+              # itself, since the checker cross-references all of these
+              # against the FORCE_ALL_FILES arrays in that script.
+              files = "^(\\.github/workflows/ci-(linux|darwin)\\.yaml|\\.github/merge-queue-ci-skipper/action\\.yaml|scripts/(attic-push|check-colmena-parity|diff-closures-comment|impacted-hosts)\\.sh)$";
+              pass_filenames = false;
+            };
+
+            deploy-guard = {
+              enable = true;
+              name = "deploy guard tests (switch vs boot rules)";
+              entry = "${pkgs.lib.getExe deployGuardCheck}";
+
+              # The library, both scripts built on it, the tests, and the
+              # Nix half of the facts they compare against.
+              files = "^(scripts/(lib/deploy-guard|switch-preflight|colmena-apply-drifted|tests/deploy-guard-test)\\.sh|flake/lib/deploy-facts\\.nix)$";
+              pass_filenames = false;
+            };
+
+            flake-input-impact = {
+              enable = true;
+              name = "flake input impact classifier tests";
+              entry = "${pkgs.lib.getExe flakeInputImpactCheck}";
+
+              files = "^scripts/(flake-input-impact|tests/flake-input-impact-test)\\.sh$|^scripts/tests/fixtures/flake-input-impact/";
+              pass_filenames = false;
+            };
+
+            flake-watch = {
+              enable = true;
+              name = "flake input watch and policy tests";
+              entry = "${pkgs.lib.getExe flakeWatchCheck}";
+              files = "^(scripts/(flake-watch|check-flake-input-policy|tests/flake-watch-test)\\.sh|\\.github/scripts/flake-watch-[a-z]+\\.sh|\\.github/flake-input-policy\\.json|flake\\.lock)$";
+              pass_filenames = false;
+            };
+
+            home-ip = {
+              enable = true;
+              name = "home IP rotation helper tests";
+              entry = "${pkgs.lib.getExe homeIpCheck}";
+              files = "^(scripts/(lib/home-ip|rotate-home-ip|tests/home-ip-test)\\.sh|modules/data/home-network\\.nix)$";
+              pass_filenames = false;
+            };
+
+            docker-pin-spacing = {
+              enable = true;
+              name = "docker image pins are not on adjacent lines";
+              entry = "${pkgs.lib.getExe dockerPinSpacingCheck}";
+              files = "^modules/data/docker-image-pins\\.nix$";
+              pass_filenames = false;
+            };
+
+            sops-recipients = {
+              enable = true;
+              name = "sops age-recipient consistency (keys / creation_rules / secrets.yaml)";
+              entry = "${pkgs.lib.getExe sopsRecipientsCheck}";
+
+              # Fires when either the recipient/anchor declarations or the
+              # ciphertext's own embedded recipient metadata change --
+              # either side of the invariant can drift independently.
+              files = "^modules/secrets/(\\.sops\\.yaml|secrets\\.yaml)$";
+              pass_filenames = false;
+            };
+
+            doc-drift = {
+              enable = true;
+              name = "MODULES.md / desktop-server host-split drift";
+              entry = "${pkgs.lib.getExe docDriftCheck}";
+
+              # flake/exports.nix is where the `nixosModules` attrset itself
+              # is declared (module add/rename/removal), so it is the actual
+              # trigger for MODULES.md drift, not modules/*.nix directly.
+              files = "^(MODULES\\.md|flake\\.nix|flake/exports\\.nix|flake/hosts/servers\\.nix|\\.github/workflows/ci-linux\\.yaml)$";
+              pass_filenames = false;
+            };
+
+            module-reachability = {
+              enable = true;
+              name = "no orphaned .nix modules (dead-file reachability)";
+              entry = "${pkgs.lib.getExe moduleReachabilityCheck}";
+
+              # Any .nix file change can create or resolve an orphan --
+              # adding a new file nobody imports yet, or deleting the last
+              # import of an existing one -- so this always re-scans the
+              # whole tree rather than reacting to a specific path.
+              # pass_filenames is off for the same reason: a single-file
+              # view cannot tell whether that file is reachable from
+              # anywhere else.
+              files = "\\.nix$";
+              pass_filenames = false;
+            };
+
+            option-schema = {
+              enable = true;
+              name = "mkOption type + description coverage";
+              entry = "${pkgs.lib.getExe optionSchemaCheck}";
+
+              # Same reasoning as module-reachability: an mkOption call can
+              # appear in any .nix file, so this re-scans the whole tree on
+              # any .nix change rather than reacting to a specific path.
+              files = "\\.nix$";
+              pass_filenames = false;
+            };
+
+            page-scripts-es5 = {
+              enable = true;
+              name = "landing-page <script> blocks are ES5";
+              entry = "${pkgs.lib.getExe pageScriptsEs5Check}";
+
+              # git-hooks orders hooks alphabetically by attribute name, so
+              # this runs BEFORE `prettier` -- which is the hook that
+              # introduces the violation in the first place. That ordering
+              # is not fixable without renaming the hook to sort after it,
+              # and it does not need to be: prettier fails the commit
+              # whenever it rewrites a file, so the sequence is
+              #
+              #   commit 1: prettier reformats, reports "files were
+              #             modified", commit aborts
+              #   commit 2: prettier is a no-op, this hook now reads the
+              #             reformatted bytes and rejects the trailing
+              #             comma
+              #
+              # The violation therefore cannot reach a commit, it just
+              # takes the same two rounds any formatter/linter pair does.
+              # The standalone `page-scripts-es5` check is the backstop for
+              # anything that got in via --no-verify.
+              #
+              # pass_filenames is off because the script resolves its own
+              # file set from hosts/*/html/*.html; a page can also be
+              # broken by an edit to a sibling that git-hooks would not
+              # have listed.
+              files = "^hosts/.*/html/.*\\.html$";
+              pass_filenames = false;
+            };
+
+            opencode-jsonc-schema = {
+              enable = true;
+              name = "opencode.jsonc schema validation (structural, offline)";
+              entry = "${pkgs.lib.getExe opencodeJsoncCheck} --offline";
+
+              # `--offline`, not the default network mode: git-hooks'
+              # own `run` derivation (this is also what `nix build
+              # .#checks.pre-commit-check` and CI's lint job exercise)
+              # executes the WHOLE hook suite inside a sandboxed Nix
+              # build with no network, regardless of whether a human
+              # triggered it via `git commit` or via `nix flake check`.
+              # A hook that needs network here doesn't just skip
+              # gracefully -- it hard-fails the build for everyone. See
+              # scripts/check-opencode-jsonc.sh's header for the full
+              # reasoning and how to run the live-schema check manually.
+              files = "^opencode\\.jsonc$";
+              pass_filenames = false;
+            };
+
+            owned-nixpkgs = {
+              enable = true;
+              name = "inputs that keep their own nixpkgs say why";
+              entry = "${pkgs.lib.getExe ownedNixpkgsCheck}";
+              files = "^(flake\\.(nix|lock)|scripts/(check-owned-nixpkgs|tests/check-owned-nixpkgs-test)\\.sh|scripts/tests/fixtures/owned-nixpkgs/.*)$";
+              pass_filenames = false;
+            };
+          };
+
+          # Every flake check must run in CI: either as one of the hooks above
+          # (pre-commit-check runs them) or by name in lint.yaml. Three did
+          # neither for months, so only `nix flake check` by hand ever ran
+          # them (agent-docs/plans/PLAN_04_MODULE_INTERFACES.md, 4.15). Names
+          # only, so it costs nothing.
+          checks-in-ci =
+            let
+              # Comment lines dropped, so a commented-out build step does not
+              # count as coverage. (Not "everything after #": the check
+              # references themselves are `.#checks.<system>.<name>`.)
+              lintYaml = lib.concatStringsSep "\n" (
+                lib.filter (line: builtins.match "[[:space:]]*#.*" line == null) (
+                  lib.splitString "\n" (builtins.readFile (self + "/.github/workflows/lint.yaml"))
+                )
+              );
+              inLint = lib.unique (
+                lib.concatMap (m: if lib.isList m then m else [ ]) (
+                  builtins.split "checks\\.x86_64-linux\\.([a-z0-9-]+)" lintYaml
+                )
+              );
+              # Only enabled hooks run inside pre-commit-check, so only they
+              # count as coverage; a disabled one reopens the gap.
+              enabledHooks = lib.attrNames (lib.filterAttrs (_: h: h.enable or false) localHooks);
+              missing = lib.filter (c: !(lib.elem c enabledHooks) && !(lib.elem c inLint)) (
+                lib.attrNames self.checks.${system}
+              );
+            in
+            {
+              enable = true;
+              name = "every flake check runs in CI (as a hook or in lint.yaml)";
+              entry = "${pkgs.lib.getExe (
+                pkgs.writeShellApplication {
+                  name = "check-checks-in-ci";
+                  text =
+                    if missing == [ ] then
+                      "exit 0"
+                    else
+                      ''
+                        echo "These flake checks run nowhere in CI:" >&2
+                        ${lib.concatMapStringsSep "\n" (c: "echo ${lib.escapeShellArg "  ${c}"} >&2") missing}
+                        echo "" >&2
+                        echo "Add each as a pre-commit hook in flake/dev/checks.nix, or build it" >&2
+                        echo "by name in .github/workflows/lint.yaml." >&2
+                        exit 1
+                      '';
+                }
+              )}";
+              files = "^(flake/dev/checks\\.nix|\\.github/workflows/lint\\.yaml)$";
+              pass_filenames = false;
+            };
+
           run = gitHooks.lib.${system}.run {
             src = self;
             inherit (base) excludes;
 
-            hooks = baseHooks // {
-              prometheus-alert-rules = {
-                enable = true;
-                name = "prometheus alert rules (promtool check + test)";
-                entry = "${pkgs.lib.getExe alertRuleCheck}";
-
-                # Fires when a rule file or its tests change. pass_filenames is
-                # off because the script globs the directory itself: a rule file
-                # and its test file must always be validated together, and
-                # promtool needs the whole set to resolve rule_files.
-                # Also the policy file and its generator: FlakeInputOutdated's
-                # tests run against the rules generated from them.
-                files = "^(modules/monitoring/master/alert-rules/.*\\.ya?ml|modules/monitoring/master/flake-input-policy-rules\\.nix|\\.github/flake-input-policy\\.json)$";
-                pass_filenames = false;
-              };
-
-              ci-pipeline-files-sync = {
-                enable = true;
-                name = "CI pipeline files force-all-hosts sync (2 locations)";
-                entry = "${pkgs.lib.getExe ciPipelineFilesSync}";
-
-                # Fires on the two workflow files plus every file either
-                # workflow shells out to directly and scripts/impacted-hosts.sh
-                # itself, since the checker cross-references all of these
-                # against the FORCE_ALL_FILES arrays in that script.
-                files = "^(\\.github/workflows/ci-(linux|darwin)\\.yaml|\\.github/merge-queue-ci-skipper/action\\.yaml|scripts/(attic-push|check-colmena-parity|diff-closures-comment|impacted-hosts)\\.sh)$";
-                pass_filenames = false;
-              };
-
-              deploy-guard = {
-                enable = true;
-                name = "deploy guard tests (switch vs boot rules)";
-                entry = "${pkgs.lib.getExe deployGuardCheck}";
-
-                # The library, both scripts built on it, the tests, and the
-                # Nix half of the facts they compare against.
-                files = "^(scripts/(lib/deploy-guard|switch-preflight|colmena-apply-drifted|tests/deploy-guard-test)\\.sh|flake/lib/deploy-facts\\.nix)$";
-                pass_filenames = false;
-              };
-
-              flake-input-impact = {
-                enable = true;
-                name = "flake input impact classifier tests";
-                entry = "${pkgs.lib.getExe flakeInputImpactCheck}";
-
-                files = "^scripts/(flake-input-impact|tests/flake-input-impact-test)\\.sh$|^scripts/tests/fixtures/flake-input-impact/";
-                pass_filenames = false;
-              };
-
-              flake-watch = {
-                enable = true;
-                name = "flake input watch and policy tests";
-                entry = "${pkgs.lib.getExe flakeWatchCheck}";
-                files = "^(scripts/(flake-watch|check-flake-input-policy|tests/flake-watch-test)\\.sh|\\.github/scripts/flake-watch-[a-z]+\\.sh|\\.github/flake-input-policy\\.json|flake\\.lock)$";
-                pass_filenames = false;
-              };
-
-              home-ip = {
-                enable = true;
-                name = "home IP rotation helper tests";
-                entry = "${pkgs.lib.getExe homeIpCheck}";
-                files = "^(scripts/(lib/home-ip|rotate-home-ip|tests/home-ip-test)\\.sh|modules/data/home-network\\.nix)$";
-                pass_filenames = false;
-              };
-
-              docker-pin-spacing = {
-                enable = true;
-                name = "docker image pins are not on adjacent lines";
-                entry = "${pkgs.lib.getExe dockerPinSpacingCheck}";
-                files = "^modules/data/docker-image-pins\\.nix$";
-                pass_filenames = false;
-              };
-
-              sops-recipients = {
-                enable = true;
-                name = "sops age-recipient consistency (keys / creation_rules / secrets.yaml)";
-                entry = "${pkgs.lib.getExe sopsRecipientsCheck}";
-
-                # Fires when either the recipient/anchor declarations or the
-                # ciphertext's own embedded recipient metadata change --
-                # either side of the invariant can drift independently.
-                files = "^modules/secrets/(\\.sops\\.yaml|secrets\\.yaml)$";
-                pass_filenames = false;
-              };
-
-              doc-drift = {
-                enable = true;
-                name = "MODULES.md / desktop-server host-split drift";
-                entry = "${pkgs.lib.getExe docDriftCheck}";
-
-                # flake/exports.nix is where the `nixosModules` attrset itself
-                # is declared (module add/rename/removal), so it is the actual
-                # trigger for MODULES.md drift, not modules/*.nix directly.
-                files = "^(MODULES\\.md|flake\\.nix|flake/exports\\.nix|flake/hosts/servers\\.nix|\\.github/workflows/ci-linux\\.yaml)$";
-                pass_filenames = false;
-              };
-
-              module-reachability = {
-                enable = true;
-                name = "no orphaned .nix modules (dead-file reachability)";
-                entry = "${pkgs.lib.getExe moduleReachabilityCheck}";
-
-                # Any .nix file change can create or resolve an orphan --
-                # adding a new file nobody imports yet, or deleting the last
-                # import of an existing one -- so this always re-scans the
-                # whole tree rather than reacting to a specific path.
-                # pass_filenames is off for the same reason: a single-file
-                # view cannot tell whether that file is reachable from
-                # anywhere else.
-                files = "\\.nix$";
-                pass_filenames = false;
-              };
-
-              option-schema = {
-                enable = true;
-                name = "mkOption type + description coverage";
-                entry = "${pkgs.lib.getExe optionSchemaCheck}";
-
-                # Same reasoning as module-reachability: an mkOption call can
-                # appear in any .nix file, so this re-scans the whole tree on
-                # any .nix change rather than reacting to a specific path.
-                files = "\\.nix$";
-                pass_filenames = false;
-              };
-
-              page-scripts-es5 = {
-                enable = true;
-                name = "landing-page <script> blocks are ES5";
-                entry = "${pkgs.lib.getExe pageScriptsEs5Check}";
-
-                # git-hooks orders hooks alphabetically by attribute name, so
-                # this runs BEFORE `prettier` -- which is the hook that
-                # introduces the violation in the first place. That ordering
-                # is not fixable without renaming the hook to sort after it,
-                # and it does not need to be: prettier fails the commit
-                # whenever it rewrites a file, so the sequence is
-                #
-                #   commit 1: prettier reformats, reports "files were
-                #             modified", commit aborts
-                #   commit 2: prettier is a no-op, this hook now reads the
-                #             reformatted bytes and rejects the trailing
-                #             comma
-                #
-                # The violation therefore cannot reach a commit, it just
-                # takes the same two rounds any formatter/linter pair does.
-                # The standalone `page-scripts-es5` check is the backstop for
-                # anything that got in via --no-verify.
-                #
-                # pass_filenames is off because the script resolves its own
-                # file set from hosts/*/html/*.html; a page can also be
-                # broken by an edit to a sibling that git-hooks would not
-                # have listed.
-                files = "^hosts/.*/html/.*\\.html$";
-                pass_filenames = false;
-              };
-
-              opencode-jsonc-schema = {
-                enable = true;
-                name = "opencode.jsonc schema validation (structural, offline)";
-                entry = "${pkgs.lib.getExe opencodeJsoncCheck} --offline";
-
-                # `--offline`, not the default network mode: git-hooks'
-                # own `run` derivation (this is also what `nix build
-                # .#checks.pre-commit-check` and CI's lint job exercise)
-                # executes the WHOLE hook suite inside a sandboxed Nix
-                # build with no network, regardless of whether a human
-                # triggered it via `git commit` or via `nix flake check`.
-                # A hook that needs network here doesn't just skip
-                # gracefully -- it hard-fails the build for everyone. See
-                # scripts/check-opencode-jsonc.sh's header for the full
-                # reasoning and how to run the live-schema check manually.
-                files = "^opencode\\.jsonc$";
-                pass_filenames = false;
-              };
-
-              owned-nixpkgs = {
-                enable = true;
-                name = "inputs that keep their own nixpkgs say why";
-                entry = "${pkgs.lib.getExe ownedNixpkgsCheck}";
-                files = "^(flake\\.(nix|lock)|scripts/(check-owned-nixpkgs|tests/check-owned-nixpkgs-test)\\.sh|scripts/tests/fixtures/owned-nixpkgs/.*)$";
-                pass_filenames = false;
-              };
-            };
+            hooks = baseHooks // localHooks // { inherit checks-in-ci; };
           };
         in
         run

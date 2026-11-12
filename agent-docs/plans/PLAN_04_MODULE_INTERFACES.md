@@ -311,7 +311,7 @@ and `--os darwin` report no impacted hosts; every host evaluates with no
       `gnome-photos` came off the exclude list (nixpkgs no longer ships
       it, so there is nothing to replace). Daytona with GNOME enabled
       evaluates.
-- [ ] **4.15 Check-only Nix checks never run in CI.** Surfaced during 4.12:
+- [x] **4.15 Check-only Nix checks never run in CI.** Surfaced during 4.12:
       `lint.yaml` builds only `pre-commit-check`, `decoder-units-sync` and
       (now) `exports-standalone`. Flake checks that are not also pre-commit
       hooks, `fleet-identity-bridge` among them, run only when someone
@@ -319,7 +319,8 @@ and `--os darwin` report no impacted hosts; every host evaluates with no
       can merge unflagged. Impact: those checks protect less than they
       appear to. Fix: list them in `lint.yaml` (each is cheap to state,
       the cost is their evaluation time), or make the cheap ones hooks.
-      Unscheduled.
+      Done: lint.yaml builds the three, and a `checks-in-ci` hook fails if
+      any flake check is neither a hook nor built by lint.yaml.
 
 ## Out of scope
 
