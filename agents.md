@@ -277,6 +277,22 @@ relock` is run.
   `fleet-manifest.yaml`; the revision is recovered by reverse lookup.
   See the note in `flake/lib/mk-system.nix` and
   `scripts/gen-fleet-manifest.sh`.
+- **`inputs` is the only extra module argument.** Beyond the standard
+  ones (`config`, `lib`, `pkgs`, ...), the builders pass
+  `specialArgs = { inherit inputs; }` on NixOS, Darwin and Colmena, and
+  `extraSpecialArgs = { inherit inputs; }` on Home Manager, and nothing
+  else as a module argument. Fleet data is a `shared.*` option
+  (`modules/base/fleet-identity*.nix`), a flake input's module is wired
+  by the builder (not imported by a module), and an OS- or role-specific
+  half is listed by its caller. Only host-specific code may take `inputs`
+  as a module argument. Nothing an export reaches may require it (an
+  export can still close over the flake's inputs lexically, as
+  `nixosModules.dependencies` does in `flake/exports.nix`). The
+  `exports-standalone` check (run in `lint.yaml`) evaluates every export
+  without it, but only in the configurations it builds: a read behind an
+  option those leave disabled is not caught, so keep the rule rather than
+  relying on the check alone. Exports are documented in `MODULES.md`; see
+  `agent-docs/plans/PLAN_04_MODULE_INTERFACES.md` for why.
 
 ---
 

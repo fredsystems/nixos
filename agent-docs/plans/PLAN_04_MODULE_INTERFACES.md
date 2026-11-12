@@ -281,7 +281,7 @@ and `--os darwin` report no impacted hosts; every host evaluates with no
       Found on the way: importing `dependencies` twice declared catppuccin's
       options twice (its modules are values, not paths); `dependencies` and
       `overlays` now carry a `key`.
-- [ ] **4.13 Documentation.** `MODULES.md` (exports are standalone;
+- [x] **4.13 Documentation.** `MODULES.md` (exports are standalone;
       what each one brings), `agents.md` (the "`inputs` is the only
       specialArg" rule), and a short note in `flake/lib/mk-system.nix`.
       Includes: MODULES.md's "Combining Modules" and "Using lib.mkDefault"
