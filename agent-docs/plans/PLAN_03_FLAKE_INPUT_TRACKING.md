@@ -210,8 +210,7 @@ need only this repo. 3.11 and 3.12 need the metrics to exist.
 progress, and its number cannot move now that it has started; the owner
 decided (2026-11-12) that this plan completes regardless, because nothing
 in it depends on Plan 02 (the receiver comparison) or the other way round.
-Plan 04 may complete ahead of it on the same basis, once its own
-remaining work lands.
+Plan 04 completed ahead of it on the same basis.
 
 ## Subtasks
 
