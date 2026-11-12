@@ -242,6 +242,11 @@ needs 2.2, the analysis chain is sequential, and 2.13 waits only on
 hardware. Runs (2.4, 2.12, 2.14, 2.15) are user-assisted, because they
 move hardware or need it left alone for days.
 
+Plans 03 and 04 are marked complete while this plan is still in
+progress: a documented exception to the contiguous-prefix rule, by the
+owner's decision (2026-11-12), because neither depends on this plan or it
+on them. Nothing here waits on them.
+
 ## Subtasks
 
 ### Recorder
