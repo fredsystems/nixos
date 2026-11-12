@@ -428,82 +428,10 @@
       ## Exported modules (for use in other flakes)                          ##
       ##########################################################################
 
-      nixosModules =
-        let
-          # Both profiles reach pkgs.nixos-needsreboot (node_exporter's reboot
-          # metric). Hosts built by flake/lib/mk-system.nix get the overlay
-          # there; consumers of these exports bypass it, so the profiles bring
-          # the overlay themselves.
-          # The profiles set sops.secrets, and the builders (not
-          # modules/secrets/sops.nix) now import sops-nix's module, so the
-          # exports below that bypass the builders import it themselves.
-          needsrebootOverlay = {
-            nixpkgs.overlays = [ inputs.nixos-needsreboot.overlays.default ];
-          };
-        in
-        {
-          # Profiles
-          desktop-common = {
-            imports = [
-              ./profiles/desktop.nix
-              inputs.sops-nix.nixosModules.sops
-              needsrebootOverlay
-            ];
-          };
-          adsb-hub = {
-            imports = [
-              ./profiles/adsb-hub.nix
-              inputs.sops-nix.nixosModules.sops
-              needsrebootOverlay
-            ];
-          };
-
-          # Hardware profiles (as a bundle)
-          hardware-profiles = import ./modules/hardware;
-
-          # Individual hardware modules
-          hardware-i2c = import ./modules/hardware/i2c.nix;
-          hardware-graphics = import ./modules/hardware/graphics.nix;
-          hardware-fingerprint = import ./modules/hardware/fingerprint.nix;
-          hardware-u2f = import ./modules/hardware/u2f.nix;
-          hardware-rtl-sdr = import ./modules/hardware/rtl-sdr.nix;
-          hardware-logitech = import ./modules/hardware/logitech.nix;
-
-          # Shared modules
-          nas-mounts = import ./modules/data/nas-mounts.nix;
-          wifi-networks = import ./modules/data/wifi-networks.nix;
-          sync-hosts = import ./modules/data/sync-hosts.nix;
-          docker-image-pins = import ./modules/data/docker-image-pins.nix;
-
-          # Service modules
-          github-runners = {
-            imports = [
-              ./modules/services/github-runners.nix
-              ./modules/services/github-runners-linux.nix
-            ];
-          };
-
-          # Default: all common modules
-          default = {
-            imports = [
-              ./profiles/desktop.nix
-              ./profiles/adsb-hub.nix
-              inputs.sops-nix.nixosModules.sops
-              ./modules/hardware
-              ./modules/data/nas-mounts.nix
-              ./modules/data/wifi-networks.nix
-              ./modules/data/sync-hosts.nix
-              ./modules/services/github-runners.nix
-              ./modules/services/github-runners-linux.nix
-              needsrebootOverlay
-            ];
-          };
-        };
-
-      homeModules = {
-        home-desktop = import ./home-profiles/desktop.nix;
-        default = import ./home-profiles/desktop.nix;
-      };
+      # See flake/exports.nix: bare exports of this repository's modules, plus
+      # `dependencies` for consumers that do not bring their own copies of
+      # the third-party modules.
+      inherit (import ./flake/exports.nix { inherit inputs; }) nixosModules homeModules;
 
       ##########################################################################
       ## System configurations                                                ##

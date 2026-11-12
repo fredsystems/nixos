@@ -4,7 +4,15 @@ This flake exports reusable NixOS and Home Manager modules that can be used in o
 
 ## Usage
 
-Add this flake as an input to your `flake.nix`:
+Every export evaluates in a plain `nixpkgs.lib.nixosSystem` with no
+`specialArgs`. The exports contain only this repository's own modules. The
+third-party modules some of them configure (sops-nix, home-manager,
+catppuccin, nix-flatpak, niri, and the Home Manager modules for nixvim,
+nix-yazi-plugins, lan-mouse, freminal and frext) come from you, in one of two
+ways.
+
+**Standalone:** add `nixosModules.dependencies`, which bundles all of them,
+pinned to this flake's inputs:
 
 ```nix
 {
@@ -13,23 +21,73 @@ Add this flake as an input to your `flake.nix`:
     fredsystems.url = "github:FredSystems/nixos";
   };
 
-  outputs = { self, nixpkgs, fredsystems, ... }: {
+  outputs = { nixpkgs, fredsystems, ... }: {
     nixosConfigurations.myhost = nixpkgs.lib.nixosSystem {
-      system = "x86_64-linux";
       modules = [
-        # Use specific modules
-        fredsystems.nixosModules.github-runners
-        fredsystems.nixosModules.hardware-graphics
-
-        # Or import all modules
-        fredsystems.nixosModules.default
-
+        fredsystems.nixosModules.dependencies
+        fredsystems.nixosModules.desktop-common
         ./configuration.nix
       ];
     };
   };
 }
 ```
+
+**Bringing your own:** if you already use any of those modules, do not add
+`dependencies`. Its copies would be declared alongside yours and evaluation
+fails with "option already declared". Import `nixosModules.overlays` and your
+own copies instead:
+
+```nix
+modules = [
+  fredsystems.nixosModules.overlays
+  sops-nix.nixosModules.sops
+  home-manager.nixosModules.home-manager
+  fredsystems.nixosModules.adsb-hub
+  ./configuration.nix
+];
+```
+
+What each export needs from that set:
+
+| Export                                     | Third-party modules it needs                                         |
+| ------------------------------------------ | -------------------------------------------------------------------- |
+| `adsb-hub`                                 | sops-nix, home-manager                                               |
+| `desktop-common`, `default`                | all of the above                                                     |
+| hardware, data and `github-runners` exports | none                                                                |
+
+### Settings a consumer provides
+
+The profiles read the primary user from `shared.user`, declared by the
+exports themselves:
+
+```nix
+{
+  shared.user = {
+    name = "alice";
+    fullName = "Alice Example";
+    email = "alice@example.com";
+  };
+  users.users.alice.isNormalUser = true;
+
+  # desktop-common and default configure Home Manager for that user
+  home-manager.users.alice.home.stateVersion = "26.05";
+}
+```
+
+`shared.catppuccinWallpapers` defaults to this flake's own wallpaper package.
+
+### `nixosModules.dependencies`
+
+The third-party modules listed above, the Home Manager shared modules, and
+`nixosModules.overlays`, all pinned to this flake's inputs.
+
+### `nixosModules.overlays`
+
+The package overlays this flake's modules read (`nixos-needsreboot`,
+`opencode`, `freminal`, the kernel pin's package set, and the repository's
+own). Included in `dependencies`; import it alone when you bring your own
+third-party modules. Overlays never conflict with yours.
 
 ## Available NixOS Modules
 

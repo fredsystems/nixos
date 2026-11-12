@@ -225,7 +225,7 @@ and `--os darwin` report no impacted hosts; every host evaluates with no
       and both Home Manager paths pass only `inputs`. Every remaining
       reader of a removed argument has been migrated, so this is
       deletion only.
-- [ ] **4.10 Exports bring their dependencies.** Rework `nixosModules`
+- [x] **4.10 Exports bring their dependencies.** Rework `nixosModules`
       and `homeModules` in `flake.nix` per the decision above, and fix
       `profiles/desktop.nix` to import `features/desktop`, and the
       hardware exports to import `modules/base/nixpkgs-unfree.nix`.
@@ -239,10 +239,27 @@ and `--os darwin` report no impacted hosts; every host evaluates with no
       reads that a consumer must set (raised in review on #2828:
       `adsb-hub` now reads `shared.user.name` where it took the `user`
       module argument).
+      Done. **Decided: bare exports plus one `dependencies` export**
+      (owner's choice over bundling, which conflicts with a consumer's own
+      copies, or consumer-supplied only, which has no standalone path).
+      Exports live in `flake/exports.nix` and import only this
+      repository's modules, including the ones declaring the options they
+      set (fleet-identity, deployment-meta, nixpkgs-unfree, attic_client
+      for Home Manager). `dependencies` bundles sops-nix, home-manager,
+      catppuccin, nix-flatpak, niri and the Home Manager shared modules;
+      `overlays` carries the package overlays on its own, for consumers
+      who bring their own modules. `features/desktop` is imported by the
+      `desktop-common` export, not `profiles/desktop.nix`: importing it
+      from the profile would reorder the desktops' own module list (the
+      4.7 lesson). Found and fixed on the way: `node_exporter.nix` read
+      the removed `services.journald.extraConfig` through `or`, which
+      throws on unstable unless `journald.nix` happened to set the
+      structured option first.
 - [ ] **4.11 Make `nixosModules.default` coherent.** It combines both
       profiles. Either it evaluates standalone once 4.10 lands, or it is
       redefined as the set that does (decide from 4.10's result, before
-      starting 4.11).
+      starting 4.11). 4.10's result: `default` evaluates with
+      `dependencies` and the documented consumer settings.
 - [ ] **4.12 Standalone export check.** `exports-standalone` in
       `flake/dev/checks.nix`: evaluate every `nixosModules.*` attr in a
       bare `nixosSystem` (minimal stub: host platform, root filesystem,
