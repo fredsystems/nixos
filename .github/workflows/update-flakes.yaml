@@ -77,6 +77,12 @@ jobs:
         # policy (auto vs manual) still comes from MANUAL_INPUTS, so a
         # manually-dispatched single run of a manual-policy input (e.g.
         # nixpkgs-kernel) still doesn't auto-merge.
+        #
+        # RENOVATE_INPUTS (policy "renovate") are never updated here, not
+        # even as single_input: they are tag-pinned, so `nix flake update`
+        # cannot move them and would only reset their transitive inputs to
+        # upstream's lock (for opencode, undoing renovate-relock.yaml's Bun
+        # repair).
         env:
           EVENT: ${{ github.event_name }}
           SCHEDULE: ${{ github.event.schedule }}
@@ -90,6 +96,11 @@ jobs:
             | (.inputs // {}) as $i
             | [$lock[0].nodes.root.inputs | keys[] | select(($i[.].policy // $d) == "manual")]
           ' .github/flake-input-policy.json)"
+          RENOVATE_INPUTS="$(jq -c --slurpfile lock flake.lock '
+            (.defaults.policy // "auto") as $d
+            | (.inputs // {}) as $i
+            | [$lock[0].nodes.root.inputs | keys[] | select(($i[.].policy // $d) == "renovate")]
+          ' .github/flake-input-policy.json)"
 
           if [[ -n "$SINGLE_INPUT" ]]; then
             if ! jq -e --arg name "$SINGLE_INPUT" \
@@ -97,6 +108,10 @@ jobs:
             then
               known="$(jq -c '.nodes.root.inputs | keys' flake.lock)"
               echo "::error title=Unknown flake input::'${SINGLE_INPUT}' is not a flake input in flake.lock. Known inputs: ${known}" >&2
+              exit 1
+            fi
+            if jq -e --arg name "$SINGLE_INPUT" 'index($name) != null' <<<"$RENOVATE_INPUTS" >/dev/null; then
+              echo "::error title=Renovate-owned flake input::'${SINGLE_INPUT}' has policy \"renovate\" in .github/flake-input-policy.json; only Renovate updates it." >&2
               exit 1
             fi
 
@@ -134,9 +149,11 @@ jobs:
           flakes=$(jq -nc \
             --argjson all "$(jq -c '.nodes.root.inputs | keys' flake.lock)" \
             --argjson manual "$MANUAL_INPUTS" \
+            --argjson renovate "$RENOVATE_INPUTS" \
             --arg run_auto "$run_auto" \
             --arg run_manual "$run_manual" '
             $all
+            | map(select(. as $name | $renovate | index($name) | not))
             | map(. as $name | {
                 name: $name,
                 kind: (if ($manual | index($name)) then "manual" else "auto" end)

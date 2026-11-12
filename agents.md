@@ -226,9 +226,17 @@ during normal `nixos-rebuild` / `nix develop`). Following our `nixpkgs`
 would change their derivation hashes and force local source builds.
 
 `opencode` does not follow our `nixpkgs` either, for a different reason:
-upstream pins its `node_modules` fixed-output hash per release, and that
-hash is only valid for the bun in upstream's own `nixpkgs`. It is pinned
-to a release tag that Renovate bumps.
+its `nixpkgs` supplies the Bun that installs `node_modules` (whose
+fixed-output hash depends on it) and is compiled into the binary. It is
+pinned to a release tag that only Renovate bumps (policy `renovate` in
+`.github/flake-input-policy.json`, so `update-flakes.yaml` skips it).
+`renovate-relock.yaml` advances `opencode/nixpkgs` when upstream's
+release lock has a Bun outside `package.json`'s `packageManager` range,
+and records the `node_modules` hash per release + toolchain. Do not run
+a bare `nix flake update` / `nix flake update opencode` and commit the
+result: it resets `opencode/nixpkgs` to upstream's lock, and the overlay
+will refuse to evaluate until `scripts/opencode-node-modules-hash.sh
+relock` is run.
 
 ## Update workflows
 
