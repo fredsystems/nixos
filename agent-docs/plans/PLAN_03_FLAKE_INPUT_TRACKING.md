@@ -1,8 +1,10 @@
 # Plan 03: Flake input tracking
 
-- **Status:** in progress
-- **Branches:** 3.1 merged as #2809. Exporter work (3.4-3.7) lands in
-  `fredsystems/github-ci-exporter`. The rest is in this repo.
+- **Status:** complete (merged 2026-11-12), ahead of Plan 02 by the
+  owner's decision; see "Execution model".
+- **Branches:** this repo, 3.1 (#2809) through the watch follow-ups
+  (#2829, #2832, #2834); exporter work (3.4-3.7) in
+  `fredsystems/github-ci-exporter` #30-#34. sdrhub deployed 2026-11-12.
 
 ## Goal
 
@@ -203,9 +205,13 @@ Exporter subtasks (3.4-3.7) are sequential within that repo and can run
 alongside this repo's 3.1-3.3. 3.8 needs a released exporter. 3.9-3.10
 need only this repo. 3.11 and 3.12 need the metrics to exist.
 
-Plan 02 is in progress. Under `plan-sequencing-discipline` this plan's
-subtasks can merge as they finish, but the plan cannot be marked
-complete until Plan 02 is.
+**Completed ahead of Plan 02, as a documented exception** to
+`plan-sequencing-discipline`'s contiguous-prefix rule. Plan 02 is still in
+progress, and its number cannot move now that it has started; the owner
+decided (2026-11-12) that this plan completes regardless, because nothing
+in it depends on Plan 02 (the receiver comparison) or the other way round.
+Plan 04 may complete ahead of it on the same basis, once its own
+remaining work lands.
 
 ## Subtasks
 
