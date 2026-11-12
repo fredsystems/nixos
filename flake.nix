@@ -175,16 +175,20 @@
     # OpenCode 2, built from upstream's own flake (nix/opencode.nix). Pinned
     # to a release tag: v2 releases are tags, `dev` is not a release.
     #
-    # NOTE: deliberately NOT following our nixpkgs. Upstream keeps the
-    # node_modules fixed-output hash per release in nix/hashes.json, and that
-    # hash is only valid for the bun in upstream's pinned nixpkgs. Following
-    # ours would let a bun bump invalidate it, which is exactly the
-    # hash-maintenance loop the old overlays/opencode.nix needed a daily
-    # workflow for.
+    # NOTE: deliberately NOT following our nixpkgs. Its nixpkgs supplies the
+    # Bun that both installs node_modules (whose fixed-output hash depends on
+    # the Bun version) and is compiled into the opencode binary, so it must
+    # not move with fleet updates. Normally it is exactly upstream's release
+    # lock. When that lock's Bun falls outside package.json's packageManager
+    # range (2.2.7: Bun 1.4.2 vs bun@1.4.4, a binary whose server crashes),
+    # renovate-relock.yaml advances only opencode/nixpkgs, and
+    # flake/lib/opencode-overlay.nix refuses to evaluate if it is still wrong.
+    # The input has policy "renovate" in .github/flake-input-policy.json so
+    # update-flakes.yaml never resets that repair.
     #
-    # Upstream does not always merge its hash bump before tagging, though, so
-    # renovate-relock.yaml verifies the hash on every opencode bump and
-    # flake/lib/opencode-overlay.nix applies a corrected one when it is stale.
+    # Upstream does not always merge its hash bump before tagging, either, so
+    # renovate-relock.yaml records the hash for each release + toolchain and
+    # flake/lib/opencode-overlay.nix applies it.
     # renovate: datasource=git-refs depName=opencode packageName=https://github.com/anomalyco/opencode versioning=semver
     opencode = {
       url = "github:anomalyco/opencode/v2.2.7";

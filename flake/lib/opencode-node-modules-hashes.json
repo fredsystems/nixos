@@ -1,7 +1,14 @@
 {
-  "rev": "fedc6f208aa2bd54c1019227214568083f6380ad",
   "nodeModules": {
-    "aarch64-darwin": "sha256-4avGyKKserdkfvdm/XPmSbR1w+p4pzdHYT9CW6dRdB8=",
-    "x86_64-linux": "sha256-1mAAHaGwJ1sqxRe0YUsPEXJpXzEsZVX0VOmxRbY75n4="
+    "x86_64-linux": {
+      "rev": "fedc6f208aa2bd54c1019227214568083f6380ad",
+      "nixpkgsRev": "9397dcb09c9598a33509fbc0cce699bd4e6c84d5",
+      "hash": "sha256-N/VSSutmwwP1S7P0miONCyIXGKBpv9lrIIW9u+4dqnk="
+    },
+    "aarch64-darwin": {
+      "rev": "fedc6f208aa2bd54c1019227214568083f6380ad",
+      "nixpkgsRev": "9397dcb09c9598a33509fbc0cce699bd4e6c84d5",
+      "hash": "sha256-61CF3gIk+4ZhdthracP22Two+G2VJypM9YOvsW771L4="
+    }
   }
 }

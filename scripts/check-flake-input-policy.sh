@@ -6,7 +6,8 @@
 # PLAN_03_FLAKE_INPUT_TRACKING.md, "Per-input policy lives in one file"):
 #
 #   - version is 1
-#   - defaults.policy and every inputs.<name>.policy is "auto" or "manual"
+#   - defaults.policy and every inputs.<name>.policy is "auto", "manual" or
+#     "renovate" (updated only by Renovate; update-flakes.yaml never touches it)
 #   - defaults.max_age_days and every inputs.<name>.max_age_days is a
 #     positive integer
 #   - no keys other than those (and "$comment")
@@ -38,8 +39,8 @@ problems="$(jq -r --slurpfile lock "$LOCK" '
     (if type != "object" then ["\($where): must be an object"] else
       ([keys[] | select(. != "policy" and . != "max_age_days" and . != "$comment")
         | "\($where): unknown key \(.)"])
-      + (if has("policy") and (.policy | IN("auto", "manual") | not)
-           then ["\($where).policy: must be \"auto\" or \"manual\", got \(.policy | tojson)"] else [] end)
+      + (if has("policy") and (.policy | IN("auto", "manual", "renovate") | not)
+           then ["\($where).policy: must be \"auto\", \"manual\" or \"renovate\", got \(.policy | tojson)"] else [] end)
       + (if has("max_age_days") and ((.max_age_days | type) != "number" or .max_age_days < 1 or (.max_age_days | floor) != .max_age_days)
            then ["\($where).max_age_days: must be a positive integer, got \(.max_age_days | tojson)"] else [] end)
     end);

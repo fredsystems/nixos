@@ -207,6 +207,13 @@ eq "merge: source under auto is dispatched, under manual it is not" \
     '["a","b"]' "$(jq -c '.dispatch' "$T/merged.json")"
 eq "merge: status version" "1" "$(jq -r '.status.version' "$T/merged.json")"
 
+# A renovate-policy input is never dispatched to update-flakes.yaml either.
+cp "$T/policy.json" "$T/policy-auto-manual.json"
+jq '.inputs.a.policy = "renovate"' "$T/policy-auto-manual.json" >"$T/policy.json"
+merge "$T/plan.json" "$T/prev.json" "$T/lin.json" "$T/dar.json" "$NOW" >"$T/merged-renovate.json"
+eq "merge: source under renovate is not dispatched" '["b"]' "$(jq -c '.dispatch' "$T/merged-renovate.json")"
+cp "$T/policy-auto-manual.json" "$T/policy.json"
+
 # A dispatch that never succeeded is not recorded, so it is asked for again.
 jq .status "$T/merged.json" >"$T/prev-undispatched.json"
 bash "$WATCH" plan --heads "$T/heads-plan.json" --open-prs "$T/prs.json" --previous "$T/prev-undispatched.json" --now "$PLAN_AT" >"$T/plan2.json"
@@ -498,6 +505,8 @@ policy_run() { # policy-json -> PRC (exit code), POUT (output)
 }
 policy_run '{"version":1,"defaults":{"policy":"auto","max_age_days":7},"inputs":{"onbranch":{"policy":"manual"}}}'
 eq "policy: valid" 0 "$PRC"
+policy_run '{"version":1,"defaults":{"policy":"auto","max_age_days":7},"inputs":{"onbranch":{"policy":"renovate"}}}'
+eq "policy: renovate is a valid policy" 0 "$PRC"
 policy_run '{"version":1,"defaults":{"policy":"auto","max_age_days":7},"inputs":{"nope":{"policy":"manual"}}}'
 eq "policy: unknown input" 1 "$PRC"
 has "policy: names the unknown input" "inputs.nope: not a root input" "$POUT"

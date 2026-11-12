@@ -284,6 +284,74 @@
         '';
       };
 
+      # Hermetic tests for scripts/opencode-node-modules-hash.sh (relock,
+      # hash recording keyed by release + toolchain) and the warning/error
+      # gate in renovate-relock.yaml's relock step, with a mock nix. The
+      # caret rules in flake/lib/opencode-bun.nix are asserted at evaluation
+      # time, so building this hook's entry (as pre-commit-check does) runs
+      # them too.
+      opencodeNodeModulesHashCheck =
+        let
+          compatible =
+            packageManager: version:
+            (import ../lib/opencode-bun.nix {
+              inherit lib packageManager;
+              bun = { inherit version; };
+            }).compatible;
+          failures = lib.runTests {
+            testBelowPin = {
+              expr = compatible "bun@1.4.4" "1.4.2";
+              expected = false;
+            };
+            testExactPin = {
+              expr = compatible "bun@1.4.4" "1.4.4";
+              expected = true;
+            };
+            testNewerMinor = {
+              expr = compatible "bun@1.4.4" "1.9.0";
+              expected = true;
+            };
+            testNextMajor = {
+              expr = compatible "bun@1.4.4" "2.0.0";
+              expected = false;
+            };
+            testZeroMajorNextMinor = {
+              expr = compatible "bun@0.4.4" "0.5.0";
+              expected = false;
+            };
+            testPrereleaseOfNextMajor = {
+              expr = compatible "bun@1.4.4" "2.0.0-pre.1";
+              expected = false;
+            };
+            testPrereleaseInRange = {
+              expr = compatible "bun@1.4.4" "1.5.0-canary.1";
+              expected = false;
+            };
+            testPrereleaseOfPinnedPrerelease = {
+              expr = compatible "bun@1.4.4-beta.1" "1.4.4-beta.2";
+              expected = true;
+            };
+            testBuildMetadata = {
+              expr = compatible "bun@1.4.4+deadbeef" "1.4.4";
+              expected = true;
+            };
+          };
+        in
+        assert lib.assertMsg (failures == [ ]) "flake/lib/opencode-bun.nix: ${builtins.toJSON failures}";
+        pkgs.writeShellApplication {
+          name = "check-opencode-node-modules-hash";
+          runtimeInputs = [
+            pkgs.jq
+            pkgs.git
+            pkgs.gawk
+            pkgs.gnugrep
+            pkgs.coreutils
+          ];
+          text = ''
+            bash scripts/tests/opencode-node-modules-hash-test.sh
+          '';
+        };
+
       # Hermetic tests for scripts/flake-input-impact.sh: fixture flakes under
       # scripts/tests/fixtures/flake-input-impact exercise the
       # none/rebuild/source classification offline, with tiny flakes
@@ -452,6 +520,14 @@
               name = "flake input watch and policy tests";
               entry = "${pkgs.lib.getExe flakeWatchCheck}";
               files = "^(scripts/(flake-watch|check-flake-input-policy|tests/flake-watch-test)\\.sh|\\.github/scripts/flake-watch-[a-z]+\\.sh|\\.github/flake-input-policy\\.json|flake\\.lock)$";
+              pass_filenames = false;
+            };
+
+            opencode-node-modules-hash = {
+              enable = true;
+              name = "opencode relock, Bun range and hash recording tests";
+              entry = "${pkgs.lib.getExe opencodeNodeModulesHashCheck}";
+              files = "^(scripts/(opencode-node-modules-hash|tests/opencode-node-modules-hash-test)\\.sh|flake/lib/opencode-bun\\.nix|\\.github/workflows/renovate-relock\\.yaml)$";
               pass_filenames = false;
             };
 
@@ -922,6 +998,17 @@
           ''
             cd ${self}
             check-deploy-guard
+            touch "$out"
+          '';
+
+      opencode-node-modules-hash =
+        pkgs.runCommand "opencode-node-modules-hash-check"
+          {
+            nativeBuildInputs = [ opencodeNodeModulesHashCheck ];
+          }
+          ''
+            cd ${self}
+            check-opencode-node-modules-hash
             touch "$out"
           '';
 

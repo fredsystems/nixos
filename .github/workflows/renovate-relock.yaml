@@ -12,8 +12,8 @@ name: renovate-relock
 # the repo loses reproducibility until somebody runs `nix flake lock`
 # by hand.
 #
-# When the PR moves the opencode pin, it also verifies the release's
-# node_modules hash and commits a corrected one if upstream's is stale;
+# When OpenCode or its toolchain moves, verify the node_modules hash
+# against this repo's complete lock graph and record it;
 # see the opencode-hash job.
 #
 # NOTE: this workflow intentionally has NO `paths:` filter on the
@@ -71,13 +71,26 @@ jobs:
             accept-flake-config = true
             access-tokens = github.com=${{ github.token }}
 
+      - name: Test OpenCode relock and hash handling
+        run: bash scripts/tests/opencode-node-modules-hash-test.sh
+
       - name: Re-lock drifted inputs
+        id: lock
         # Plain `nix flake lock` only re-resolves inputs whose flake.nix
         # URL no longer matches the lock entry's `original` ref.  It
         # does NOT bump nixpkgs-kernel or any other input where the URL
         # is unchanged.  --refresh forces revalidation of channel HEADs
         # so a same-day re-run picks up upstream movement.
-        run: nix flake lock --refresh
+        run: |
+          set -euo pipefail
+          log="$(mktemp)"
+          {
+            nix flake lock --refresh
+            ./scripts/opencode-node-modules-hash.sh relock
+          } 2>&1 | tee "$log"
+          if grep -Ei '(^|[[:space:]])(warning|warn|error)(:|[[:space:]])' "$log"; then
+            echo "diagnostics=true" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Commit and push if lock changed
         id: push
@@ -94,44 +107,59 @@ jobs:
           git push
           echo "pushed=true" >> "$GITHUB_OUTPUT"
 
-      - name: Decide whether to check the opencode node_modules hash
-        # Only when the PR moves the opencode pin, and only if the hash for
-        # that revision hasn't been recorded already (i.e. this isn't the
-        # re-run triggered by our own hash commit).
-        id: opencode
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      - name: Fail on every relock warning or error
+        # Nix calls a successful lock rewrite a warning too. Still fail this
+        # run, after preserving the lock commit: its push triggers a fresh
+        # run which must be clean. Actual command errors stop before commit.
+        if: steps.lock.outputs.diagnostics == 'true'
         run: |
-          rev_of() { jq -r '.nodes[.nodes.root.inputs.opencode].locked.rev'; }
-          git fetch --quiet --depth=1 origin "$BASE_SHA"
-          base_rev="$(git show FETCH_HEAD:flake.lock | rev_of)"
-          head_rev="$(rev_of < flake.lock)"
-          recorded_rev="$(jq -r '.rev' flake/lib/opencode-node-modules-hashes.json)"
-          if [ "$head_rev" = "$base_rev" ]; then
-            echo "opencode pin unchanged ($head_rev)."
-            echo "check=false" >> "$GITHUB_OUTPUT"
-          elif [ "$head_rev" = "$recorded_rev" ]; then
-            echo "opencode node_modules hashes for $head_rev already recorded."
+          echo "::error::Relock emitted a warning or error; this run cannot pass."
+          exit 1
+
+      - name: Decide whether to check the opencode node_modules hash
+        # Both deployed systems must have hashes for this exact release AND
+        # toolchain, including changes that only move opencode/nixpkgs.
+        id: opencode
+        run: |
+          identity="$(./scripts/opencode-node-modules-hash.sh identity)"
+          if jq -e --argjson identity "$identity" '
+            .nodeModules as $records |
+            all(["x86_64-linux", "aarch64-darwin"][];
+              $records[.].rev == $identity.rev
+              and $records[.].nixpkgsRev == $identity.nixpkgsRev
+              and ($records[.].hash | type == "string"))
+          ' flake/lib/opencode-node-modules-hashes.json > /dev/null; then
+            echo "OpenCode hashes already recorded for this release and toolchain."
             echo "check=false" >> "$GITHUB_OUTPUT"
           else
-            echo "opencode pin moved $base_rev -> $head_rev; checking node_modules hashes."
+            echo "OpenCode release or toolchain changed; checking node_modules hashes."
             echo "check=true" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Require verified OpenCode hashes before passing
+        if: steps.opencode.outputs.check == 'true'
+        run: |
+          echo "::error::OpenCode hashes are missing for the locked release/toolchain; the hash jobs must repair them before relock can pass."
+          exit 1
 
   # Upstream ships the opencode node_modules fixed-output hash in
   # nix/hashes.json, and the bot PR that updates it is regularly left
   # unmerged when a release is tagged, which fails every opencode host build.
-  # Build upstream's node_modules on each system we deploy and, where its hash
-  # is stale, commit the real one to flake/lib/opencode-node-modules-hashes.json
+  # Build upstream's node_modules against this repo's lock on each system we
+  # deploy and commit the real hash to
+  # flake/lib/opencode-node-modules-hashes.json, keyed by release + toolchain
   # (applied by flake/lib/opencode-overlay.nix). This is a standing check on
-  # every opencode bump, not a workaround for one upstream PR.
+  # every opencode or opencode/nixpkgs change, not a workaround for one
+  # upstream PR.
   #
   # Skipped when relock pushed: that push re-runs this workflow against the
   # new lock, and the hash has to be computed for that lock, not this one.
   opencode-hash:
     name: opencode node_modules hash (${{ matrix.system }})
     needs: relock
-    if: needs.relock.outputs.pushed == 'false' && needs.relock.outputs.opencode == 'true'
+    # A missing-hash gate deliberately fails relock, but these repair jobs
+    # still need to run and push the hashes so the next head can pass.
+    if: always() && !cancelled() && needs.relock.outputs.pushed == 'false' && needs.relock.outputs.opencode == 'true'
     runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
@@ -176,6 +204,11 @@ jobs:
   opencode-hash-commit:
     name: Commit opencode node_modules hashes
     needs: opencode-hash
+    # A job's implicit success() covers every ancestor, not just `needs`
+    # (actions/runner#2205). relock fails on purpose while hashes are
+    # missing, so without this the repair would always be skipped and the
+    # PR held with nothing to unblock it.
+    if: always() && !cancelled() && needs.opencode-hash.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -215,13 +248,13 @@ jobs:
             ./scripts/opencode-node-modules-hash.sh record "$system" "$hash"
           done
           if git diff --quiet flake/lib/opencode-node-modules-hashes.json; then
-            echo "Upstream node_modules hashes are correct; nothing to do."
+            echo "node_modules hashes already recorded for this release and toolchain; nothing to do."
             exit 0
           fi
-          version="$(nix eval --raw "$(jq -r '.nodes[.nodes.root.inputs.opencode].locked | "github:\(.owner)/\(.repo)/\(.rev)"' flake.lock)#packages.x86_64-linux.opencode.version")"
+          version="$(jq -r '.nodes[.nodes.root.inputs.opencode].original.ref' flake.lock)"
           git config user.email "noreply@github.com"
           git config user.name "github[bot]"
           git add flake/lib/opencode-node-modules-hashes.json
-          git commit -m "fix(opencode): pin node_modules hashes for ${version%%+*}" \
-            -m "Upstream's nix/hashes.json is stale for this release."
+          git commit -m "fix(opencode): record node_modules hashes for ${version%%+*}" \
+            -m "Verified against this repo's locked opencode release and opencode/nixpkgs toolchain."
           git push

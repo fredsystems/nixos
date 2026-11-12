@@ -1,5 +1,5 @@
 {
-  "$comment": "Per-input update policy. Read by update-flakes.yaml (which inputs are held back from the weekly auto-merge run) and flake-input-watch.yaml (which inputs get an update PR as soon as a source change lands), and by the flake input alerts' maximum ages. policy: auto | manual. max_age_days: how long an input may be behind with a source change and no update PR before FlakeInputOutdated fires. Validated by scripts/check-flake-input-policy.sh.",
+  "$comment": "Per-input update policy. Read by update-flakes.yaml (which inputs are held back from the weekly auto-merge run, and which it never updates) and flake-input-watch.yaml (which inputs get an update PR as soon as a source change lands), and by the flake input alerts' maximum ages. policy: auto | manual | renovate. renovate: only Renovate's flake.nix bump (and renovate-relock.yaml) may move it; update-flakes.yaml skips it and the watch never dispatches it. max_age_days: how long an input may be behind with a source change and no update PR before FlakeInputOutdated fires. Validated by scripts/check-flake-input-policy.sh.",
   "version": 1,
   "defaults": {
     "policy": "auto",
@@ -10,6 +10,10 @@
       "$comment": "Server kernel bumps need a planned reboot, so they are reviewed by hand on the monthly run.",
       "policy": "manual",
       "max_age_days": 45
+    },
+    "opencode": {
+      "$comment": "Pinned to a release tag, so `nix flake update opencode` can never move the release; all it does is reset opencode/nixpkgs to upstream's own lock, undoing the Bun repair renovate-relock.yaml makes (see flake/lib/opencode-overlay.nix).",
+      "policy": "renovate"
     }
   }
 }
