@@ -271,8 +271,9 @@ to a release tag that Renovate bumps.
   `scripts/gen-fleet-manifest.sh`.
 - **`inputs` is the only extra module argument.** Beyond the standard
   ones (`config`, `lib`, `pkgs`, ...), the builders pass
-  `specialArgs = { inherit inputs; }` and nothing else, on NixOS, Darwin,
-  Colmena and Home Manager alike. Fleet data is a `shared.*` option
+  `specialArgs = { inherit inputs; }` on NixOS, Darwin and Colmena, and
+  `extraSpecialArgs = { inherit inputs; }` on Home Manager, and nothing
+  else as a module argument. Fleet data is a `shared.*` option
   (`modules/base/fleet-identity*.nix`), a flake input's module is wired
   by the builder (not imported by a module), and an OS- or role-specific
   half is listed by its caller. Only host-specific code may take `inputs`
