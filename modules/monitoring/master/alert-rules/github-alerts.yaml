@@ -350,3 +350,20 @@ groups:
         annotations:
           summary: "flake-input-watch has not succeeded in {{ $value | humanizeDuration }}"
           description: "Flake input impact and update dispatches are stale. Check the workflow's recent runs in fredsystems/nixos."
+
+      # The same failure from the start: the exporter has no last-success
+      # series for the watch at all, because it has never succeeded (or every
+      # run since tracking began was cancelled, skipped or failed), so
+      # FlakeWatchStale has nothing to compare against. Scoped to this one
+      # workflow, and only while the exporter is publishing other workflows'
+      # successes, so an exporter outage stays GitHubExporterDown's alert.
+      - alert: FlakeWatchNeverSucceeded
+        expr: |
+          absent(github_workflow_last_success_timestamp_seconds{org="fredsystems", repo="nixos", workflow="flake-input-watch"})
+          and on () (count(github_workflow_last_success_timestamp_seconds) > 0)
+        for: 6h
+        labels:
+          severity: warning
+        annotations:
+          summary: "flake-input-watch has no successful run on record"
+          description: "github-ci-exporter sees other workflows' successes but none for flake-input-watch in fredsystems/nixos, so flake input impact is not being published. Check the workflow's runs."

@@ -223,6 +223,12 @@ fi
 #     FlakeInputUpdateStuck use it as a join; the always-present
 #     github_flake_input_locked_timestamp_seconds is checked normally.
 #
+#   github_flake_input_outdated_since_timestamp_seconds
+#     Emitted only for tracked flake nodes that are behind upstream. With
+#     every node current it is empty; FlakeInputOutdated needs nothing to
+#     fire on then. github_flake_input_locked_timestamp_seconds, always
+#     present for every tracked node, is checked normally.
+#
 #   github_flake_input_impact
 #     Republished from the flake-input-watch status file, which lists only
 #     inputs that are behind upstream. With every input up to date it is
@@ -231,6 +237,7 @@ fi
 CONDITIONAL_METRICS=(
     fwupd_device_update_info
     github_flake_input_update_pr_open
+    github_flake_input_outdated_since_timestamp_seconds
     github_flake_input_impact
 )
 

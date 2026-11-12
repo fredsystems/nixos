@@ -289,3 +289,41 @@ tests:
       - eval_time: 90m
         alertname: FlakeWatchStale
         exp_alerts: []
+      - eval_time: 90m
+        alertname: FlakeWatchNeverSucceeded
+        exp_alerts: []
+
+  # ---------------------------------------------------------------------------
+  # FlakeWatchNeverSucceeded
+  # ---------------------------------------------------------------------------
+
+  - interval: 5m
+    name: FlakeWatchNeverSucceeded fires when the watch has no success series at all
+    input_series:
+      - series: 'github_workflow_last_success_timestamp_seconds{org="fredsystems", repo="nixos", workflow="update-flakes"}'
+        values: "-86400+0x100"
+    alert_rule_test:
+      - eval_time: 7h
+        alertname: FlakeWatchNeverSucceeded
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              org: fredsystems
+              repo: nixos
+              workflow: flake-input-watch
+            exp_annotations:
+              summary: "flake-input-watch has no successful run on record"
+              description: "github-ci-exporter sees other workflows' successes but none for flake-input-watch in fredsystems/nixos, so flake input impact is not being published. Check the workflow's runs."
+      - eval_time: 5h
+        alertname: FlakeWatchNeverSucceeded
+        exp_alerts: []
+
+  - interval: 5m
+    name: FlakeWatchNeverSucceeded stays quiet while the exporter publishes no successes at all
+    input_series:
+      - series: 'up{job="github-ci"}'
+        values: "0+0x100"
+    alert_rule_test:
+      - eval_time: 7h
+        alertname: FlakeWatchNeverSucceeded
+        exp_alerts: []
