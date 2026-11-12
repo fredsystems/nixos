@@ -140,7 +140,11 @@ if [[ ! -f "$FLAKE_DIR/flake.lock" ]]; then
   exit 2
 fi
 
-TMP="$(mktemp -d)"
+# Resolved to its physical path: on macOS mktemp's directory is under /tmp
+# or /var, both symlinks into /private, and Nix refuses a --reference-lock-
+# file whose path goes through a symlink ("path '/tmp' is a symlink"), which
+# failed every Darwin classification.
+TMP="$(cd "$(mktemp -d)" && pwd -P)"
 trap 'rm -rf "$TMP"' EXIT
 
 # Explicit rather than relying on nix.conf: the pre-commit hook entry below

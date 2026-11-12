@@ -180,6 +180,18 @@ git_commit_all "$TMPROOT/dep-source" "bump value"
 
 expect_kind "(d) own source change, used" "dep-source" "source"
 
+# The same classification with the scratch directory reached through a
+# symlink, as macOS's /tmp and /var are (both point into /private). Nix
+# refuses a --reference-lock-file under a symlinked path, which failed every
+# Darwin classification until the script resolved its scratch directory.
+mkdir -p "$TMPROOT/real-tmp"
+ln -s "$TMPROOT/real-tmp" "$TMPROOT/linked-tmp"
+if actual="$(TMPDIR="$TMPROOT/linked-tmp" run_script "dep-source")" && [[ "$actual" == "source" ]]; then
+    ok
+else
+    bad "(d) through a symlinked TMPDIR" "expected: source" "actual: ${actual:-}" "stderr:" "$(cat "$TMPROOT/stderr.log")"
+fi
+
 # --json reports the bumped revision it classified, which callers compare
 # against the revision they planned for.
 if json="$(run_script "dep-source" --json)"; then

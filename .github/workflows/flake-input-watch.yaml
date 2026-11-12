@@ -138,13 +138,14 @@ jobs:
             access-tokens = github.com=${{ github.token }}
             accept-flake-config = true
 
-      # Self-hosted runners have no jq, and macOS's own bash is 3.2 (these
-      # scripts need 4+): take them, and GNU coreutils, from the flake's
-      # nixpkgs, as ci-linux.yaml's find-systems does for jq.
+      # Self-hosted runners have no jq or gh, and macOS's own bash is 3.2
+      # (these scripts need 4+): take them, and GNU coreutils, from the
+      # flake's nixpkgs, as ci-linux.yaml's find-systems does for jq. gh is
+      # what the Publish step dispatches update-flakes.yaml with.
       - name: Tools from the flake's nixpkgs
         run: |
           nix build --no-link --print-out-paths --inputs-from . \
-            nixpkgs#bashInteractive nixpkgs#jq nixpkgs#coreutils |
+            nixpkgs#bashInteractive nixpkgs#jq nixpkgs#coreutils nixpkgs#gh |
             while IFS= read -r p; do echo "$p/bin" >> "$GITHUB_PATH"; done
 
       - name: Classify
@@ -203,13 +204,14 @@ jobs:
             substituters = http://192.168.31.14:8080/fred https://catppuccin.cachix.org https://cache.nixos.org/
             trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= fred:JjyhvRSvKfkk8r4HS0mS5r5I7dT4GociEFbrR9OgBZ0= catppuccin.cachix.org-1:noG/4HkbhJb+lUAdKrph6LaozJvAeEEZj4N732IysmU=
 
-      # Self-hosted runners have no jq, and macOS's own bash is 3.2 (these
-      # scripts need 4+): take them, and GNU coreutils, from the flake's
-      # nixpkgs, as ci-linux.yaml's find-systems does for jq.
+      # Self-hosted runners have no jq or gh, and macOS's own bash is 3.2
+      # (these scripts need 4+): take them, and GNU coreutils, from the
+      # flake's nixpkgs, as ci-linux.yaml's find-systems does for jq. gh is
+      # what the Publish step dispatches update-flakes.yaml with.
       - name: Tools from the flake's nixpkgs
         run: |
           nix build --no-link --print-out-paths --inputs-from . \
-            nixpkgs#bashInteractive nixpkgs#jq nixpkgs#coreutils |
+            nixpkgs#bashInteractive nixpkgs#jq nixpkgs#coreutils nixpkgs#gh |
             while IFS= read -r p; do echo "$p/bin" >> "$GITHUB_PATH"; done
 
       - name: Classify
