@@ -269,6 +269,16 @@ to a release tag that Renovate bumps.
   `fleet-manifest.yaml`; the revision is recovered by reverse lookup.
   See the note in `flake/lib/mk-system.nix` and
   `scripts/gen-fleet-manifest.sh`.
+- **`inputs` is the only module argument.** The builders pass
+  `specialArgs = { inherit inputs; }` and nothing else, on NixOS, Darwin,
+  Colmena and Home Manager alike. Fleet data is a `shared.*` option
+  (`modules/base/fleet-identity*.nix`), a flake input's module is wired
+  by the builder (not imported by a module), and an OS- or role-specific
+  half is listed by its caller. Only host-specific code may read
+  `inputs`; nothing an export reaches can, and the `exports-standalone`
+  check (run in `lint.yaml`) fails if one does. Exports live in
+  `flake/exports.nix`, documented in `MODULES.md`; see
+  `agent-docs/plans/PLAN_04_MODULE_INTERFACES.md` for why.
 
 ---
 

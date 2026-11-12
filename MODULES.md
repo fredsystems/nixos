@@ -82,6 +82,11 @@ cache client without a push token (`programs.atticClient.tokenFile = null`),
 so nothing is read at activation. To push, provision a token file yourself
 and set `programs.atticClient.tokenFile` to its path.
 
+Switching back from a token to `null` leaves the rendered
+`~/.config/attic/config.toml` behind as a regular file, which Home Manager
+then refuses to replace. Delete it before activating the tokenless
+configuration.
+
 ### `nixosModules.dependencies`
 
 The third-party modules listed above, the Home Manager shared modules, and
@@ -124,7 +129,10 @@ Common desktop environment baseline configuration. Enables:
 
 ```nix
 {
-  imports = [ fredsystems.nixosModules.desktop-common ];
+  imports = [
+    fredsystems.nixosModules.dependencies
+    fredsystems.nixosModules.desktop-common
+  ];
 
   # Override if needed
   desktop.enable = true;
@@ -365,7 +373,10 @@ Most profile options use `lib.mkDefault`, making them easy to override:
 
 ```nix
 {
-  imports = [ fredsystems.nixosModules.desktop-common ];
+  imports = [
+    fredsystems.nixosModules.dependencies
+    fredsystems.nixosModules.desktop-common
+  ];
 
   # This overrides the mkDefault value from the profile
   hardware.fingerprint.enable = false;
@@ -392,6 +403,7 @@ Modules are designed to work together:
 ```nix
 {
   imports = [
+    fredsystems.nixosModules.dependencies
     fredsystems.nixosModules.desktop-common
     fredsystems.nixosModules.nas-mounts
     fredsystems.nixosModules.github-runners

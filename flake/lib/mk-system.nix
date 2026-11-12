@@ -4,6 +4,14 @@
 # machines.  Server machines additionally expose `_colmena` so that the
 # Colmena output can reuse the same modules / specialArgs without duplication.
 #
+# Everything below is a BUILDER parameter, not a module argument: modules get
+# only `inputs` (specialArgs and Home Manager's extraSpecialArgs alike). The
+# builder turns the rest into shared.* options (modules/base/fleet-identity*.nix)
+# or into what it puts in the module list -- which channel's catppuccin,
+# sops-nix and nix-yazi-plugins, which OS- and role-specific halves -- so a
+# module never has to ask. See agents.md ("`inputs` is the only module
+# argument") and agent-docs/plans/PLAN_04_MODULE_INTERFACES.md.
+#
 # Arguments passed in from flake.nix (the "flake-level" bindings that every
 # call site shares):
 #
@@ -12,7 +20,6 @@
 #   user             – primary username string
 #   verbose_name     – display name string
 #   github_email     – GitHub email string
-#   hmlib            – home-manager.lib
 #   agentNodes       – list of monitoring-agent hostnames
 #   agentScrapeMap   – attrset of hostname → scrape address
 #   desktopNodes     – list of desktop hostnames
