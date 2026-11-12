@@ -161,14 +161,22 @@ in
 
   homeModules =
     let
-      homeDesktop = {
-        imports = [
-          ../home-profiles/desktop.nix
-          # Declares programs.atticClient, which the profile sets; the
-          # builders add it to every user, an export has to bring it.
-          ../modules/services/attic/attic_client.nix
-        ];
-      };
+      homeDesktop =
+        { lib, ... }:
+        {
+          imports = [
+            ../home-profiles/desktop.nix
+            # Declares programs.atticClient, which the profile sets; the
+            # builders add it to every user, an export has to bring it.
+            ../modules/services/attic/attic_client.nix
+          ];
+
+          # The profile points the Attic client at this fleet's push token
+          # (/run/secrets/attic/desktop_token), which a consumer does not
+          # have; activation would fail reading it. Above the profile's
+          # mkDefault, below any value the consumer sets.
+          programs.atticClient.tokenFile = lib.mkOverride 900 null;
+        };
     in
     {
       home-desktop = homeDesktop;

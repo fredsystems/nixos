@@ -258,8 +258,11 @@ and `--os darwin` report no impacted hosts; every host evaluates with no
 - [ ] **4.11 Make `nixosModules.default` coherent.** It combines both
       profiles. Either it evaluates standalone once 4.10 lands, or it is
       redefined as the set that does (decide from 4.10's result, before
-      starting 4.11). 4.10's result: `default` evaluates with
-      `dependencies` and the documented consumer settings.
+      starting 4.11). 4.10's result: its toplevel evaluates with
+      `dependencies` and the documented consumer settings, but it is not
+      yet coherent: both profiles set `deployment.role` with `mkDefault`
+      ("desktop" and "monitoring-agent"), so reading the role fails
+      (raised in review on #2843). 4.11 resolves that.
 - [ ] **4.12 Standalone export check.** `exports-standalone` in
       `flake/dev/checks.nix`: evaluate every `nixosModules.*` attr in a
       bare `nixosSystem` (minimal stub: host platform, root filesystem,

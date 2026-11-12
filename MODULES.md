@@ -77,6 +77,11 @@ exports themselves:
 
 `shared.catppuccinWallpapers` defaults to this flake's own wallpaper package.
 
+`homeModules.home-desktop` (and `homeModules.default`) configure the Attic
+cache client without a push token (`programs.atticClient.tokenFile = null`),
+so nothing is read at activation. To push, provision a token file yourself
+and set `programs.atticClient.tokenFile` to its path.
+
 ### `nixosModules.dependencies`
 
 The third-party modules listed above, the Home Manager shared modules, and
