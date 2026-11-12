@@ -25,10 +25,13 @@ case "$*" in
     if [[ -f $MOCK_READY ]]; then echo '{"compatible":true}'; else echo '{"compatible":false}'; fi ;;
   *'nixpkgsRev = '*) printf '{"rev":"release","nixpkgsRev":"%s"}\n' "$MOCK_NIXPKGS_REV" ;;
   *'builtins.getFlake '*'.node_modules.outputHash') echo sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA= ;;
-  'build '*builtins.getFlake*'.node_modules')
+  'build '*builtins.getFlake*'.node_modules.override'*'lib.fakeHash'*)
     echo 'error: hash mismatch in fixed-output derivation' >&2
-    echo '         got:    sha256-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=' >&2
+    echo "         got:    ${MOCK_GOT:-sha256-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=}" >&2
     exit 1 ;;
+  # Any other node_modules build "succeeds", as a path already in the store
+  # or a substituter would, without running the locked Bun.
+  'build '*builtins.getFlake*'node_modules'*) ;;
   *) echo "Unexpected nix call: $*" >&2; exit 1 ;;
 esac
 MOCK
@@ -39,7 +42,8 @@ cd "$work/repo"
 script=./scripts/opencode-node-modules-hash.sh
 run() { bash "$script" "$@"; }
 hash=$(run compute x86_64-linux)
-[[ $hash == sha256-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB= ]]
+[[ $hash == sha256-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB= ]] # never upstream's cached hash
+[[ $(MOCK_GOT=sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA= run compute x86_64-linux) == sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA= ]]
 echo '{"nodeModules":{"aarch64-darwin":{"rev":"release","nixpkgsRev":"toolchain-a","hash":"old-darwin"}}}' > flake/lib/opencode-node-modules-hashes.json
 run record x86_64-linux "$hash"
 jq -e '.nodeModules["x86_64-linux"].nixpkgsRev == "toolchain-a" and .nodeModules["aarch64-darwin"].hash == "old-darwin"' flake/lib/opencode-node-modules-hashes.json >/dev/null

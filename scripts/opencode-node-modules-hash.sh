@@ -4,10 +4,9 @@
 #
 # Upstream keeps the hash per system in nix/hashes.json, updated by a bot PR
 # that is not always merged before a release is tagged. This builds upstream's
-# node_modules using THIS repo's complete flake.lock, including opencode/nixpkgs:
-# if it builds,
-# upstream's hash is right; if it fails with a hash mismatch, the "got:" hash
-# is the real one. Real hashes are written to
+# node_modules using THIS repo's complete flake.lock, including opencode/nixpkgs,
+# against a fake hash, so `bun install` really runs with the locked toolchain
+# and the mismatch's "got:" hash is the real one. Real hashes are written to
 # flake/lib/opencode-node-modules-hashes.json, which
 # flake/lib/opencode-overlay.nix applies.
 #
@@ -109,18 +108,29 @@ compute() {
   expected="$(upstream_hash "$system")"
   log "Building locked OpenCode node_modules for $system (upstream hash $expected)"
 
+  # A fixed-output path depends only on its name and declared hash, not on
+  # the Bun that produced it. Building with upstream's hash would let a path
+  # already in the store or a substituter (Attic) stand in for a real install
+  # with this toolchain. The fake hash has no valid path anywhere, so the
+  # install always runs, and its "got:" is the real hash.
   build_log="$(mktemp)"
   trap 'rm -f "$build_log"' EXIT
-  if nix build --impure --no-link --print-build-logs --expr "($(package_expr "$system")).node_modules" 2>&1 | tee "$build_log" >&2; then
-    log "Upstream hash for $system is correct."
-    printf '%s\n' "$expected"
-    return
+  if nix build --impure --no-link --print-build-logs --expr "let
+      f = ($flake_expr);
+    in ($(package_expr "$system")).node_modules.override {
+      hash = f.inputs.opencode.inputs.nixpkgs.lib.fakeHash;
+    }" 2>&1 | tee "$build_log" >&2; then
+    die "node_modules for $system built with a fake hash; cannot determine the real one"
   fi
 
   got="$(grep -oE 'got: +sha256-[A-Za-z0-9+/=]+' "$build_log" | tail -n1)"
   got="${got##* }"
   [[ -n $got ]] || die "node_modules build for $system failed for a reason other than a hash mismatch"
-  log "Upstream hash for $system is stale; real hash is $got"
+  if [[ $got == "$expected" ]]; then
+    log "Upstream hash for $system is correct."
+  else
+    log "Upstream hash for $system is stale; real hash is $got"
+  fi
   printf '%s\n' "$got"
 }
 
