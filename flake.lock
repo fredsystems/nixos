@@ -13,11 +13,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1794096006,
-        "narHash": "sha256-XzBtDmTGJ9pwubbHZ5Fa4j+ETU3OzVFwMrldaEYfrus=",
+        "lastModified": 1794152385,
+        "narHash": "sha256-tJO7iVYtBLDeQ4vJv1hhuA+Pigo6bkpkmcUIrLJnhlY=",
         "owner": "fredsystems",
         "repo": "beast-compare",
-        "rev": "87f03ebe8813d783926cf3024f8275509ee3a041",
+        "rev": "c6c1c316b04d6a2577906a6f0159cdbf6c440930",
         "type": "github"
       },
       "original": {
