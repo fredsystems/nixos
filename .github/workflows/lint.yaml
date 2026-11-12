@@ -87,6 +87,13 @@ jobs:
         # occurred when acarsdec-3 was replaced by xng on acarshub.
         run: nix build --no-link --print-build-logs .#checks.x86_64-linux.decoder-units-sync
 
+      - name: Check every export evaluates standalone
+        # Not a pre-commit hook for the same reason: it evaluates every
+        # nixosModules.* and homeModules.* export in a bare nixosSystem /
+        # homeManagerConfiguration (about 90s), which a hook would add to
+        # every dev-shell load. See flake/exports.nix and MODULES.md.
+        run: nix build --no-link --print-build-logs .#checks.x86_64-linux.exports-standalone
+
       - name: Check SyncClipboard server/client version parity
         # The server image and the Linux client AppImage ship from a single
         # upstream tag but are pinned in two files, and only the image is

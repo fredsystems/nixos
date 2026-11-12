@@ -267,13 +267,20 @@ and `--os darwin` report no impacted hosts; every host evaluates with no
       non-profile export, no role, no third-party modules needed. The two
       profiles describe different kinds of machine, so a consumer picks one
       explicitly.
-- [ ] **4.12 Standalone export check.** `exports-standalone` in
+- [x] **4.12 Standalone export check.** `exports-standalone` in
       `flake/dev/checks.nix`: evaluate every `nixosModules.*` attr in a
       bare `nixosSystem` (minimal stub: host platform, root filesystem,
       `stateVersion`) and every `homeModules.*` attr in a bare Home
       Manager configuration, keyed off `lib.attrNames` so new exports
       are covered automatically. Fails on today's `main`; passes after
-      4.10-4.11.
+      4.10-4.11. Done. Each NixOS export is checked with `dependencies`,
+      and on its own unless MODULES.md lists it as needing third-party
+      modules; plus the bring-your-own path (adsb-hub with `overlays` and a
+      consumer's own stable sops-nix and home-manager). Runs in lint.yaml,
+      not as a hook: ~90s of evaluation would land on every dev-shell load.
+      Found on the way: importing `dependencies` twice declared catppuccin's
+      options twice (its modules are values, not paths); `dependencies` and
+      `overlays` now carry a `key`.
 - [ ] **4.13 Documentation.** `MODULES.md` (exports are standalone;
       what each one brings), `agents.md` (the "`inputs` is the only
       specialArg" rule), and a short note in `flake/lib/mk-system.nix`.
@@ -300,6 +307,15 @@ and `--os darwin` report no impacted hosts; every host evaluates with no
       replace `gnome-photos` (nixpkgs suggests `loupe` or `shotwell`).
       Verification: Daytona with gnome enabled evaluates its toplevel.
       Not scheduled against this plan's subtasks; independent.
+- [ ] **4.15 Check-only Nix checks never run in CI.** Surfaced during 4.12:
+      `lint.yaml` builds only `pre-commit-check`, `decoder-units-sync` and
+      (now) `exports-standalone`. Flake checks that are not also pre-commit
+      hooks, `fleet-identity-bridge` among them, run only when someone
+      runs `nix flake check` by hand, so a regression they exist to catch
+      can merge unflagged. Impact: those checks protect less than they
+      appear to. Fix: list them in `lint.yaml` (each is cheap to state,
+      the cost is their evaluation time), or make the cheap ones hooks.
+      Unscheduled.
 
 ## Out of scope
 
