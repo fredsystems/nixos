@@ -116,7 +116,7 @@ The third-party modules listed above, the Home Manager shared modules, and
 ### `nixosModules.overlays`
 
 The package overlays this flake's modules read (`nixos-needsreboot`,
-`opencode`, `freminal`, the kernel pin's package set, and the repository's
+`opencode`, `opencode-desktop`, `freminal`, the kernel pin's package set, and the repository's
 own). Included in `dependencies`; import it alone when you bring your own
 third-party modules. Overlays never conflict with yours.
 

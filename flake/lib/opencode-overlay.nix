@@ -42,6 +42,13 @@ let
   # Only undone when present: if upstream drops or rewords the relaxation, the
   # evaluation-time assert still guards the toolchain.
   relaxedCheck = "console.warn(`Warning: This script requires bun@";
+  rearmBunCheck =
+    old:
+    (old.postPatch or "")
+    + lib.optionalString (lib.hasInfix relaxedCheck (old.postPatch or "")) ''
+      substituteInPlace packages/script/src/index.ts \
+        --replace-fail '${relaxedCheck}' 'throw new Error(`This script requires bun@'
+    '';
 in
 {
   opencode =
@@ -52,12 +59,7 @@ in
       node_modules =
         if hash == null then upstream.node_modules else upstream.node_modules.override { inherit hash; };
 
-      postPatch =
-        (old.postPatch or "")
-        + lib.optionalString (lib.hasInfix relaxedCheck (old.postPatch or "")) ''
-          substituteInPlace packages/script/src/index.ts \
-            --replace-fail '${relaxedCheck}' 'throw new Error(`This script requires bun@'
-        '';
+      postPatch = rearmBunCheck old;
 
       # The channel compiled into the CLI picks the background service's
       # registration file and fixed port. Upstream's recipe builds "prod"
@@ -105,4 +107,39 @@ in
         )
       '';
     });
+
+  # Upstream's desktop recipe takes src, node_modules and the bundled CLI from
+  # its `opencode` argument, so passing ours carries the pinned hash, the Bun
+  # assert and the server-startup check into it. Everything else (Bun,
+  # Electron) still comes from opencode/nixpkgs, as upstream builds it. The
+  # recipe relaxes the Bun check in its own postPatch, so re-arm it here too.
+  #
+  # The recipe stages the CLI in $OPENCODE_CLI_DIST, but since upstream's
+  # 6996bbcd6 packages/desktop/script/build.ts only looks in ../cli/dist and
+  # a prod build throws without it. Stage it there instead, only while the two
+  # disagree, so a fix on either side upstream makes this a no-op.
+  #
+  # The recipe copies the CLI's env, but the desktop reads OPENCODE_CHANNEL as
+  # its own identity (local/dev/beta/prod, anything else is "dev": app name,
+  # app id, data dir), so it keeps "prod" while the CLI it bundles is "latest".
+  opencode-desktop =
+    let
+      stagedDist = ''export OPENCODE_CLI_DIST="$TMPDIR/desktop-cli"'';
+      readsDist = lib.hasInfix "OPENCODE_CLI_DIST" (
+        builtins.readFile (inputs.opencode + "/packages/desktop/script/build.ts")
+      );
+    in
+    (inputs.opencode.packages.${system}.opencode-desktop.override { inherit (final) opencode; })
+    .overrideAttrs
+      (old: {
+        postPatch = rearmBunCheck old;
+        env = old.env // {
+          OPENCODE_CHANNEL = "prod";
+        };
+        buildPhase =
+          if !readsDist && lib.hasInfix stagedDist old.buildPhase then
+            lib.replaceStrings [ stagedDist ] [ ''export OPENCODE_CLI_DIST="$PWD/../cli/dist"'' ] old.buildPhase
+          else
+            old.buildPhase;
+      });
 }
