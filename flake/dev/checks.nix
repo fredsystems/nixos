@@ -1233,16 +1233,40 @@
             system.stateVersion = "26.05";
           };
 
+          # catppuccin/nix warns on every evaluation that leaves `autoEnable`
+          # unset. Setting it at all switches to the new semantics, where
+          # `catppuccin.enable` gates every port, so this is upstream's
+          # behaviour-preserving migration: `autoEnable` takes the old value
+          # of `enable` (false, so ports stay opt-in) and `enable` becomes
+          # true (so ports an export turns on, such as desktop-common's
+          # cursors, still apply). Hosts do the equivalent in modules/base;
+          # MODULES.md tells a consumer to. Used at the NixOS and Home
+          # Manager level.
+          catppuccinConsumer =
+            { options, lib, ... }:
+            {
+              config = lib.optionalAttrs (options ? catppuccin.autoEnable) {
+                catppuccin = {
+                  enable = lib.mkDefault true;
+                  autoEnable = false;
+                };
+              };
+            };
+
           # The settings MODULES.md tells a consumer to provide, applied only
           # where an export declares the options, so the same module serves
           # every export.
           consumer =
             { options, lib, ... }:
             {
+              imports = [ catppuccinConsumer ];
               config = lib.mkMerge [
                 # Unconditional: Home Manager's NixOS module looks the user up
                 # here even for exports that declare no shared.* options.
                 { users.users.alice.isNormalUser = true; }
+                (lib.optionalAttrs (options ? home-manager.sharedModules) {
+                  home-manager.sharedModules = [ catppuccinConsumer ];
+                })
                 (lib.optionalAttrs (options ? shared.user) {
                   shared.user = {
                     name = "alice";
@@ -1264,13 +1288,14 @@
             "desktop-common"
           ];
 
-          evaluates =
-            modules:
+          evaluatesWith =
+            nixpkgs: modules:
             (builtins.tryEval (
-              builtins.seq
-                (inputs.nixpkgs.lib.nixosSystem { inherit modules; }).config.system.build.toplevel.drvPath
+              builtins.seq (nixpkgs.lib.nixosSystem { inherit modules; }).config.system.build.toplevel.drvPath
                 true
             )).value;
+
+          evaluates = evaluatesWith inputs.nixpkgs;
 
           hmEvaluates =
             module:
@@ -1283,6 +1308,7 @@
                   };
                   modules = [
                     module
+                    catppuccinConsumer
                     {
                       home = {
                         username = "alice";
@@ -1320,8 +1346,11 @@
 
           # The "bring your own" path (MODULES.md): overlays plus the
           # consumer's own, differently pinned, sops-nix and home-manager.
+          # Evaluated on stable nixpkgs to match: a consumer pinning stable
+          # home-manager is on stable nixpkgs, and pairing it with unstable
+          # trips Home Manager's release-mismatch warning.
           ownModulesProblems = lib.optional (
-            !evaluates [
+            !evaluatesWith inputs.nixpkgs-stable [
               nixosModules.adsb-hub
               nixosModules.overlays
               inputs.sops-nix-stable.nixosModules.sops

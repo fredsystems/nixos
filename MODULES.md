@@ -72,8 +72,29 @@ exports themselves:
 
   # desktop-common configures Home Manager for that user
   home-manager.users.alice.home.stateVersion = "26.05";
+
+  # Silences catppuccin/nix's "will soon auto enroll ports" warning while
+  # keeping ports opt-in; needed at both levels (see below)
+  catppuccin = {
+    enable = true;
+    autoEnable = false;
+  };
+  home-manager.sharedModules = [
+    {
+      catppuccin = {
+        enable = true;
+        autoEnable = false;
+      };
+    }
+  ];
 }
 ```
+
+The catppuccin settings follow upstream's migration advice. Leaving
+`autoEnable` unset prints a warning on every evaluation, and once it is set
+`catppuccin.enable` gates every port, so it must be `true` for the ports the
+exports turn on (such as desktop-common's cursors) to apply. On a stable
+catppuccin release that predates `autoEnable`, omit that attribute.
 
 `shared.catppuccinWallpapers` defaults to this flake's own wallpaper package.
 
