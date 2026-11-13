@@ -59,6 +59,18 @@ in
             --replace-fail '${relaxedCheck}' 'throw new Error(`This script requires bun@'
         '';
 
+      # The channel compiled into the CLI picks the background service's
+      # registration file and fixed port. Upstream's recipe builds "prod"
+      # (service-prod.json), but the desktop app only discovers "latest"'s
+      # service.json (anomalyco/opencode#60676), so with "prod" it waits forever
+      # for a server it started. "latest" is what official releases use, so the
+      # TUI and the desktop share one service as upstream intends, against the
+      # same opencode.db as "prod". The updater can't install over a store path
+      # either way; features/ai/opencode disables its update check.
+      env = old.env // {
+        OPENCODE_CHANNEL = "latest";
+      };
+
       # --version never loads the server module that failed on Bun 1.4.2.
       # Exercise it in every package build, including the Linux/Darwin CI
       # host builds. Keep all state isolated from the builder's home.

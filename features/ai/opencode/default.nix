@@ -27,6 +27,12 @@ in
         settings = {
           "$schema" = "https://opencode.ai/config.json";
 
+          # Releases arrive through the flake (Renovate), and the updater
+          # can't install over a store path. On the "latest" channel the
+          # check would otherwise announce every release before the flake
+          # carries it.
+          update = "disable";
+
           permission = {
             # `external_directory` defaults to "ask", which stalls any
             # unattended session the moment an agent reads a dependency's
