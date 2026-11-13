@@ -88,6 +88,19 @@ nothing.
    script, so it will build exactly the same set; you'll just save a
    round-trip.
 
+5. To see which dev outputs (`devShells.<system>.*`, `packages.<system>.*`
+   for this machine's system) CI's dev-shell job will rebuild and cache,
+   add `--target dev`:
+
+   ```sh
+   ./scripts/impacted-hosts.sh --os linux --target dev
+   ```
+
+   It prints full attribute paths such as `packages.x86_64-linux.sbomnix`
+   (`--json` gives `{"mode": "...", "outputs": [...]}`). `--os` must
+   match the machine's OS. A change confined to a host directory never
+   takes the `host-confined` shortcut here; it gets a real diff.
+
 ## When the script disagrees with CI
 
 It can't, in the sense that matters: CI does not run its own copy of

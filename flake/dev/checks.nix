@@ -396,6 +396,24 @@
         '';
       };
 
+      # Hermetic tests for scripts/impacted-hosts.sh, which decides what CI
+      # builds: both --target hosts and --target dev, against a fixture flake
+      # (scripts/tests/fixtures/impacted-hosts) whose outputs are hashed,
+      # never built. Same throwaway-store setup as flakeInputImpactCheck.
+      impactedHostsCheck = pkgs.writeShellApplication {
+        name = "check-impacted-hosts";
+        runtimeInputs = [
+          pkgs.jq
+          pkgs.git
+          pkgs.gnused
+          pkgs.coreutils
+          pkgs.nix
+        ];
+        text = ''
+          bash scripts/tests/impacted-hosts-test.sh
+        '';
+      };
+
       # Hermetic tests for the hourly flake input watch
       # (.github/workflows/flake-input-watch.yaml): scripts/flake-watch.sh's
       # candidates / resolve-heads / plan / merge decisions, the flake-watch
@@ -527,6 +545,14 @@
               entry = "${pkgs.lib.getExe flakeInputImpactCheck}";
 
               files = "^scripts/(flake-input-impact|tests/flake-input-impact-test)\\.sh$|^scripts/tests/fixtures/flake-input-impact/";
+              pass_filenames = false;
+            };
+
+            impacted-hosts = {
+              enable = true;
+              name = "impacted hosts / dev outputs detection tests";
+              entry = "${pkgs.lib.getExe impactedHostsCheck}";
+              files = "^scripts/(impacted-hosts|tests/impacted-hosts-test)\\.sh$|^scripts/tests/fixtures/impacted-hosts/";
               pass_filenames = false;
             };
 
@@ -1132,6 +1158,17 @@
           ''
             cd ${self}
             check-flake-input-impact
+            touch "$out"
+          '';
+
+      impacted-hosts =
+        pkgs.runCommand "impacted-hosts-check"
+          {
+            nativeBuildInputs = [ impactedHostsCheck ];
+          }
+          ''
+            cd ${self}
+            check-impacted-hosts
             touch "$out"
           '';
 
