@@ -71,6 +71,9 @@ echo v1 >"$REPO/dev/shell"
 echo v1 >"$REPO/pkgs/tool"
 echo v1 >"$REPO/README.md"
 echo v1 >"$REPO/scripts/attic-push.sh"
+mkdir -p "$REPO/.github/workflows"
+echo '{}' >"$REPO/.github/flake-input-policy.json"
+echo v1 >"$REPO/.github/workflows/other.yaml"
 
 commit() { # message
     git -C "$REPO" add -A
@@ -115,10 +118,12 @@ if [[ "$OS" == "linux" ]]; then
     ALL_HOSTS='["Alpha","beta"]'
     HOST_DIR="hosts/linux/alpha/marker"
     HOST_ONE='["Alpha"]'
+    POLICY_HOSTS='["beta"]'
 else
     ALL_HOSTS='["mac"]'
     HOST_DIR="hosts/darwin/mac/marker"
     HOST_ONE='["mac"]'
+    POLICY_HOSTS='["mac"]'
 fi
 SHELL_OUT="devShells.$SYSTEM.default"
 TOOL_OUT="packages.$SYSTEM.tool"
@@ -127,6 +132,16 @@ TOOL_OUT="packages.$SYSTEM.tool"
 change README.md
 expect "docs-only hosts" '{"mode":"force-none","hosts":[]}'
 expect "docs-only dev" '{"mode":"force-none","outputs":[]}' --target dev
+
+# Other .github/ files stay inert, but flake-input-policy.json is read by
+# Nix and must reach the real diff for both targets.
+change .github/workflows/other.yaml
+expect ".github file hosts" '{"mode":"force-none","hosts":[]}'
+expect ".github file dev" '{"mode":"force-none","outputs":[]}' --target dev
+
+change .github/flake-input-policy.json
+expect "policy hosts" "{\"mode\":\"eval-diff\",\"hosts\":$POLICY_HOSTS}"
+expect "policy dev" "{\"mode\":\"eval-diff\",\"outputs\":[\"devShells.$SYSTEM.default\"]}" --target dev
 
 # A host directory: host-confined for hosts (folding case: Alpha vs
 # alpha), but the dev target must not trust that and diffs for real.
@@ -171,6 +186,60 @@ if (cd "$REPO" && bash "$SCRIPT" --os "$OS" --target bogus HEAD~1) >/dev/null 2>
     bad "unknown --target must fail"
 else
     ok
+fi
+
+# ---------------------------------------------------------------------------
+# is_inert() must never claim a path that Nix reads, or a change to that
+# path alone skips a build that had to run (.github/flake-input-policy.json
+# used to: it feeds sdrhub and the dev shell). Scan every .nix file for path
+# literals (./x, ../x) and `self + "/x"`, and fail on any that is inert or
+# is a directory holding inert files. Interpolated paths (`"${self}/x"`)
+# are not seen; this catches the forms the repo actually uses.
+# ---------------------------------------------------------------------------
+
+inert_refs() { # tree -> "<ref>  (from <file>)" for each violation
+    local tree="$1" f rel dir lit ref files inert
+    files="$(cd "$tree" && find . -type f -not -path './.git/*' | sed 's#^\./##')"
+    inert="$(bash "$SCRIPT" --inert-paths <<<"$files")"
+    while IFS= read -r -d '' f; do
+        rel="${f#"$tree"/}"
+        dir="$(dirname "$f")"
+        while IFS= read -r lit; do
+            case "$lit" in
+                self*)
+                    ref="${lit#self + \"/}"
+                    ref="${ref%\"}"
+                    ;;
+                *) ref="$(realpath -m --relative-to="$tree" "$dir/$lit")" ;;
+            esac
+            [[ "$ref" == "." || "$ref" == ../* || "$ref" == ".." ]] && continue
+            if grep -qxF -- "$ref" <<<"$inert" ||
+                { [[ -d "$tree/$ref" ]] && awk -v p="$ref/" 'index($0, p) == 1 { found = 1; exit } END { exit !found }' <<<"$inert"; }; then
+                printf '%s  (from %s)\n' "$ref" "$rel"
+            fi
+        done < <(grep -v -E '^[[:space:]]*#' "$f" | grep -oE '(\.\.?/[A-Za-z0-9._/+-]+|self \+ "/[^"]+")' || true)
+    done < <(find "$tree" -name '*.nix' -not -path "$tree/.git/*" -not -path "$tree/scripts/tests/fixtures/*" -print0)
+}
+
+# The guard itself must work: a planted read of an inert file is caught.
+mkdir -p "$TMPROOT/guard/modules" "$TMPROOT/guard/.github"
+echo '{ }' >"$TMPROOT/guard/.github/data.json"
+echo '{ x = builtins.readFile ../.github/data.json; }' >"$TMPROOT/guard/modules/a.nix"
+echo '{ y = ./ok.txt; z = self + "/.github"; }' >"$TMPROOT/guard/modules/b.nix"
+guard_out="$(inert_refs "$TMPROOT/guard")"
+if grep -qF ".github/data.json  (from modules/a.nix)" <<<"$guard_out" &&
+    grep -qF ".github  (from modules/b.nix)" <<<"$guard_out" &&
+    [[ "$(wc -l <<<"$guard_out")" -eq 2 ]]; then
+    ok
+else
+    bad "inert-path guard catches a planted read" "got:" "$guard_out"
+fi
+
+real_out="$(inert_refs "$ROOT")"
+if [[ -z "$real_out" ]]; then
+    ok
+else
+    bad "a .nix file reads a path is_inert() calls inert (fix is_inert in scripts/impacted-hosts.sh)" "$real_out"
 fi
 
 printf 'impacted-hosts-test: %d passed, %d failed\n' "$PASS" "$FAIL"

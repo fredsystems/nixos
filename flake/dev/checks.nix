@@ -406,6 +406,9 @@
           pkgs.jq
           pkgs.git
           pkgs.gnused
+          pkgs.gnugrep
+          pkgs.gawk
+          pkgs.findutils
           pkgs.coreutils
           pkgs.nix
         ];
@@ -552,7 +555,9 @@
               enable = true;
               name = "impacted hosts / dev outputs detection tests";
               entry = "${pkgs.lib.getExe impactedHostsCheck}";
-              files = "^scripts/(impacted-hosts|tests/impacted-hosts-test)\\.sh$|^scripts/tests/fixtures/impacted-hosts/";
+              # Any .nix file too: the suite fails if one starts reading a
+              # path impacted-hosts.sh treats as inert.
+              files = "^scripts/(impacted-hosts|tests/impacted-hosts-test)\\.sh$|^scripts/tests/fixtures/impacted-hosts/|\\.nix$";
               pass_filenames = false;
             };
 

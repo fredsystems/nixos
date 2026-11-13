@@ -49,11 +49,14 @@
 #   2. is_inert(): paths that are provably never read by any Nix
 #      expression at all (docs, most of .github/, non-skill .opencode/
 #      tooling files). If every changed file is inert: no hosts, no eval
-#      needed. Getting this list WRONG (missing an entry, or being overly
-#      conservative) only costs a missed optimisation -- an inert-looking
-#      file that isn't on the list simply falls through to step 4, which
-#      still gives the exactly correct answer, just slower. No mechanical
-#      check needed; the failure mode has no correctness cost.
+#      needed. Leaving an inert file OFF the list only costs a missed
+#      optimisation: it falls through to step 4, which still gives the
+#      exactly correct answer, just slower. Putting a file ON the list
+#      that Nix does read is a silent under-build -- .github/ held two
+#      (flake-input-policy.json, lint.yaml) -- so that direction is checked
+#      mechanically: scripts/tests/impacted-hosts-test.sh fails if any path
+#      expression in a .nix file resolves to an inert path (via
+#      --inert-paths below).
 #
 #   3. Host-confined: every remaining (non-inert) changed file lives under
 #      hosts/<os>/<name>/, and every such <name> resolves to a real host
@@ -97,6 +100,9 @@
 #                       "packages.x86_64-linux.sbomnix"
 #   --eval              also `nix eval` each resulting host's (or output's)
 #                       drvPath
+#   --inert-paths       (alone) read repo-relative paths on stdin, print the ones
+#                       step 2 treats as inert, and exit. Needs no --os;
+#                       used by the test that keeps that list honest.
 #   --committed-only    diff BASE_REF...HEAD only; skip the working-tree
 #                       union (see below). CI always wants this implicitly
 #                       true in effect since its checkout is clean, but a
@@ -108,12 +114,48 @@
 # `--json` gives a single JSON object on stdout instead.
 set -euo pipefail
 
+# Step 2 of the algorithm; see the header. Defined first so --inert-paths
+# can use it without any of the setup below.
+is_inert() {
+  local f="$1"
+  case "$f" in
+    # .opencode/skills/** feeds every Linux host's home-manager closure
+    # via skillsSource (see features/ai/opencode/default.nix) but is a
+    # no-op on darwin hosts today, and that could change per-host without
+    # this script's knowledge. Never call it inert; let the real diff
+    # (step 4) answer precisely and correctly for whichever hosts actually
+    # import it, on either OS, forever -- no hardcoded assumption to rot.
+    .opencode/skills/*) return 1 ;;
+    .opencode/*) return 0 ;;
+    # Read by Nix despite living under .github/. The policy is imported
+    # into sdrhub's Prometheus rules and the dev shell's alert-rule check
+    # (modules/monitoring/master/flake-input-policy-rules.nix); lint.yaml
+    # is read by the checks-in-ci hook in flake/dev/checks.nix.
+    .github/flake-input-policy.json | .github/workflows/lint.yaml) return 1 ;;
+    # Anything else under .github/ that isn't in this OS's FORCE_ALL_FILES
+    # (already checked before this function is ever consulted) plays no
+    # part in either build pipeline.
+    .github/*) return 0 ;;
+    agents.md | README.md | MODULES.md | AUDIT-*.md | BACKUP-DESIGN.md | keymaps.md | hyprland.png | .dictionary.txt | typos.toml | .gitattributes | .envrc | opencode.jsonc)
+      return 0
+      ;;
+    *) return 1 ;;
+  esac
+}
+
 OS=""
 TARGET="hosts"
 BASE_REF=""
 JSON=0
 DO_EVAL=0
 COMMITTED_ONLY=0
+
+if [[ "${1:-}" == "--inert-paths" ]]; then
+  while IFS= read -r f; do
+    [[ -n "$f" ]] && is_inert "$f" && printf '%s\n' "$f"
+  done
+  exit 0
+fi
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -253,28 +295,6 @@ if [[ -n "$UNTRACKED" ]]; then
     echo "         \`git add\` them first or any eval below evaluates a tree you did not write."
   } >&2
 fi
-
-is_inert() {
-  local f="$1"
-  case "$f" in
-    # .opencode/skills/** feeds every Linux host's home-manager closure
-    # via skillsSource (see features/ai/opencode/default.nix) but is a
-    # no-op on darwin hosts today, and that could change per-host without
-    # this script's knowledge. Never call it inert; let the real diff
-    # (step 4) answer precisely and correctly for whichever hosts actually
-    # import it, on either OS, forever -- no hardcoded assumption to rot.
-    .opencode/skills/*) return 1 ;;
-    .opencode/*) return 0 ;;
-    # Anything else under .github/ that isn't in this OS's FORCE_ALL_FILES
-    # (already checked before this function is ever consulted) plays no
-    # part in either build pipeline.
-    .github/*) return 0 ;;
-    agents.md | README.md | MODULES.md | AUDIT-*.md | BACKUP-DESIGN.md | keymaps.md | hyprland.png | .dictionary.txt | typos.toml | .gitattributes | .envrc | opencode.jsonc)
-      return 0
-      ;;
-    *) return 1 ;;
-  esac
-}
 
 FORCE_ALL=0
 if [[ -n "$CHANGED" ]]; then
