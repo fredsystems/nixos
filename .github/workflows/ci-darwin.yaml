@@ -83,6 +83,7 @@ jobs:
 
     outputs:
       systems: ${{ steps.out.outputs.systems }}
+      dev: ${{ steps.out.outputs.dev }}
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -105,7 +106,9 @@ jobs:
       # It answers "which host closures actually changed" from a real
       # per-host derivation diff (falling through to that only when it
       # can't answer cheaply and safely; see the script's own header for
-      # the four-step algorithm). workflow_dispatch has no base-commit
+      # the four-step algorithm). The same script, with --target dev, also
+      # answers which of this runner's devShells/packages outputs changed,
+      # for dev-shell-darwin below. workflow_dispatch has no base-commit
       # context to diff against, so it keeps its own explicit "build
       # everything" path here rather than being taught to the script.
       - id: out
@@ -127,8 +130,13 @@ jobs:
           export PATH
 
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "workflow_dispatch: building ALL darwin systems (no base commit to diff against)"
+            echo "workflow_dispatch: building ALL darwin systems and dev outputs (no base commit to diff against)"
             systems_json=$(nix eval --json .#darwinConfigurations --apply builtins.attrNames)
+            system=$(nix eval --raw --impure --expr builtins.currentSystem)
+            dev_json=$(jq -cn --arg sys "$system" \
+              --argjson shells "$(nix eval --json ".#devShells.${system}" --apply builtins.attrNames)" \
+              --argjson pkgs "$(nix eval --json ".#packages.${system}" --apply builtins.attrNames)" \
+              '($shells | map("devShells.\($sys).\(.)")) + ($pkgs | map("packages.\($sys).\(.)"))')
           else
             if [ "${{ github.event_name }}" = "pull_request" ]; then
               base_sha="${{ github.event.pull_request.base.sha }}"
@@ -139,10 +147,16 @@ jobs:
             result=$(./scripts/impacted-hosts.sh --os darwin --json "$base_sha")
             echo "impacted-hosts.sh result: $result"
             systems_json=$(jq -c '.hosts' <<<"$result")
+
+            dev_result=$(./scripts/impacted-hosts.sh --os darwin --target dev --json "$base_sha")
+            echo "impacted-hosts.sh --target dev result: $dev_result"
+            dev_json=$(jq -c '.outputs' <<<"$dev_result")
           fi
 
           echo "systems=$systems_json" >> "$GITHUB_OUTPUT"
           echo "Darwin systems to build: $systems_json"
+          echo "dev=$dev_json" >> "$GITHUB_OUTPUT"
+          echo "Dev outputs to build: $dev_json"
 
   # =====================================================================
   # Build Darwin systems (matrix)
@@ -220,94 +234,21 @@ jobs:
           fi
 
   # =====================================================================
-  # Decide whether the dev shell / dev packages need rebuilding (Darwin)
-  #
-  # Same detection as ci-linux.yaml's find-devshell: the dev shell is fed
-  # by flake/dev/*.nix and the inputs nixpkgs, precommit-base, colmena, and
-  # walls-*. Unrelated PRs skip the dev-shell build entirely.
-  find-devshell:
-    name: Detect dev-shell changes
-    runs-on: ubuntu-latest
-    needs: [skip-if-clean]
-    if: ${{ needs.skip-if-clean.outputs.skip != 'true' }}
-    outputs:
-      changed: ${{ steps.detect.outputs.changed }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          fetch-depth: 0
-
-      - name: Detect dev-shell-affecting changes
-        id: detect
-        shell: bash
-        run: |
-          set -eo pipefail
-
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            base_sha="${{ github.event.pull_request.base.sha }}"
-          else
-            base_sha="${{ github.event.merge_group.base_sha }}"
-          fi
-
-          changed_files=$(git diff --name-only "$base_sha" HEAD)
-          echo "Changed files:"
-          echo "$changed_files"
-
-          changed=false
-          flake_lock_changed=false
-
-          while IFS= read -r file; do
-            [ -z "$file" ] && continue
-            case "$file" in
-              flake/dev/*.nix)
-                changed=true ;;
-              .github/workflows/ci-linux.yaml|.github/workflows/ci-darwin.yaml)
-                changed=true ;;
-              flake.lock)
-                flake_lock_changed=true ;;
-            esac
-          done <<< "$changed_files"
-
-          devshell_inputs="nixpkgs precommit-base colmena walls-catppuccin walls-zhichaoh walls-cozypixels"
-
-          if [ "$changed" = "false" ] && [ "$flake_lock_changed" = "true" ]; then
-            old_lock=$(git show "${base_sha}:flake.lock" 2>/dev/null || echo '{}')
-            new_lock=$(cat flake.lock)
-            for input in $devshell_inputs; do
-              node_name=$(echo "$new_lock" | jq -r ".nodes.root.inputs.\"$input\" // empty")
-              [ -z "$node_name" ] && continue
-              old_rev=$(echo "$old_lock" | jq -r ".nodes.\"$node_name\".locked.rev // .nodes.\"$node_name\".locked.narHash // empty" 2>/dev/null)
-              new_rev=$(echo "$new_lock" | jq -r ".nodes.\"$node_name\".locked.rev // .nodes.\"$node_name\".locked.narHash // empty")
-              if [ "$old_rev" != "$new_rev" ]; then
-                echo "  dev-shell input changed: $input"
-                changed=true
-                break
-              fi
-            done
-          fi
-
-          echo "changed=$changed" >> "$GITHUB_OUTPUT"
-          echo "dev-shell rebuild needed: $changed"
-
-  # =====================================================================
   # Build + push the dev shell and dev packages (Darwin)
   #
   # Mirrors the dev-shell job in ci-linux.yaml so the Mac fetches the dev
   # shell (`nix develop`) and per-system packages from Attic instead of
-  # rebuilding them locally. Gated on find-devshell so unrelated PRs skip.
+  # rebuilding them locally. Builds exactly the outputs find-darwin
+  # reported as changed (`impacted-hosts.sh --target dev`), so unrelated
+  # PRs skip.
   # Caches are listed in extra-conf below; `accept-flake-config = true`
   # there (trusted daemon config) honors the flake's nixConfig without the
   # client-flag rejection. See the ci-linux.yaml dev-shell comment.
   dev-shell-darwin:
     name: Build & push dev shell + packages (Darwin)
     runs-on: [self-hosted, macOS]
-    needs: [skip-if-clean, find-devshell]
-    if: ${{ needs.skip-if-clean.outputs.skip != 'true' && needs.find-devshell.outputs.changed == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+    needs: [skip-if-clean, find-darwin]
+    if: ${{ needs.skip-if-clean.outputs.skip != 'true' && needs.find-darwin.outputs.dev != '[]' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     permissions:
       id-token: "write"
       contents: "read"
@@ -329,31 +270,25 @@ jobs:
         shell: bash
         env:
           ATTIC_TOKEN: ${{ secrets.ATTIC_TOKEN }}
+          DEV_OUTPUTS: ${{ needs.find-darwin.outputs.dev }}
         run: |
           set -euo pipefail
-
-          system=$(nix eval --raw --impure --expr builtins.currentSystem)
-          echo "Building dev outputs for system: $system"
 
           echo "Logging in to Attic..."
           nix shell --inputs-from . nixpkgs#attic-client --command attic login fred https://attic.int.fredsystems.org "$ATTIC_TOKEN"
 
-          echo "Building dev shell..."
-          nix build --no-link --print-out-paths \
-            ".#devShells.${system}.default" > devshell.paths
-
-          echo "Building dev packages..."
-          # Enumerate every packages.<system>.* attr; tolerate an empty set.
-          # Emit newline-separated names via Nix itself so this step has no
+          # Full attribute paths (e.g. devShells.aarch64-darwin.default),
+          # one per line. Decoded by Nix itself so this step has no
           # dependency on jq (not present on the self-hosted runner).
-          pkg_attrs=$(nix eval --raw ".#packages.${system}" \
-            --apply 'ps: builtins.concatStringsSep "\n" (builtins.attrNames ps)')
+          attrs=$(nix eval --raw --impure --expr \
+            'builtins.concatStringsSep "\n" (builtins.fromJSON (builtins.getEnv "DEV_OUTPUTS"))')
+
+          : > devshell.paths
           while read -r attr; do
             [ -z "$attr" ] && continue
-            echo "  building packages.${system}.${attr}"
-            nix build --no-link --print-out-paths \
-              ".#packages.${system}.${attr}" >> devshell.paths
-          done <<< "$pkg_attrs"
+            echo "Building ${attr}..."
+            nix build --no-link --print-out-paths ".#${attr}" >> devshell.paths
+          done <<< "$attrs"
 
           echo "Pushing built dev outputs to Attic..."
           # Push the realised store paths (and their closures) directly.
@@ -374,18 +309,11 @@ jobs:
   build-darwin-summary:
     name: Build Darwin Systems Summary
     runs-on: ubuntu-latest
-    # The detection jobs (find-darwin, find-devshell) must be listed here:
-    # when one fails, its build job is merely "skipped", which is
-    # indistinguishable from "nothing in scope" unless the summary sees the
-    # detection job's own result.
-    needs:
-      [
-        skip-if-clean,
-        find-darwin,
-        build-darwin,
-        find-devshell,
-        dev-shell-darwin,
-      ]
+    # The detection job (find-darwin) must be listed here: when it fails,
+    # its build jobs are merely "skipped", which is indistinguishable from
+    # "nothing in scope" unless the summary sees the detection job's own
+    # result.
+    needs: [skip-if-clean, find-darwin, build-darwin, dev-shell-darwin]
     if: ${{ always() }}
 
     steps:

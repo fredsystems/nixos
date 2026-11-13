@@ -49,11 +49,14 @@
 #   2. is_inert(): paths that are provably never read by any Nix
 #      expression at all (docs, most of .github/, non-skill .opencode/
 #      tooling files). If every changed file is inert: no hosts, no eval
-#      needed. Getting this list WRONG (missing an entry, or being overly
-#      conservative) only costs a missed optimisation -- an inert-looking
-#      file that isn't on the list simply falls through to step 4, which
-#      still gives the exactly correct answer, just slower. No mechanical
-#      check needed; the failure mode has no correctness cost.
+#      needed. Leaving an inert file OFF the list only costs a missed
+#      optimisation: it falls through to step 4, which still gives the
+#      exactly correct answer, just slower. Putting a file ON the list
+#      that Nix does read is a silent under-build -- .github/ held two
+#      (flake-input-policy.json, lint.yaml) -- so that direction is checked
+#      mechanically: scripts/tests/impacted-hosts-test.sh fails if any path
+#      expression in a .nix file resolves to an inert path (via
+#      --inert-paths below).
 #
 #   3. Host-confined: every remaining (non-inert) changed file lives under
 #      hosts/<os>/<name>/, and every such <name> resolves to a real host
@@ -67,6 +70,22 @@
 #      diff, report exactly the hosts that changed. Always correct;
 #      always the fallback.
 #
+# DEV OUTPUTS (--target dev)
+#
+# The same question, asked of this machine's dev outputs instead of its
+# hosts: every `devShells.<system>.*` and `packages.<system>.*` attribute,
+# for <system> = builtins.currentSystem. CI's dev-shell jobs build and push
+# exactly what this reports, so the dev shell (`nix develop`) and packages
+# like `.#sbomnix` are cached whenever they actually change -- including
+# through files nobody thought to list, such as overlays/default.nix.
+#
+# Steps 1, 2 and 4 apply unchanged (FORCE_ALL_FILES means every dev
+# output; an all-inert change means none). Step 3 does NOT: a change
+# confined to a host directory proves nothing about the dev outputs, so it
+# falls through to the real diff (about ten seconds on this repo). The
+# system is read from the machine, as
+# the dev-shell jobs build it, so `--os` must match the machine's OS.
+#
 # Usage:
 #   scripts/impacted-hosts.sh --os linux|darwin [BASE_REF] [options]
 #
@@ -74,24 +93,69 @@
 #   sha explicitly.
 #
 # Options:
-#   --json              machine-readable {"mode": "...", "hosts": [...]}
-#   --eval              also `nix eval` each resulting host's drvPath
+#   --target hosts|dev  what to diff (default: hosts). See DEV OUTPUTS.
+#   --json              machine-readable {"mode": "...", "hosts": [...]};
+#                       with --target dev, {"mode": "...", "outputs": [...]}
+#                       where each output is a full attribute path such as
+#                       "packages.x86_64-linux.sbomnix"
+#   --eval              also `nix eval` each resulting host's (or output's)
+#                       drvPath
+#   --inert-paths       (alone) read repo-relative paths on stdin, print the ones
+#                       step 2 treats as inert, and exit. Needs no --os;
+#                       used by the test that keeps that list honest.
 #   --committed-only    diff BASE_REF...HEAD only; skip the working-tree
 #                       union (see below). CI always wants this implicitly
 #                       true in effect since its checkout is clean, but a
 #                       local dry run defaults to including uncommitted
 #                       work so it answers "what would I be pushing".
 #
-# Output (default, human mode): the mode on stderr, then one host per
-# line on stdout, or "no impacted hosts" on stderr if none. `--json` gives
-# a single JSON object on stdout instead.
+# Output (default, human mode): the mode on stderr, then one host (or
+# output) per line on stdout, or "no impacted hosts" on stderr if none.
+# `--json` gives a single JSON object on stdout instead.
 set -euo pipefail
 
+# Step 2 of the algorithm; see the header. Defined first so --inert-paths
+# can use it without any of the setup below.
+is_inert() {
+  local f="$1"
+  case "$f" in
+    # .opencode/skills/** feeds every Linux host's home-manager closure
+    # via skillsSource (see features/ai/opencode/default.nix) but is a
+    # no-op on darwin hosts today, and that could change per-host without
+    # this script's knowledge. Never call it inert; let the real diff
+    # (step 4) answer precisely and correctly for whichever hosts actually
+    # import it, on either OS, forever -- no hardcoded assumption to rot.
+    .opencode/skills/*) return 1 ;;
+    .opencode/*) return 0 ;;
+    # Read by Nix despite living under .github/. The policy is imported
+    # into sdrhub's Prometheus rules and the dev shell's alert-rule check
+    # (modules/monitoring/master/flake-input-policy-rules.nix); lint.yaml
+    # is read by the checks-in-ci hook in flake/dev/checks.nix.
+    .github/flake-input-policy.json | .github/workflows/lint.yaml) return 1 ;;
+    # Anything else under .github/ that isn't in this OS's FORCE_ALL_FILES
+    # (already checked before this function is ever consulted) plays no
+    # part in either build pipeline.
+    .github/*) return 0 ;;
+    agents.md | README.md | MODULES.md | AUDIT-*.md | BACKUP-DESIGN.md | keymaps.md | hyprland.png | .dictionary.txt | typos.toml | .gitattributes | .envrc | opencode.jsonc)
+      return 0
+      ;;
+    *) return 1 ;;
+  esac
+}
+
 OS=""
+TARGET="hosts"
 BASE_REF=""
 JSON=0
 DO_EVAL=0
 COMMITTED_ONLY=0
+
+if [[ "${1:-}" == "--inert-paths" ]]; then
+  while IFS= read -r f; do
+    [[ -n "$f" ]] && is_inert "$f" && printf '%s\n' "$f"
+  done
+  exit 0
+fi
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -105,6 +169,18 @@ while [[ $# -gt 0 ]]; do
       ;;
     --os=*)
       OS="${1#--os=}"
+      shift
+      ;;
+    --target)
+      if [[ $# -lt 2 ]]; then
+        printf 'ERROR: --target requires a value (hosts or dev)\n' >&2
+        exit 1
+      fi
+      TARGET="$2"
+      shift 2
+      ;;
+    --target=*)
+      TARGET="${1#--target=}"
       shift
       ;;
     --json)
@@ -136,6 +212,11 @@ done
 
 if [[ "$OS" != "linux" && "$OS" != "darwin" ]]; then
   printf 'ERROR: --os must be "linux" or "darwin" (got: %q)\n' "$OS" >&2
+  exit 1
+fi
+
+if [[ "$TARGET" != "hosts" && "$TARGET" != "dev" ]]; then
+  printf 'ERROR: --target must be "hosts" or "dev" (got: %q)\n' "$TARGET" >&2
   exit 1
 fi
 
@@ -215,28 +296,6 @@ if [[ -n "$UNTRACKED" ]]; then
   } >&2
 fi
 
-is_inert() {
-  local f="$1"
-  case "$f" in
-    # .opencode/skills/** feeds every Linux host's home-manager closure
-    # via skillsSource (see features/ai/opencode/default.nix) but is a
-    # no-op on darwin hosts today, and that could change per-host without
-    # this script's knowledge. Never call it inert; let the real diff
-    # (step 4) answer precisely and correctly for whichever hosts actually
-    # import it, on either OS, forever -- no hardcoded assumption to rot.
-    .opencode/skills/*) return 1 ;;
-    .opencode/*) return 0 ;;
-    # Anything else under .github/ that isn't in this OS's FORCE_ALL_FILES
-    # (already checked before this function is ever consulted) plays no
-    # part in either build pipeline.
-    .github/*) return 0 ;;
-    agents.md | README.md | MODULES.md | AUDIT-*.md | BACKUP-DESIGN.md | keymaps.md | hyprland.png | .dictionary.txt | typos.toml | .gitattributes | .envrc | opencode.jsonc)
-      return 0
-      ;;
-    *) return 1 ;;
-  esac
-}
-
 FORCE_ALL=0
 if [[ -n "$CHANGED" ]]; then
   while IFS= read -r f; do
@@ -248,17 +307,54 @@ if [[ -n "$CHANGED" ]]; then
   done <<<"$CHANGED"
 fi
 
-# Enumerate real hosts unconditionally -- needed either as the answer
-# itself (FORCE_ALL) or to validate host-confined names. This is a pure
-# `attrNames` call, not a per-host eval, so it's always cheap (well under
-# a second).
 NIX_EVAL_STDERR="$(mktemp)"
 trap 'rm -f "$NIX_EVAL_STDERR"' EXIT
-if ! ALL_HOSTS_JSON="$(nix eval ".#${FLAKE_ATTR}" --apply 'cfgs: builtins.attrNames cfgs' --json 2>"$NIX_EVAL_STDERR")"; then
-  printf 'ERROR: failed to enumerate %s:\n%s\n' "$FLAKE_ATTR" "$(cat "$NIX_EVAL_STDERR")" >&2
-  exit 1
+
+# --target dev only: this machine's system, and every devShells/packages
+# output for it. Prints one JSON object keyed by full attribute path
+# ("packages.<system>.<name>"), each value being `fn` applied to that
+# output. Both families are required to exist; a missing one is an error,
+# not an empty set, so a broken eval can never read as "nothing changed".
+SYSTEM=""
+if [[ "$TARGET" == "dev" ]]; then
+  if ! SYSTEM="$(nix eval --impure --raw --expr 'builtins.currentSystem' 2>"$NIX_EVAL_STDERR")"; then
+    printf 'ERROR: failed to read builtins.currentSystem:\n%s\n' "$(cat "$NIX_EVAL_STDERR")" >&2
+    exit 1
+  fi
+  if [[ "$SYSTEM" != *-"$OS" ]]; then
+    printf 'ERROR: --target dev reports outputs for this machine (%s), which is not --os %s.\n' "$SYSTEM" "$OS" >&2
+    exit 1
+  fi
 fi
-mapfile -t ALL_HOSTS < <(jq -r '.[]' <<<"$ALL_HOSTS_JSON")
+
+dev_outputs_json() { # flake-ref nix-fn
+  local ref="$1" fn="$2" fam out all='{}'
+  for fam in devShells packages; do
+    if ! out="$(nix eval --json "${ref}#${fam}" --apply "f: builtins.mapAttrs (_: ${fn}) (f.\"${SYSTEM}\" or { })" 2>"$NIX_EVAL_STDERR")"; then
+      printf 'ERROR: failed to evaluate %s#%s:\n%s\n' "$ref" "$fam" "$(cat "$NIX_EVAL_STDERR")" >&2
+      return 1
+    fi
+    all="$(jq -c --arg prefix "${fam}.${SYSTEM}." --argjson new "$out" \
+      '. + ($new | with_entries(.key = $prefix + .key))' <<<"$all")"
+  done
+  printf '%s\n' "$all"
+}
+
+# Enumerate every target unconditionally -- needed either as the answer
+# itself (FORCE_ALL) or to validate host-confined names. For --target dev
+# ALL_HOSTS (and HOSTS below) hold output attribute paths, not hosts. Both
+# are pure `attrNames`-style calls that force no derivation, so they're
+# always cheap (well under a second).
+if [[ "$TARGET" == "dev" ]]; then
+  ALL_HOSTS_JSON="$(dev_outputs_json "." '_: null')" || exit 1
+  mapfile -t ALL_HOSTS < <(jq -r 'keys[]' <<<"$ALL_HOSTS_JSON")
+else
+  if ! ALL_HOSTS_JSON="$(nix eval ".#${FLAKE_ATTR}" --apply 'cfgs: builtins.attrNames cfgs' --json 2>"$NIX_EVAL_STDERR")"; then
+    printf 'ERROR: failed to enumerate %s:\n%s\n' "$FLAKE_ATTR" "$(cat "$NIX_EVAL_STDERR")" >&2
+    exit 1
+  fi
+  mapfile -t ALL_HOSTS < <(jq -r '.[]' <<<"$ALL_HOSTS_JSON")
+fi
 
 MODE=""
 HOSTS=()
@@ -281,10 +377,13 @@ else
   if [[ $ALL_INERT -eq 1 ]]; then
     MODE="force-none"
     HOSTS=()
-  else
+  elif [[ "$TARGET" == "hosts" ]]; then
     # Host-confined: every non-inert changed path must live under this
     # OS's host directory, all under the same or different single-host
-    # subdirectories -- collect the distinct set.
+    # subdirectories -- collect the distinct set. Hosts only: a host
+    # directory says nothing about the dev outputs (see DEV OUTPUTS).
+    # Without this guard dev would still fall through, since no host name
+    # matches an output path, but only by accident of naming.
     declare -A CONFINED_NAMES=()
     CONFINED_OK=1
     while IFS= read -r f; do
@@ -349,14 +448,21 @@ if [[ -z "$MODE" ]]; then
   # exact build. That is why CI's find-darwin job runs on
   # [self-hosted, macOS], where they can simply be built. Running
   # --os darwin locally on Linux carries the same caveat.
-  echo "Running a real per-host derivation diff (base=${BASE_SHA})..." >&2
-  if ! HEAD_JSON="$(nix eval --json ".#${FLAKE_ATTR}" --apply 'cfgs: builtins.mapAttrs (_: c: c.config.system.build.toplevel.outPath) cfgs' 2>"$NIX_EVAL_STDERR")"; then
-    printf 'ERROR: failed to evaluate HEAD %s:\n%s\n' "$FLAKE_ATTR" "$(cat "$NIX_EVAL_STDERR")" >&2
-    exit 1
-  fi
-  if ! BASE_JSON="$(nix eval --json "git+file://${REPO_ROOT}?rev=${BASE_SHA}#${FLAKE_ATTR}" --apply 'cfgs: builtins.mapAttrs (_: c: c.config.system.build.toplevel.outPath) cfgs' 2>"$NIX_EVAL_STDERR")"; then
-    printf 'ERROR: failed to evaluate base rev %s %s:\n%s\n' "$BASE_SHA" "$FLAKE_ATTR" "$(cat "$NIX_EVAL_STDERR")" >&2
-    exit 1
+  BASE_FLAKE="git+file://${REPO_ROOT}?rev=${BASE_SHA}"
+  if [[ "$TARGET" == "dev" ]]; then
+    echo "Running a real per-output derivation diff for ${SYSTEM} (base=${BASE_SHA})..." >&2
+    HEAD_JSON="$(dev_outputs_json "." 'd: d.outPath')" || exit 1
+    BASE_JSON="$(dev_outputs_json "$BASE_FLAKE" 'd: d.outPath')" || exit 1
+  else
+    echo "Running a real per-host derivation diff (base=${BASE_SHA})..." >&2
+    if ! HEAD_JSON="$(nix eval --json ".#${FLAKE_ATTR}" --apply 'cfgs: builtins.mapAttrs (_: c: c.config.system.build.toplevel.outPath) cfgs' 2>"$NIX_EVAL_STDERR")"; then
+      printf 'ERROR: failed to evaluate HEAD %s:\n%s\n' "$FLAKE_ATTR" "$(cat "$NIX_EVAL_STDERR")" >&2
+      exit 1
+    fi
+    if ! BASE_JSON="$(nix eval --json "${BASE_FLAKE}#${FLAKE_ATTR}" --apply 'cfgs: builtins.mapAttrs (_: c: c.config.system.build.toplevel.outPath) cfgs' 2>"$NIX_EVAL_STDERR")"; then
+      printf 'ERROR: failed to evaluate base rev %s %s:\n%s\n' "$BASE_SHA" "$FLAKE_ATTR" "$(cat "$NIX_EVAL_STDERR")" >&2
+      exit 1
+    fi
   fi
   mapfile -t HOSTS < <(jq -r -n --argjson old "$BASE_JSON" --argjson new "$HEAD_JSON" '
     $new | to_entries[] | select(($old[.key] // "") != .value) | .key
@@ -365,11 +471,17 @@ fi
 
 if [[ $JSON -eq 1 ]]; then
   hosts_json=$(printf '%s\n' "${HOSTS[@]:-}" | jq -R . | jq -cs 'map(select(length > 0))')
-  jq -cn --arg mode "$MODE" --argjson hosts "$hosts_json" '{mode: $mode, hosts: $hosts}'
+  key="hosts"
+  [[ "$TARGET" == "dev" ]] && key="outputs"
+  jq -cn --arg mode "$MODE" --arg key "$key" --argjson hosts "$hosts_json" '{mode: $mode, ($key): $hosts}'
 else
   echo "mode: $MODE" >&2
   if [[ ${#HOSTS[@]} -eq 0 ]]; then
-    echo "no impacted hosts" >&2
+    if [[ "$TARGET" == "dev" ]]; then
+      echo "no impacted outputs" >&2
+    else
+      echo "no impacted hosts" >&2
+    fi
   else
     printf '%s\n' "${HOSTS[@]}"
   fi
@@ -393,7 +505,11 @@ if [[ $DO_EVAL -eq 1 ]]; then
   if [[ ${#HOSTS[@]} -gt 0 ]]; then
     for h in "${HOSTS[@]}"; do
       echo "[eval] $h" >&2
-      nix eval ".#${FLAKE_ATTR}.${h}.config.system.build.toplevel.drvPath" >/dev/null
+      if [[ "$TARGET" == "dev" ]]; then
+        nix eval ".#${h}.drvPath" >/dev/null
+      else
+        nix eval ".#${FLAKE_ATTR}.${h}.config.system.build.toplevel.drvPath" >/dev/null
+      fi
     done
   fi
   echo "[eval] OK" >&2
