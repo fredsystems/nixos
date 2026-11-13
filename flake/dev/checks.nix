@@ -284,6 +284,21 @@
         '';
       };
 
+      # Hermetic tests for scripts/nix-build-no-warnings.sh, the gate that
+      # fails lint.yaml's `nix build` steps on any evaluation warning. Nix
+      # exits 0 on a warning, so if this gate stops working nothing else
+      # notices.
+      nixBuildNoWarningsCheck = pkgs.writeShellApplication {
+        name = "check-nix-build-no-warnings";
+        runtimeInputs = [
+          pkgs.gnugrep
+          pkgs.coreutils
+        ];
+        text = ''
+          bash scripts/tests/nix-build-no-warnings-test.sh
+        '';
+      };
+
       # Hermetic tests for scripts/opencode-node-modules-hash.sh (relock,
       # hash recording keyed by release + toolchain) and the warning/error
       # gate in renovate-relock.yaml's relock step, with a mock nix. The
@@ -536,6 +551,14 @@
               name = "home IP rotation helper tests";
               entry = "${pkgs.lib.getExe homeIpCheck}";
               files = "^(scripts/(lib/home-ip|rotate-home-ip|tests/home-ip-test)\\.sh|modules/data/home-network\\.nix)$";
+              pass_filenames = false;
+            };
+
+            nix-build-no-warnings = {
+              enable = true;
+              name = "nix build evaluation-warning gate tests";
+              entry = "${pkgs.lib.getExe nixBuildNoWarningsCheck}";
+              files = "^scripts/(nix-build-no-warnings|tests/nix-build-no-warnings-test)\\.sh$";
               pass_filenames = false;
             };
 
@@ -1023,6 +1046,17 @@
             touch "$out"
           '';
 
+      nix-build-no-warnings =
+        pkgs.runCommand "nix-build-no-warnings-check"
+          {
+            nativeBuildInputs = [ nixBuildNoWarningsCheck ];
+          }
+          ''
+            cd ${self}
+            check-nix-build-no-warnings
+            touch "$out"
+          '';
+
       # Standalone so CI catches collapsed spacing on Renovate PRs and web
       # edits, neither of which ever runs pre-commit hooks.
       docker-pin-spacing =
@@ -1233,16 +1267,40 @@
             system.stateVersion = "26.05";
           };
 
+          # catppuccin/nix warns on every evaluation that leaves `autoEnable`
+          # unset. Setting it at all switches to the new semantics, where
+          # `catppuccin.enable` gates every port, so this is upstream's
+          # behaviour-preserving migration: `autoEnable` takes the old value
+          # of `enable` (false, so ports stay opt-in) and `enable` becomes
+          # true (so ports an export turns on, such as desktop-common's
+          # cursors, still apply). Hosts do the equivalent in modules/base;
+          # MODULES.md tells a consumer to. Used at the NixOS and Home
+          # Manager level.
+          catppuccinConsumer =
+            { options, lib, ... }:
+            {
+              config = lib.optionalAttrs (options ? catppuccin.autoEnable) {
+                catppuccin = {
+                  enable = lib.mkDefault true;
+                  autoEnable = false;
+                };
+              };
+            };
+
           # The settings MODULES.md tells a consumer to provide, applied only
           # where an export declares the options, so the same module serves
           # every export.
           consumer =
             { options, lib, ... }:
             {
+              imports = [ catppuccinConsumer ];
               config = lib.mkMerge [
                 # Unconditional: Home Manager's NixOS module looks the user up
                 # here even for exports that declare no shared.* options.
                 { users.users.alice.isNormalUser = true; }
+                (lib.optionalAttrs (options ? home-manager.sharedModules) {
+                  home-manager.sharedModules = [ catppuccinConsumer ];
+                })
                 (lib.optionalAttrs (options ? shared.user) {
                   shared.user = {
                     name = "alice";
@@ -1264,13 +1322,14 @@
             "desktop-common"
           ];
 
-          evaluates =
-            modules:
+          evaluatesWith =
+            nixpkgs: modules:
             (builtins.tryEval (
-              builtins.seq
-                (inputs.nixpkgs.lib.nixosSystem { inherit modules; }).config.system.build.toplevel.drvPath
+              builtins.seq (nixpkgs.lib.nixosSystem { inherit modules; }).config.system.build.toplevel.drvPath
                 true
             )).value;
+
+          evaluates = evaluatesWith inputs.nixpkgs;
 
           hmEvaluates =
             module:
@@ -1283,6 +1342,7 @@
                   };
                   modules = [
                     module
+                    catppuccinConsumer
                     {
                       home = {
                         username = "alice";
@@ -1320,8 +1380,11 @@
 
           # The "bring your own" path (MODULES.md): overlays plus the
           # consumer's own, differently pinned, sops-nix and home-manager.
+          # Evaluated on stable nixpkgs to match: a consumer pinning stable
+          # home-manager is on stable nixpkgs, and pairing it with unstable
+          # trips Home Manager's release-mismatch warning.
           ownModulesProblems = lib.optional (
-            !evaluates [
+            !evaluatesWith inputs.nixpkgs-stable [
               nixosModules.adsb-hub
               nixosModules.overlays
               inputs.sops-nix-stable.nixosModules.sops

@@ -63,6 +63,9 @@ jobs:
         with:
           nix_path: nixpkgs=channel:nixos-unstable
 
+      # Every `nix build` below goes through scripts/nix-build-no-warnings.sh:
+      # Nix exits 0 on an `evaluation warning:`, so without it a warning in a
+      # check passes lint, the same rule ci-linux.yaml applies to hosts.
       - name: Run flake pre-commit hooks
         # Build the pre-commit-check derivation directly instead of entering
         # the dev shell. The dev shell pulls in `colmena` from its flake input
@@ -75,7 +78,7 @@ jobs:
         # rules` plus the promtool unit tests, so no separate step is needed.
         # Verified by reintroducing the sum()/count() bug, which fails this
         # build with the specific test case that covers it.
-        run: nix build --no-link --print-build-logs .#checks.x86_64-linux.pre-commit-check
+        run: ./scripts/nix-build-no-warnings.sh --no-link --print-build-logs .#checks.x86_64-linux.pre-commit-check
 
       - name: Check decoder heartbeat coverage
         # Not a pre-commit hook: this one needs a full nixosConfigurations
@@ -85,14 +88,14 @@ jobs:
         # for a container that no longer exists (fires forever) and a decoder
         # container with no rule at all (silently unmonitored). Both halves
         # occurred when acarsdec-3 was replaced by xng on acarshub.
-        run: nix build --no-link --print-build-logs .#checks.x86_64-linux.decoder-units-sync
+        run: ./scripts/nix-build-no-warnings.sh --no-link --print-build-logs .#checks.x86_64-linux.decoder-units-sync
 
       - name: Check every export evaluates standalone
         # Not a pre-commit hook for the same reason: it evaluates every
         # nixosModules.* and homeModules.* export in a bare nixosSystem /
         # homeManagerConfiguration (about 90s), which a hook would add to
         # every dev-shell load. See flake/exports.nix and MODULES.md.
-        run: nix build --no-link --print-build-logs .#checks.x86_64-linux.exports-standalone
+        run: ./scripts/nix-build-no-warnings.sh --no-link --print-build-logs .#checks.x86_64-linux.exports-standalone
 
       - name: Run the flake checks that are not pre-commit hooks
         # Every other flake check is also a hook, and so runs inside
@@ -102,7 +105,7 @@ jobs:
         # few seconds of evaluation. Add any new check that is not a hook
         # here too.
         run: >-
-          nix build --no-link --print-build-logs
+          ./scripts/nix-build-no-warnings.sh --no-link --print-build-logs
           .#checks.x86_64-linux.feature-enables-overridable
           .#checks.x86_64-linux.fleet-identity-bridge
           .#checks.x86_64-linux.sbomnix-patch-version
