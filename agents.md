@@ -105,9 +105,10 @@ and HFDL decoders.
 | hfdlhub2  | Server  | HFDL decoder                              |
 | nvrhub    | Server  | NVR host, stateVersion 26.05              |
 
-Desktops are hardcoded in `ci-linux.yaml` as
-`desktop_names=("Daytona" "maranello")`. Everything else from
-`nixosConfigurations` is treated as a server.
+Desktops are declared directly in `flake/hosts/nixos.nix`; every server
+comes from the node table in `flake/hosts/servers.nix`. CI does not
+distinguish them: it builds whichever hosts' closures changed, in one
+matrix.
 
 Servers default to the **stable** channel (`nixpkgs-stable`,
 `home-manager-stable`, `catppuccin-stable`, `sops-nix-stable`).
@@ -115,8 +116,8 @@ Per-server overrides are possible via the node table in
 `flake/hosts/servers.nix`.
 
 `fredhub` is a stable-channel server that imports one package from
-unstable `nixpkgs`. CI treats changes to the `nixpkgs` input as
-"desktops + fredhub".
+unstable `nixpkgs`, so an unstable bump can rebuild it alongside the
+desktops.
 
 ---
 

@@ -148,33 +148,28 @@
         '';
       };
 
-      # Verifies two doc/config invariants that were previously in sync
-      # only by luck: MODULES.md documents exactly the modules exported by
-      # `nixosModules`, and the desktop/server host split (`desktop_names`
-      # in ci-linux.yaml vs. flake/hosts/servers.nix) is self-consistent.
+      # Verifies a doc invariant that was previously in sync only by luck:
+      # MODULES.md documents exactly the modules exported by `nixosModules`.
       #
-      # ACTUAL_MODULES_JSON / ALL_SYSTEMS_JSON / SERVERS_NIX_KEYS_JSON are
-      # baked in at build time from already-evaluated Nix values
-      # (`self.nixosModules`, `self.nixosConfigurations`,
-      # flake/hosts/servers.nix) rather than left for the script to fetch
-      # via `nix eval` at runtime. That matters here specifically because
-      # this SAME derivation is used both as the pre-commit hook entry
-      # below and as the standalone `checks.doc-drift` -- and git-hooks'
-      # own `run` derivation (what `nix build .#checks.pre-commit-check`
-      # and CI's lint job exercise) runs the WHOLE hook suite inside a
+      # ACTUAL_MODULES_JSON is baked in at build time from the
+      # already-evaluated `self.nixosModules` rather than left for the
+      # script to fetch via `nix eval` at runtime. That matters here
+      # specifically because this SAME derivation is used both as the
+      # pre-commit hook entry below and as the standalone
+      # `checks.doc-drift` -- and git-hooks' own `run` derivation (what
+      # `nix build .#checks.pre-commit-check` and CI's lint job exercise)
+      # runs the WHOLE hook suite inside a
       # sandboxed Nix build with the nix-command feature disabled and no
       # daemon-socket access, so a runtime `nix eval` call from inside a
       # hook fails there unconditionally, commit-time invocation or not.
       # (See scripts/check-doc-drift.sh's header: the script itself still
-      # falls back to a live `nix eval` when these env vars are unset, for
+      # falls back to a live `nix eval` when that env var is unset, for
       # convenience when a human runs it directly.)
       docDriftCheck = pkgs.writeShellApplication {
         name = "check-doc-drift";
         runtimeInputs = [ pkgs.jq ];
         text = ''
           export ACTUAL_MODULES_JSON=${lib.escapeShellArg (builtins.toJSON (lib.attrNames self.nixosModules))}
-          export ALL_SYSTEMS_JSON=${lib.escapeShellArg (builtins.toJSON (lib.attrNames self.nixosConfigurations))}
-          export SERVERS_NIX_KEYS_JSON=${lib.escapeShellArg (builtins.toJSON (lib.attrNames (import ../hosts/servers.nix)))}
           bash scripts/check-doc-drift.sh
         '';
       };
@@ -615,13 +610,13 @@
 
             doc-drift = {
               enable = true;
-              name = "MODULES.md / desktop-server host-split drift";
+              name = "MODULES.md / nixosModules drift";
               entry = "${pkgs.lib.getExe docDriftCheck}";
 
               # flake/exports.nix is where the `nixosModules` attrset itself
               # is declared (module add/rename/removal), so it is the actual
               # trigger for MODULES.md drift, not modules/*.nix directly.
-              files = "^(MODULES\\.md|flake\\.nix|flake/exports\\.nix|flake/hosts/servers\\.nix|\\.github/workflows/ci-linux\\.yaml)$";
+              files = "^(MODULES\\.md|flake\\.nix|flake/exports\\.nix)$";
               pass_filenames = false;
             };
 
@@ -1112,9 +1107,8 @@
             touch "$out"
           '';
 
-      # docDriftCheck already has ACTUAL_MODULES_JSON / ALL_SYSTEMS_JSON /
-      # SERVERS_NIX_KEYS_JSON baked in at build time (see its definition
-      # above), so this needs no extra wiring -- same derivation, same
+      # docDriftCheck already has ACTUAL_MODULES_JSON baked in at build
+      # time (see its definition above), so this needs no extra wiring -- same derivation, same
       # hermetic values, as the pre-commit hook entry.
       doc-drift =
         pkgs.runCommand "doc-drift-check"

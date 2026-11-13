@@ -31,7 +31,7 @@
 #
 # COST MODEL -- READ BEFORE CHANGING THE SUBSTITUTION LOGIC
 #
-# The AFTER side is cheap: build-servers/build-desktops already realised
+# The AFTER side is cheap: build-systems already realised
 # it earlier in the same workflow run and pushed it to the Attic cache at
 # 192.168.31.14, so it substitutes.
 #

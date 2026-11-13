@@ -84,8 +84,7 @@ jobs:
       contents: "read"
 
     outputs:
-      servers: ${{ steps.out.outputs.servers }}
-      desktops: ${{ steps.out.outputs.desktops }}
+      systems: ${{ steps.out.outputs.systems }}
       dev: ${{ steps.out.outputs.dev }}
 
     steps:
@@ -131,8 +130,6 @@ jobs:
           done <<<"$bin_paths"
           export PATH
 
-          desktop_names=("Daytona" "maranello")
-
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "workflow_dispatch: building ALL systems and dev outputs (no base commit to diff against)"
             hosts_json=$(nix eval --json .#nixosConfigurations --apply builtins.attrNames)
@@ -157,56 +154,31 @@ jobs:
             dev_json=$(jq -c '.outputs' <<<"$dev_result")
           fi
 
+          echo "systems=$hosts_json" >> "$GITHUB_OUTPUT"
+          echo "Linux systems to build: $hosts_json"
           echo "dev=$dev_json" >> "$GITHUB_OUTPUT"
           echo "Dev outputs to build: $dev_json"
 
-          echo "Impacted hosts: $hosts_json"
-
-          filtered_servers=()
-          filtered_desktops=()
-          for sys in $(jq -r '.[]' <<<"$hosts_json"); do
-            if [[ " ${desktop_names[*]} " == *" $sys "* ]]; then
-              filtered_desktops+=("$sys")
-            else
-              filtered_servers+=("$sys")
-            fi
-          done
-
-          # Guard against empty arrays: printf with no args still outputs a
-          # newline, which jq turns into [""] instead of [].
-          if [ ${#filtered_servers[@]} -eq 0 ]; then
-            servers_json="[]"
-          else
-            servers_json=$(printf '%s\n' "${filtered_servers[@]}" | jq -R . | jq -cs .)
-          fi
-
-          if [ ${#filtered_desktops[@]} -eq 0 ]; then
-            desktops_json="[]"
-          else
-            desktops_json=$(printf '%s\n' "${filtered_desktops[@]}" | jq -R . | jq -cs .)
-          fi
-
-          echo "servers=$servers_json"   >> "$GITHUB_OUTPUT"
-          echo "desktops=$desktops_json" >> "$GITHUB_OUTPUT"
-
-          echo "Servers to build:   $servers_json"
-          echo "Desktops to build:  $desktops_json"
-
   # =====================================================================
-  # Build server systems
+  # Build Linux systems
+  #
+  # One matrix over every impacted nixosConfigurations host. Desktops and
+  # servers used to be separate jobs because impact was once guessed per
+  # flake input; with a real per-host outPath diff (find-systems) there is
+  # nothing left to tell them apart for.
   # =====================================================================
-  build-servers:
-    name: Build server systems
+  build-systems:
+    name: Build Linux systems
     runs-on: [self-hosted, Linux]
     needs: [skip-if-clean, find-systems]
-    if: ${{ needs.skip-if-clean.outputs.skip != 'true' && needs.find-systems.outputs.servers != '[]' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+    if: ${{ needs.skip-if-clean.outputs.skip != 'true' && needs.find-systems.outputs.systems != '[]' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     permissions:
       id-token: "write"
       contents: "read"
     strategy:
       fail-fast: false
       matrix:
-        system: ${{ fromJson(needs.find-systems.outputs.servers) }}
+        system: ${{ fromJson(needs.find-systems.outputs.systems) }}
 
     steps:
       # - name: Free disk space
@@ -226,7 +198,7 @@ jobs:
             substituters = http://192.168.31.14:8080/fred https://catppuccin.cachix.org https://niri.cachix.org https://niri-epireyn.cachix.org https://cache.nixos.org/
             trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= fred:JjyhvRSvKfkk8r4HS0mS5r5I7dT4GociEFbrR9OgBZ0= niri.cachix.org-1:Wv0OmO7PsuocRKzfDoJ3mulSl7Z6oezYhGhR+3W2964= niri-epireyn.cachix.org-1:tlVyFN7CtsDT+ZcLPS+ekFWeT1X6X4OqvWqbBMyIzFA= catppuccin.cachix.org-1:noG/4HkbhJb+lUAdKrph6LaozJvAeEEZj4N732IysmU=
 
-      - name: Build server system
+      - name: Build system
         shell: bash
         env:
           ATTIC_TOKEN: ${{ secrets.ATTIC_TOKEN }}
@@ -240,77 +212,7 @@ jobs:
 
           : > build.stderr
 
-          echo "Building server: ${{ matrix.system }}"
-          nix build ".#nixosConfigurations.${{ matrix.system }}.config.system.build.toplevel" 2> >(tee build.stderr >&2)
-
-          if grep -qE "evaluation warning:" build.stderr; then
-            error=1
-          fi
-
-          echo "Pushing first result..."
-          ./scripts/attic-push.sh result
-
-          : > build.stderr
-          echo "Building home-manager for: ${{ matrix.system }}"
-          nix build ".#nixosConfigurations.${{ matrix.system }}.config.home-manager.users.fred.home.activationPackage" 2> >(tee build.stderr >&2)
-
-          if grep -qE "evaluation warning:" build.stderr; then
-            error=1
-          fi
-
-          echo "Pushing second result..."
-          ./scripts/attic-push.sh result
-
-          if [ "$error" -ne 0 ]; then
-            echo "One or more warnings were detected during the build."
-
-            echo "::error::Nix evaluation warnings detected"
-            exit 1
-          fi
-  # =====================================================================
-  # Build desktop systems
-  # =====================================================================
-  build-desktops:
-    name: Build desktop systems
-    runs-on: [self-hosted, Linux]
-    needs: [skip-if-clean, find-systems]
-    if: ${{ needs.skip-if-clean.outputs.skip != 'true' && needs.find-systems.outputs.desktops != '[]' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-    permissions:
-      id-token: "write"
-      contents: "read"
-    strategy:
-      fail-fast: false
-      matrix:
-        system: ${{ fromJson(needs.find-systems.outputs.desktops) }}
-
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-
-      - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@3138316df39ed29be04236d7ffc686fa525866aa # v23
-        with:
-          trust-runner-user: true
-          extra-conf: |
-            access-tokens = github.com=${{ github.token }}
-            accept-flake-config = true
-            substituters = http://192.168.31.14:8080/fred https://catppuccin.cachix.org https://niri.cachix.org https://niri-epireyn.cachix.org https://cache.nixos.org/
-            trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= fred:JjyhvRSvKfkk8r4HS0mS5r5I7dT4GociEFbrR9OgBZ0= niri.cachix.org-1:Wv0OmO7PsuocRKzfDoJ3mulSl7Z6oezYhGhR+3W2964= niri-epireyn.cachix.org-1:tlVyFN7CtsDT+ZcLPS+ekFWeT1X6X4OqvWqbBMyIzFA= catppuccin.cachix.org-1:noG/4HkbhJb+lUAdKrph6LaozJvAeEEZj4N732IysmU=
-
-      - name: Build desktop system
-        shell: bash
-        env:
-          ATTIC_TOKEN: ${{ secrets.ATTIC_TOKEN }}
-        run: |
-          set -euo pipefail
-
-          error=0
-
-          echo "Logging in..."
-          nix shell --inputs-from . nixpkgs#attic-client --command attic login fred https://attic.int.fredsystems.org "$ATTIC_TOKEN"
-
-          : > build.stderr
-
-          echo "Building desktop: ${{ matrix.system }}"
+          echo "Building system: ${{ matrix.system }}"
           nix build ".#nixosConfigurations.${{ matrix.system }}.config.system.build.toplevel" 2> >(tee build.stderr >&2)
 
           if grep -qE "evaluation warning:" build.stderr; then
@@ -452,7 +354,7 @@ jobs:
   # single system derivation, and finishes in ~36s.
   #
   # Because it is now on self-hosted, it carries the same fork guard as
-  # build-servers/build-desktops/dev-shell: fork PR code must not execute
+  # build-systems/dev-shell: fork PR code must not execute
   # there. Consequence, deliberately accepted -- parity is not checked for
   # fork PRs. That matches the build jobs, which already skip on forks, and a
   # fork PR cannot deploy the fleet. build-linux-summary treats `skipped` as a
@@ -462,7 +364,7 @@ jobs:
     runs-on: [self-hosted, Linux]
     needs: [skip-if-clean]
     if: ${{ needs.skip-if-clean.outputs.skip != 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-    # Matches build-servers/build-desktops. id-token is not used by this job,
+    # Matches build-systems. id-token is not used by this job,
     # but nix-installer-action warns on every run without it ("FlakeHub is
     # disabled because the workflow is misconfigured"), and this repo treats a
     # noisy CI log as a defect.
@@ -524,12 +426,12 @@ jobs:
   #      vs 103s on self-hosted for a full closure realisation, entirely due
   #      to a cold eval cache and no LAN cache access. This job's substitute
   #      step (see below) realises store paths the same way; it belongs
-  #      wherever build-servers/build-desktops already do.
+  #      wherever build-systems already does.
   #
   # WHY THIS NEVER COSTS A BUILD -- read scripts/diff-closures-comment.sh's
   # header before touching the substitution logic
   #
-  # The AFTER closure is free: build-servers/build-desktops already realised
+  # The AFTER closure is free: build-systems already realised
   # it earlier in this same run and pushed it to Attic. The BEFORE closure
   # (the PR base commit) is the one that could be expensive, and the script
   # never pays that cost: it evaluates (never realises) the base commit's
@@ -559,7 +461,7 @@ jobs:
   #   keeps fork PR code off self-hosted runners entirely, so this never
   #   gets far enough to hit that limitation.
   #
-  # `always()` is required in `if:` because build-servers/build-desktops use
+  # `always()` is required in `if:` because build-systems uses
   # `fail-fast: false`: one matrix leg failing marks the whole job
   # 'failure', and without `always()` this job would be skipped entirely --
   # losing the diff for every host whose build DID succeed. Substitution
@@ -569,13 +471,13 @@ jobs:
   diff-closures-comment:
     name: Closure diff PR comment
     runs-on: [self-hosted, Linux]
-    needs: [skip-if-clean, find-systems, build-servers, build-desktops]
+    needs: [skip-if-clean, find-systems, build-systems]
     if: |
       always() &&
       needs.skip-if-clean.outputs.skip != 'true' &&
       github.event_name == 'pull_request' &&
       github.event.pull_request.head.repo.full_name == github.repository &&
-      (needs.find-systems.outputs.servers != '[]' || needs.find-systems.outputs.desktops != '[]')
+      needs.find-systems.outputs.systems != '[]'
     # pull-requests: write is scoped to exactly this job -- nothing else in
     # this workflow posts comments, so the top-level `permissions:` block
     # stays read-only.
@@ -601,29 +503,6 @@ jobs:
             substituters = http://192.168.31.14:8080/fred https://catppuccin.cachix.org https://niri.cachix.org https://niri-epireyn.cachix.org https://cache.nixos.org/
             trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= fred:JjyhvRSvKfkk8r4HS0mS5r5I7dT4GociEFbrR9OgBZ0= niri.cachix.org-1:Wv0OmO7PsuocRKzfDoJ3mulSl7Z6oezYhGhR+3W2964= niri-epireyn.cachix.org-1:tlVyFN7CtsDT+ZcLPS+ekFWeT1X6X4OqvWqbBMyIzFA= catppuccin.cachix.org-1:noG/4HkbhJb+lUAdKrph6LaozJvAeEEZj4N732IysmU=
 
-      # jq comes from `nix shell`, not the runner -- see the identical note
-      # on the colmena-parity job above.
-      - name: Combine impacted hosts
-        id: hosts
-        shell: bash
-        env:
-          SERVERS: ${{ needs.find-systems.outputs.servers }}
-          DESKTOPS: ${{ needs.find-systems.outputs.desktops }}
-        run: |
-          set -uo pipefail
-
-          # shellcheck disable=SC2016 # $servers/$desktops are jq --argjson
-          # bindings, not shell variables -- they must stay single-quoted.
-          #
-          # --max-jobs 0: jq must only ever be substituted here, never
-          # built locally -- see the cost-model note on this job above.
-          hosts_json=$(nix shell --max-jobs 0 --inputs-from . nixpkgs#jq --command jq -cn \
-            --argjson servers "$SERVERS" --argjson desktops "$DESKTOPS" \
-            '($servers + $desktops) | unique')
-
-          echo "Impacted hosts: $hosts_json"
-          echo "hosts_json=$hosts_json" >> "$GITHUB_OUTPUT"
-
       # This step must never fail the job -- see the header block above.
       # diff-closures-comment.sh already degrades every internal error to
       # STATUS=nothing on stdout; the `status=$(...)` capture here plus the
@@ -636,7 +515,7 @@ jobs:
         shell: bash
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HOSTS_JSON: ${{ steps.hosts.outputs.hosts_json }}
+          HOSTS_JSON: ${{ needs.find-systems.outputs.systems }}
           OUT_FILE: body.md
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
@@ -761,14 +640,7 @@ jobs:
     # "nothing in scope" unless the summary sees the detection job's own
     # result.
     needs:
-      [
-        skip-if-clean,
-        find-systems,
-        build-servers,
-        build-desktops,
-        dev-shell,
-        colmena-parity,
-      ]
+      [skip-if-clean, find-systems, build-systems, dev-shell, colmena-parity]
     if: ${{ always() }}
 
     steps:
