@@ -58,51 +58,6 @@ final: prev: {
     else
       prev.direnv;
 
-  # FIXME(nixpkgs-575801-gearlever-structured-attrs): WORKAROUND, not a fix.
-  #
-  # buildPythonApplication now builds with __structuredAttrs, so each
-  # makeWrapperArgs element reaches makeWrapper as ONE argument and is no
-  # longer shell-expanded. gearlever 3.4.7 passes the literal string
-  # "${gappsWrapperArgs[@]}" (meant to expand to the GTK wrapper args) and a
-  # single "--prefix PATH : <bins>" string, so the build dies in fixupPhase
-  # ("makeCWrapper: Unknown argument"). Upstream fix is the treewide
-  # https://github.com/NixOS/nixpkgs/pull/575801 (not yet merged), which we
-  # mirror: append the GTK args from preFixup, where the array exists, and
-  # split the PATH prefix into separate elements.
-  #
-  # Gated on structured attrs plus the exact broken shape, so it is a no-op
-  # before the switch and once the fix lands, and never drops args upstream
-  # adds later.
-  #
-  # Revert: once our nixpkgs pin contains the fix, delete this override and
-  # FIXME. See .github/workflows/track-upstream-fixes.yaml.
-  gearlever =
-    let
-      inherit (prev) lib;
-      gappsArg = "\${gappsWrapperArgs[@]}";
-      pathPrefix = "--prefix PATH : ";
-      args = prev.gearlever.makeWrapperArgs or [ ];
-    in
-    if
-      (prev.gearlever.__structuredAttrs or false)
-      && builtins.length args == 2
-      && builtins.elemAt args 0 == gappsArg
-      && lib.hasPrefix pathPrefix (builtins.elemAt args 1)
-    then
-      prev.gearlever.overridePythonAttrs (old: {
-        preFixup = (old.preFixup or "") + ''
-          makeWrapperArgs+=("''${gappsWrapperArgs[@]}")
-        '';
-        makeWrapperArgs = [
-          "--prefix"
-          "PATH"
-          ":"
-          (lib.removePrefix pathPrefix (builtins.elemAt args 1))
-        ];
-      })
-    else
-      prev.gearlever;
-
   # FIXME(nixpkgs-585413-dwarfs-libarchive): WORKAROUND, not a fix.
   #
   # Since libarchive 3.8.10 (libarchive/libarchive#3354),
@@ -140,82 +95,6 @@ final: prev: {
       })
     else
       prev.dwarfs;
-
-  pythonPackagesExtensions = prev.pythonPackagesExtensions ++ [
-    (
-      _: pyprev:
-      let
-        inherit (prev) lib;
-
-        # FIXME(nixpkgs-573108-typepy2-relax): WORKAROUND, not a fix.
-        #
-        # nixpkgs bumped typepy to 2.0.0, but sqliteschema and simplesqlite
-        # still declare `typepy<2`, so pythonRuntimeDepsCheckHook fails
-        # their builds. That transitively breaks sbomnix (via df-diskcache)
-        # and with it the `.#sbomnix` dev-shell package and the CVE scan.
-        # Fixed by https://github.com/NixOS/nixpkgs/pull/573108, which
-        # landed on `staging` and has not reached the channel yet; this
-        # adds the same pythonRelaxDeps entry.
-        #
-        # Gated on typepy >= 2 and the entry not being present already, so
-        # it is a no-op before the bump and once the fix lands.
-        #
-        # Revert: once our nixpkgs pin contains the fix, delete
-        # relaxTypepy, its two uses, and this FIXME. See
-        # .github/workflows/track-upstream-fixes.yaml.
-        relaxTypepy =
-          pkg:
-          let
-            relaxed = pkg.pythonRelaxDeps or [ ];
-          in
-          if
-            lib.versionAtLeast pyprev.typepy.version "2"
-            && builtins.isList relaxed
-            && !(builtins.elem "typepy" relaxed)
-          then
-            pkg.overridePythonAttrs (_: {
-              pythonRelaxDeps = relaxed ++ [ "typepy" ];
-            })
-          else
-            pkg;
-
-        # FIXME(nixpkgs-573479-sphinxhook-structured-attrs): WORKAROUND, not a fix.
-        #
-        # Under __structuredAttrs `sphinxBuilders` is a bash array, but
-        # sphinx-hook.sh still does `eval "__sphinxBuilders=($sphinxBuilders)"`,
-        # and an unindexed array expands to its FIRST element only. reuse
-        # asks for [ "html" "man" ], gets html alone, and fails because its
-        # `man` output is never produced. reuse is a dependency of sbomnix
-        # 1.9.0. Fixed in the hook by https://github.com/NixOS/nixpkgs/pull/573479
-        # (plus #576194), both still on `staging`.
-        #
-        # Building reuse without structured attrs is exactly how it built
-        # before the switch, where the hook works. Patching the hook itself
-        # would rebuild every sphinx-documented package. Gated on reuse
-        # actually using structured attrs and on the hook still lacking the
-        # fix (read from the nixpkgs source tree, a plain eval-time read,
-        # not import-from-derivation), so it switches itself off.
-        #
-        # Revert: once our nixpkgs pin contains the fix, delete this
-        # override and FIXME. See .github/workflows/track-upstream-fixes.yaml.
-        sphinxHookFixed = lib.hasInfix "concatTo __sphinxBuilders" (
-          builtins.readFile "${prev.path}/pkgs/development/interpreters/python/hooks/sphinx-hook.sh"
-        );
-      in
-      {
-        sqliteschema = relaxTypepy pyprev.sqliteschema;
-        simplesqlite = relaxTypepy pyprev.simplesqlite;
-
-        reuse =
-          if (pyprev.reuse.__structuredAttrs or false) && !sphinxHookFixed then
-            pyprev.reuse.overridePythonAttrs (_: {
-              __structuredAttrs = false;
-            })
-          else
-            pyprev.reuse;
-      }
-    )
-  ];
 
   # FIXME(toybox-0.8.15-darwin-readahead): WORKAROUND, not a fix.
   #
@@ -308,45 +187,10 @@ final: prev: {
   sbomnixPatchedVersion = "1.9.0";
 
   sbomnix =
-    let
-      inherit (prev) lib;
-
-      # FIXME(nixpkgs-575801-sbomnix-structured-attrs): WORKAROUND, not a fix.
-      #
-      # Same structured-attrs breakage as gearlever above: sbomnix passes
-      # "--prefix PATH : <bins>" as ONE makeWrapperArgs element, which
-      # makeWrapper rejects ("doesn't understand the arg"). Also fixed by
-      # the not-yet-merged https://github.com/NixOS/nixpkgs/pull/575801;
-      # this applies the same split. Gated on structured attrs plus the
-      # exact broken shape, so it is a no-op before the switch and once the
-      # fix lands.
-      #
-      # Revert: once our nixpkgs pin contains the fix, delete `wrapperFixed`
-      # and this FIXME and use prev.sbomnix directly. See
-      # .github/workflows/track-upstream-fixes.yaml.
-      pathPrefix = "--prefix PATH : ";
-      args = prev.sbomnix.makeWrapperArgs or [ ];
-      wrapperFixed =
-        if
-          (prev.sbomnix.__structuredAttrs or false)
-          && builtins.length args == 1
-          && lib.hasPrefix pathPrefix (builtins.head args)
-        then
-          prev.sbomnix.overridePythonAttrs (_: {
-            makeWrapperArgs = [
-              "--prefix"
-              "PATH"
-              ":"
-              (lib.removePrefix pathPrefix (builtins.head args))
-            ];
-          })
-        else
-          prev.sbomnix;
-    in
     if prev.stdenv.hostPlatform.isDarwin || prev.sbomnix.version != final.sbomnixPatchedVersion then
-      wrapperFixed
+      prev.sbomnix
     else
-      wrapperFixed.overrideAttrs (old: {
+      prev.sbomnix.overrideAttrs (old: {
         patches = (old.patches or [ ]) ++ [
           ./sbomnix-recover-pinned-version-cpes.patch
         ];

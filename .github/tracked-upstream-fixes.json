@@ -367,7 +367,7 @@
     },
     {
       "id": "nixpkgs-575801-gearlever-structured-attrs",
-      "done": false,
+      "done": true,
       "summary": "gearlever 3.4.7 fails to build under buildPythonApplication's new __structuredAttrs: its makeWrapperArgs holds the literal \"${gappsWrapperArgs[@]}\" (no longer shell-expanded) and a single \"--prefix PATH : <bins>\" string, so makeCWrapper rejects both as unknown arguments in fixupPhase. Breaks Daytona (desktop.appimage).",
       "repo": "NixOS/nixpkgs",
       "check": "pkgs-min-version",
@@ -377,7 +377,7 @@
       "upstream_pr": 575801,
       "tracking": ["https://github.com/NixOS/nixpkgs/pull/575801"],
       "workaround": "overlays/default.nix -- `gearlever` overridePythonAttrs that appends gappsWrapperArgs from preFixup and splits the PATH prefix into separate makeWrapperArgs elements, mirroring #575801 and gated on structured attrs plus the exact broken shape (see FIXME(nixpkgs-575801-gearlever-structured-attrs)).",
-      "revert_action": "BLOCKED until #575801 (treewide, not yet merged) lands. min_version stays null because the fix is not a version bump; once it merges, retarget this entry to `nixpkgs-pin-contains-commit` with the merge commit as fix_commit and pin_node `nixpkgs` (gearlever is desktop-only, so only the unstable pin matters). To revert: confirm the gate is already a no-op (`nix eval .#nixosConfigurations.Daytona.pkgs.gearlever.makeWrapperArgs` no longer starts with the literal gappsWrapperArgs string), delete the override and FIXME from overlays/default.nix, and check the rebuilt bin/gearlever wrapper still sets GI_TYPELIB_PATH, XDG_DATA_DIRS, GDK_PIXBUF_MODULE_FILE, GIO_EXTRA_MODULES and the PATH prefix (dwarfs, squashfs-tools, appimage-run, ...)."
+      "revert_action": "DONE. #575801 merged to master 2026-10-28 as 1a8b2098aea7 and is contained in our unstable pin (compare: ahead). Pinned gearlever now has split makeWrapperArgs ([\"--prefix\" \"PATH\" \":\" ...]) and preFixup appends gappsWrapperArgs itself, so the gate had self-disabled. Deleted the override and FIXME from overlays/default.nix. Verified: gearlever drvPath unchanged (Daytona and maranello toplevels identical), and bin/gearlever still sets GI_TYPELIB_PATH, XDG_DATA_DIRS, GDK_PIXBUF_MODULE_FILE, GIO_EXTRA_MODULES and the PATH prefix with dwarfs, squashfs-tools and appimage-run."
     },
     {
       "id": "nixpkgs-585413-dwarfs-libarchive",
@@ -399,7 +399,7 @@
     },
     {
       "id": "nixpkgs-573108-typepy2-relax",
-      "done": false,
+      "done": true,
       "summary": "nixpkgs bumped typepy to 2.0.0 (9a8f4407e1, 2026-10-08) without relaxing its dependents: sqliteschema and simplesqlite still declare `typepy<2`, so pythonRuntimeDepsCheckHook fails them. That breaks sbomnix (via df-diskcache), taking out the `.#sbomnix` dev-shell package and the weekly CVE scan.",
       "repo": "NixOS/nixpkgs",
       "check": "nixpkgs-pin-contains-commit",
@@ -407,11 +407,11 @@
       "pin_node": "nixpkgs",
       "tracking": ["https://github.com/NixOS/nixpkgs/pull/573108"],
       "workaround": "overlays/default.nix -- `relaxTypepy` in the pythonPackagesExtensions block, appending \"typepy\" to pythonRelaxDeps of sqliteschema and simplesqlite (see FIXME(nixpkgs-573108-typepy2-relax)). Gated on typepy >= 2 and the entry not already being present.",
-      "revert_action": "#573108 merged into `staging`, not master, so fix_commit only becomes an ancestor of our pin once staging -> staging-next -> master -> nixpkgs-unstable has flowed through; that is exactly the signal wanted. pin_node `nixpkgs` is the right gate: sbomnix and its python deps are only built from the unstable input (flake/dev/packages.nix and the desktops); the stable pin keeps typepy 1.x and the gate makes the override a no-op there. To revert: confirm `nix eval .#nixosConfigurations.Daytona.pkgs.python3Packages.sqliteschema.pythonRelaxDeps` shows typepy WITHOUT the override (the override is then already a no-op), delete relaxTypepy, its two uses and the FIXME, and rebuild `.#sbomnix`."
+      "revert_action": "DONE. #573108 (f14b19bb) reached our unstable pin (d4f25a3e) via staging; the pinned sqliteschema and simplesqlite already carry pythonRelaxDeps = [ \"typepy\" ], so the gate had self-disabled. Deleted relaxTypepy, its two uses and the FIXME from overlays/default.nix. Verified: sqliteschema/simplesqlite drvPaths are identical with and without the overlay, all 10 nixosConfigurations + both darwinConfigurations toplevels, .#sbomnix and the dev shell have byte-identical drvPaths before and after, and .#sbomnix realises (from Attic)."
     },
     {
       "id": "nixpkgs-573479-sphinxhook-structured-attrs",
-      "done": false,
+      "done": true,
       "summary": "Under __structuredAttrs, sphinx-hook.sh's `eval \"__sphinxBuilders=($sphinxBuilders)\"` expands the sphinxBuilders bash array to its first element only. reuse (a dependency of sbomnix 1.9.0) asks for [ \"html\" \"man\" ], builds html alone, and fails because its `man` output is never produced.",
       "repo": "NixOS/nixpkgs",
       "check": "nixpkgs-pin-contains-commit",
@@ -422,11 +422,11 @@
         "https://github.com/NixOS/nixpkgs/pull/576194"
       ],
       "workaround": "overlays/default.nix -- pythonPackagesExtensions `reuse` override setting __structuredAttrs = false, gated on reuse using structured attrs AND sphinx-hook.sh (read from the nixpkgs source at eval time) still lacking `concatTo __sphinxBuilders` (see FIXME(nixpkgs-573479-sphinxhook-structured-attrs)).",
-      "revert_action": "fix_commit is #576194 (561cf47f), the later of the two staging hook fixes; it is a descendant of #573479's 0608057d, so containing it implies both. Both are on `staging`, so this resolves once staging reaches nixpkgs-unstable. The gate already self-disables when the hook gains `concatTo __sphinxBuilders`, so to revert: confirm reuse's drvPath is unchanged with the override removed, delete the `reuse` override, the `sphinxHookFixed` binding and the FIXME, then rebuild `.#sbomnix` and check reuse's man output contains share/man/man1/reuse.1.gz."
+      "revert_action": "DONE. #576194 (561cf47f, descendant of #573479) reached our unstable pin (d4f25a3e); sphinx-hook.sh now contains `concatTo __sphinxBuilders`, so the gate had self-disabled. Deleted the `reuse` override, the `sphinxHookFixed` binding and the FIXME (and with them the now-empty pythonPackagesExtensions block) from overlays/default.nix. Verified: reuse drvPath identical with and without the override, every host toplevel / .#sbomnix / dev shell drvPath unchanged, and reuse-6.2.0-man contains share/man/man1/reuse.1.gz."
     },
     {
       "id": "nixpkgs-575801-sbomnix-structured-attrs",
-      "done": false,
+      "done": true,
       "summary": "sbomnix 1.9.0 fails to build under buildPythonApplication's new __structuredAttrs: its makeWrapperArgs passes \"--prefix PATH : <bins>\" as ONE element, which makeWrapper rejects in fixupPhase. Breaks the `.#sbomnix` dev-shell package and the CVE scan.",
       "repo": "NixOS/nixpkgs",
       "check": "pkgs-min-version",
@@ -436,7 +436,7 @@
       "upstream_pr": 575801,
       "tracking": ["https://github.com/NixOS/nixpkgs/pull/575801"],
       "workaround": "overlays/default.nix -- `wrapperFixed` binding inside the `sbomnix` overlay that overridePythonAttrs-splits the PATH prefix into separate makeWrapperArgs elements, gated on structured attrs plus the exact broken shape (see FIXME(nixpkgs-575801-sbomnix-structured-attrs)). The version-gated source patches are layered on top of it.",
-      "revert_action": "BLOCKED until #575801 (treewide; the same PR as nixpkgs-575801-gearlever-structured-attrs) merges. min_version stays null because the fix is not a version bump; once it merges, retarget to `nixpkgs-pin-contains-commit` with the merge commit and pin_node `nixpkgs` (.#sbomnix is built from the unstable input by flake/dev/packages.nix). To revert: confirm the gate is already a no-op (`nix eval .#packages.x86_64-linux.sbomnix.makeWrapperArgs` has more than one element without the override), delete `wrapperFixed` and the FIXME so the patches apply to prev.sbomnix again, then rebuild `.#sbomnix` and confirm the wrapper PATH still carries git, nix, graphviz, nix-visualize, vulnix and grype."
+      "revert_action": "DONE. Same fix as nixpkgs-575801-gearlever-structured-attrs: #575801 (1a8b2098aea7) is in our unstable pin and the pinned sbomnix makeWrapperArgs is already split into four elements, so the gate had self-disabled. Deleted `wrapperFixed` and the FIXME; the CPE patch applies to prev.sbomnix again. Verified: .#sbomnix drvPath unchanged and realises, and its wrapper PATH carries git, nix, graphviz, nix-visualize, vulnix and grype."
     },
     {
       "id": "nixpkgs-576716-ladybird-rust-dwarnings",
