@@ -123,22 +123,18 @@ allowlists rather than by remembering anything here:
   `nixos-ci-pipeline-file-sync` skill if you're adding a new script or
   local action to either workflow.
 - **The inert allowlist** (`is_inert()` in the script): paths assumed
-  never reachable by any Nix expression. Getting this wrong only costs
-  a missed optimisation -- an unlisted inert-looking file just falls
-  through to the real diff, still correct, just slower. No mechanical
-  check needed; there's no correctness bug to catch.
+  never reachable by any Nix expression. Leaving an inert file off it
+  only costs a missed optimisation (it falls through to the real diff).
+  Putting a file on it that Nix does read skips a build that had to run,
+  so that direction is checked: `scripts/tests/impacted-hosts-test.sh`
+  fails if any `.nix` path expression resolves to an inert path.
 
 ## What the script does NOT do
 
-- It does not run `home-manager.users.fred.home.activationPackage`
-  builds. CI does this as a later step of each matrix job. For a really
-  thorough pre-push check, add a follow-up eval:
-
-  ```sh
-  for h in $(./scripts/impacted-hosts.sh --os linux); do
-    nix eval ".#nixosConfigurations.${h}.config.home-manager.users.fred.home.activationPackage.drvPath" >/dev/null
-  done
-  ```
+- It does not build anything. Evaluating a host's toplevel already
+  evaluates its home-manager configuration: every user's activation
+  package is part of the system closure, so there is no separate
+  home-manager eval to run.
 
 - It does not push to Attic. CI does that on success.
 

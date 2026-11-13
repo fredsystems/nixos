@@ -78,7 +78,6 @@ jobs:
     needs: [skip-if-clean]
     if: ${{ needs.skip-if-clean.outputs.skip != 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     permissions:
-      id-token: "write"
       contents: "read"
 
     outputs:
@@ -89,16 +88,6 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
-
-      - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@3138316df39ed29be04236d7ffc686fa525866aa # v23
-        with:
-          trust-runner-user: true
-          extra-conf: |
-            access-tokens = github.com=${{ github.token }}
-            accept-flake-config = true
-            substituters = http://192.168.31.14:8080/fred https://catppuccin.cachix.org https://cache.nixos.org/
-            trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= fred:JjyhvRSvKfkk8r4HS0mS5r5I7dT4GociEFbrR9OgBZ0= catppuccin.cachix.org-1:noG/4HkbhJb+lUAdKrph6LaozJvAeEEZj4N732IysmU=
 
       # Impact detection lives in one place -- scripts/impacted-hosts.sh --
       # shared verbatim with ci-linux.yaml and the nixos-eval-impacted-hosts
@@ -167,7 +156,6 @@ jobs:
     needs: [skip-if-clean, find-darwin]
     if: ${{ needs.skip-if-clean.outputs.skip != 'true' && needs.find-darwin.outputs.systems != '[]' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     permissions:
-      id-token: "write"
       contents: "read"
     strategy:
       fail-fast: false
@@ -176,16 +164,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-
-      - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@3138316df39ed29be04236d7ffc686fa525866aa # v23
-        with:
-          trust-runner-user: true
-          extra-conf: |
-            access-tokens = github.com=${{ github.token }}
-            accept-flake-config = true
-            substituters = http://192.168.31.14:8080/fred https://catppuccin.cachix.org https://cache.nixos.org/
-            trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= fred:JjyhvRSvKfkk8r4HS0mS5r5I7dT4GociEFbrR9OgBZ0= catppuccin.cachix.org-1:noG/4HkbhJb+lUAdKrph6LaozJvAeEEZj4N732IysmU=
 
       # Magic Nix Cache is NOT used here — multiple self-hosted runners
       # on the same machine fight over port 41239.  We push to Attic
@@ -212,18 +190,10 @@ jobs:
             error=1
           fi
 
+          # The pushed closure includes every user's home-manager
+          # activation package (it is part of the system activation), so
+          # there is no separate home-manager build.
           echo "Pushing system result..."
-          ./scripts/attic-push.sh result
-
-          : > build.stderr
-          echo "Building home-manager for: ${{ matrix.system }}"
-          nix build ".#darwinConfigurations.${{ matrix.system }}.config.home-manager.users.fred.home.activationPackage" 2> >(tee build.stderr >&2)
-
-          if grep -qE "evaluation warning:" build.stderr; then
-            error=1
-          fi
-
-          echo "Pushing home-manager result..."
           ./scripts/attic-push.sh result
 
           if [ "$error" -ne 0 ]; then
@@ -240,31 +210,18 @@ jobs:
   # shell (`nix develop`) and per-system packages from Attic instead of
   # rebuilding them locally. Builds exactly the outputs find-darwin
   # reported as changed (`impacted-hosts.sh --target dev`), so unrelated
-  # PRs skip.
-  # Caches are listed in extra-conf below; `accept-flake-config = true`
-  # there (trusted daemon config) honors the flake's nixConfig without the
-  # client-flag rejection. See the ci-linux.yaml dev-shell comment.
+  # PRs skip. No "Install Nix" step: see the ci-linux.yaml dev-shell
+  # comment.
   dev-shell-darwin:
     name: Build & push dev shell + packages (Darwin)
     runs-on: [self-hosted, macOS]
     needs: [skip-if-clean, find-darwin]
     if: ${{ needs.skip-if-clean.outputs.skip != 'true' && needs.find-darwin.outputs.dev != '[]' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     permissions:
-      id-token: "write"
       contents: "read"
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-
-      - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@3138316df39ed29be04236d7ffc686fa525866aa # v23
-        with:
-          trust-runner-user: true
-          extra-conf: |
-            access-tokens = github.com=${{ github.token }}
-            accept-flake-config = true
-            substituters = http://192.168.31.14:8080/fred https://colmena.cachix.org https://catppuccin.cachix.org https://niri.cachix.org https://niri-epireyn.cachix.org https://cache.nixos.org/
-            trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= fred:JjyhvRSvKfkk8r4HS0mS5r5I7dT4GociEFbrR9OgBZ0= colmena.cachix.org-1:7BzpDnjjH8ki2CT3f6GdOk7QAzPOl+1t3LvTLXqYcSg= catppuccin.cachix.org-1:noG/4HkbhJb+lUAdKrph6LaozJvAeEEZj4N732IysmU= niri.cachix.org-1:Wv0OmO7PsuocRKzfDoJ3mulSl7Z6oezYhGhR+3W2964= niri-epireyn.cachix.org-1:tlVyFN7CtsDT+ZcLPS+ekFWeT1X6X4OqvWqbBMyIzFA=
 
       - name: Build & push dev shell + packages
         shell: bash

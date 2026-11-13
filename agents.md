@@ -105,9 +105,10 @@ and HFDL decoders.
 | hfdlhub2  | Server  | HFDL decoder                              |
 | nvrhub    | Server  | NVR host, stateVersion 26.05              |
 
-Desktops are hardcoded in `ci-linux.yaml` as
-`desktop_names=("Daytona" "maranello")`. Everything else from
-`nixosConfigurations` is treated as a server.
+Desktops are declared directly in `flake/hosts/nixos.nix`; every server
+comes from the node table in `flake/hosts/servers.nix`. CI does not
+distinguish them: it builds whichever hosts' closures changed, in one
+matrix.
 
 Servers default to the **stable** channel (`nixpkgs-stable`,
 `home-manager-stable`, `catppuccin-stable`, `sops-nix-stable`).
@@ -115,8 +116,8 @@ Per-server overrides are possible via the node table in
 `flake/hosts/servers.nix`.
 
 `fredhub` is a stable-channel server that imports one package from
-unstable `nixpkgs`. CI treats changes to the `nixpkgs` input as
-"desktops + fredhub".
+unstable `nixpkgs`, so an unstable bump can rebuild it alongside the
+desktops.
 
 ---
 
@@ -184,8 +185,8 @@ build) rather than guessing from file paths, with two allowlist
 fast-paths ahead of the real diff for the common cases where the answer
 is knowable without one. See the script's own header for the full
 four-step algorithm and the `nixos-eval-impacted-hosts` skill for running
-it locally. The matrix builds toplevel + home-manager activation for
-each impacted host and pushes to the Attic binary cache at
+it locally. The matrix builds each impacted host's toplevel (which
+includes its home-manager activation) and pushes it to the Attic binary cache at
 `192.168.31.14`. Any `evaluation warning:` in stderr fails the build.
 `build-linux-summary` is the required status check.
 
@@ -201,7 +202,7 @@ skill when adding a script or local action to either workflow.
 
 Both `ci-linux.yaml` and `ci-darwin.yaml` also carry a `dev-shell`
 build-and-push job (one per OS, on the self-hosted runners). The host
-matrix only caches `toplevel` + home-manager activation, so the dev
+matrix only caches host closures (`toplevel`), so the dev
 shell (`nix develop`) and the per-system `packages.*` outputs (colmena
 CLI, lint tooling, wallpapers) would otherwise be rebuilt locally on
 every machine. The job builds and pushes exactly the
@@ -216,10 +217,12 @@ Three inputs deliberately do **not** follow our `nixpkgs` so their
 prebuilt outputs can be substituted from the projects' own caches:
 `colmena` (colmena.cachix.org), `catppuccin` (catppuccin.cachix.org),
 and `niri` (niri.cachix.org / niri-epireyn.cachix.org). Those caches are
-wired both into `flake.nix`'s `nixConfig` (for ad-hoc builds) and into
-`modules/base/system.nix` (so every host's `/etc/nix/nix.conf` uses them
-during normal `nixos-rebuild` / `nix develop`). Following our `nixpkgs`
-would change their derivation hashes and force local source builds.
+listed once, in `flake.nix`'s `nixConfig` (which must be a literal);
+`modules/base/system.nix` reads that list into every host's
+`/etc/nix/nix.conf`, adding the LAN Attic cache and cache.nixos.org. The
+self-hosted CI runners are fleet hosts, so they use that same
+`nix.conf`; no workflow lists caches. Following our `nixpkgs` would
+change their derivation hashes and force local source builds.
 
 `opencode` does not follow our `nixpkgs` either, for a different reason:
 its `nixpkgs` supplies the Bun that installs `node_modules` (whose
