@@ -191,7 +191,7 @@
     # flake/lib/opencode-overlay.nix applies it.
     # renovate: datasource=git-refs depName=opencode packageName=https://github.com/anomalyco/opencode versioning=semver
     opencode = {
-      url = "github:anomalyco/opencode/v2.2.7";
+      url = "github:anomalyco/opencode/v2.3.0";
     };
 
     freminal = {
