@@ -40,6 +40,7 @@ in
   # extra options
   ai = {
     enable = true;
+    opencode.desktop.enable = true;
 
     local-llm.models = [
       "qwen3.6:latest"
