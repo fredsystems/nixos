@@ -103,6 +103,44 @@ final: prev: {
     else
       prev.gearlever;
 
+  # FIXME(nixpkgs-585413-dwarfs-libarchive): WORKAROUND, not a fix.
+  #
+  # Since libarchive 3.8.10 (libarchive/libarchive#3354),
+  # archive_write_close() returns ARCHIVE_FATAL for a writer that already
+  # failed. dwarfsextract then throws before joining its I/O thread and
+  # aborts via std::terminate(), failing the pwb/raw/xar
+  # dwarfsextract_format_test cases, so dwarfs 0.15.8 does not build (and
+  # Hydra has no cached copy). gearlever depends on dwarfs, which takes out
+  # both desktops. Report: https://github.com/NixOS/nixpkgs/issues/585413.
+  # We apply the same upstream patch (https://github.com/mhx/dwarfs/pull/391)
+  # with the same hash as the nixpkgs fix,
+  # https://github.com/NixOS/nixpkgs/pull/586760 (not yet merged).
+  #
+  # Gated on 0.15.8 without that patch, so it is a no-op once nixpkgs carries
+  # the fix or dwarfs moves to a release that includes it.
+  #
+  # Revert: once our nixpkgs pin contains the fix, delete this override and
+  # FIXME. See .github/workflows/track-upstream-fixes.yaml.
+  dwarfs =
+    let
+      inherit (prev) lib;
+      fixCommit = "0f5a7720f03dbb2e2fb12300272826fb458aac5f";
+      alreadyPatched = lib.any (
+        p: lib.isDerivation p && lib.any (lib.hasInfix fixCommit) (p.urls or [ ])
+      ) (prev.dwarfs.patches or [ ]);
+    in
+    if prev.dwarfs.version == "0.15.8" && !alreadyPatched then
+      prev.dwarfs.overrideAttrs (old: {
+        patches = (old.patches or [ ]) ++ [
+          (prev.fetchpatch {
+            url = "https://github.com/mhx/dwarfs/commit/${fixCommit}.patch?full_index=1";
+            hash = "sha256-laGlfPZgfG5Xn8Se/7XTK3wYg0hhsOMQhzWTlwBZQR8=";
+          })
+        ];
+      })
+    else
+      prev.dwarfs;
+
   pythonPackagesExtensions = prev.pythonPackagesExtensions ++ [
     (
       _: pyprev:
