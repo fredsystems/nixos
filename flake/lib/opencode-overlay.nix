@@ -61,6 +61,11 @@ in
 
       postPatch = rearmBunCheck old;
 
+      # FIXME(opencode-60676-desktop-service-channel): WORKAROUND, not a fix.
+      # Drop this env override once the pinned release carries
+      # anomalyco/opencode#60683 (desktop discovers service-prod.json);
+      # tracked by .github/workflows/track-upstream-fixes.yaml.
+      #
       # The channel compiled into the CLI picks the background service's
       # registration file and fixed port. Upstream's recipe builds "prod"
       # (service-prod.json), but the desktop app only discovers "latest"'s
@@ -113,6 +118,11 @@ in
   # assert and the server-startup check into it. Everything else (Bun,
   # Electron) still comes from opencode/nixpkgs, as upstream builds it. The
   # recipe relaxes the Bun check in its own postPatch, so re-arm it here too.
+  #
+  # FIXME(opencode-59601-desktop-cli-dist): WORKAROUND, not a fix. Drop the
+  # buildPhase override below (stagedDist/readsDist) once the pinned release
+  # carries the fix for anomalyco/opencode#59601; tracked by
+  # .github/workflows/track-upstream-fixes.yaml.
   #
   # The recipe stages the CLI in $OPENCODE_CLI_DIST, but since upstream's
   # 6996bbcd6 packages/desktop/script/build.ts only looks in ../cli/dist and
