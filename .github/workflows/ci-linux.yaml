@@ -219,18 +219,10 @@ jobs:
             error=1
           fi
 
-          echo "Pushing first result..."
-          ./scripts/attic-push.sh result
-
-          : > build.stderr
-          echo "Building home-manager for: ${{ matrix.system }}"
-          nix build ".#nixosConfigurations.${{ matrix.system }}.config.home-manager.users.fred.home.activationPackage" 2> >(tee build.stderr >&2)
-
-          if grep -qE "evaluation warning:" build.stderr; then
-            error=1
-          fi
-
-          echo "Pushing second result..."
+          # The pushed closure includes every user's home-manager
+          # activation package (home-manager-<user>.service runs it), so
+          # there is no separate home-manager build.
+          echo "Pushing system result..."
           ./scripts/attic-push.sh result
 
           if [ "$error" -ne 0 ]; then
@@ -243,8 +235,8 @@ jobs:
   # =====================================================================
   # Build + push the dev shell and dev packages
   #
-  # The host build jobs only cache system.build.toplevel and the
-  # home-manager activation package. The dev shell (`nix develop`) and the
+  # The host build job only caches system.build.toplevel (which includes
+  # the home-manager activation). The dev shell (`nix develop`) and the
   # per-system `packages` outputs (sbomnix, wallpapers) are never part of
   # a host closure, so without this job every machine rebuilds them on
   # first `nix develop`. Build and push them to Attic so all machines (and

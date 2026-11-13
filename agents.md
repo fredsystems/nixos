@@ -185,8 +185,8 @@ build) rather than guessing from file paths, with two allowlist
 fast-paths ahead of the real diff for the common cases where the answer
 is knowable without one. See the script's own header for the full
 four-step algorithm and the `nixos-eval-impacted-hosts` skill for running
-it locally. The matrix builds toplevel + home-manager activation for
-each impacted host and pushes to the Attic binary cache at
+it locally. The matrix builds each impacted host's toplevel (which
+includes its home-manager activation) and pushes it to the Attic binary cache at
 `192.168.31.14`. Any `evaluation warning:` in stderr fails the build.
 `build-linux-summary` is the required status check.
 
@@ -202,7 +202,7 @@ skill when adding a script or local action to either workflow.
 
 Both `ci-linux.yaml` and `ci-darwin.yaml` also carry a `dev-shell`
 build-and-push job (one per OS, on the self-hosted runners). The host
-matrix only caches `toplevel` + home-manager activation, so the dev
+matrix only caches host closures (`toplevel`), so the dev
 shell (`nix develop`) and the per-system `packages.*` outputs (colmena
 CLI, lint tooling, wallpapers) would otherwise be rebuilt locally on
 every machine. The job builds and pushes exactly the

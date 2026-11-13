@@ -212,18 +212,10 @@ jobs:
             error=1
           fi
 
+          # The pushed closure includes every user's home-manager
+          # activation package (it is part of the system activation), so
+          # there is no separate home-manager build.
           echo "Pushing system result..."
-          ./scripts/attic-push.sh result
-
-          : > build.stderr
-          echo "Building home-manager for: ${{ matrix.system }}"
-          nix build ".#darwinConfigurations.${{ matrix.system }}.config.home-manager.users.fred.home.activationPackage" 2> >(tee build.stderr >&2)
-
-          if grep -qE "evaluation warning:" build.stderr; then
-            error=1
-          fi
-
-          echo "Pushing home-manager result..."
           ./scripts/attic-push.sh result
 
           if [ "$error" -ne 0 ]; then
