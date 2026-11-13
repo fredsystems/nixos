@@ -6,9 +6,8 @@
 #   - colmena CLI (matched to the colmenaHive evaluator version)
 #
 # CI builds and pushes this shell to Attic via the `dev-shell` job in
-# ci-linux.yaml / ci-darwin.yaml, gated by `find-devshell`. If you add a
-# tool here that comes from a new flake input, add that input to the
-# `devshell_inputs` list in both workflows so the cache stays warm.
+# ci-linux.yaml / ci-darwin.yaml whenever its outPath changes (see
+# `scripts/impacted-hosts.sh --target dev`), whatever the change came from.
 #
 # Arguments are the flake-level bindings passed in from flake.nix.
 {

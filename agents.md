@@ -204,17 +204,13 @@ build-and-push job (one per OS, on the self-hosted runners). The host
 matrix only caches `toplevel` + home-manager activation, so the dev
 shell (`nix develop`) and the per-system `packages.*` outputs (colmena
 CLI, lint tooling, wallpapers) would otherwise be rebuilt locally on
-every machine. The job builds `.#devShells.<system>.default` and every
-`.#packages.<system>.*` and pushes them to Attic. It is **gated by its
-own `find-devshell` detection job**, which is independent of the host
-filter because the dev shell has a different input set: it rebuilds only
-when `flake/dev/*.nix`, a CI workflow file, or one of the inputs that
-actually feed the shell changes -- `nixpkgs`, `precommit-base`,
-`colmena`, or the `walls-*` wallpaper inputs. Note that `precommit-base`
-and `colmena` usually leave every host closure unchanged, so the host
-filter ignores them, but they **do** trigger the dev shell. Keep that
-`devshell_inputs` list in sync (in both workflows) when the dev shell's
-dependencies change.
+every machine. The job builds and pushes exactly the
+`.#devShells.<system>.*` / `.#packages.<system>.*` outputs whose outPath
+changed, as reported by the same script with `--target dev` (run from
+`find-systems` / `find-darwin`). There is no list of files or inputs
+that "feed the dev shell" to keep in sync: an `overlays/` change that
+moves `.#sbomnix`, or a `precommit-base` bump that moves only the dev
+shell, is caught by the diff itself.
 
 Three inputs deliberately do **not** follow our `nixpkgs` so their
 prebuilt outputs can be substituted from the projects' own caches:
