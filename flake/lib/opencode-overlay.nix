@@ -42,6 +42,13 @@ let
   # Only undone when present: if upstream drops or rewords the relaxation, the
   # evaluation-time assert still guards the toolchain.
   relaxedCheck = "console.warn(`Warning: This script requires bun@";
+  rearmBunCheck =
+    old:
+    (old.postPatch or "")
+    + lib.optionalString (lib.hasInfix relaxedCheck (old.postPatch or "")) ''
+      substituteInPlace packages/script/src/index.ts \
+        --replace-fail '${relaxedCheck}' 'throw new Error(`This script requires bun@'
+    '';
 in
 {
   opencode =
@@ -52,12 +59,24 @@ in
       node_modules =
         if hash == null then upstream.node_modules else upstream.node_modules.override { inherit hash; };
 
-      postPatch =
-        (old.postPatch or "")
-        + lib.optionalString (lib.hasInfix relaxedCheck (old.postPatch or "")) ''
-          substituteInPlace packages/script/src/index.ts \
-            --replace-fail '${relaxedCheck}' 'throw new Error(`This script requires bun@'
-        '';
+      postPatch = rearmBunCheck old;
+
+      # FIXME(opencode-60676-desktop-service-channel): WORKAROUND, not a fix.
+      # Drop this env override once the pinned release carries
+      # anomalyco/opencode#60683 (desktop discovers service-prod.json);
+      # tracked by .github/workflows/track-upstream-fixes.yaml.
+      #
+      # The channel compiled into the CLI picks the background service's
+      # registration file and fixed port. Upstream's recipe builds "prod"
+      # (service-prod.json), but the desktop app only discovers "latest"'s
+      # service.json (anomalyco/opencode#60676), so with "prod" it waits forever
+      # for a server it started. "latest" is what official releases use, so the
+      # TUI and the desktop share one service as upstream intends, against the
+      # same opencode.db as "prod". The updater can't install over a store path
+      # either way; features/ai/opencode disables its update check.
+      env = old.env // {
+        OPENCODE_CHANNEL = "latest";
+      };
 
       # --version never loads the server module that failed on Bun 1.4.2.
       # Exercise it in every package build, including the Linux/Darwin CI
@@ -93,4 +112,59 @@ in
         )
       '';
     });
+
+  # Upstream's desktop recipe takes src, node_modules and the bundled CLI from
+  # its `opencode` argument, so passing ours carries the pinned hash, the Bun
+  # assert and the server-startup check into it. Everything else (Bun,
+  # Electron) still comes from opencode/nixpkgs, as upstream builds it. The
+  # recipe relaxes the Bun check in its own postPatch, so re-arm it here too.
+  #
+  # FIXME(opencode-59601-desktop-cli-dist): WORKAROUND, not a fix. Drop the
+  # buildPhase override below (stagedDist/readsDist) once the pinned release
+  # carries the fix for anomalyco/opencode#59601; tracked by
+  # .github/workflows/track-upstream-fixes.yaml.
+  #
+  # The recipe stages the CLI in $OPENCODE_CLI_DIST, but since upstream's
+  # 6996bbcd6 packages/desktop/script/build.ts only looks in ../cli/dist and
+  # a prod build throws without it. Stage it there instead, only while the two
+  # disagree, so a fix on either side upstream makes this a no-op.
+  #
+  # The recipe copies the CLI's env, but the desktop reads OPENCODE_CHANNEL as
+  # its own identity (local/dev/beta/prod, anything else is "dev": app name,
+  # app id, data dir), so it keeps "prod" while the CLI it bundles is "latest".
+  #
+  # At launch the desktop copies its bundled CLI into
+  # ~/.config/ai.opencode.desktop/cli/<version>-<arch>/ and reuses any copy
+  # already there. Ours is a wrapper that execs an absolute store path, so a
+  # rebuild that keeps the version (a channel or patch change) would leave the
+  # desktop running the old build's copy, and once GC removes that store path
+  # the copy runs nothing at all. Reuse a staged copy only while it is
+  # byte-identical to the bundled one (a ~20 KB wrapper); otherwise the existing
+  # copy-and-rename replaces it. Stage names and their cleanup are untouched.
+  # --replace-fail, so an upstream rewrite of this code fails the build rather
+  # than silently bringing the stale reuse back.
+  opencode-desktop =
+    let
+      stagedDist = ''export OPENCODE_CLI_DIST="$TMPDIR/desktop-cli"'';
+      readsDist = lib.hasInfix "OPENCODE_CLI_DIST" (
+        builtins.readFile (inputs.opencode + "/packages/desktop/script/build.ts")
+      );
+    in
+    (inputs.opencode.packages.${system}.opencode-desktop.override { inherit (final) opencode; })
+    .overrideAttrs
+      (old: {
+        postPatch = rearmBunCheck old + ''
+          substituteInPlace packages/desktop/src/main/service/desktop-cli.ts \
+            --replace-fail 'if (existsSync(destination)) {' \
+                           'if (existsSync(destination) && readFileSync(destination).equals(readFileSync(source))) {'
+        '';
+        env = old.env // {
+          OPENCODE_CHANNEL = "prod";
+        };
+        buildPhase =
+          if !readsDist && lib.hasInfix stagedDist old.buildPhase then
+            lib.replaceStrings [ stagedDist ] [ ''export OPENCODE_CLI_DIST="$PWD/../cli/dist"'' ] old.buildPhase
+          else
+            old.buildPhase;
+      });
 }

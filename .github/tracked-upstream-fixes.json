@@ -483,6 +483,31 @@
       "tracking": ["https://github.com/NixOS/nixpkgs/pull/575004"],
       "workaround": "features/ai/lammacpp/default.nix -- `openwebPackage` let-binding that overrides open-webui's own python3Packages scope with `mcp = mcp_1` (as nixpkgs does for music-assistant), gated on mcp being >= 2 (see FIXME(nixpkgs-open-webui-mcp2)). Lives in the feature module, not overlays/, because fredhub supplies open-webui from its own `import inputs.nixpkgs { }` which overlays never reach.",
       "revert_action": "DONE. open-webui 0.12.5 ported to the mcp 2 API (`from mcp import Client`, `streamable_http_client`), so the mcp_1 pin turned from fix into cause: fredhub crash-looped on `ImportError: cannot import name 'Client' from 'mcp'` (mcp 1.29.0) and nginx served 502. Deleted the `openwebPackage` let-binding and FIXME; ExecStart uses cfg.openwebPackage again. posthog is still meta.broken under mcp 2.3.0 but is no longer in open-webui's closure (unpinned open-webui evaluates and builds). Verified at runtime: the unpinned open-webui-0.12.5 (bsapvf6b...) served against a scratch DATA_DIR returned /health {\"status\":true}."
+    },
+    {
+      "id": "opencode-60676-desktop-service-channel",
+      "done": false,
+      "summary": "Upstream nix/opencode.nix builds the CLI with OPENCODE_CHANNEL=prod, so its background service registers in service-prod.json, but opencode-desktop only discovers service.json: the desktop starts its bundled server and then waits on the logo forever. We build the CLI on the \"latest\" channel instead, so the TUI and desktop share service.json.",
+      "repo": "anomalyco/opencode",
+      "check": "issue-closed",
+      "issue": 60676,
+      "tracking": [
+        "https://github.com/anomalyco/opencode/issues/60676",
+        "https://github.com/anomalyco/opencode/pull/60683"
+      ],
+      "workaround": "flake/lib/opencode-overlay.nix -- `env.OPENCODE_CHANNEL = \"latest\"` on `opencode` (FIXME(opencode-60676-desktop-service-channel)).",
+      "revert_action": "Closing the issue only means the fix is on upstream dev. First confirm the `opencode` release tag in flake.nix contains it (Renovate bumps tags). Then delete the env override and its FIXME, build `.#nixosConfigurations.Daytona.pkgs.opencode-desktop`, and launch it with empty XDG dirs in a private network namespace (`unshare -rn`): the main log must show `v2 CLI background service ready`. Keep `update = \"disable\"` in features/ai/opencode; it is still correct on prod. On deploy, the TUI moves back to service-prod.json, so close open sessions once."
+    },
+    {
+      "id": "opencode-59601-desktop-cli-dist",
+      "done": false,
+      "summary": "Upstream nix/desktop.nix stages the bundled CLI in $OPENCODE_CLI_DIST, but packages/desktop/script/build.ts stopped reading it in 6996bbcd6 and only looks in ../cli/dist, so the prod desktop build throws `Production desktop builds bundle the CLI ... build it first`. We rewrite the staging path in buildPhase.",
+      "repo": "anomalyco/opencode",
+      "check": "issue-closed",
+      "issue": 59601,
+      "tracking": ["https://github.com/anomalyco/opencode/issues/59601"],
+      "workaround": "flake/lib/opencode-overlay.nix -- the `buildPhase` override (stagedDist/readsDist) on `opencode-desktop` (FIXME(opencode-59601-desktop-cli-dist)). It already becomes a no-op once either side changes upstream, so it is harmless left in place, but it is dead code by then.",
+      "revert_action": "Closing the issue only means the fix is on upstream dev. First confirm the `opencode` release tag in flake.nix contains it. Then delete the `buildPhase` override, the stagedDist/readsDist let-bindings and the FIXME, and confirm `.#nixosConfigurations.Daytona.pkgs.opencode-desktop` still builds."
     }
   ]
 }
