@@ -449,11 +449,11 @@
         "rust-overlay": "rust-overlay_4"
       },
       "locked": {
-        "lastModified": 1793546357,
-        "narHash": "sha256-iRWABiLy7wWSLAqwGGhAG/IVogaALZVjLwZ7tHwVjJg=",
+        "lastModified": 1794529367,
+        "narHash": "sha256-fODMAZhEn+bNtlM8+YwNWG+CdnYWWilxmn9ScbIqUZw=",
         "owner": "FredSystems",
         "repo": "frext",
-        "rev": "33229ee0e23a731861879d1effc792cf649e8e13",
+        "rev": "98deff446acd46a360d9edffa270dc78dc0ae7e4",
         "type": "github"
       },
       "original": {
