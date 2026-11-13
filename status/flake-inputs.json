@@ -1,12 +1,5 @@
 {
   "inputs": {
-    "catppuccin": {
-      "dispatched_at": "2026-11-13T21:31:36Z",
-      "dispatched_rev": "c5d213bc9ff4be08f56e54c954bf79e56c2e8ba9",
-      "kinds": {},
-      "locked_rev": "feac189528d08ca7c46bf1605d84b78ea5fe8263",
-      "upstream_rev": "c5d213bc9ff4be08f56e54c954bf79e56c2e8ba9"
-    },
     "flake-utils": {
       "bases": {
         "darwin": "c72edeeb409df6c4e40b3b64e28a062c7dcceff6e5060b79a59047d965cb10ea",
@@ -73,6 +66,6 @@
       "upstream_rev": "b2f45bbbff95cd70507098cec42cce6df8e8def6"
     }
   },
-  "planned_at": "2026-11-13T21:31:33Z",
+  "planned_at": "2026-11-13T22:37:14Z",
   "version": 1
 }
