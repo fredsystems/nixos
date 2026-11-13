@@ -43,8 +43,8 @@ closure changed, desktops and servers alike, in one matrix.
    the divergence goes in `hosts/linux/<name>/configuration.nix`.
 
 5. **If it should be deployable via colmena**, add it to
-   `flake/deployment/colmena.nix`. Specify target hostname/IP, SSH
-   user, and any tags.
+   `flake/deployment/colmena.nix`. Specify target hostname/IP and any
+   tags; the SSH user is the fleet's `shared.user.name`.
 
 6. **If it has secrets**, wire up sops-nix in `configuration.nix` and
    add the host's age key to `.sops.yaml`.

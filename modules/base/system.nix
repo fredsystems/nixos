@@ -1,3 +1,4 @@
+{ config, ... }:
 let
   # The public caches are listed once, in flake.nix's nixConfig: Nix
   # requires that attrset to be a literal, so it is the one place that
@@ -54,7 +55,7 @@ in
       trusted-users = [
         "root"
         "@wheel"
-        "fred"
+        config.shared.user.name
       ];
 
       experimental-features = [

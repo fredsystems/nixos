@@ -53,11 +53,12 @@ let
     let
       c = self.nixosConfigurations.${name}._colmena;
     in
+    { config, ... }:
     {
       deployment = {
         targetHost = node.targetHost or "${name}.local";
         targetPort = node.targetPort or 22;
-        targetUser = "fred";
+        targetUser = config.shared.user.name;
         buildOnTarget = false;
         allowLocalDeployment = node.allowLocalDeployment or false;
         tags = [
