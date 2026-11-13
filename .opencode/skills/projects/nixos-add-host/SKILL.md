@@ -34,7 +34,10 @@ closure changed, desktops and servers alike, in one matrix.
    `flake/hosts/servers.nix`. This is the single source of truth for
    server hosts -- `flake/hosts/nixos.nix` builds one
    `nixosConfigurations` entry per node. The entry needs at minimum the
-   host name and any per-host overrides (channel choice, etc.).
+   host name and an explicit `stateVersion` (`flake/hosts/nixos.nix`
+   reads `node.stateVersion` with deliberately no fallback, so a node
+   without one fails to evaluate), plus any per-host overrides (channel
+   choice, etc.).
 
 4. **If it's a desktop**, add a `self.lib.mkSystem { ...; isDesktop =
    true; }` entry next to the existing desktops in
