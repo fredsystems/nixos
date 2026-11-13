@@ -284,6 +284,21 @@
         '';
       };
 
+      # Hermetic tests for scripts/nix-build-no-warnings.sh, the gate that
+      # fails lint.yaml's `nix build` steps on any evaluation warning. Nix
+      # exits 0 on a warning, so if this gate stops working nothing else
+      # notices.
+      nixBuildNoWarningsCheck = pkgs.writeShellApplication {
+        name = "check-nix-build-no-warnings";
+        runtimeInputs = [
+          pkgs.gnugrep
+          pkgs.coreutils
+        ];
+        text = ''
+          bash scripts/tests/nix-build-no-warnings-test.sh
+        '';
+      };
+
       # Hermetic tests for scripts/opencode-node-modules-hash.sh (relock,
       # hash recording keyed by release + toolchain) and the warning/error
       # gate in renovate-relock.yaml's relock step, with a mock nix. The
@@ -536,6 +551,14 @@
               name = "home IP rotation helper tests";
               entry = "${pkgs.lib.getExe homeIpCheck}";
               files = "^(scripts/(lib/home-ip|rotate-home-ip|tests/home-ip-test)\\.sh|modules/data/home-network\\.nix)$";
+              pass_filenames = false;
+            };
+
+            nix-build-no-warnings = {
+              enable = true;
+              name = "nix build evaluation-warning gate tests";
+              entry = "${pkgs.lib.getExe nixBuildNoWarningsCheck}";
+              files = "^scripts/(nix-build-no-warnings|tests/nix-build-no-warnings-test)\\.sh$";
               pass_filenames = false;
             };
 
@@ -1020,6 +1043,17 @@
           ''
             cd ${self}
             check-home-ip
+            touch "$out"
+          '';
+
+      nix-build-no-warnings =
+        pkgs.runCommand "nix-build-no-warnings-check"
+          {
+            nativeBuildInputs = [ nixBuildNoWarningsCheck ];
+          }
+          ''
+            cd ${self}
+            check-nix-build-no-warnings
             touch "$out"
           '';
 
