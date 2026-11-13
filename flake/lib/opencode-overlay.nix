@@ -132,6 +132,17 @@ in
   # The recipe copies the CLI's env, but the desktop reads OPENCODE_CHANNEL as
   # its own identity (local/dev/beta/prod, anything else is "dev": app name,
   # app id, data dir), so it keeps "prod" while the CLI it bundles is "latest".
+  #
+  # At launch the desktop copies its bundled CLI into
+  # ~/.config/ai.opencode.desktop/cli/<version>-<arch>/ and reuses any copy
+  # already there. Ours is a wrapper that execs an absolute store path, so a
+  # rebuild that keeps the version (a channel or patch change) would leave the
+  # desktop running the old build's copy, and once GC removes that store path
+  # the copy runs nothing at all. Reuse a staged copy only while it is
+  # byte-identical to the bundled one (a ~20 KB wrapper); otherwise the existing
+  # copy-and-rename replaces it. Stage names and their cleanup are untouched.
+  # --replace-fail, so an upstream rewrite of this code fails the build rather
+  # than silently bringing the stale reuse back.
   opencode-desktop =
     let
       stagedDist = ''export OPENCODE_CLI_DIST="$TMPDIR/desktop-cli"'';
@@ -142,7 +153,11 @@ in
     (inputs.opencode.packages.${system}.opencode-desktop.override { inherit (final) opencode; })
     .overrideAttrs
       (old: {
-        postPatch = rearmBunCheck old;
+        postPatch = rearmBunCheck old + ''
+          substituteInPlace packages/desktop/src/main/service/desktop-cli.ts \
+            --replace-fail 'if (existsSync(destination)) {' \
+                           'if (existsSync(destination) && readFileSync(destination).equals(readFileSync(source))) {'
+        '';
         env = old.env // {
           OPENCODE_CHANNEL = "prod";
         };
