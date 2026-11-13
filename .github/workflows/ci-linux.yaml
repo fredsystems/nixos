@@ -80,7 +80,6 @@ jobs:
     needs: [skip-if-clean]
     if: ${{ needs.skip-if-clean.outputs.skip != 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     permissions:
-      id-token: "write"
       contents: "read"
 
     outputs:
@@ -91,14 +90,6 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
-
-      - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@3138316df39ed29be04236d7ffc686fa525866aa # v23
-        with:
-          trust-runner-user: true
-          extra-conf: |
-            access-tokens = github.com=${{ github.token }}
-            accept-flake-config = true
 
       # Impact detection lives in one place -- scripts/impacted-hosts.sh --
       # shared verbatim with ci-darwin.yaml and the nixos-eval-impacted-hosts
@@ -173,7 +164,6 @@ jobs:
     needs: [skip-if-clean, find-systems]
     if: ${{ needs.skip-if-clean.outputs.skip != 'true' && needs.find-systems.outputs.systems != '[]' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     permissions:
-      id-token: "write"
       contents: "read"
     strategy:
       fail-fast: false
@@ -188,16 +178,6 @@ jobs:
       #     sudo rm -rf "$AGENT_TOOLSDIRECTORY"
       #     sudo docker image prune --all --force || true
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@3138316df39ed29be04236d7ffc686fa525866aa # v23
-        with:
-          trust-runner-user: true
-          extra-conf: |
-            access-tokens = github.com=${{ github.token }}
-            accept-flake-config = true
-            substituters = http://192.168.31.14:8080/fred https://catppuccin.cachix.org https://niri.cachix.org https://niri-epireyn.cachix.org https://cache.nixos.org/
-            trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= fred:JjyhvRSvKfkk8r4HS0mS5r5I7dT4GociEFbrR9OgBZ0= niri.cachix.org-1:Wv0OmO7PsuocRKzfDoJ3mulSl7Z6oezYhGhR+3W2964= niri-epireyn.cachix.org-1:tlVyFN7CtsDT+ZcLPS+ekFWeT1X6X4OqvWqbBMyIzFA= catppuccin.cachix.org-1:noG/4HkbhJb+lUAdKrph6LaozJvAeEEZj4N732IysmU=
-
       - name: Build system
         shell: bash
         env:
@@ -247,36 +227,24 @@ jobs:
   # files or inputs believed to feed the dev shell), so unrelated PRs skip
   # it entirely.
   #
-  # The colmena/catppuccin/niri caches are listed explicitly in the
-  # installer's extra-conf below (written to /etc/nix/nix.conf as root,
-  # i.e. trusted daemon config) so they work regardless of the flake.
-  # We do NOT pass the --accept-flake-config *client flag*: the runner
-  # build user is not a nix trusted-user, so a client-injected
-  # trusted-public-keys would be rejected. Instead extra-conf sets
-  # `accept-flake-config = true` as trusted daemon config, which honors
-  # the flake's nixConfig without the rejection and silences the
-  # "ignoring untrusted flake configuration setting" warning.
+  # NO "INSTALL NIX" STEP, here or in any other self-hosted job. The
+  # runners are fleet hosts: Nix is already installed, and the
+  # nix-installer-action only logged "using existing install" and ignored
+  # its extra-conf. Their substituters and keys come from the host's own
+  # /etc/nix/nix.conf (modules/base/system.nix), which reads the public
+  # caches from flake.nix's nixConfig -- the single list. That is also why
+  # Nix logs "ignoring untrusted flake configuration setting" for that
+  # nixConfig: the runner user is not trusted, and does not need to be.
   dev-shell:
     name: Build & push dev shell + packages
     runs-on: [self-hosted, Linux]
     needs: [skip-if-clean, find-systems]
     if: ${{ needs.skip-if-clean.outputs.skip != 'true' && needs.find-systems.outputs.dev != '[]' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     permissions:
-      id-token: "write"
       contents: "read"
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-
-      - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@3138316df39ed29be04236d7ffc686fa525866aa # v23
-        with:
-          trust-runner-user: true
-          extra-conf: |
-            access-tokens = github.com=${{ github.token }}
-            accept-flake-config = true
-            substituters = http://192.168.31.14:8080/fred https://colmena.cachix.org https://catppuccin.cachix.org https://niri.cachix.org https://niri-epireyn.cachix.org https://cache.nixos.org/
-            trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= fred:JjyhvRSvKfkk8r4HS0mS5r5I7dT4GociEFbrR9OgBZ0= colmena.cachix.org-1:7BzpDnjjH8ki2CT3f6GdOk7QAzPOl+1t3LvTLXqYcSg= catppuccin.cachix.org-1:noG/4HkbhJb+lUAdKrph6LaozJvAeEEZj4N732IysmU= niri.cachix.org-1:Wv0OmO7PsuocRKzfDoJ3mulSl7Z6oezYhGhR+3W2964= niri-epireyn.cachix.org-1:tlVyFN7CtsDT+ZcLPS+ekFWeT1X6X4OqvWqbBMyIzFA=
 
       - name: Build & push dev shell + packages
         shell: bash
@@ -356,23 +324,10 @@ jobs:
     runs-on: [self-hosted, Linux]
     needs: [skip-if-clean]
     if: ${{ needs.skip-if-clean.outputs.skip != 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-    # Matches build-systems. id-token is not used by this job,
-    # but nix-installer-action warns on every run without it ("FlakeHub is
-    # disabled because the workflow is misconfigured"), and this repo treats a
-    # noisy CI log as a defect.
     permissions:
-      id-token: "write"
       contents: "read"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-
-      - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@3138316df39ed29be04236d7ffc686fa525866aa # v23
-        with:
-          trust-runner-user: true
-          extra-conf: |
-            access-tokens = github.com=${{ github.token }}
-            accept-flake-config = true
 
       # jq comes from `nix shell`, not the runner: the self-hosted NixOS
       # runners have no jq on PATH (ubuntu-latest does, which is why this only
@@ -474,7 +429,6 @@ jobs:
     # this workflow posts comments, so the top-level `permissions:` block
     # stays read-only.
     permissions:
-      id-token: "write"
       contents: "read"
       pull-requests: "write"
     steps:
@@ -484,16 +438,6 @@ jobs:
           # commit via `git+file://...?rev=<base_sha>`, which needs that
           # commit's objects present locally, not just HEAD's.
           fetch-depth: 0
-
-      - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@3138316df39ed29be04236d7ffc686fa525866aa # v23
-        with:
-          trust-runner-user: true
-          extra-conf: |
-            access-tokens = github.com=${{ github.token }}
-            accept-flake-config = true
-            substituters = http://192.168.31.14:8080/fred https://catppuccin.cachix.org https://niri.cachix.org https://niri-epireyn.cachix.org https://cache.nixos.org/
-            trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= fred:JjyhvRSvKfkk8r4HS0mS5r5I7dT4GociEFbrR9OgBZ0= niri.cachix.org-1:Wv0OmO7PsuocRKzfDoJ3mulSl7Z6oezYhGhR+3W2964= niri-epireyn.cachix.org-1:tlVyFN7CtsDT+ZcLPS+ekFWeT1X6X4OqvWqbBMyIzFA= catppuccin.cachix.org-1:noG/4HkbhJb+lUAdKrph6LaozJvAeEEZj4N732IysmU=
 
       # This step must never fail the job -- see the header block above.
       # diff-closures-comment.sh already degrades every internal error to

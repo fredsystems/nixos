@@ -135,14 +135,6 @@ jobs:
           ref: ${{ needs.find.outputs.sha }}
           persist-credentials: false
 
-      - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@3138316df39ed29be04236d7ffc686fa525866aa # v23
-        with:
-          trust-runner-user: true
-          extra-conf: |
-            access-tokens = github.com=${{ github.token }}
-            accept-flake-config = true
-
       # Self-hosted runners have no jq or gh, and macOS's own bash is 3.2
       # (these scripts need 4+): take them, and GNU coreutils, from the
       # flake's nixpkgs, as ci-linux.yaml's find-systems does for jq. gh is
@@ -198,16 +190,6 @@ jobs:
         with:
           ref: ${{ needs.find.outputs.sha }}
           persist-credentials: false
-
-      - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@3138316df39ed29be04236d7ffc686fa525866aa # v23
-        with:
-          trust-runner-user: true
-          extra-conf: |
-            access-tokens = github.com=${{ github.token }}
-            accept-flake-config = true
-            substituters = http://192.168.31.14:8080/fred https://catppuccin.cachix.org https://cache.nixos.org/
-            trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= fred:JjyhvRSvKfkk8r4HS0mS5r5I7dT4GociEFbrR9OgBZ0= catppuccin.cachix.org-1:noG/4HkbhJb+lUAdKrph6LaozJvAeEEZj4N732IysmU=
 
       # Self-hosted runners have no jq or gh, and macOS's own bash is 3.2
       # (these scripts need 4+): take them, and GNU coreutils, from the

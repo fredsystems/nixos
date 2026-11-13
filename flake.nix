@@ -5,7 +5,11 @@
   # nixpkgs (colmena, catppuccin, niri). Their upstream CI publishes prebuilt
   # outputs to these caches built against each project's own pinned nixpkgs,
   # so substitution only works when we keep those inputs' nixpkgs unchanged.
-  # `extra-*` appends to (does not replace) the system / CI substituters.
+  # `extra-*` appends to (does not replace) the system substituters.
+  #
+  # This is the one list of public caches: modules/base/system.nix imports
+  # it into every host's nix.conf (and so every self-hosted CI runner's),
+  # because this attrset must be a literal and cannot read a shared file.
   nixConfig = {
     extra-substituters = [
       "https://colmena.cachix.org"

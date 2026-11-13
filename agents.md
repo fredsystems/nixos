@@ -217,10 +217,12 @@ Three inputs deliberately do **not** follow our `nixpkgs` so their
 prebuilt outputs can be substituted from the projects' own caches:
 `colmena` (colmena.cachix.org), `catppuccin` (catppuccin.cachix.org),
 and `niri` (niri.cachix.org / niri-epireyn.cachix.org). Those caches are
-wired both into `flake.nix`'s `nixConfig` (for ad-hoc builds) and into
-`modules/base/system.nix` (so every host's `/etc/nix/nix.conf` uses them
-during normal `nixos-rebuild` / `nix develop`). Following our `nixpkgs`
-would change their derivation hashes and force local source builds.
+listed once, in `flake.nix`'s `nixConfig` (which must be a literal);
+`modules/base/system.nix` reads that list into every host's
+`/etc/nix/nix.conf`, adding the LAN Attic cache and cache.nixos.org. The
+self-hosted CI runners are fleet hosts, so they use that same
+`nix.conf`; no workflow lists caches. Following our `nixpkgs` would
+change their derivation hashes and force local source builds.
 
 `opencode` does not follow our `nixpkgs` either, for a different reason:
 its `nixpkgs` supplies the Bun that installs `node_modules` (whose

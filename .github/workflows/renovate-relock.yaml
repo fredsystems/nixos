@@ -177,15 +177,6 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
 
-      - uses: DeterminateSystems/nix-installer-action@3138316df39ed29be04236d7ffc686fa525866aa # v23
-        with:
-          trust-runner-user: true
-          extra-conf: |
-            access-tokens = github.com=${{ github.token }}
-            accept-flake-config = true
-            substituters = http://192.168.31.14:8080/fred https://cache.nixos.org/
-            trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= fred:JjyhvRSvKfkk8r4HS0mS5r5I7dT4GociEFbrR9OgBZ0=
-
       - name: Compute node_modules hash
         shell: bash
         env:
