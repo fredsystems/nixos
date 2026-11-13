@@ -9,10 +9,10 @@
     },
     "flake-utils": {
       "bases": {
-        "darwin": "f7626c17989d0bdcf6b0592f508c31a186c0c2930d97b4cb2c26e3fea0337f92",
+        "darwin": "c72edeeb409df6c4e40b3b64e28a062c7dcceff6e5060b79a59047d965cb10ea",
         "linux": "bfb3b7800cf55687954646322b887cc0991dc483247c9fec419019316cade609"
       },
-      "classified_at": "2026-11-13T16:33:04Z",
+      "classified_at": "2026-11-13T21:37:48Z",
       "kinds": {
         "darwin": "none",
         "linux": "none"
@@ -22,10 +22,10 @@
     },
     "home-manager-stable": {
       "bases": {
-        "darwin": "f7626c17989d0bdcf6b0592f508c31a186c0c2930d97b4cb2c26e3fea0337f92",
+        "darwin": "c72edeeb409df6c4e40b3b64e28a062c7dcceff6e5060b79a59047d965cb10ea",
         "linux": "bfb3b7800cf55687954646322b887cc0991dc483247c9fec419019316cade609"
       },
-      "classified_at": "2026-11-13T16:33:04Z",
+      "classified_at": "2026-11-13T21:37:48Z",
       "kinds": {
         "darwin": "none",
         "linux": "none"
@@ -35,10 +35,10 @@
     },
     "niri": {
       "bases": {
-        "darwin": "f7626c17989d0bdcf6b0592f508c31a186c0c2930d97b4cb2c26e3fea0337f92",
+        "darwin": "c72edeeb409df6c4e40b3b64e28a062c7dcceff6e5060b79a59047d965cb10ea",
         "linux": "bfb3b7800cf55687954646322b887cc0991dc483247c9fec419019316cade609"
       },
-      "classified_at": "2026-11-13T16:33:04Z",
+      "classified_at": "2026-11-13T21:37:48Z",
       "kinds": {
         "darwin": "none",
         "linux": "none"
@@ -48,10 +48,10 @@
     },
     "nixpkgs-kernel": {
       "bases": {
-        "darwin": "f7626c17989d0bdcf6b0592f508c31a186c0c2930d97b4cb2c26e3fea0337f92",
+        "darwin": "c72edeeb409df6c4e40b3b64e28a062c7dcceff6e5060b79a59047d965cb10ea",
         "linux": "bfb3b7800cf55687954646322b887cc0991dc483247c9fec419019316cade609"
       },
-      "classified_at": "2026-11-13T16:33:04Z",
+      "classified_at": "2026-11-13T21:37:48Z",
       "kinds": {
         "darwin": "none",
         "linux": "source"
@@ -61,10 +61,10 @@
     },
     "precommit-base": {
       "bases": {
-        "darwin": "f7626c17989d0bdcf6b0592f508c31a186c0c2930d97b4cb2c26e3fea0337f92",
+        "darwin": "c72edeeb409df6c4e40b3b64e28a062c7dcceff6e5060b79a59047d965cb10ea",
         "linux": "bfb3b7800cf55687954646322b887cc0991dc483247c9fec419019316cade609"
       },
-      "classified_at": "2026-11-13T16:33:04Z",
+      "classified_at": "2026-11-13T21:37:48Z",
       "kinds": {
         "darwin": "rebuild",
         "linux": "rebuild"
