@@ -380,6 +380,24 @@
       "revert_action": "BLOCKED until #575801 (treewide, not yet merged) lands. min_version stays null because the fix is not a version bump; once it merges, retarget this entry to `nixpkgs-pin-contains-commit` with the merge commit as fix_commit and pin_node `nixpkgs` (gearlever is desktop-only, so only the unstable pin matters). To revert: confirm the gate is already a no-op (`nix eval .#nixosConfigurations.Daytona.pkgs.gearlever.makeWrapperArgs` no longer starts with the literal gappsWrapperArgs string), delete the override and FIXME from overlays/default.nix, and check the rebuilt bin/gearlever wrapper still sets GI_TYPELIB_PATH, XDG_DATA_DIRS, GDK_PIXBUF_MODULE_FILE, GIO_EXTRA_MODULES and the PATH prefix (dwarfs, squashfs-tools, appimage-run, ...)."
     },
     {
+      "id": "nixpkgs-585413-dwarfs-libarchive",
+      "done": false,
+      "summary": "dwarfs 0.15.8 fails its test suite against libarchive 3.8.10: archive_write_close() now returns ARCHIVE_FATAL after a failed write (libarchive/libarchive#3354), so dwarfsextract throws before joining its I/O thread and aborts via std::terminate() in the pwb/raw/xar dwarfsextract_format_test cases. Hydra fails it too, so nothing is cached. gearlever depends on dwarfs, which breaks both desktops (desktop.appimage).",
+      "repo": "NixOS/nixpkgs",
+      "check": "pkgs-min-version",
+      "package": "dwarfs",
+      "eval_host": "Daytona",
+      "min_version": null,
+      "upstream_pr": 586760,
+      "tracking": [
+        "https://github.com/NixOS/nixpkgs/issues/585413",
+        "https://github.com/NixOS/nixpkgs/pull/586760",
+        "https://github.com/mhx/dwarfs/pull/391"
+      ],
+      "workaround": "overlays/default.nix -- `dwarfs` overrideAttrs appending the upstream fetchpatch of mhx/dwarfs@0f5a7720 (same URL and hash as #586760), gated on version 0.15.8 and the patch not already being present (see FIXME(nixpkgs-585413-dwarfs-libarchive)).",
+      "revert_action": "BLOCKED until #586760 (or another fix) lands. min_version stays null because the nixpkgs fix is a patch on 0.15.8, not a version bump; once it merges, retarget this entry to `nixpkgs-pin-contains-commit` with the merge commit as fix_commit and pin_node `nixpkgs` (dwarfs is only built for the desktops). If dwarfs is instead bumped to a release containing mhx/dwarfs#391, the gate already makes the override a no-op. To revert: confirm `nix eval --json .#nixosConfigurations.Daytona.pkgs.dwarfs.patches` lists the 0f5a7720 patch only once (i.e. nixpkgs already carries it), or that the version is no longer 0.15.8, then delete the override and FIXME and rebuild Daytona's gearlever."
+    },
+    {
       "id": "nixpkgs-573108-typepy2-relax",
       "done": false,
       "summary": "nixpkgs bumped typepy to 2.0.0 (9a8f4407e1, 2026-10-08) without relaxing its dependents: sqliteschema and simplesqlite still declare `typepy<2`, so pythonRuntimeDepsCheckHook fails them. That breaks sbomnix (via df-diskcache), taking out the `.#sbomnix` dev-shell package and the weekly CVE scan.",
