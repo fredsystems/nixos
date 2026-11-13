@@ -2,10 +2,10 @@
   "inputs": {
     "flake-utils": {
       "bases": {
-        "darwin": "67c25099b36f42b666a9347323009b5ff570efe34bfde4e312579fee8829a901",
+        "darwin": "736130bb78c842e71836e4ef3f8e8c4815f328b715755d628c017cdb5e884f1d",
         "linux": "e4a128f89306728ce3017ca3f952b4e04f9d3b854e43e31f0d9557c2beacd8ac"
       },
-      "classified_at": "2026-11-12T23:52:53Z",
+      "classified_at": "2026-11-13T08:00:58Z",
       "kinds": {
         "darwin": "none",
         "linux": "none"
@@ -15,10 +15,10 @@
     },
     "home-manager-stable": {
       "bases": {
-        "darwin": "67c25099b36f42b666a9347323009b5ff570efe34bfde4e312579fee8829a901",
+        "darwin": "736130bb78c842e71836e4ef3f8e8c4815f328b715755d628c017cdb5e884f1d",
         "linux": "e4a128f89306728ce3017ca3f952b4e04f9d3b854e43e31f0d9557c2beacd8ac"
       },
-      "classified_at": "2026-11-12T23:52:53Z",
+      "classified_at": "2026-11-13T08:00:58Z",
       "kinds": {
         "darwin": "none",
         "linux": "none"
@@ -26,12 +26,34 @@
       "locked_rev": "24f2190587513b9c2f73db112a17844ae912d965",
       "upstream_rev": "6eb2d33d1d0c95a37ef6443c88e6c1686012ee8b"
     },
+    "niri": {
+      "bases": {
+        "darwin": "736130bb78c842e71836e4ef3f8e8c4815f328b715755d628c017cdb5e884f1d"
+      },
+      "classified_at": "2026-11-13T08:00:58Z",
+      "kinds": {
+        "darwin": "none"
+      },
+      "locked_rev": "8471ad71a8f49527fdd98a81316720fb1b793368",
+      "upstream_rev": "c4dea158d62d5adff45eb256fd10a9009f29de82"
+    },
     "nixpkgs": {
       "dispatched_at": "2026-11-12T23:38:57Z",
       "dispatched_rev": "d4f25a3e562008648d45bcf2d70bcc7422cad84e",
       "kinds": {},
       "locked_rev": "1d060086d60cb76a40cf37109f979d88a5bd6396",
       "upstream_rev": "d4f25a3e562008648d45bcf2d70bcc7422cad84e"
+    },
+    "nixpkgs-kernel": {
+      "bases": {
+        "darwin": "736130bb78c842e71836e4ef3f8e8c4815f328b715755d628c017cdb5e884f1d"
+      },
+      "classified_at": "2026-11-13T08:00:58Z",
+      "kinds": {
+        "darwin": "none"
+      },
+      "locked_rev": "39d1a6c4566dfdb75a27ae40a2ae3aad4df77408",
+      "upstream_rev": "136f0fabb1842f532d44f868f2b6eda0702cca57"
     }
   },
   "planned_at": "2026-11-13T07:55:44Z",
