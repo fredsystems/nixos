@@ -403,44 +403,44 @@ tests:
         exp_alerts: []
 
   #########################################################################
-  # BackupFreshnessMissing{Sdrhub,Fredvps,Adsbhub}
+  # BackupFreshnessMissing{Corehub,Fredvps,Adsbhub}
   #########################################################################
   - interval: 5m
-    name: BackupFreshnessMissingSdrhub fires when sdrhub reports nothing
+    name: BackupFreshnessMissingCorehub fires when corehub reports nothing
     input_series:
       # An unrelated series so there is something to evaluate against while
-      # backup_freshness_timestamp_seconds{hostname="sdrhub"} is genuinely
+      # backup_freshness_timestamp_seconds{hostname="corehub"} is genuinely
       # absent. Note this also has to NOT satisfy the fredvps rule, so the
       # hostname here is deliberately neither.
       - series: 'up{hostname="acarshub", instance="acarshub.local:9100", job="node"}'
         values: "1+0x40"
     alert_rule_test:
       - eval_time: 2h
-        alertname: BackupFreshnessMissingSdrhub
+        alertname: BackupFreshnessMissingCorehub
         exp_alerts:
           # hostname is present even though no series is: absent() synthesises
           # the labels named in its own matcher, so the alert carries
-          # hostname="sdrhub". Pinned here deliberately -- it means alert
+          # hostname="corehub". Pinned here deliberately -- it means alert
           # routing by hostname keeps working for a host that has gone silent,
           # which is exactly when routing matters most.
           - exp_labels:
               severity: warning
-              hostname: sdrhub
+              hostname: corehub
             exp_annotations:
-              summary: "Backup freshness metrics absent for sdrhub"
+              summary: "Backup freshness metrics absent for corehub"
               description: >-
-                No backup_freshness_timestamp_seconds series exists for sdrhub,
+                No backup_freshness_timestamp_seconds series exists for corehub,
                 so the Prometheus TSDB snapshots are either not being watched or
                 not being scraped. They are unmonitored while this fires.
 
   - interval: 5m
-    name: BackupFreshnessMissingSdrhub stays quiet once the series exists
+    name: BackupFreshnessMissingCorehub stays quiet once the series exists
     input_series:
-      - series: 'backup_freshness_timestamp_seconds{hostname="sdrhub"}'
+      - series: 'backup_freshness_timestamp_seconds{hostname="corehub"}'
         values: "0+300x40"
     alert_rule_test:
       - eval_time: 2h
-        alertname: BackupFreshnessMissingSdrhub
+        alertname: BackupFreshnessMissingCorehub
         exp_alerts: []
 
   - interval: 5m
@@ -452,7 +452,7 @@ tests:
       - eval_time: 2h
         alertname: BackupFreshnessMissingFredvps
         exp_alerts:
-          # See the note on the sdrhub case above: absent() synthesises
+          # See the note on the corehub case above: absent() synthesises
           # hostname from its own matcher.
           - exp_labels:
               severity: warning

@@ -96,9 +96,9 @@ jobs:
         # that actually fetches and checks it.
         run: nix build '.#nixosConfigurations.Daytona.pkgs.syncclipboard' --no-link
 
-      - name: Verify sdrhub still evaluates
+      - name: Verify corehub still evaluates
         if: steps.sync.outputs.changed == 'true'
-        run: nix eval '.#nixosConfigurations.sdrhub.config.system.build.toplevel.drvPath'
+        run: nix eval '.#nixosConfigurations.corehub.config.system.build.toplevel.drvPath'
 
       - name: Commit, push, and open a PR
         if: steps.sync.outputs.changed == 'true'
@@ -147,7 +147,7 @@ jobs:
 
           The image digest came from the registry. The AppImage hash was proven
           by \`nix build .#nixosConfigurations.Daytona.pkgs.syncclipboard\`, and
-          sdrhub still evaluates.
+          corehub still evaluates.
 
           Check upstream's Changes.md for an "upgrade notice" section before
           merging: v3.1.1 required wiping client-local data, and a future break

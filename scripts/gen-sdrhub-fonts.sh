@@ -56,7 +56,7 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
-OUT_DIR="hosts/linux/sdrhub/html/fonts"
+OUT_DIR="hosts/linux/corehub/html/fonts"
 
 command -v nix >/dev/null 2>&1 || {
   echo "error: nix is required but not on PATH" >&2

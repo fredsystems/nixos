@@ -220,15 +220,15 @@ groups:
       # One rule per host rather than a loop, since the host set is small and
       # explicit here is clearer than clever. Add a rule when a host starts
       # declaring artifacts.
-      - alert: BackupFreshnessMissingSdrhub
-        expr: absent(backup_freshness_timestamp_seconds{hostname="sdrhub"})
+      - alert: BackupFreshnessMissingCorehub
+        expr: absent(backup_freshness_timestamp_seconds{hostname="corehub"})
         for: 1h
         labels:
           severity: warning
         annotations:
-          summary: "Backup freshness metrics absent for sdrhub"
+          summary: "Backup freshness metrics absent for corehub"
           description: >-
-            No backup_freshness_timestamp_seconds series exists for sdrhub, so
+            No backup_freshness_timestamp_seconds series exists for corehub, so
             the Prometheus TSDB snapshots are either not being watched or not
             being scraped. They are unmonitored while this fires.
 

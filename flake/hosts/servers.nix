@@ -48,11 +48,6 @@
     tags = [ "vps" ];
   };
 
-  sdrhub = {
-    stateVersion = "24.11";
-    tags = [ "sdr" ];
-  };
-
   acarshub = {
     stateVersion = "24.11";
     tags = [ "adsb" ];

@@ -122,7 +122,7 @@ in
           {
             targets = [ "${exporterHost}:${toString exporterPort}" ];
             labels = {
-              hostname = "sdrhub";
+              hostname = config.networking.hostName;
               role = "master";
               exporter = "unbound";
             };

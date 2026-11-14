@@ -220,7 +220,7 @@ groups:
             to raw.githubusercontent.com.
 
       - alert: AdGuardHomeDown
-        expr: node_systemd_unit_state{state="active", name="adguardhome.service", hostname="sdrhub"} == 0
+        expr: node_systemd_unit_state{state="active", name="adguardhome.service", hostname="corehub"} == 0
         for: 1m
         labels:
           severity: critical

@@ -488,9 +488,9 @@ in
             }) desktopHosts)
             ++ [
               {
-                targets = [ "sdrhub.local:9100" ];
+                targets = [ "${config.networking.hostName}.local:9100" ];
                 labels = {
-                  hostname = "sdrhub";
+                  hostname = config.networking.hostName;
                   role = "master";
                   exporter = "node";
                 };
@@ -511,9 +511,9 @@ in
             }) agentHosts)
             ++ [
               {
-                targets = [ "sdrhub.local:4567" ];
+                targets = [ "${config.networking.hostName}.local:4567" ];
                 labels = {
-                  hostname = "sdrhub";
+                  hostname = config.networking.hostName;
                   role = "master";
                   exporter = "cadvisor";
                 };
@@ -544,7 +544,7 @@ in
             {
               targets = [ "127.0.0.1:9090" ];
               labels = {
-                hostname = "sdrhub";
+                hostname = config.networking.hostName;
                 role = "master";
               };
             }
@@ -560,7 +560,7 @@ in
             {
               targets = [ "127.0.0.1:9093" ];
               labels = {
-                hostname = "sdrhub";
+                hostname = config.networking.hostName;
                 role = "master";
               };
             }
@@ -573,7 +573,7 @@ in
             {
               targets = [ "127.0.0.1:5678" ];
               labels = {
-                hostname = "sdrhub";
+                hostname = config.networking.hostName;
                 role = "master";
               };
             }
@@ -586,7 +586,7 @@ in
             {
               targets = [ "127.0.0.1:3333" ];
               labels = {
-                hostname = "sdrhub";
+                hostname = config.networking.hostName;
                 role = "master";
               };
             }
@@ -605,7 +605,7 @@ in
             {
               targets = [ "127.0.0.1:9418" ];
               labels = {
-                hostname = "sdrhub";
+                hostname = config.networking.hostName;
                 role = "master";
               };
             }

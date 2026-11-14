@@ -835,7 +835,7 @@
             )
           ) hostsWithDecoders;
 
-          covered = self.nixosConfigurations.sdrhub.config.monitoring.decoderUnits;
+          covered = self.nixosConfigurations.corehub.config.monitoring.decoderUnits;
           coveredByHost = lib.mapAttrs (_: units: map (d: d.unit) units) (lib.groupBy (d: d.host) covered);
 
           # 1. every covered unit must exist on its host

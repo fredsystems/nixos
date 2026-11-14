@@ -172,9 +172,9 @@ in
             }) smartAgents)
             ++ [
               {
-                targets = [ "sdrhub.local:${toString port}" ];
+                targets = [ "${config.networking.hostName}.local:${toString port}" ];
                 labels = {
-                  hostname = "sdrhub";
+                  hostname = config.networking.hostName;
                   role = "master";
                   exporter = "smartctl";
                 };

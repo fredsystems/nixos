@@ -1,4 +1,4 @@
-{ pkgs, ... }:
+{ config, pkgs, ... }:
 let
   # Blackbox exporter listen address. Deliberately loopback-only.
   #
@@ -239,8 +239,16 @@ let
   # `.local` rather than `.lan`, matching the pre-existing convention here:
   # `.local` is the serverAlias, and probing the alias is what catches it
   # being dropped.
+  #
+  # The one exception is the bare landing page, probed as `sdrhub.lan`. A
+  # two-label `.local` name goes to mDNS first, and nsswitch's
+  # `mdns4_minimal [NOTFOUND=return]` stops there, so once sdrhub itself was
+  # retired (Plan 05) nothing answered `sdrhub.local` and the probe could
+  # never reach AdGuard's rewrite. Three-label names such as
+  # `ai.sdrhub.local` skip mDNS and are unaffected. `sdrhub.lan` is that
+  # vhost's server name, so the redirect is still asserted.
   internalRedirectEndpoints = [
-    "http://sdrhub.local/"
+    "http://sdrhub.lan/"
     "http://ai.sdrhub.local/"
     "http://clipboard.sdrhub.local/"
     "http://dump978.sdrhub.local/"
@@ -583,7 +591,7 @@ in
           {
             targets = [ blackboxAddress ];
             labels = {
-              hostname = "sdrhub";
+              hostname = config.networking.hostName;
               role = "master";
               exporter = "blackbox";
             };

@@ -29,6 +29,7 @@
 # hosts/linux/sdrhub/configuration.nix via
 # config.services.karma.settings.listen.port, so the proxy target cannot drift
 # out of sync with the service.
+{ config, ... }:
 {
   services.karma = {
     enable = true;
@@ -49,7 +50,7 @@
 
         servers = [
           {
-            name = "sdrhub";
+            name = config.networking.hostName;
             uri = "http://127.0.0.1:9093";
             timeout = "10s";
             # Required for silences to work at all. Without proxy mode Karma

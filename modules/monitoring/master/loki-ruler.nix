@@ -166,7 +166,7 @@ let
   # runs no Alloy, and Daytona is a roaming laptop that is legitimately
   # offline for long stretches.
   loggingHosts = [
-    "sdrhub"
+    "corehub"
     "fredhub"
     "fredvps"
     "acarshub"

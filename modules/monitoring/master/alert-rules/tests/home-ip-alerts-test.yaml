@@ -15,7 +15,7 @@
 #     series holding 0 is therefore "written at epoch 0" and is already an hour
 #     stale by eval_time 90m, which is what the firing case relies on. The
 #     not-firing case has to advance in step with the clock instead.
-#   - HomePublicIPCheckMissing uses absent() and pins hostname="sdrhub", so its
+#   - HomePublicIPCheckMissing uses absent() and pins hostname="corehub", so its
 #     firing case must supply some unrelated series for the rule to evaluate
 #     against while the named one is genuinely absent.
 #
@@ -35,7 +35,7 @@ tests:
   - interval: 1m
     name: HomePublicIPDrifted fires when the observed address disagrees
     input_series:
-      - series: 'home_public_ip_matches_expected{hostname="sdrhub", instance="sdrhub.tailc21fc7.ts.net:9100", job="node", role="master", observed="73.26.161.5", expected="73.26.160.99"}'
+      - series: 'home_public_ip_matches_expected{hostname="corehub", instance="corehub.tailc21fc7.ts.net:9100", job="node", role="master", observed="73.26.161.5", expected="73.26.160.99"}'
         values: "0+0x60"
     alert_rule_test:
       - eval_time: 45m
@@ -43,8 +43,8 @@ tests:
         exp_alerts:
           - exp_labels:
               severity: critical
-              hostname: sdrhub
-              instance: sdrhub.tailc21fc7.ts.net:9100
+              hostname: corehub
+              instance: corehub.tailc21fc7.ts.net:9100
               job: node
               role: master
               observed: 73.26.161.5
@@ -56,12 +56,12 @@ tests:
                 configured for 73.26.160.99. fredvps's fail2ban ignoreIP list no
                 longer covers this network and the decoy jails ban on the first
                 knock. Run scripts/rotate-home-ip.sh from the nixos repo to
-                update shared.homePublicIPv4 and deploy fredvps and sdrhub.
+                update shared.homePublicIPv4 and deploy fredvps and corehub.
 
   - interval: 1m
     name: HomePublicIPDrifted stays quiet while the address matches
     input_series:
-      - series: 'home_public_ip_matches_expected{hostname="sdrhub", instance="sdrhub.tailc21fc7.ts.net:9100", job="node", role="master", observed="73.26.160.99", expected="73.26.160.99"}'
+      - series: 'home_public_ip_matches_expected{hostname="corehub", instance="corehub.tailc21fc7.ts.net:9100", job="node", role="master", observed="73.26.160.99", expected="73.26.160.99"}'
         values: "1+0x60"
     alert_rule_test:
       - eval_time: 45m
@@ -74,7 +74,7 @@ tests:
       # up = 0 and NO matches_expected series, which is exactly what the
       # generator emits on a failed lookup. Drift must stay silent here and
       # HomePublicIPCheckFailing must carry it instead.
-      - series: 'home_public_ip_check_up{hostname="sdrhub", instance="sdrhub.tailc21fc7.ts.net:9100", job="node", role="master"}'
+      - series: 'home_public_ip_check_up{hostname="corehub", instance="corehub.tailc21fc7.ts.net:9100", job="node", role="master"}'
         values: "0+0x120"
     alert_rule_test:
       - eval_time: 90m
@@ -87,7 +87,7 @@ tests:
   - interval: 1m
     name: HomePublicIPCheckFailing fires when the address cannot be determined
     input_series:
-      - series: 'home_public_ip_check_up{hostname="sdrhub", instance="sdrhub.tailc21fc7.ts.net:9100", job="node", role="master"}'
+      - series: 'home_public_ip_check_up{hostname="corehub", instance="corehub.tailc21fc7.ts.net:9100", job="node", role="master"}'
         values: "0+0x120"
     alert_rule_test:
       - eval_time: 90m
@@ -95,8 +95,8 @@ tests:
         exp_alerts:
           - exp_labels:
               severity: warning
-              hostname: sdrhub
-              instance: sdrhub.tailc21fc7.ts.net:9100
+              hostname: corehub
+              instance: corehub.tailc21fc7.ts.net:9100
               job: node
               role: master
             exp_annotations:
@@ -110,7 +110,7 @@ tests:
   - interval: 1m
     name: HomePublicIPCheckFailing stays quiet on a healthy lookup
     input_series:
-      - series: 'home_public_ip_check_up{hostname="sdrhub", instance="sdrhub.tailc21fc7.ts.net:9100", job="node", role="master"}'
+      - series: 'home_public_ip_check_up{hostname="corehub", instance="corehub.tailc21fc7.ts.net:9100", job="node", role="master"}'
         values: "1+0x120"
     alert_rule_test:
       - eval_time: 90m
@@ -131,7 +131,7 @@ tests:
       # evaluation interval means the pending period starts at 61m and the alert
       # fires at 91m. Evaluating at 90m catches it one minute short, pending
       # rather than firing.
-      - series: 'home_public_ip_check_timestamp_seconds{hostname="sdrhub", instance="sdrhub.tailc21fc7.ts.net:9100", job="node", role="master"}'
+      - series: 'home_public_ip_check_timestamp_seconds{hostname="corehub", instance="corehub.tailc21fc7.ts.net:9100", job="node", role="master"}'
         values: "0+0x150"
     alert_rule_test:
       - eval_time: 100m
@@ -139,8 +139,8 @@ tests:
         exp_alerts:
           - exp_labels:
               severity: warning
-              hostname: sdrhub
-              instance: sdrhub.tailc21fc7.ts.net:9100
+              hostname: corehub
+              instance: corehub.tailc21fc7.ts.net:9100
               job: node
               role: master
             exp_annotations:
@@ -148,14 +148,14 @@ tests:
               description: >-
                 home-ip-drift-metric.service last wrote its textfile over an
                 hour ago, so the drift comparison is showing stale data. Check
-                the home-ip-drift-metric timer and service on sdrhub.
+                the home-ip-drift-metric timer and service on corehub.
 
   - interval: 1m
     name: HomePublicIPCheckStale stays quiet while the generator keeps writing
     input_series:
       # Advances 60s per 1m sample, i.e. in step with the test clock, so the age
       # stays at 0 and never crosses the threshold.
-      - series: 'home_public_ip_check_timestamp_seconds{hostname="sdrhub", instance="sdrhub.tailc21fc7.ts.net:9100", job="node", role="master"}'
+      - series: 'home_public_ip_check_timestamp_seconds{hostname="corehub", instance="corehub.tailc21fc7.ts.net:9100", job="node", role="master"}'
         values: "0+60x120"
     alert_rule_test:
       - eval_time: 90m
@@ -166,11 +166,11 @@ tests:
   # HomePublicIPCheckMissing
   #########################################################################
   - interval: 1m
-    name: HomePublicIPCheckMissing fires when sdrhub reports no series at all
+    name: HomePublicIPCheckMissing fires when corehub reports no series at all
     input_series:
       # Unrelated series so there is something to evaluate against while
-      # home_public_ip_check_up{hostname="sdrhub"} is genuinely absent.
-      - series: 'up{hostname="sdrhub", instance="sdrhub.tailc21fc7.ts.net:9100", job="node", role="master"}'
+      # home_public_ip_check_up{hostname="corehub"} is genuinely absent.
+      - series: 'up{hostname="corehub", instance="corehub.tailc21fc7.ts.net:9100", job="node", role="master"}'
         values: "1+0x120"
     alert_rule_test:
       - eval_time: 90m
@@ -178,18 +178,18 @@ tests:
         exp_alerts:
           - exp_labels:
               severity: warning
-              hostname: sdrhub
+              hostname: corehub
             exp_annotations:
               summary: "Home public IP drift check is not reporting at all"
               description: >-
-                No home_public_ip_check_up series exists for sdrhub, so the
+                No home_public_ip_check_up series exists for corehub, so the
                 drift check is either not deployed or not being scraped.
                 fredvps's ignoreIP list is unmonitored while this fires.
 
   - interval: 1m
     name: HomePublicIPCheckMissing stays quiet once the series exists
     input_series:
-      - series: 'home_public_ip_check_up{hostname="sdrhub", instance="sdrhub.tailc21fc7.ts.net:9100", job="node", role="master"}'
+      - series: 'home_public_ip_check_up{hostname="corehub", instance="corehub.tailc21fc7.ts.net:9100", job="node", role="master"}'
         values: "1+0x120"
     alert_rule_test:
       - eval_time: 90m
