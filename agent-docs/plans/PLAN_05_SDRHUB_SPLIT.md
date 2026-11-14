@@ -289,34 +289,73 @@ were on `main` before install.
 
 ### Phase 3: everything else to corehub
 
-- [ ] **5.6 corehub configuration.** Move the rest of sdrhub's
-      configuration: DNS with `deployment.criticalUnits`, nginx and
-      `acme.nix`, the landing page, the monitoring master, home-ip-drift,
-      Tailscale with `--advertise-routes`, degoog, syncclipboard and the
-      dozzle UI. Deploy once at the temporary address so the service
-      users exist, then stop the stateful services. Verify DNS with
-      `dig @<temporary address>`.
-- [ ] **5.7 Core cutover.** Mask `createPrometheusSnapshot.timer` on
-      both hosts first: its service `wants` prometheus.service, so a
-      merely stopped timer can restart Prometheus mid-copy, and a stop
-      does not survive corehub's reboot. Stop the services on sdrhub and
-      on corehub, then empty corehub's `/var/lib/prometheus2`: the WAL
-      segments its own Prometheus wrote in 5.6 would otherwise sit beside
-      the copied ones (rsync runs without `--delete`) and leave a gap
-      that fails startup with "segments are not sequential". `rsync
-      -aHAX` `/var/lib/prometheus2`, `/var/lib/grafana`, `/var/lib/loki`,
-      `/var/lib/private/AdGuardHome`, `/var/lib/acme`,
-      `/opt/adsb/degoog` and `/opt/adsb/syncclipboard`. Power sdrhub off
-      -- stopping services does not release its DHCP lease on `.20` --
-      then move the `.20` reservation to corehub, reboot it, verify, and
-      unmask the timer. LAN DNS is down for the window; point the
-      router's secondary DNS at 1.1.1.1 for it if that matters.
-      Re-approve the subnet route in the Tailscale admin console.
+- [x] **5.6 corehub configuration.** Done 2026-11-14. sdrhub's
+      `configuration.nix`, `acme.nix`, `home-ip-drift.nix` and `html/`
+      were moved (`git mv`) to corehub, and sdrhub left the node table in
+      the same change, so nothing in the flake can deploy over sdrhub
+      before it is powered off; it runs its last generation until then.
+      The master modules (prometheus, smartctl, unbound-exporter,
+      blackbox, karma) take their own name from `networking.hostName`
+      rather than the literal `"sdrhub"`; the alert rules that named the
+      master (`AdGuardHomeDown`, `HomePublicIPCheckMissing`,
+      `BackupFreshnessMissingCorehub`), their tests, the Loki
+      `loggingHosts`, `checks.nix`'s decoder-unit check,
+      `rotate-home-ip.sh`, `gen-sdrhub-fonts.sh` and
+      `update-syncclipboard.yaml` now name corehub. `GitHubExporterDown`
+      reads `{{ $labels.hostname }}` instead. The bare `sdrhub.local`
+      redirect probe became `sdrhub.lan`: two-label `.local` names go to
+      mDNS and stop there (`mdns4_minimal [NOTFOUND=return]`), so nothing
+      answers it once sdrhub is off. `adsbhub` and `corehub` are in
+      `lanHosts`. No other host's closure changed.
+
+      Deployed at 192.168.31.133, then alertmanager, prometheus, loki,
+      grafana, karma, github-ci-exporter, pushgateway and the snapshot,
+      prune and home-ip-drift timers were stopped and masked with
+      `--runtime` within seconds, so the fleet never had two alerting
+      masters. Runtime masks do not survive a reboot, which 5.7 relies on.
+      Verified at `.133`: AdGuard and unbound resolve external names and
+      the rewrites; the wildcard certificate was issued by corehub itself;
+      the TLS vhosts serve with a valid chain; the legacy names 308.
+- [ ] **5.7 Core cutover.** In order:
+      1. Approve corehub's advertised `192.168.31.0/24` route in the
+         Tailscale admin console beforehand. fredvps pushes logs to Loki
+         at `192.168.31.20` over that route, so without it fredvps goes
+         dark the moment sdrhub stops advertising.
+      2. On sdrhub, mask `createPrometheusSnapshot.timer` (its service
+         `wants` prometheus.service, so a timer could restart Prometheus
+         mid-copy), then stop prometheus, alertmanager, loki, grafana,
+         karma, github-ci-exporter, adguardhome and the degoog and
+         syncclipboard containers. LAN DNS is down from here to step 6;
+         point the router's secondary DNS at 1.1.1.1 for the window if
+         that matters.
+      3. On corehub, stop adguardhome and the degoog and syncclipboard
+         containers, then empty the destination directories so nothing
+         corehub wrote in 5.6 mixes with the copy. For Prometheus this
+         is not optional: its own WAL segments beside the copied ones
+         leave a gap that fails startup with "segments are not
+         sequential". `/var/lib/acme` is not copied: corehub issued its
+         own certificate in 5.6.
+      4. Copy, pulled by corehub with the same rsync shape as 5.5's (root
+         rsync, `fred` SSH transport, `--rsync-path="sudo rsync"`), by
+         name rather than `--numeric-ids` since the service users exist:
+         `/var/lib/prometheus2`, `/var/lib/grafana`, `/var/lib/loki`,
+         `/var/lib/private/AdGuardHome`, `/opt/adsb/degoog`,
+         `/opt/adsb/syncclipboard`, keeping `-H` for the snapshot hard
+         links.
+      5. Power sdrhub off: stopping services does not release its DHCP
+         lease on `.20`. Then move the `.20` reservation to corehub and
+         set its `targetHost` to `192.168.31.20`.
+      6. Reboot corehub. It comes up on `.20`, and since the 5.6 masks
+         were runtime-only, every service starts on the copied data.
+      7. Verify: DNS from the LAN, every vhost, Grafana history,
+         Prometheus history from before the cutover, Loki receiving from
+         every host including fredvps, Alertmanager and karma, and the
+         snapshot timer active again.
 
 ### Phase 4: retire sdrhub
 
-- [ ] **5.8 Remove sdrhub.** Remove it from `servers.nix`,
-      `sync-hosts.nix`, `lanHosts` and the test fixtures; sweep the
+- [ ] **5.8 Remove sdrhub.** (It left `servers.nix` in 5.6.) Remove it
+      from `sync-hosts.nix` and the test fixtures; sweep the
       remaining `sdrhub` references and alert tests. Revoke its sops
       recipient (`updatekeys` and `sops rotate`, per
       `agent-docs/SOPS_AGE_KEY_ROTATION.md`). Remove it from the
