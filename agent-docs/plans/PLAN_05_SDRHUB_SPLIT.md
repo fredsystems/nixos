@@ -1,7 +1,8 @@
 # Plan 05: Split sdrhub into adsbhub and corehub
 
-- **Status:** planned
+- **Status:** in progress
 - **Branches:** one `plan05/5.N-*` branch and PR per subtask.
+  `plan05/5.1-disko`, then `plan05/5.2-host-scaffolds` stacked on it.
 
 ## Goal
 
@@ -115,16 +116,19 @@ and is recorded here when made.
 
 ### Phase 0: prep (before the hardware)
 
-- [ ] **5.1 disko and nixos-anywhere.** Add the `disko` flake input,
+- [x] **5.1 disko and nixos-anywhere.** Add the `disko` flake input,
       wired by the builder for nodes that declare a disk layout, and
       `nixos-anywhere` to the dev shell.
-- [ ] **5.2 Host scaffolds.** `hosts/linux/{adsbhub,corehub}/` with a
+- [x] **5.2 Host scaffolds.** `hosts/linux/{adsbhub,corehub}/` with a
       base-only `configuration.nix` (hostname, sops, nothing else) and
       `disk-config.nix`; node entries in `flake/hosts/servers.nix`
       (`stateVersion = "26.05"`, literal `targetHost` until mDNS
       resolves, as nvrhub did). Generate both age keys, add them to
       `.sops.yaml`, `sops updatekeys`. The disk `by-id` paths are
-      filled in from the live ISO in 5.3.
+      filled in from the live ISO in 5.3. The private keys are kept, laid
+      out for `--extra-files`, under
+      `~/.local/share/plan05-install/<host>/` on daytona, and deleted
+      once both hosts are installed.
 
 ### Phase 1: bare install
 
@@ -136,7 +140,7 @@ and is recorded here when made.
       nixos-anywhere --flake .#<host> \
         --generate-hardware-config nixos-generate-config \
           hosts/linux/<host>/hardware-configuration.nix \
-        --extra-files <dir holding home/fred/.config/sops/age/keys.txt> \
+        --extra-files ~/.local/share/plan05-install/<host> \
         --chown /home/fred/.config 1000:100 \
         --target-host nixos@<address>
       ```
