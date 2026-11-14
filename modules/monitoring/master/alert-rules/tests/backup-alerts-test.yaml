@@ -138,17 +138,17 @@ tests:
       # is exceeded may fire. This is the test that justifies the
       # threshold-as-a-series design over a constant in the expression: with a
       # hardcoded 30h, the 48h artifact would false-positive here.
-      - series: 'backup_artifact_newest_timestamp_seconds{hostname="sdrhub", backup="tight"}'
+      - series: 'backup_artifact_newest_timestamp_seconds{hostname="corehub", backup="tight"}'
         values: "0+0x500"
-      - series: 'backup_artifact_max_age_seconds{hostname="sdrhub", backup="tight"}'
+      - series: 'backup_artifact_max_age_seconds{hostname="corehub", backup="tight"}'
         values: "108000+0x500"
-      - series: 'backup_artifact_scrape_success{hostname="sdrhub", backup="tight"}'
+      - series: 'backup_artifact_scrape_success{hostname="corehub", backup="tight"}'
         values: "1+0x500"
-      - series: 'backup_artifact_newest_timestamp_seconds{hostname="sdrhub", backup="loose"}'
+      - series: 'backup_artifact_newest_timestamp_seconds{hostname="corehub", backup="loose"}'
         values: "0+0x500"
-      - series: 'backup_artifact_max_age_seconds{hostname="sdrhub", backup="loose"}'
+      - series: 'backup_artifact_max_age_seconds{hostname="corehub", backup="loose"}'
         values: "172800+0x500"
-      - series: 'backup_artifact_scrape_success{hostname="sdrhub", backup="loose"}'
+      - series: 'backup_artifact_scrape_success{hostname="corehub", backup="loose"}'
         values: "1+0x500"
     alert_rule_test:
       - eval_time: 32h
@@ -156,12 +156,12 @@ tests:
         exp_alerts:
           - exp_labels:
               severity: critical
-              hostname: sdrhub
+              hostname: corehub
               backup: tight
             exp_annotations:
-              summary: "Backup is stale on sdrhub (tight)"
+              summary: "Backup is stale on corehub (tight)"
               description: >-
-                The newest backup for tight on sdrhub is older than its
+                The newest backup for tight on corehub is older than its
                 configured limit, so the job that produces it has most likely
                 stopped. Check that unit and its timer. This artifact is
                 guarding data with no other copy.
@@ -232,11 +232,11 @@ tests:
   - interval: 5m
     name: BackupArtifactMissing fires when no backups exist
     input_series:
-      - series: 'backup_artifact_files{hostname="sdrhub", backup="prometheus-tsdb"}'
+      - series: 'backup_artifact_files{hostname="corehub", backup="prometheus-tsdb"}'
         values: "0+0x40"
-      - series: 'backup_artifact_min_files{hostname="sdrhub", backup="prometheus-tsdb"}'
+      - series: 'backup_artifact_min_files{hostname="corehub", backup="prometheus-tsdb"}'
         values: "1+0x40"
-      - series: 'backup_artifact_scrape_success{hostname="sdrhub", backup="prometheus-tsdb"}'
+      - series: 'backup_artifact_scrape_success{hostname="corehub", backup="prometheus-tsdb"}'
         values: "1+0x40"
     alert_rule_test:
       - eval_time: 2h
@@ -244,12 +244,12 @@ tests:
         exp_alerts:
           - exp_labels:
               severity: critical
-              hostname: sdrhub
+              hostname: corehub
               backup: prometheus-tsdb
             exp_annotations:
-              summary: "Too few backups on sdrhub (prometheus-tsdb)"
+              summary: "Too few backups on corehub (prometheus-tsdb)"
               description: >-
-                prometheus-tsdb on sdrhub has fewer stored backups than its
+                prometheus-tsdb on corehub has fewer stored backups than its
                 configured minimum. Either the producing job has never succeeded
                 or a retention sweep has removed too much.
 
@@ -259,11 +259,11 @@ tests:
       # Exactly at the minimum. The rule is strictly `<`, so this must not
       # fire -- an off-by-one here would alert permanently on any artifact
       # sitting at its floor.
-      - series: 'backup_artifact_files{hostname="sdrhub", backup="prometheus-tsdb"}'
+      - series: 'backup_artifact_files{hostname="corehub", backup="prometheus-tsdb"}'
         values: "1+0x40"
-      - series: 'backup_artifact_min_files{hostname="sdrhub", backup="prometheus-tsdb"}'
+      - series: 'backup_artifact_min_files{hostname="corehub", backup="prometheus-tsdb"}'
         values: "1+0x40"
-      - series: 'backup_artifact_scrape_success{hostname="sdrhub", backup="prometheus-tsdb"}'
+      - series: 'backup_artifact_scrape_success{hostname="corehub", backup="prometheus-tsdb"}'
         values: "1+0x40"
     alert_rule_test:
       - eval_time: 2h
@@ -319,11 +319,11 @@ tests:
       # `backup_artifact_max_files > 0`, so this must not fire no matter how
       # many backups accumulate. Without that filter every count above -1 would
       # alert, i.e. always.
-      - series: 'backup_artifact_files{hostname="sdrhub", backup="unbounded"}'
+      - series: 'backup_artifact_files{hostname="corehub", backup="unbounded"}'
         values: "500+0x120"
-      - series: 'backup_artifact_max_files{hostname="sdrhub", backup="unbounded"}'
+      - series: 'backup_artifact_max_files{hostname="corehub", backup="unbounded"}'
         values: "-1+0x120"
-      - series: 'backup_artifact_scrape_success{hostname="sdrhub", backup="unbounded"}'
+      - series: 'backup_artifact_scrape_success{hostname="corehub", backup="unbounded"}'
         values: "1+0x120"
     alert_rule_test:
       - eval_time: 8h
@@ -336,7 +336,7 @@ tests:
   - interval: 5m
     name: BackupArtifactScanFailing fires when the directory cannot be read
     input_series:
-      - series: 'backup_artifact_scrape_success{hostname="sdrhub", backup="prometheus-tsdb"}'
+      - series: 'backup_artifact_scrape_success{hostname="corehub", backup="prometheus-tsdb"}'
         values: "0+0x40"
     alert_rule_test:
       - eval_time: 2h
@@ -344,12 +344,12 @@ tests:
         exp_alerts:
           - exp_labels:
               severity: warning
-              hostname: sdrhub
+              hostname: corehub
               backup: prometheus-tsdb
             exp_annotations:
-              summary: "Cannot scan backup directory on sdrhub (prometheus-tsdb)"
+              summary: "Cannot scan backup directory on corehub (prometheus-tsdb)"
               description: >-
-                The freshness scan for prometheus-tsdb on sdrhub could not read
+                The freshness scan for prometheus-tsdb on corehub could not read
                 its directory, so this backup is unmonitored and the other
                 backup alerts for it are suppressed. Check the path exists and
                 is mounted.
@@ -357,7 +357,7 @@ tests:
   - interval: 5m
     name: BackupArtifactScanFailing stays quiet on a successful scan
     input_series:
-      - series: 'backup_artifact_scrape_success{hostname="sdrhub", backup="prometheus-tsdb"}'
+      - series: 'backup_artifact_scrape_success{hostname="corehub", backup="prometheus-tsdb"}'
         values: "1+0x40"
     alert_rule_test:
       - eval_time: 2h
@@ -372,7 +372,7 @@ tests:
     input_series:
       # Frozen at epoch 0, so its age equals the test clock. Threshold is 3600
       # and `for` is 30m, so it fires at 90m+. Evaluated at 2h.
-      - series: 'backup_freshness_timestamp_seconds{hostname="sdrhub", instance="sdrhub.local:9100", job="node"}'
+      - series: 'backup_freshness_timestamp_seconds{hostname="corehub", instance="corehub.local:9100", job="node"}'
         values: "0+0x40"
     alert_rule_test:
       - eval_time: 2h
@@ -380,13 +380,13 @@ tests:
         exp_alerts:
           - exp_labels:
               severity: warning
-              hostname: sdrhub
-              instance: sdrhub.local:9100
+              hostname: corehub
+              instance: corehub.local:9100
               job: node
             exp_annotations:
-              summary: "Backup freshness generator has stopped on sdrhub"
+              summary: "Backup freshness generator has stopped on corehub"
               description: >-
-                backup-freshness-metric.service on sdrhub last wrote its
+                backup-freshness-metric.service on corehub last wrote its
                 textfile over an hour ago, so every backup metric from this host
                 is frozen at its last value and cannot be trusted. Check the
                 backup-freshness-metric timer and service.
@@ -395,7 +395,7 @@ tests:
     name: BackupFreshnessGeneratorStale stays quiet while the timer runs
     input_series:
       # Advances 300s per 5m sample, in step with the test clock.
-      - series: 'backup_freshness_timestamp_seconds{hostname="sdrhub"}'
+      - series: 'backup_freshness_timestamp_seconds{hostname="corehub"}'
         values: "0+300x40"
     alert_rule_test:
       - eval_time: 2h
@@ -484,7 +484,7 @@ tests:
       - eval_time: 2h
         alertname: BackupFreshnessMissingAdsbhub
         exp_alerts:
-          # See the note on the sdrhub case above: absent() synthesises
+          # See the note on the corehub case above: absent() synthesises
           # hostname from its own matcher.
           - exp_labels:
               severity: warning

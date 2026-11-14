@@ -65,9 +65,9 @@ tests:
   - interval: 5m
     name: DiskFillPredicted stays silent when free space is still above the guard
     input_series:
-      - series: 'node_filesystem_avail_bytes{device="/dev/nvme0n1p2", fstype="ext4", mountpoint="/", hostname="sdrhub", instance="sdrhub.local:9100", job="node", role="master"}'
+      - series: 'node_filesystem_avail_bytes{device="/dev/nvme0n1p2", fstype="ext4", mountpoint="/", hostname="corehub", instance="corehub.local:9100", job="node", role="master"}'
         values: "50000000000-200000000x100"
-      - series: 'node_filesystem_size_bytes{device="/dev/nvme0n1p2", fstype="ext4", mountpoint="/", hostname="sdrhub", instance="sdrhub.local:9100", job="node", role="master"}'
+      - series: 'node_filesystem_size_bytes{device="/dev/nvme0n1p2", fstype="ext4", mountpoint="/", hostname="corehub", instance="corehub.local:9100", job="node", role="master"}'
         values: "100000000000+0x100"
     alert_rule_test:
       - eval_time: 7h
@@ -174,7 +174,7 @@ tests:
   - interval: 5m
     name: SystemdTimerStale stays silent for a timer within its normal period
     input_series:
-      - series: 'node_systemd_timer_last_trigger_seconds{name="docker-prune.timer", hostname="sdrhub", instance="sdrhub.local:9100", job="node", role="agent"}'
+      - series: 'node_systemd_timer_last_trigger_seconds{name="docker-prune.timer", hostname="corehub", instance="corehub.local:9100", job="node", role="agent"}'
         values: "1+0x1000"
     alert_rule_test:
       - eval_time: 24h

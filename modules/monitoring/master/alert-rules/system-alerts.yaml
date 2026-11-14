@@ -309,7 +309,7 @@ groups:
           summary: "Tailscale node key on {{ $labels.host }} expires in under 7 days"
           description: >-
             The node key for {{ $labels.host }} expires in less than 7 days (or
-            has already expired). When it goes, sdrhub stops advertising the LAN
+            has already expired). When it goes, corehub stops advertising the LAN
             subnet route and fredvps becomes unreachable over the tailnet, which
             also removes it from Prometheus. Re-authenticate and then disable key
             expiry for this device.
