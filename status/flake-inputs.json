@@ -26,6 +26,17 @@
       "locked_rev": "24f2190587513b9c2f73db112a17844ae912d965",
       "upstream_rev": "6eb2d33d1d0c95a37ef6443c88e6c1686012ee8b"
     },
+    "niri": {
+      "bases": {
+        "darwin": "30ae9754986fc1e237c906dddfa320b3b04a6775587b1f068f132fe3c13a9362"
+      },
+      "classified_at": "2026-11-14T03:18:02Z",
+      "kinds": {
+        "darwin": "none"
+      },
+      "locked_rev": "8471ad71a8f49527fdd98a81316720fb1b793368",
+      "upstream_rev": "1afb4e9b58e0e0b21926938c09d43750ab7d8dad"
+    },
     "nixpkgs-kernel": {
       "bases": {
         "darwin": "30ae9754986fc1e237c906dddfa320b3b04a6775587b1f068f132fe3c13a9362",
@@ -37,6 +48,17 @@
         "linux": "source"
       },
       "locked_rev": "39d1a6c4566dfdb75a27ae40a2ae3aad4df77408",
+      "upstream_rev": "f1e5c356f35d07e7b71a6b5e6c9338e0b029e0c0"
+    },
+    "nixpkgs-stable": {
+      "bases": {
+        "darwin": "30ae9754986fc1e237c906dddfa320b3b04a6775587b1f068f132fe3c13a9362"
+      },
+      "classified_at": "2026-11-14T03:18:02Z",
+      "kinds": {
+        "darwin": "none"
+      },
+      "locked_rev": "ac588ef1c914865dad517b337ea0eb9694a4021c",
       "upstream_rev": "f1e5c356f35d07e7b71a6b5e6c9338e0b029e0c0"
     },
     "precommit-base": {
@@ -51,6 +73,30 @@
       },
       "locked_rev": "be1e29d8d915714b69a4faab07670b0c5631217e",
       "upstream_rev": "b2f45bbbff95cd70507098cec42cce6df8e8def6"
+    },
+    "sops-nix": {
+      "bases": {
+        "darwin": "30ae9754986fc1e237c906dddfa320b3b04a6775587b1f068f132fe3c13a9362"
+      },
+      "classified_at": "2026-11-14T03:18:02Z",
+      "dispatched_at": "2026-11-14T03:18:02Z",
+      "dispatched_rev": "11e5885d241743ff0193465d533b20e754bc3ce0",
+      "kinds": {
+        "darwin": "source"
+      },
+      "locked_rev": "fe7b4228405aeac2ce7192c2049a6e2bc8637082",
+      "upstream_rev": "11e5885d241743ff0193465d533b20e754bc3ce0"
+    },
+    "sops-nix-stable": {
+      "bases": {
+        "darwin": "30ae9754986fc1e237c906dddfa320b3b04a6775587b1f068f132fe3c13a9362"
+      },
+      "classified_at": "2026-11-14T03:18:02Z",
+      "kinds": {
+        "darwin": "none"
+      },
+      "locked_rev": "fe7b4228405aeac2ce7192c2049a6e2bc8637082",
+      "upstream_rev": "11e5885d241743ff0193465d533b20e754bc3ce0"
     }
   },
   "planned_at": "2026-11-14T03:13:49Z",
