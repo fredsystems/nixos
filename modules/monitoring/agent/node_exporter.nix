@@ -277,8 +277,10 @@ in
 
             CURL=${pkgs.curl}/bin/curl
             JQ=${pkgs.jq}/bin/jq
+            GIT=${pkgs.git}/bin/git
 
             HOST="${config.networking.hostName}"
+            MANIFEST_REPO="https://github.com/fredsystems/nixos.git"
             MANIFEST_URL="https://raw.githubusercontent.com/fredsystems/nixos/fleet-manifest/manifest.json"
 
             STATE_DIR=/var/lib/nixos-deploy-state
@@ -330,9 +332,31 @@ in
             # There is no honest way to express an unknown age in that metric, so
             # a manifest that cannot supply one is refused at the door and the
             # last good cache is kept instead.
+            # Fetch by commit, not by branch, when the branch head can be read.
+            #
+            # raw.githubusercontent.com caches the branch URL for 300s
+            # (`cache-control: max-age=300`) and keys on the path alone, so a
+            # query-string cache-buster is ignored (verified: x-cache HIT, old
+            # rev). A host deployed right after the manifest publishes therefore
+            # kept reading the previous manifest for up to five minutes and
+            # reported `unknown` for its brand-new closure. A commit-pinned URL is
+            # a different path, which the CDN has never cached.
+            #
+            # The head comes from `git ls-remote`, the git smart-HTTP protocol, not
+            # the REST API: it is not subject to the 60/hour unauthenticated API
+            # limit the whole fleet shares behind one NAT, which is why this unit
+            # stopped calling api.github.com in the first place. Any failure falls
+            # back to the branch URL, which is merely up to five minutes stale.
+            URL="$MANIFEST_URL"
+            HEAD_SHA=$(GIT_TERMINAL_PROMPT=0 HOME="$STATE_DIR" timeout 20 \
+              $GIT ls-remote "$MANIFEST_REPO" refs/heads/fleet-manifest 2>/dev/null | cut -f1)
+            if [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+              URL="https://raw.githubusercontent.com/fredsystems/nixos/$HEAD_SHA/manifest.json"
+            fi
+
             FETCH_OK=0
             TMP="$CACHE.tmp"
-            if $CURL -sfL --max-time 30 -o "$TMP" "$MANIFEST_URL" \
+            if $CURL -sfL --max-time 30 -o "$TMP" "$URL" \
               && $JQ -e '.schema == 1
                           and (.generated_at | type == "number")
                           and (.hosts | type == "object")' "$TMP" >/dev/null 2>&1; then
@@ -343,6 +367,7 @@ in
             fi
 
             STATE="unknown"
+            MANIFEST_BEHIND=0
             DRIFTED_SINCE=0
             EXPECTED=""
             EXPECTED_REV=""
@@ -427,6 +452,7 @@ in
                 # a normal deploy while still catching a genuinely stuck
                 # publisher, which is exactly when this must not stay quiet.
                 STATE="unknown"
+                MANIFEST_BEHIND=1
               elif [[ "$DEPLOY_TS" -gt 0 && "$OLDEST_AT" -gt 0 && "$DEPLOY_TS" -lt "$OLDEST_AT" ]]; then
                 # Not in the history, but this closure was activated BEFORE the
                 # oldest entry we still retain -- so it cannot be in the window,
@@ -488,6 +514,17 @@ in
                   "$STATE_DIR/deploy_timestamp_seconds" \
                   "$STATE_DIR/deploy_timestamp_ms" \
                   "$STATE_DIR/last_toplevel"
+
+            # Tells nixos-deploy-metrics-refresh (below) that this run could not
+            # classify the host only because the manifest predates the deploy,
+            # so another attempt shortly will succeed. A file rather than an exit
+            # status: this unit must keep exiting 0 so the timer's runs are not
+            # recorded as failures for what is a normal, transient condition.
+            if [[ "$MANIFEST_BEHIND" -eq 1 ]]; then
+              touch "$STATE_DIR/manifest_behind"
+            else
+              rm -f "$STATE_DIR/manifest_behind"
+            fi
 
             MANIFEST_AGE=0
             if [[ "$GENERATED_AT" -gt 0 ]]; then
@@ -572,6 +609,64 @@ in
             rm -f /etc/nixos/configuration-revision
           '';
         };
+      };
+
+      # Refresh the deploy metrics at the end of every switch and at boot.
+      #
+      # WHY wantedBy multi-user.target IS THE TRIGGER
+      #
+      # switch-to-configuration starts the active targets again once activation
+      # has finished, which re-runs any unit they want that is not currently
+      # active -- including a oneshot or simple unit that has exited. That
+      # happens after /run/current-system points at the new system, for every
+      # way a switch happens here: `nixos-rebuild switch|test` on the desktops,
+      # `colmena apply`, and scripts/colmena-apply-drifted.sh (which is colmena).
+      # Verified on adsbhub before relying on it: linger-users and
+      # docker-create-adsbnet, both unchanged between deploys, re-ran at each
+      # of four switches, to the second of "finished switching". A `boot`-goal
+      # deploy is covered by the reboot itself.
+      #
+      # Two mechanisms were rejected. The activation-script hook this replaces
+      # started nixos-deploy-state-metric with --no-block mid-activation, so it
+      # raced the /run/current-system update and recorded the PREVIOUS closure
+      # as running (observed on maranello: reported `drifted` against its own
+      # new generation); starting units from activation scripts is also
+      # deprecated, with removal announced for NixOS 26.11. A path unit on
+      # /run/current-system never fires: inotify follows the symlink to its
+      # target, which never changes (tested on adsbhub; no trigger).
+      #
+      # WHY Type=simple AND A LOOP
+      #
+      # The deploy usually lands before fleet-manifest.yaml has published the
+      # manifest for it, so the first run reports `unknown` (the
+      # MANIFEST_BEHIND case in nixos-deploy-state-metric). Retrying every
+      # minute for up to 20 minutes turns that into `up_to_date` within about a
+      # minute of publication, instead of at the next 10-minute timer. Type=
+      # simple, because the target is ordered after every unit it wants: a
+      # oneshot that waited for the manifest would hold up the switch, and boot.
+      #
+      # Deliberately NOT ordered after network-online.target, for the same
+      # reason; nixos-deploy-state-metric carries that ordering itself, and
+      # `systemctl start` here waits for it.
+      #
+      # The timers stay as the backstop: this is what makes the metrics
+      # prompt, they are what make them guaranteed.
+      nixos-deploy-metrics-refresh = {
+        description = "Refresh NixOS deploy metrics after a switch or boot";
+        wantedBy = [ "multi-user.target" ];
+        serviceConfig.Type = "simple";
+        path = [ config.systemd.package ];
+        script = ''
+          systemctl start nixos-needs-reboot-metric.service || true
+
+          deadline=$(( $(date +%s) + 1200 ))
+          while :; do
+            systemctl start nixos-deploy-state-metric.service || true
+            [ -e /var/lib/nixos-deploy-state/manifest_behind ] || exit 0
+            [ "$(date +%s)" -lt "$deadline" ] || exit 0
+            sleep 60
+          done
+        '';
       };
 
       # Audit item 6.11 (reshaped): is the journald retention policy in
@@ -956,29 +1051,4 @@ in
   networking.firewall.allowedTCPPorts = lib.optionals (!config.deployment.internetFacing) [
     9100 # node_exporter
   ];
-
-  # Re-evaluate deploy state immediately after every activation.
-  #
-  # The metric's timer runs every 10 minutes (plus up to 2 minutes of jitter),
-  # so without this a freshly deployed host keeps reporting against the manifest
-  # it cached BEFORE the deploy for up to ~12 minutes. That window is what makes
-  # the whole fleet look wrong right after a deploy, which is confusing even
-  # though the paired state-machine guard now downgrades it from `unmanaged` to
-  # `unknown`. Kicking the unit here shrinks the window to however long the
-  # manifest publish itself takes.
-  #
-  # --no-block is required: activation must not wait on a network fetch, and a
-  # blocking start would also deadlock when activation is itself being run by
-  # systemd. Failure is ignored for the same reason -- this is an optimisation,
-  # and the timer remains the thing that guarantees the metric is emitted.
-  #
-  # No revision or other flake metadata is embedded here, so this does not
-  # reintroduce the closure-churn problem documented in flake/lib/mk-system.nix.
-  system.activationScripts.refreshDeployStateMetric = {
-    text = ''
-      ${config.systemd.package}/bin/systemctl start --no-block \
-        nixos-deploy-state-metric.service || true
-    '';
-    deps = [ ];
-  };
 }
