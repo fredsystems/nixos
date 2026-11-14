@@ -107,10 +107,12 @@ host is deployed from the merged commit on `main`, so the running
 generation is the one CI cached and `fleet-manifest.yaml` records.
 
 Plan 02 is in progress and its 2.12 baseline records on sdrhub's SDRs.
-5.5 moves those SDRs, which is a setup change under Plan 02 (new
-`runId`). Whether 2.12 finishes first, and whether this plan may
-complete ahead of Plan 02 as Plans 03 and 04 did, is the owner's call
-and is recorded here when made.
+5.5 moves those SDRs, which is a setup change under Plan 02. The owner
+decided (2026-11-14) not to wait for it: 2.12 restarts on adsbhub under
+a new `runId` after 5.5. The recorded runs in
+`/opt/adsb/data/beast-compare` (4.6 GB) move with the rest of
+`/opt/adsb/data`. Whether this plan may complete ahead of Plan 02, as
+Plans 03 and 04 did, is still the owner's call.
 
 ## Subtasks
 
