@@ -39,19 +39,6 @@
       "locked_rev": "8471ad71a8f49527fdd98a81316720fb1b793368",
       "upstream_rev": "1afb4e9b58e0e0b21926938c09d43750ab7d8dad"
     },
-    "nixpkgs-kernel": {
-      "bases": {
-        "darwin": "5a66057d4a5bf08fb364d97a88a3cd68f2f7e3bc444893f1a8a4546d7bc41ea7",
-        "linux": "d88e3e7a79e1205060f7ba5dd1963b17d9f233de71a9f1dbb2521497d0b33e75"
-      },
-      "classified_at": "2026-11-14T10:40:19Z",
-      "kinds": {
-        "darwin": "none",
-        "linux": "source"
-      },
-      "locked_rev": "39d1a6c4566dfdb75a27ae40a2ae3aad4df77408",
-      "upstream_rev": "f1e5c356f35d07e7b71a6b5e6c9338e0b029e0c0"
-    },
     "precommit-base": {
       "bases": {
         "darwin": "5a66057d4a5bf08fb364d97a88a3cd68f2f7e3bc444893f1a8a4546d7bc41ea7",
@@ -66,6 +53,6 @@
       "upstream_rev": "b2f45bbbff95cd70507098cec42cce6df8e8def6"
     }
   },
-  "planned_at": "2026-11-14T10:27:08Z",
+  "planned_at": "2026-11-14T17:06:01Z",
   "version": 1
 }
