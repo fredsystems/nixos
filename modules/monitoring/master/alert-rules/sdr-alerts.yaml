@@ -1,7 +1,7 @@
 groups:
   - name: sdr-alerts
     rules:
-      # The readsb exporter on sdrhub.local:9274 emits the readsb_aircraft_*,
+      # The readsb exporter on adsbhub:9274 emits the readsb_aircraft_*,
       # readsb_messages_* and readsb_position_count_* families. It does NOT
       # emit readsb_stats_*, which these rules previously selected on; those
       # names exist only in Loki's historical label index, so both rules

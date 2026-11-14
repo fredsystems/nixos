@@ -403,7 +403,7 @@ tests:
         exp_alerts: []
 
   #########################################################################
-  # BackupFreshnessMissing{Sdrhub,Fredvps}
+  # BackupFreshnessMissing{Sdrhub,Fredvps,Adsbhub}
   #########################################################################
   - interval: 5m
     name: BackupFreshnessMissingSdrhub fires when sdrhub reports nothing
@@ -473,4 +473,35 @@ tests:
     alert_rule_test:
       - eval_time: 2h
         alertname: BackupFreshnessMissingFredvps
+        exp_alerts: []
+
+  - interval: 5m
+    name: BackupFreshnessMissingAdsbhub fires when adsbhub reports nothing
+    input_series:
+      - series: 'up{hostname="acarshub", instance="acarshub.local:9100", job="node"}'
+        values: "1+0x40"
+    alert_rule_test:
+      - eval_time: 2h
+        alertname: BackupFreshnessMissingAdsbhub
+        exp_alerts:
+          # See the note on the sdrhub case above: absent() synthesises
+          # hostname from its own matcher.
+          - exp_labels:
+              severity: warning
+              hostname: adsbhub
+            exp_annotations:
+              summary: "Backup freshness metrics absent for adsbhub"
+              description: >-
+                No backup_freshness_timestamp_seconds series exists for adsbhub,
+                so the ACARS message database dumps are either not being watched
+                or not being scraped. They are unmonitored while this fires.
+
+  - interval: 5m
+    name: BackupFreshnessMissingAdsbhub stays quiet once the series exists
+    input_series:
+      - series: 'backup_freshness_timestamp_seconds{hostname="adsbhub"}'
+        values: "0+300x40"
+    alert_rule_test:
+      - eval_time: 2h
+        alertname: BackupFreshnessMissingAdsbhub
         exp_alerts: []

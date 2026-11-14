@@ -244,3 +244,15 @@ groups:
             the Discord database dumps are either not being watched or not being
             scraped. The fleet's only copy of that database is unmonitored while
             this fires.
+
+      - alert: BackupFreshnessMissingAdsbhub
+        expr: absent(backup_freshness_timestamp_seconds{hostname="adsbhub"})
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Backup freshness metrics absent for adsbhub"
+          description: >-
+            No backup_freshness_timestamp_seconds series exists for adsbhub, so
+            the ACARS message database dumps are either not being watched or
+            not being scraped. They are unmonitored while this fires.

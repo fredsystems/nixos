@@ -356,6 +356,10 @@ in
       ];
 
       scrapeConfigs = [
+        # The ultrafeeder, dump978 and acarshub jobs scrape adsbhub, where the
+        # SDRs and their containers live (Plan 05). Series from before the move
+        # keep hostname="sdrhub" until they age out of retention.
+        #
         # Ultrafeeder serves metrics on :9274 only. Docker also publishes 9273,
         # but nothing inside the container listens on it, so docker-proxy
         # accepts the connection and immediately resets it -- it was a
@@ -365,11 +369,11 @@ in
           static_configs = [
             {
               targets = [
-                "sdrhub.local:9274"
+                "${agentScrapeMap.adsbhub}:9274"
               ];
               labels = {
-                hostname = "sdrhub";
-                role = "master";
+                hostname = "adsbhub";
+                role = "agent";
               };
             }
           ];
@@ -384,11 +388,11 @@ in
           static_configs = [
             {
               targets = [
-                "sdrhub.local:9275"
+                "${agentScrapeMap.adsbhub}:9275"
               ];
               labels = {
-                hostname = "sdrhub";
-                role = "master";
+                hostname = "adsbhub";
+                role = "agent";
               };
             }
           ];
@@ -423,11 +427,11 @@ in
           static_configs = [
             {
               targets = [
-                "sdrhub.local:8085"
+                "${agentScrapeMap.adsbhub}:8085"
               ];
               labels = {
-                hostname = "sdrhub";
-                role = "master";
+                hostname = "adsbhub";
+                role = "agent";
               };
             }
           ];

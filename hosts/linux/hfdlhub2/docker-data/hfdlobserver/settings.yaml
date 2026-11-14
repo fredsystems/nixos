@@ -15,12 +15,12 @@ dumphfdl:
       # # acarsrouter
       - format: json
         protocol: tcp
-        address: 192.168.31.20
+        address: 192.168.31.206
         port: 5556
       # # TAR1090
       - format: basestation
         protocol: tcp
-        address: 192.168.31.20
+        address: 192.168.31.206
         port: 12000
       # # text
       # - format: text

@@ -221,8 +221,8 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # ADS-B receiver comparison recorder (plan 02). Only sdrhub runs it, and
-    # sdrhub is a stable-channel server, so it follows nixpkgs-stable.
+    # ADS-B receiver comparison recorder (plan 02). Only adsbhub runs it, and
+    # adsbhub is a stable-channel server, so it follows nixpkgs-stable.
     beast-compare = {
       url = "github:fredsystems/beast-compare";
       #path on disk

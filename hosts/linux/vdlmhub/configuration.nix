@@ -15,7 +15,7 @@
   # transfer-buffer ceiling above the 16 MB kernel default.
   hardware-profile.usbfs.enable = true;
 
-  # acars_router on sdrhub connects in to xng's ZMQ PUB socket
+  # acars_router on adsbhub connects in to xng's ZMQ PUB socket
   # (AR_RECV_ZMQ_XNG), same as it does for acarshub.
   networking.firewall.allowedTCPPorts = [ 5555 ];
 
