@@ -316,7 +316,24 @@ were on `main` before install.
       Verified at `.133`: AdGuard and unbound resolve external names and
       the rewrites; the wildcard certificate was issued by corehub itself;
       the TLS vhosts serve with a valid chain; the legacy names 308.
-- [ ] **5.7 Core cutover.** In order:
+- [x] **5.7 Core cutover.** Done 2026-11-14. Copied: Prometheus 83.3 GB
+      transferred (78 GB on disk; 869 of 4,507 files, the rest snapshot
+      hard links kept by `-H`), AdGuard 17.1 GB, Loki 456 MB, Grafana
+      99 MB, degoog 72 MB, syncclipboard 16 MB, every rsync exit 0, and
+      every on-disk size equal to sdrhub's measurement at planning time.
+      corehub on `.20` after reboot: every service active, no failed
+      units, 95 of 95 scrape targets up, the oldest TSDB block 96 days
+      old (90d retention), Loki receiving from every host including
+      fredvps (so the corehub subnet route works), all 12 Grafana
+      dashboards, AdGuard's query log present, only `Watchdog` firing.
+      Two things that look wrong and are not: AdGuard's state shows UID
+      65534, as every DynamicUser directory on this host does, including
+      ones corehub created itself; and LAN clients that resolve through
+      the router (192.168.31.1) briefly got NXDOMAIN for names the router
+      had not cached before the outage, because it fell back to a public
+      resolver during the window and cached the negative answer. sdrhub
+      is powered off but not wiped, so the copy can be redone from it.
+      In order:
       1. Approve corehub's advertised `192.168.31.0/24` route in the
          Tailscale admin console beforehand. fredvps pushes logs to Loki
          at `192.168.31.20` over that route, so without it fredvps goes
