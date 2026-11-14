@@ -146,7 +146,7 @@ were on `main` before install.
 ### Phase 1: bare install
 
 - [x] **5.3 Install both hosts.** Done 2026-11-14: adsbhub at
-      192.168.31.207, corehub at 192.168.31.133 (temporary), both GMK
+      192.168.31.206, corehub at 192.168.31.133 (temporary), both GMK
       mini PCs (AMD, 256 GB NVMe). For each: boot the NixOS minimal ISO,
       install an SSH key for `nixos` (an agent cannot answer a password
       prompt), note the address and `ls -l /dev/disk/by-id`. Set the
