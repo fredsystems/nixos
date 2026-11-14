@@ -1,8 +1,9 @@
 # Plan 05: Split sdrhub into adsbhub and corehub
 
-- **Status:** in progress
+- **Status:** pending merge. Completes ahead of Plan 02 by the owner's
+  decision; see "Execution model".
 - **Branches:** 5.1 #2867, 5.2 #2868, 5.3 #2869 and #2870. From 5.4 on,
-  one local branch, `plan05/sdrhub-split`, pushed once when the plan is
+  one local branch, `plan05/sdrhub-split`, pushed once when the plan was
   done.
 
 ## Goal
@@ -371,24 +372,48 @@ were on `main` before install.
 
 ### Phase 4: retire sdrhub
 
-- [ ] **5.8 Remove sdrhub.** (It left `servers.nix` in 5.6.) Remove it
-      from `sync-hosts.nix` and the test fixtures; sweep the
-      remaining `sdrhub` references and alert tests. Revoke its sops
-      recipient (`updatekeys` and `sops rotate`, per
-      `agent-docs/SOPS_AGE_KEY_ROTATION.md`). Remove it from the
-      tailnet, then wipe it.
-- [ ] **5.9 Secret and label cleanup.** Rename `docker/sdrhub/*`
-      secrets to the hosts that consume them; finish the alert-rule
-      label sweep.
-- [ ] **5.10 Cache.** CI builds and pushes every host whose closure
-      changed, and new hosts always qualify, so deploying from `main`
-      is what keeps Attic current. As a final check, from the deployed
-      commit:
+- [x] **5.8 Remove sdrhub.** Done 2026-11-14, except the wipe. It left
+      `servers.nix` in 5.6. Its sops recipient is revoked per
+      `agent-docs/SOPS_AGE_KEY_ROTATION.md` Procedure B: anchor and alias
+      removed in one edit, `updatekeys`, then `sops rotate` (exit 0), so
+      the remaining values are under a data key sdrhub never held;
+      `check-sops-recipients.sh` reports 13 recipients. It is out of the
+      compose sync hosts (neither new host runs compose) and off the
+      tailnet. Present-tense comments and docs now name adsbhub or
+      corehub; dated measurements and incidents stay as recorded, as do
+      the legacy `sdrhub.*` names corehub still serves. One sweep edit
+      was in a `#` line inside the string that renders `journald.conf`,
+      so every host restarted journald once; harmless, and noted because
+      a comment-only diff check cannot tell such a line from a Nix
+      comment.
 
-      ```sh
-      nix build .#nixosConfigurations.{adsbhub,corehub}.config.system.build.toplevel
-      scripts/attic-push.sh result result-1
-      ```
+      **Deferred to the owner:** wiping sdrhub. It is powered off with its
+      disks intact, which is also the rollback path for 5.5 and 5.7 until
+      then. Nothing in the flake refers to it as a host any more.
+- [x] **5.9 Secret and label cleanup.** Done 2026-11-14. `docker/sdrhub/*`
+      is now `docker/adsbhub/*` (`adsbhub.env` as `adsbhub_feeder.env`)
+      and `docker/corehub/*` (dozzle, dozzle-agent, syncclipboard), every
+      value verified byte-identical across the rename and the rotation.
+      The alert-rule tests use adsbhub for ADS-B/ACARS cases and corehub
+      for the rest; that surfaced `TailscaleKeyExpiryCritical`'s
+      description still naming sdrhub as the subnet router.
+- [x] **5.10 Cache and merge.** Before pushing, the full runtime and build
+      closures of adsbhub and corehub were pushed to Attic from the
+      deployed commit (`scripts/attic-push.sh`; 149 new paths, the rest
+      already cached), so CI substitutes rather than builds them. Every
+      server was verified running the branch's toplevel with no failed
+      units (fredhub's `/mnt/media` NFS mount excepted: the NAS was
+      unreachable at the time, unrelated to this plan). Merging the PR
+      is the completion trigger; the closures are content-addressed and
+      carry no revision, so a merge with no intervening change to `main`
+      leaves every host already current.
 
-      and confirm each host's `/run/current-system` matches the fleet
-      manifest.
+      **Deferred to the owner:** rebuilding Daytona, maranello and the two
+      Macs, which hold `secrets.yaml` and so pick up the rotated file on
+      their next rebuild. Nothing they run changes.
+- [x] **5.11 Cleanup: hfdlobserver restart.** Surfaced in 5.5: hfdlhub2's
+      `settings.yaml` reaches the container through an activation-script
+      copy, so a deploy updated the file and left hfdlobserver on the old
+      settings until restarted by hand. Fixed with
+      `systemd.services.docker-hfdlobserver.restartTriggers`; deployed,
+      and the decoders reconnected to adsbhub.
