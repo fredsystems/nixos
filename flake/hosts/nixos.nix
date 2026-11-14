@@ -21,6 +21,7 @@
   freminal,
   frext,
   nix-flatpak,
+  disko,
   ...
 }:
 
@@ -72,6 +73,19 @@
     sopsNixInput = node.sopsNixInput or sops-nix-stable;
     nixYaziPluginsInput = node.nixYaziPluginsInput or nix-yazi-plugins-stable;
     hmModules = node.hmModules or [ ];
-    extraModules = node.extraModules or [ ];
+    # A node with a disko layout gets the disko module alongside it; nodes
+    # installed before disko keep their generated fileSystems and never see
+    # the module, so a disko bump does not touch them.
+    extraModules =
+      (node.extraModules or [ ])
+      ++ (
+        if node ? diskConfig then
+          [
+            disko.nixosModules.disko
+            node.diskConfig
+          ]
+        else
+          [ ]
+      );
   }
 ) serverNodes
