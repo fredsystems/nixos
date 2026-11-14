@@ -1,8 +1,9 @@
 # Plan 05: Split sdrhub into adsbhub and corehub
 
 - **Status:** in progress
-- **Branches:** one `plan05/5.N-*` branch and PR per subtask. 5.1
-  #2867, 5.2 #2868, 5.3 `plan05/5.3-install-adsbhub`.
+- **Branches:** 5.1 #2867, 5.2 #2868, 5.3 #2869 and #2870. From 5.4 on,
+  one local branch, `plan05/sdrhub-split`, pushed once when the plan is
+  done.
 
 ## Goal
 
@@ -95,16 +96,37 @@ leftover from the compose era and does not move.
 ### Copies map ownership by name
 
 `prometheus` and `grafana` have static UIDs in nixpkgs; `loki` and
-AdGuard's DynamicUser do not. Each destination runs its full
-configuration once before the copy, so the service users exist, and
-`rsync` runs without `--numeric-ids` so ownership maps by name.
+AdGuard's DynamicUser do not. corehub runs its full configuration once
+before the copy, so the service users exist, and `rsync` runs without
+`--numeric-ids` so ownership maps by name.
+
+adsbhub is the exception, because its containers must not run before
+their data is in place (acarshub would create a fresh `messages.db`).
+Everything under `/opt/adsb` is owned by `fred` (UID 1000 on every host)
+or root, except `/opt/adsb/data/beast-compare`, whose system user gets
+a different UID per host. So adsbhub's copy uses `--numeric-ids`, and
+that one directory is chowned to `beast-compare` after the deploy
+creates the user.
 
 ## Execution model
 
 Strictly sequential: each phase cuts over live services the next one
-depends on. One branch and PR per subtask, merged in order, and every
-host is deployed from the merged commit on `main`, so the running
-generation is the one CI cached and `fleet-manifest.yaml` records.
+depends on.
+
+From 5.4 on, the owner decided (2026-11-14) that the work stays local
+until the plan is done: one branch, committed locally, nothing pushed.
+Hosts are therefore deployed from local builds of that branch, not from
+`main`, which has two consequences:
+
+- Until the branch merges, every deployed host is running a closure the
+  fleet manifest has never published, so `NixOSUnmanagedSystem` is
+  expected on them and is not a fault.
+- `secrets.yaml` changes in 5.4, and it is in every host's closure, so
+  the whole fleet is deployed from the branch at the 5.5 cutover, not
+  just the hosts whose behaviour changes.
+
+5.10 is what makes the running generations and Attic agree again: merge,
+let CI build from `main`, and deploy any host whose closure differs.
 
 Plan 02 is in progress and its 2.12 baseline records on sdrhub's SDRs.
 5.5 moves those SDRs, which is a setup change under Plan 02. The owner
@@ -180,28 +202,77 @@ were on `main` before install.
 
 ### Phase 2: ADS-B and ACARS to adsbhub
 
-- [ ] **5.4 adsbhub configuration.** Move from sdrhub: every container
-      except degoog, syncclipboard and the dozzle UI (dozzle-agent goes
-      to both); beast-compare, sqliteBackup and backupFreshness for the
-      ACARS databases; usbfs; their sops secrets. Rename the feeder
-      container to `adsbhub_feeder`. Check the
-      `/sys/class/thermal/thermal_zone2` mounts against the new
-      hardware. Add the monitoring agent. Deployed with the containers
-      stopped (not yet enabled) until 5.5.
-- [ ] **5.5 ADS-B cutover.** Stop the containers on sdrhub first, so
-      the feeder keys and MLAT identity never run twice. `rsync -aHAX`
-      `/opt/adsb/data` and `/opt/adsb/backups`; the acarshub databases
-      are WAL-mode and are only copied stopped. Move the SDRs (a powered
-      USB hub may be needed for Airspy, two RTL-SDRs and the LNA), and
-      swap the Airspy and Pro Stick Plus splitter ports while they are
-      unplugged (Airspy to port 1, Pro Stick Plus to port 2). The same PR
-      sets beast-compare's `runId` to `2026-11-baseline-b` and swaps the
-      receivers' `splitter_port` metadata (Plan 02, 2.12).
-      Enable on adsbhub and, in the same PR, repoint sdrhub's nginx
-      proxies, the Prometheus scrape targets, hfdlhub2's
-      `settings.yaml`, vdlmhub's ZMQ consumer and the
-      `flake/dev/checks.nix` decoder-unit check. Repoint the NAS's
-      nightly `/opt/adsb` pull by hand (it is configured on the NAS).
+- [x] **5.4 adsbhub configuration.** Written and built; deployed at 5.5,
+      not before, so nothing feeds twice. Moved from sdrhub, verbatim
+      apart from what follows: every container except degoog,
+      syncclipboard and the dozzle UI (sdrhub keeps its own dozzle-agent
+      for those); beast-compare, sqliteBackup and backupFreshness for the
+      ACARS databases; usbfs; their sops secrets (still under
+      `docker/sdrhub/*` until 5.9). adsbhub also gets the monitoring
+      agent and Tailscale (ultrafeeder feeds fredvps over the tailnet).
+      Changes made in the move:
+      - The ADSBHub feeder is `adsbhub_feeder`.
+      - The `/sys/class/thermal/thermal_zone2` mounts on ultrafeeder and
+        rbfeeder are dropped: this AMD hardware exposes no thermal zones
+        at all (its CPU sensor is `k10temp`, under hwmon), and a missing
+        bind-mount source stops the container from starting. graphs1090's
+        CPU temperature graph and rbfeeder's reported temperature go
+        blank.
+      - The tar1090 page titles say adsbhub.
+      - beast-compare is on `2026-11-baseline-b` with the splitter ports
+        swapped (Plan 02, 2.12).
+      - dozzle-agent publishes the default 7007, like every other remote
+        agent, and `192.168.31.206:7007` is added to sdrhub's
+        `DOZZLE_REMOTE_AGENT`.
+
+      Repointed at adsbhub (192.168.31.206): sdrhub's nginx proxies and
+      the fr24 / planefinder redirects; the ultrafeeder, dump978 and
+      acarshub scrape jobs; the dump978 heartbeat rule; hfdlhub1's three
+      dumphfdl feeds (ZMQ to `acars_router`, basestation to ultrafeeder,
+      in sops) and hfdlhub2's `settings.yaml`. adsbhub joins the Loki
+      `loggingHosts` and gets a `BackupFreshnessMissingAdsbhub` rule.
+      AdGuard's `lanHosts` is deliberately untouched: sdrhub resolves
+      `adsbhub.local` over mDNS already, and any AdGuard change makes
+      sdrhub's deploy a held-back `boot` (it is a DNS critical unit),
+      which would put a reboot in the middle of the cutover. corehub gets
+      `adsbhub` and `corehub` entries in 5.6. Alert rule tests that use
+      `sdrhub` as a synthetic label are left for 5.9.
+- [ ] **5.5 ADS-B cutover.** In order:
+      1. Deploy sdrhub. That removes the moved units, so its containers
+         and the beast-compare recorder stop: the feeder keys and MLAT
+         identity never run twice, and the WAL-mode acarshub databases
+         are at rest for the copy. This is also when `2026-11-baseline-a`
+         ends.
+      2. Copy, pulled by adsbhub over SSH with sudo on both ends (several
+         directories are root-owned):
+
+         ```sh
+         sudo --preserve-env=SSH_AUTH_SOCK rsync -aHAX --numeric-ids \
+           --rsync-path="sudo rsync" \
+           fred@192.168.31.20:/opt/adsb/data/ /opt/adsb/data/
+         ```
+
+         and the same for `/opt/adsb/backups/`, run on adsbhub from an
+         `ssh -A` session.
+      3. Move the SDRs (a powered USB hub may be needed for the Airspy,
+         two RTL-SDRs and the LNA), swapping the Airspy and Pro Stick
+         Plus splitter ports while they are unplugged: Airspy to port 1,
+         Pro Stick Plus to port 2.
+      4. Deploy adsbhub, then
+         `chown -R beast-compare:beast-compare /opt/adsb/data/beast-compare`.
+         Do 1-4 inside 40 minutes: from step 1 sdrhub expects logs from
+         adsbhub, and `HostLogsMissing` fires after 30m + 10m without
+         them. The ultrafeeder, dump978 and acarshub scrape targets are
+         down from step 1 to step 4; their `TargetDown` alerts are
+         expected.
+      5. Deploy hfdlhub1 and hfdlhub2 (their feeds now point at adsbhub),
+         then the rest of the fleet for `secrets.yaml`.
+      6. Verify: every container up, tar1090 and acarshub populating
+         through sdrhub's vhosts, the four scrape jobs up, fredvps
+         receiving the Beast feed, beast-compare writing
+         `2026-11-baseline-b`.
+      7. Repoint the NAS's nightly `/opt/adsb` pull at adsbhub by hand
+         (it is configured on the NAS).
 
 ### Phase 3: everything else to corehub
 
