@@ -88,6 +88,7 @@
   adsbhub = {
     stateVersion = "26.05";
     diskConfig = ../../hosts/linux/adsbhub/disk-config.nix;
+    targetHost = "192.168.31.207";
     tags = [ "adsb" ];
   };
 
