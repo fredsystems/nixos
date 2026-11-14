@@ -4,6 +4,7 @@
 #   - pre-commit hooks (nixfmt, statix, deadnix, shellcheck, etc.)
 #   - nodejs + typescript (for any JS tooling in the repo)
 #   - colmena CLI (matched to the colmenaHive evaluator version)
+#   - nixos-anywhere (initial install of new servers)
 #
 # CI builds and pushes this shell to Attic via the `dev-shell` job in
 # ci-linux.yaml / ci-darwin.yaml whenever its outPath changes (see
@@ -38,6 +39,10 @@ in
             # matches the evaluator used by colmenaHive (not pkgs.colmena
             # from nixpkgs, which is shadowed by the flake input attrset).
             colmena.packages.${system}.colmena
+            # Installs a new server from its flake configuration over SSH
+            # (partitioning with the node's disko layout). See
+            # agent-docs/plans/PLAN_05_SDRHUB_SPLIT.md.
+            nixos-anywhere
           ]);
 
         shellHook = ''

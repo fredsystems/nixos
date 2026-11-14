@@ -234,6 +234,16 @@
       };
     };
 
+    # Declarative disk layouts, read by nixos-anywhere to partition a host at
+    # install time and by the host itself for its fileSystems. Only server
+    # nodes that declare `diskConfig` in flake/hosts/servers.nix get the
+    # module, so a bump rebuilds those hosts alone. Servers are on the stable
+    # channel, hence nixpkgs-stable.
+    disko = {
+      url = "github:nix-community/disko";
+      inputs.nixpkgs.follows = "nixpkgs-stable";
+    };
+
     # wallpapers
 
     walls-catppuccin = {
@@ -292,6 +302,7 @@
       frext,
       nix-yazi-plugins,
       nix-yazi-plugins-stable,
+      disko,
       ...
     }:
 
@@ -401,6 +412,7 @@
           freminal
           frext
           nix-flatpak
+          disko
           ;
       };
     in

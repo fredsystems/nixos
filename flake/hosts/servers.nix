@@ -13,6 +13,8 @@
 #   extraUsers           = []
 #   hmModules            = []
 #   extraModules         = []
+#   diskConfig           = <none>  (path to a disko layout; adds the disko
+#                                   module. Required for nixos-anywhere)
 #   pkgsInput            = nixpkgs-stable        (from inputs)
 #   hmInput              = home-manager-stable   (from inputs)
 #   catppuccinInput      = catppuccin-stable      (from inputs)
