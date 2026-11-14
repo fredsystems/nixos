@@ -3,7 +3,7 @@ let
   # Blackbox exporter listen address. Deliberately loopback-only.
   #
   # Nothing outside this host has any reason to reach the exporter: it is a
-  # probe *driver*, not a source of truth about sdrhub, and the only consumer
+  # probe *driver*, not a source of truth about corehub, and the only consumer
   # is the Prometheus instance running on this same machine. Binding it to
   # 0.0.0.0 would expose an unauthenticated HTTP fetcher on the LAN --
   # /probe?target=<anything> turns the exporter into an open SSRF relay that
@@ -12,7 +12,7 @@ let
   # Consequently there is NO networking.firewall.allowedTCPPorts entry in this
   # file, and services.prometheus.exporters.blackbox.openFirewall stays at its
   # default of false. Port 9115 is the upstream default and is unused elsewhere
-  # in this repo (sdrhub already occupies 22, 80, 3000, 3333, 4567, 5432, 5678,
+  # in this repo (corehub already occupies 22, 80, 3000, 3333, 4567, 5432, 5678,
   # 6379, 8889, 9090, 9093, 9100 and 11434).
   blackboxHost = "127.0.0.1";
   blackboxPort = 9115;
@@ -117,7 +117,7 @@ let
   ];
 
   # LAN-only HTTP vhosts served by nginx on this host (see the virtualHosts
-  # block in hosts/linux/sdrhub/configuration.nix).
+  # block in hosts/linux/corehub/configuration.nix).
   #
   # These are NOT redundant with the existing `up` metric. Prometheus scrapes
   # the backends directly on their container ports; nothing currently exercises
@@ -145,7 +145,7 @@ let
   ];
 
   # The rest of the TLS vhosts on this host, all sharing the one wildcard
-  # certificate. See hosts/linux/sdrhub/configuration.nix.
+  # certificate. See hosts/linux/corehub/configuration.nix.
   #
   # This is now every vhost that answers 2xx, rather than the six that
   # happened to be probed before. jellyfin and karma had been omitted only
@@ -203,7 +203,7 @@ let
     # blackbox-https-internal-authed, not by this entry.
     #
     # The nas.int.fredsystems.org nginx vhost in
-    # hosts/linux/sdrhub/configuration.nix is deliberately left in place --
+    # hosts/linux/corehub/configuration.nix is deliberately left in place --
     # it is the thing being restored to, and it costs nothing while the
     # upstream is down.
 
@@ -443,7 +443,7 @@ let
       # two jobs and obscure which layer actually broke.
       #
       # 308 rather than 301 -- see the redirect vhosts in
-      # hosts/linux/sdrhub/configuration.nix for why the method must be
+      # hosts/linux/corehub/configuration.nix for why the method must be
       # preserved.
       http_308 = {
         prober = "http";
@@ -538,7 +538,7 @@ in
     # priority makes the module system concatenate instead, which is verified
     # by asserting the pre-existing job names survive:
     #
-    #   nix eval --json '.#nixosConfigurations.sdrhub.config.services.prometheus.scrapeConfigs'
+    #   nix eval --json '.#nixosConfigurations.corehub.config.services.prometheus.scrapeConfigs'
     ruleFiles = [
       ./alert-rules/blackbox-alerts.yaml
     ];

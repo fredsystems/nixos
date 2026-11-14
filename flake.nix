@@ -212,7 +212,7 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # Only sdrhub runs this (monitoring master), and sdrhub is a server, so a
+    # Only corehub runs this (monitoring master), and corehub is a server, so a
     # bump rebuilds the server set rather than the desktops.
     github-ci-exporter = {
       url = "github:FredSystems/github-ci-exporter";

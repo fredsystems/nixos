@@ -1,6 +1,6 @@
 groups:
   # Alerts on the state of CI across the sdr-enthusiasts and fredsystems
-  # organisations, sourced from github-ci-exporter on sdrhub.
+  # organisations, sourced from github-ci-exporter on corehub.
   #
   # SCOPE
   #

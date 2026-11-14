@@ -26,7 +26,7 @@ let
   # neither went through nginx.
   #
   # Publishing on an explicit address is the fix. nginx reaches the web
-  # backends over the loopback, and sdrhub reaches the feed listeners over
+  # backends over the loopback, and adsbhub reaches the feed listeners over
   # Tailscale, so nothing legitimate needs a public bind.
   localhost = "127.0.0.1";
 
@@ -840,7 +840,7 @@ in
   services = {
     openssh.ports = [ 2269 ];
 
-    # Accept subnet routes advertised by sdrhub (192.168.31.0/24) so that
+    # Accept subnet routes advertised by corehub (192.168.31.0/24) so that
     # LAN services (Attic, Loki, etc.) are reachable without config changes.
     tailscale.extraUpFlags = [ "--accept-routes" ];
 
@@ -933,7 +933,7 @@ in
       # Never ban ourselves off the box.
       #
       # Loopback and the tailnet, so a misfiring filter cannot cut the
-      # Tailscale management path or ban sdrhub's monitoring, which probes
+      # Tailscale management path or ban corehub's monitoring, which probes
       # every vhost on a schedule.
       #
       # shared.homePublicIPv4 is the home public address, currently an Ezee
@@ -980,7 +980,7 @@ in
       #
       # The address itself comes from shared.homePublicIPv4
       # (modules/data/home-network.nix) rather than being a literal here,
-      # because sdrhub's drift check has to compare against the same value. Two
+      # because corehub's drift check has to compare against the same value. Two
       # independent copies would fail in the worst possible way: the monitor
       # reporting "no drift" against its own stale copy while this list no
       # longer matches the address that is actually arriving.
@@ -1193,7 +1193,7 @@ in
       # certificate is shared across all Dozzle images rather than being a
       # per-deployment secret, so a publicly reachable :7007 let anyone point
       # their own Dozzle at this host and read every container's logs --
-      # including anything secret-bearing that gets logged. sdrhub is the only
+      # including anything secret-bearing that gets logged. corehub is the only
       # consumer and is on the tailnet.
       (import ../../../modules/services/mk-dozzle-agent.nix {
         image = config.shared.dockerImages.dozzle;
@@ -1239,7 +1239,7 @@ in
           "${localhost}:8081:80"
 
           # 30004 (beast_in) and 12000 (sbs_out_jaero) are the only feed ports
-          # sdrhub's ultrafeeder actually dials, so they move to Tailscale.
+          # adsbhub's ultrafeeder actually dials, so they move to Tailscale.
           "${tailscaleIP}:30004:30004"
           "${tailscaleIP}:12000:12000"
 
@@ -1272,7 +1272,7 @@ in
         ];
 
         ports = [
-          # sdrhub's acars_router pushes ACARS/VDLM2/HFDL into these three.
+          # adsbhub's acars_router pushes ACARS/VDLM2/HFDL into these three.
           # They are the only feed listeners with a real client, and that
           # client is on the tailnet.
           #

@@ -41,7 +41,7 @@ hip_in_cidr() {
     [[ $(($(hip_ip_to_int "$ip") & mask)) -eq $(($(hip_ip_to_int "$net") & mask)) ]]
 }
 
-# hip_parse_observed -- reads sdrhub's home_public_ip.prom on stdin and prints
+# hip_parse_observed -- reads corehub's home_public_ip.prom on stdin and prints
 # the `observed` label of home_public_ip_matches_expected. Prints nothing and
 # returns 1 when the series is absent (the generator omits it when its lookup
 # failed) or the label is not a valid address.

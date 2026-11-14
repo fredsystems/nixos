@@ -51,7 +51,7 @@ in
     "pushover/user_key" = { };
 
     # htpasswd file gating the prometheus.int.fredsystems.org vhost declared in
-    # hosts/linux/sdrhub/configuration.nix.
+    # hosts/linux/corehub/configuration.nix.
     #
     # Prometheus has no authentication of its own, and `--web.enable-admin-api`
     # below means anything that can reach it can also delete the TSDB via
@@ -232,7 +232,7 @@ in
       # discord-backup.nix and the audit's item 3.4).
       #
       # The offsets also give them a deliberate order: prune first to free
-      # space, then snapshot into it. That matters on sdrhub, whose NVMe is at
+      # space, then snapshot into it. That matters on corehub, whose NVMe is at
       # 54% of rated write endurance (alert-rules/smart-alerts.yaml:9-17).
       prunePrometheusSnapshots = {
         description = "Daily prune of Prometheus snapshots older than 30 days";
@@ -617,7 +617,7 @@ in
           # honor_labels keeps whatever labels the pusher supplied. Deliberately
           # NO static hostname/role here: with honor_labels those are only a
           # fallback, so a series pushed from another machine that omitted
-          # hostname would silently inherit hostname="sdrhub", role="master" and
+          # hostname would silently inherit hostname="corehub", role="master" and
           # be attributed to the wrong host. A missing hostname is easier to
           # notice than a wrong one.
           #

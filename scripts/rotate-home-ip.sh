@@ -15,19 +15,19 @@
 #      scripts/impacted-hosts.sh which hosts that changes, and evaluates them.
 #   4. Commits, pushes, opens a PR and queues it for auto-merge.
 #   5. Deploys the impacted hosts with colmena and verifies the result:
-#      each host runs the new closure, sdrhub's drift check reports a match,
+#      each host runs the new closure, corehub's drift check reports a match,
 #      and fredvps's sshd jail ignores the new address and not the old one.
 #
 # WHY A HUMAN STAYS IN THE LOOP
 #
-# sdrhub's drift check reads the address from the newest fredvps nginx log
+# corehub's drift check reads the address from the newest fredvps nginx log
 # line carrying a Blackbox-Exporter User-Agent. Anyone on the internet can
 # send that User-Agent. As an alert input that is harmless; fed straight into
 # ignoreIP it would let a stranger whitelist themselves on the one
 # internet-facing host. So this never acts on that value alone:
 #
 #   * The address must also be reported by an independent echo service,
-#     queried FROM sdrhub (it sits behind the home NAT), so the answer is the
+#     queried FROM corehub (it sits behind the home NAT), so the answer is the
 #     same wherever this script runs. Some echo services are blocked by the
 #     home DNS filter; the ones listed below are known to answer, and every
 #     one that answers must agree.

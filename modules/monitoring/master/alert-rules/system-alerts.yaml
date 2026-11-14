@@ -43,7 +43,7 @@ groups:
         # commit that does not alter this host's closure leaves running ==
         # expected, so the state stays up_to_date and the rule cannot match at
         # all. `for: 6h` on the bare state would also have worked, but Prometheus
-        # loses pending state on restart -- which happens on every sdrhub deploy
+        # loses pending state on restart -- which happens on every corehub deploy
         # -- so an absolute timestamp is the more durable formulation.
         #
         # Desktops are excluded: they are rebuilt by hand on their own cadence
@@ -240,14 +240,14 @@ groups:
   # Tailscale node key expiry.
   #
   # Metric source: modules/services/tailscale/default.nix, which is imported by
-  # exactly the hosts running tailscale (sdrhub and fredvps today), so these
+  # exactly the hosts running tailscale (adsbhub, corehub and fredvps today), so these
   # rules scope themselves automatically as that set changes.
   #
   # WHAT EXPIRES. Not the sops auth key -- that is only consulted when a node is
   # not yet registered, so its expiry cannot disturb a running node. What expires
   # is each device's NODE key, and rotating the auth key does not renew it: an
   # expired node key needs `tailscale up` with an interactive login, or a new key
-  # plus --force-reauth. The cost of getting this wrong is concrete: sdrhub
+  # plus --force-reauth. The cost of getting this wrong is concrete: corehub
   # withdraws its advertised 192.168.31.0/24 subnet route, and fredvps loses the
   # tailnet address Prometheus scrapes it by.
   #
@@ -399,7 +399,7 @@ groups:
         # SystemdUnitFailed, which only notices tailscaled failing outright --
         # NeedsLogin is a perfectly healthy process that has stopped working.
         #
-        # Desktops excluded. Critical is right for a server: sdrhub off the
+        # Desktops excluded. Critical is right for a server: corehub off the
         # tailnet withdraws the LAN subnet route, and fredvps off it disappears
         # from Prometheus. A laptop being off the tailnet is routine -- wifi off,
         # deliberately logged out, mid-suspend -- and its owner is the first to

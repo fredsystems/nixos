@@ -53,7 +53,7 @@ in
   #     login URL, or a new key plus --force-reauth.
   #
   # This metric watches the second one, because that is the failure that costs
-  # something: on sdrhub it also withdraws the advertised 192.168.31.0/24 subnet
+  # something: on corehub it also withdraws the advertised 192.168.31.0/24 subnet
   # route, and on fredvps it removes the tailnet address Prometheus scrapes it by.
   #
   # Tagged devices have key expiry disabled by default, so on a correctly tagged

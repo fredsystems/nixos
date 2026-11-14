@@ -144,7 +144,7 @@
           # a full read/write control plane, not a read-only dashboard.
           #
           # It is now reached exclusively through the nginx vhost in
-          # hosts/linux/sdrhub/configuration.nix, the same treatment karma and
+          # hosts/linux/corehub/configuration.nix, the same treatment karma and
           # the clipboard server already get. The `networking.firewall` entry
           # for 3333 is gone with it.
           #
@@ -158,7 +158,7 @@
           # that reached it over TLS on another name.
           #
           # Kept in lockstep with the vhost by an assertion in
-          # hosts/linux/sdrhub/configuration.nix, which fails the build if this
+          # hosts/linux/corehub/configuration.nix, which fails the build if this
           # URL and the server_name stop agreeing.
           domain = "grafana.int.fredsystems.org";
           root_url = "https://grafana.int.fredsystems.org/";

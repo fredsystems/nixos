@@ -74,7 +74,7 @@
       # Do NOT let lego use this host's own resolver for the DNS-01
       # propagation check.
       #
-      # sdrhub runs AdGuard Home -- with split-horizon rewrites and three
+      # corehub runs AdGuard Home -- with split-horizon rewrites and three
       # blocklists -- in front of Unbound, and serves the LAN. The propagation
       # check is a tight polling loop against a TXT record that was created
       # seconds ago, which is precisely the shape that a cached negative

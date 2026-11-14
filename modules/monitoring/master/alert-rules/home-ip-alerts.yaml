@@ -19,12 +19,12 @@ groups:
   # Neither is observable from fredvps itself, which is the whole reason this
   # group exists.
   #
-  # The check runs on sdrhub (hosts/linux/sdrhub/home-ip-drift.nix) and is
+  # The check runs on corehub (hosts/linux/corehub/home-ip-drift.nix) and is
   # sourced from fredvps's own nginx access log, so "observed" means the address
   # fredvps actually attributes to this network -- the same string ignoreIP has
   # to match, rather than an approximation of it from a third party.
   #
-  # Rules deliberately do NOT pin hostname="sdrhub", following the convention in
+  # Rules deliberately do NOT pin hostname="corehub", following the convention in
   # fail2ban-alerts.yaml: if the generator is ever added to a second host,
   # unpinned rules cover it automatically. The absent() rule is the one
   # exception, since it cannot work without naming the host it expects.

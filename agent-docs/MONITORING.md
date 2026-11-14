@@ -43,7 +43,7 @@ Deployed and verified in production:
   `repeat_interval >= group_interval` yields a real cadence of
   `2 x group_interval`. Confirmed against the ping log: 09:25, 09:27, 09:29.
 
-  Grace is 10m rather than 5m so a reboot of sdrhub (1-3 minutes) does not
+  Grace is 10m rather than 5m so a reboot of corehub (1-3 minutes) does not
   trip it. For planned maintenance longer than ~15 minutes, pause the check in
   the healthchecks.io UI rather than widening the window permanently -- a
   deadman with a 25-hour detection time is decoration.
@@ -72,10 +72,11 @@ applies the ACL explicitly via a oneshot ordered before the exporter.
 
 | Host      | Role              | node_exp | cAdvisor | Alloy | Prometheus | Alertmanager | Grafana | Loki |
 | --------- | ----------------- | -------- | -------- | ----- | ---------- | ------------ | ------- | ---- |
-| sdrhub    | monitoring-master | yes      | yes      | yes   | yes        | yes          | yes     | yes  |
+| corehub   | monitoring-master | yes      | yes      | yes   | yes        | yes          | yes     | yes  |
 | fredhub   | monitoring-agent  | yes      | yes      | yes   | no         | no           | no      | no   |
 | fredvps   | monitoring-agent  | yes      | yes      | yes   | no         | no           | no      | no   |
 | acarshub  | monitoring-agent  | yes      | yes      | yes   | no         | no           | no      | no   |
+| adsbhub   | monitoring-agent  | yes      | yes      | yes   | no         | no           | no      | no   |
 | vdlmhub   | monitoring-agent  | yes      | yes      | yes   | no         | no           | no      | no   |
 | hfdlhub1  | monitoring-agent  | yes      | yes      | yes   | no         | no           | no      | no   |
 | hfdlhub2  | monitoring-agent  | yes      | yes      | yes   | no         | no           | no      | no   |
@@ -86,7 +87,7 @@ Daytona is excluded from pull-based scraping at `modules/monitoring/master/prome
 
 Versions in use: Prometheus 3.12.0, Alertmanager 0.31.1, Loki 3.7.4, Alloy 1.16.0. Prometheus retention 90d, Loki retention 30d.
 
-sdrhub additionally runs the Loki ruler (29 rules across 6 groups) and a blackbox exporter; every agent runs a smartctl exporter.
+corehub additionally runs the Loki ruler (29 rules across 6 groups) and a blackbox exporter; every agent runs a smartctl exporter.
 
 ### Scrape configuration
 
@@ -98,16 +99,16 @@ their own modules rather than here: `scrapeConfigs` and `ruleFiles` are both
 
 | Job                     | Targets                                 | Labels attached          |
 | ----------------------- | --------------------------------------- | ------------------------ |
-| node                    | all agents + desktops + sdrhub on :9100 | hostname, role, exporter |
-| cadvisor                | all agents + sdrhub on :4567 (7)        | hostname, role, exporter |
+| node                    | all agents + desktops + corehub on :9100 | hostname, role, exporter |
+| cadvisor                | all agents + corehub on :4567 (7)        | hostname, role, exporter |
 | smartctl                | 6 SMART-capable hosts on :9633          | hostname, role, exporter |
-| ultrafeeder             | sdrhub.local:9274                       | hostname, role           |
-| acarshub                | sdrhub.local:8085                       | hostname, role           |
+| ultrafeeder             | adsbhub.local:9274                      | hostname, role           |
+| acarshub                | adsbhub.local:8085                      | hostname, role           |
 | prometheus              | 127.0.0.1:9090                          | hostname, role           |
 | alertmanager            | 127.0.0.1:9093                          | hostname, role           |
 | loki                    | 127.0.0.1:5678                          | hostname, role           |
 | grafana                 | 127.0.0.1:3333                          | hostname, role           |
-| dump978                 | sdrhub.local:9275                       | hostname, role           |
+| dump978                 | adsbhub.local:9275                      | hostname, role           |
 | pushgateway             | 127.0.0.1:9091 (honor_labels)           | none, deliberately       |
 | blackbox-exporter       | 127.0.0.1:9115 (the exporter itself)    | none                     |
 | blackbox-https          | 3 public HTTPS endpoints, must be 2xx   | instance, job            |
@@ -153,7 +154,7 @@ which no other job needs.
 
 `pushgateway` deliberately attaches no static labels. `honor_labels = true`
 means static labels act only as a fallback, so a series pushed from another
-machine that omitted `hostname` would silently inherit `hostname="sdrhub"` and
+machine that omitted `hostname` would silently inherit `hostname="corehub"` and
 be attributed to the wrong host. A missing label is easier to notice than a
 wrong one.
 
@@ -578,10 +579,10 @@ At roughly a quarter of the available bus, the failure is purely the accounting 
 
 Because the ceiling is machine-independent and global, **consolidating servers makes this worse, not better**. Twelve radios on one box need roughly 45 MB against the same 16 MB default -- a guaranteed failure on day one, on better hardware. The parameter is a prerequisite for any multi-dongle host, and grows more essential as hosts get denser.
 
-What genuinely does depend on hardware: the number of independent USB host controllers (sdrhub exposes four buses, vdlmhub and acarshub two), whether radios are daisy-chained behind a single external hub (three of four hosts currently do this), and CPU available for demodulation. If consolidating, prefer multiple independent host controllers, avoid funnelling every radio through one hub, use powered hubs for bias-tee draw, and account for the RF and thermal cost of co-locating many dongles plus the concentration of the failure domain.
+What genuinely does depend on hardware: the number of independent USB host controllers (sdrhub exposed four buses, vdlmhub and acarshub two), whether radios are daisy-chained behind a single external hub (three of four hosts currently do this), and CPU available for demodulation. If consolidating, prefer multiple independent host controllers, avoid funnelling every radio through one hub, use powered hubs for bias-tee draw, and account for the RF and thermal cost of co-locating many dongles plus the concentration of the failure domain.
 
 - [x] Add `modules/hardware/usbfs.nix` exposing `hardware-profile.usbfs.{enable,memoryMB}`
-- [x] Enable it on sdrhub, acarshub, vdlmhub, hfdlhub1 -- **not** hfdlhub2, which has no USB radios
+- [x] Enable it on adsbhub, acarshub, vdlmhub, hfdlhub1 -- **not** hfdlhub2, which has no USB radios
 - [ ] Set `usbfs_memory_mb` proportionally if hosts are ever consolidated
 
 ## Watchdog on the dashboards
@@ -686,7 +687,7 @@ accepted without complaint. The templates were therefore syntax-checked and
 rendered separately against a representative alert group. Any future template
 edit needs the same treatment.
 
-**Karma** is deployed on sdrhub, bound to `127.0.0.1:8090` and reached through
+**Karma** is deployed on corehub, bound to `127.0.0.1:8090` and reached through
 the existing nginx proxy at `http://karma.sdrhub.lan/` (with a `.local` alias
 and AdGuard rewrites for both). No firewall port of its own, and `/karma/` on
 the landing vhost is a 302 to it rather than a sub-path proxy, because Karma

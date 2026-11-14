@@ -60,7 +60,7 @@ let
   # these hosts (RTL-SDR, SDRplay RSP, Airspy) shows up under, and
   # `/run:exec,size=64M` is the writable+executable /run every one of those
   # decoders needs for its own PID file / control socket. Both were being
-  # copy-pasted verbatim into every SDR container across sdrhub, hfdlhub1,
+  # copy-pasted verbatim into every SDR container across adsbhub, hfdlhub1,
   # vdlmhub and acarshub.
   #
   # Deliberately opt-in (call mkSdrContainer instead of writing a plain

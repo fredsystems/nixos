@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 #
 # gen-sdrhub-fonts.sh -- regenerate the subsetted web fonts served by
-# sdrhub's landing page (hosts/linux/sdrhub/html/).
+# corehub's landing page (hosts/linux/corehub/html/).
 #
 # WHY THESE FONTS ARE COMMITTED RATHER THAN BUILT
 #
 # The landing page's whole job is to be reachable when the network is
 # broken. The comment block above `migratedVhosts` in
-# hosts/linux/sdrhub/configuration.nix documents this page as part of the
+# hosts/linux/corehub/configuration.nix documents this page as part of the
 # escape hatch for a DNS/AdGuard fault -- and during exactly that fault a
 # CDN does not resolve, so the previous `cdnjs.cloudflare.com` Font Awesome
 # link rendered a page with no icons. Everything must therefore be local.
@@ -15,7 +15,7 @@
 # "Local" could mean either committed bytes or a `runCommand` that subsets
 # at build time. Committed bytes won for one reason: `pkgs.google-fonts` is
 # a 2.3 GB derivation. Referencing it from a build step would drag that
-# into the build closure of every sdrhub evaluation to extract 16 KB of
+# into the build closure of every corehub evaluation to extract 16 KB of
 # Antonio, and CI would have to substitute it. The fonts change roughly
 # never, so paying that cost on every build to avoid committing 52 KB is
 # the wrong trade.

@@ -26,7 +26,7 @@
   # COST OF LIVING HERE
   #
   # This is imported by mk-system.nix, so the option is in every host's module
-  # set, but only fredvps and sdrhub actually read it. CI decides impact from a
+  # set, but only fredvps and corehub actually read it. CI decides impact from a
   # real per-host derivation diff rather than from path patterns, so changing
   # the address rebuilds exactly those two hosts and leaves the other eight
   # untouched. Cheap to change, expensive to get wrong -- which is the right
@@ -61,12 +61,12 @@
           so a single SYN to any watched port from an address not on that list
           is an immediate host-wide ban that escalates on repeat. A stale entry
           here is a live outage risk, not a latent one.
-        * sdrhub's home-ip-drift check, which compares this value against what
+        * corehub's home-ip-drift check, which compares this value against what
           fredvps actually observes and alerts on mismatch.
 
       When it rotates (HomePublicIPDrifted fires): run
       scripts/rotate-home-ip.sh. It cross-checks the new address, updates
-      this value, opens a PR and deploys fredvps and sdrhub. Keep the value
+      this value, opens a PR and deploys fredvps and corehub. Keep the value
       on a single `default = "<ipv4>";` line; the script edits it by that
       shape, and scripts/tests/home-ip-test.sh fails if it changes.
 

@@ -5,7 +5,7 @@ description: Use ONLY when working in the fred/nixos flake repository AND the ta
 
 # NixOS: adding a new host
 
-This repo manages 10 Linux hosts + macOS. Adding a new one touches
+This repo manages 11 Linux hosts + macOS. Adding a new one touches
 several files in a specific order. CI auto-discovers the host once its
 `nixosConfigurations` attribute exists: it builds every host whose
 closure changed, desktops and servers alike, in one matrix.

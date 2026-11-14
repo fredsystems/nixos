@@ -8,17 +8,17 @@
 # whatever it is given with the cache's NAR signing key, so a stolen push token
 # lets an attacker place content that every machine in the fleet then trusts.
 #
-# WHY IT TERMINATES HERE AND NOT ON SDRHUB
+# WHY IT TERMINATES HERE AND NOT ON COREHUB
 #
-# sdrhub already has nginx and a wildcard certificate, so proxying through it
+# corehub already has nginx and a wildcard certificate, so proxying through it
 # looks like the cheap option. It does not work:
 #
-#     maranello --https--> sdrhub --plain http--> fredhub:8080
+#     maranello --https--> corehub --plain http--> fredhub:8080
 #
 # The token would still cross the LAN in the clear on the second hop, exactly
 # as it does today, while looking fixed. TLS has to end where atticd is.
 #
-# WHY ITS OWN CERTIFICATE RATHER THAN SDRHUB'S WILDCARD
+# WHY ITS OWN CERTIFICATE RATHER THAN COREHUB'S WILDCARD
 #
 # Two reasons. A wildcard's private key should not be copied between hosts, and
 # two machines renewing the same `*.int.fredsystems.org` certificate would both
@@ -40,7 +40,7 @@
 # clients that carry a credential; it does not replace the first.
 { config, ... }:
 {
-  # Same token as sdrhub uses, scoped to Zone:Read + DNS:Edit on
+  # Same token as corehub uses, scoped to Zone:Read + DNS:Edit on
   # fredsystems.org. Root-owned; handed to the renewal unit through systemd
   # credentials rather than being read by a service running as its own user.
   sops.secrets.cloudflare_acme_token = { };
@@ -64,7 +64,7 @@
     # The cert is *named* for attic because that was the first vhost here; the
     # name is only an identifier for the state directory and the `useACMEHost`
     # reference. `extraDomainNames` is what makes it cover the rest. One order
-    # and one renewal beats three of each, and unlike sdrhub's wildcard it
+    # and one renewal beats three of each, and unlike corehub's wildcard it
     # cannot race another host on a shared `_acme-challenge` record, because
     # each name gets its own.
     certs."attic.int.fredsystems.org" = {
@@ -82,7 +82,7 @@
       credentialFiles.CF_DNS_API_TOKEN_FILE = config.sops.secrets.cloudflare_acme_token.path;
 
       # Do not resolve the propagation check through this network's own DNS.
-      # sdrhub runs AdGuard with split-horizon rewrites in front of Unbound, and
+      # corehub runs AdGuard with split-horizon rewrites in front of Unbound, and
       # the check is a tight poll against a record created seconds earlier --
       # the exact shape that a cached negative answer turns into a failed
       # renewal months later. The zone is hosted at Cloudflare, so this is also
@@ -107,7 +107,7 @@
     # not match it anyway -- it would be CPU spent to no effect.
 
     # Both application vhosts below push updates over websockets, so they need
-    # the upgrade dance. Same map sdrhub uses.
+    # the upgrade dance. Same map corehub uses.
     appendHttpConfig = ''
       map $http_upgrade $connection_upgrade {
         default upgrade;
@@ -122,7 +122,7 @@
     # which is both simpler and strictly better.
     #
     # The matching AdGuard rewrite now answers with this host; the `.lan` alias
-    # still redirects from sdrhub for anything with an old bookmark.
+    # still redirects from corehub for anything with an old bookmark.
     virtualHosts = {
       "ai.int.fredsystems.org" = {
         forceSSL = true;

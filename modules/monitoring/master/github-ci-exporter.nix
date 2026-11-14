@@ -20,7 +20,7 @@
 # and deliberately no nginx vhost of its own -- unlike Karma there is no UI
 # here a human needs to click.
 #
-# One exception, and it is narrow: hosts/linux/sdrhub/configuration.nix
+# One exception, and it is narrow: hosts/linux/corehub/configuration.nix
 # publishes `/repos.json` through the landing page's vhost with an
 # *exact-match* nginx location, for that page's repository jump box. That
 # document is a list of repository names and descriptions, all of them public.
@@ -88,9 +88,9 @@
     # write access to them, which is a bad trade for CI visibility on
     # scratch repositories.
     #
-    # `airframesio` was added for the sdrhub landing page's repository jump
+    # `airframesio` was added for the corehub landing page's repository jump
     # box, which is served from this exporter's `/repos.json` (see the
-    # `= /repos.json` location in hosts/linux/sdrhub/configuration.nix). There
+    # `= /repos.json` location in hosts/linux/corehub/configuration.nix). There
     # is no index-only owner list: `orgs` drives both discovery and
     # monitoring, so adding an owner here to make its repositories findable
     # also puts its CI under the alert rules in

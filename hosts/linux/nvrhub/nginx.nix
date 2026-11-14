@@ -1,17 +1,17 @@
 # TLS for the Frigate web UI, as nvr.int.fredsystems.org.
 #
-# WHY TLS TERMINATES HERE AND NOT ON SDRHUB
+# WHY TLS TERMINATES HERE AND NOT ON COREHUB
 #
-# sdrhub already runs nginx with a wildcard certificate and a landing page, so
+# corehub already runs nginx with a wildcard certificate and a landing page, so
 # proxying through it is the obvious cheap option. It is the same mistake that
 # hosts/linux/fredhub/nginx.nix exists to document:
 #
-#     browser --https--> sdrhub --plain http--> nvrhub
+#     browser --https--> corehub --plain http--> nvrhub
 #
 # Frigate has its own login (frigate/api/auth.py), so the credential would
 # cross the LAN in the clear on that second hop while the browser showed a
 # padlock. Removing the hop is the fix, not encrypting the first half of it.
-# sdrhub's `externalTlsHosts` map exists precisely for names like this one and
+# corehub's `externalTlsHosts` map exists precisely for names like this one and
 # now carries an `nvr` entry pointing here.
 #
 # WHY THIS RENAMES THE EXISTING VHOST RATHER THAN ADDING ONE
@@ -43,7 +43,7 @@ let
   fqdn = "nvr.${internalDomain}";
 in
 {
-  # Same token sdrhub and fredhub use, scoped to Zone:Read + DNS:Edit on
+  # Same token corehub and fredhub use, scoped to Zone:Read + DNS:Edit on
   # fredsystems.org. nvrhub is already an age recipient for secrets.yaml.
   sops.secrets.cloudflare_acme_token = {
     # Without this, rotating the shared token and redeploying leaves lego
@@ -71,7 +71,7 @@ in
       credentialFiles.CF_DNS_API_TOKEN_FILE = config.sops.secrets.cloudflare_acme_token.path;
 
       # Do not resolve the propagation check through this network's own DNS.
-      # sdrhub runs AdGuard with split-horizon rewrites in front of Unbound, and
+      # corehub runs AdGuard with split-horizon rewrites in front of Unbound, and
       # this check polls a record created seconds earlier -- exactly the shape a
       # cached negative answer turns into a failed renewal months later.
       dnsResolver = "1.1.1.1:53";
@@ -96,7 +96,7 @@ in
     # Plaintext redirect for the old name.
     #
     # `nvrhub.local` was the vhost name until this change and is what any
-    # existing bookmark uses. Mirrors sdrhub's legacyRedirectVirtualHosts
+    # existing bookmark uses. Mirrors corehub's legacyRedirectVirtualHosts
     # pattern: the serving config exists once, on the TLS vhost, and this is a
     # redirect rather than a second copy that could drift.
     #

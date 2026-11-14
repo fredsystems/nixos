@@ -69,8 +69,8 @@ changes twice a year.
 
 | NAS job      | NAS time | Wall clock (MDT) | Source                                                 |
 | ------------ | -------- | ---------------- | ------------------------------------------------------ |
-| ADSB pull    | 0000     | 01:00            | `sdrhub:/opt/adsb` -> `/volume1/docker`                |
-| Prom pull    | 0300     | 04:00            | `sdrhub:/var/lib/prometheus2/data/snapshots`           |
+| ADSB pull    | 0000     | 01:00            | `adsbhub:/opt/adsb` -> `/volume1/docker`               |
+| Prom pull    | 0300     | 04:00            | `corehub:/var/lib/prometheus2/data/snapshots`          |
 | Discord pull | 2100     | 22:00            | `fredvps:/mnt/discord-storage/` -> `/volume1/discord/` |
 
 Those are the times **as found**. All three have since been rescheduled -- see

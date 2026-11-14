@@ -438,7 +438,7 @@ let
     # WHY THE UPSTREAM IS https ON 5001 RATHER THAN http ON 5000
     #
     # DSM's login is the NAS's admin credential. Proxying to :5000 would put it
-    # on the LAN in cleartext on the sdrhub -> NAS hop while the browser showed
+    # on the LAN in cleartext on the corehub -> NAS hop while the browser showed
     # a padlock -- precisely the defect that moved ai and jellyfin off this host
     # (see externalTlsHosts below and hosts/linux/fredhub/nginx.nix).
     #
@@ -605,11 +605,11 @@ let
 
   # TLS names under internalDomain that are served by a DIFFERENT host, so they
   # cannot come from migratedVhosts above -- that map is specifically the vhosts
-  # this host's nginx terminates, and its answer is hardcoded to sdrhub.
+  # this host's nginx terminates, and its answer is hardcoded to corehub.
   #
   # attic, ai and jellyfin live on fredhub and terminate TLS there rather than
   # being proxied through here. For attic that is the point: proxying would
-  # leave the push token in cleartext on the sdrhub -> fredhub hop, which is the
+  # leave the push token in cleartext on the corehub -> fredhub hop, which is the
   # whole thing it exists to prevent. ai and jellyfin had exactly that defect --
   # the client saw TLS while their logins crossed the LAN in the clear on the
   # second hop -- and the fix is to remove the hop rather than encrypt it. See
@@ -635,7 +635,7 @@ let
   # The plaintext `.lan` aliases for services that USED to be served here and
   # have since moved to another host.
   #
-  # They still resolve to sdrhub (they are in lanHosts), so without these there
+  # They still resolve to corehub (they are in lanHosts), so without these there
   # would be nothing listening for them and an old bookmark would get the
   # catch-all rather than a redirect. Same 308 the migratedVhosts entries emit,
   # pointing at whichever host now serves the name.
@@ -718,7 +718,7 @@ in
         # is unrelated to the 2026-08-15/16 outages.
         #
         # Note there is deliberately no blackbox probe for this. The exporter
-        # runs on this host, and traffic to sdrhub's own address arrives over
+        # runs on this host, and traffic to corehub's own address arrives over
         # `lo`, which is in trustedInterfaces -- so a probe would pass whether or
         # not this rule existed, asserting something weaker than it appears to.
         #
@@ -737,7 +737,7 @@ in
         # It would also narrow more than intended. `trustedInterfaces` on this
         # host is `[ "lo" ]` and nothing more -- verified, not assumed:
         #
-        #   nix eval '.#nixosConfigurations.sdrhub.config.networking.firewall.trustedInterfaces'
+        #   nix eval '.#nixosConfigurations.corehub.config.networking.firewall.trustedInterfaces'
         #
         # so `tailscale0` is NOT trusted and DNS reachable over the tailnet
         # depends on this global rule. Scoping to the LAN interface would

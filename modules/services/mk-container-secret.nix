@@ -11,7 +11,7 @@
 # unrelated change happens to restart it.
 #
 # That is a silent failure -- the deploy reports success while the running
-# system does not match the configuration. Repointing sdrhub's ADS-B feed
+# system does not match the configuration. Repointing adsbhub's ADS-B feed
 # targets from a public IP to a Tailscale address is purely a secrets edit, so
 # without this the feeds would have kept talking to the old address.
 #

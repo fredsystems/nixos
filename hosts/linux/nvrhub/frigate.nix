@@ -28,7 +28,7 @@
 # environment variables or FRIGATE_-prefixed FILES in $CREDENTIALS_DIRECTORY
 # (see frigate/config/env.py). systemd LoadCredential= supplies the latter from
 # sops, which is the same mechanism alertmanager and github-ci-exporter already
-# use on sdrhub.
+# use on corehub.
 {
   config,
   lib,

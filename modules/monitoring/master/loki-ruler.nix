@@ -176,12 +176,12 @@ let
 
     # DEPLOY ORDER MATTERS: HostLogsMissing fires 40 minutes after this list
     # names a host that is not shipping. nvrhub must be deployed (and its
-    # Alloy running) BEFORE sdrhub picks up this rule set, or the master
-    # alerts on a host that has never existed. Deploy nvrhub first, sdrhub
+    # Alloy running) BEFORE corehub picks up this rule set, or the master
+    # alerts on a host that has never existed. Deploy nvrhub first, corehub
     # second.
     "nvrhub"
 
-    # Same ordering rule: adsbhub's Alloy must be shipping before sdrhub
+    # Same ordering rule: adsbhub's Alloy must be shipping before corehub
     # picks this up (Plan 05).
     "adsbhub"
   ];

@@ -31,7 +31,7 @@
 #
 # WHY A SHARED MODULE AND NOT TWO COPIES
 #
-# The artifacts live on different hosts (Prometheus snapshots on sdrhub, the
+# The artifacts live on different hosts (Prometheus snapshots on corehub, the
 # Discord dumps on fredvps) and more are coming when the ADSB SQLite dumps
 # land. Copying a scan script per host would mean the fix for any bug in it
 # has to be applied in as many places as there are backups. The declaration is
@@ -204,11 +204,11 @@ let
     '';
 
   # This module is imported by every agent (via profiles/adsb-hub.nix) and by
-  # sdrhub, which is also the monitoring master. ruleFiles is a listOf and
+  # corehub, which is also the monitoring master. ruleFiles is a listOf and
   # merges across modules, so the alerts can be registered here -- next to the
   # metrics they consume -- rather than in ../master/prometheus.nix. Gating on
-  # services.prometheus.enable is what makes that safe: only sdrhub enables
-  # Prometheus, so only sdrhub contributes the entry.
+  # services.prometheus.enable is what makes that safe: only corehub enables
+  # Prometheus, so only corehub contributes the entry.
   #
   # Deliberately NOT gated on this host declaring artifacts. The absent() rules
   # in that file exist precisely to catch a host whose generator was never

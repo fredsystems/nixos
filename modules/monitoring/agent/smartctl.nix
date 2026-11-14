@@ -69,10 +69,10 @@ let
   smartAgents = builtins.filter (h: !builtins.elem h hostsWithoutSmart) agentNodes;
 
   # This module is imported by every agent (via profiles/adsb-hub.nix) and by
-  # sdrhub, which is also the master. scrapeConfigs is a listOf and merges
+  # corehub, which is also the master. scrapeConfigs is a listOf and merges
   # across modules, so the master-side scrape job can be defined here instead
   # of in ../master/prometheus.nix. Gating on services.prometheus.enable is
-  # what makes that safe: only sdrhub enables Prometheus, so only sdrhub
+  # what makes that safe: only corehub enables Prometheus, so only corehub
   # contributes the job. No mkDefault anywhere -- a mkDefault list is
   # discarded wholesale by any normal-priority definition rather than merged.
   isMaster = config.services.prometheus.enable;
