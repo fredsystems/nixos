@@ -99,7 +99,7 @@ in
         tty = false;
 
         environmentFiles = [
-          config.sops.secrets."docker/sdrhub/airspy_adsb.env".path
+          config.sops.secrets."docker/adsbhub/airspy_adsb.env".path
         ];
 
         deviceCgroupRules = [
@@ -136,7 +136,7 @@ in
 
         # TZ, LAT and LONG (the receiver position, for the range outline).
         environmentFiles = [
-          config.sops.secrets."docker/sdrhub/tar1090_airspy.env".path
+          config.sops.secrets."docker/adsbhub/tar1090_airspy.env".path
         ];
 
         environment = {
@@ -186,7 +186,7 @@ in
 
         # TZ, LAT and LONG (the receiver position, for the range outline).
         environmentFiles = [
-          config.sops.secrets."docker/sdrhub/tar1090_rtlsdr.env".path
+          config.sops.secrets."docker/adsbhub/tar1090_rtlsdr.env".path
         ];
 
         environment = {
@@ -238,7 +238,7 @@ in
         tty = false;
 
         environmentFiles = [
-          config.sops.secrets."docker/sdrhub/ultrafeeder.env".path
+          config.sops.secrets."docker/adsbhub/ultrafeeder.env".path
         ];
 
         # Network-only: ultrafeeder opens no SDR itself. Its 1090 input is
@@ -295,7 +295,7 @@ in
         tty = true;
 
         environmentFiles = [
-          config.sops.secrets."docker/sdrhub/dump978.env".path
+          config.sops.secrets."docker/adsbhub/dump978.env".path
         ];
 
         # Suppress telegraf's per-aircraft socket listener.
@@ -347,7 +347,7 @@ in
         tty = true;
 
         environmentFiles = [
-          config.sops.secrets."docker/sdrhub/adsbhub.env".path
+          config.sops.secrets."docker/adsbhub/adsbhub_feeder.env".path
         ];
 
         tmpfs = [
@@ -371,7 +371,7 @@ in
         ];
 
         environmentFiles = [
-          config.sops.secrets."docker/sdrhub/fr24.env".path
+          config.sops.secrets."docker/adsbhub/fr24.env".path
         ];
 
         tmpfs = [
@@ -396,7 +396,7 @@ in
         ];
 
         environmentFiles = [
-          config.sops.secrets."docker/sdrhub/piaware.env".path
+          config.sops.secrets."docker/adsbhub/piaware.env".path
         ];
 
         tmpfs = [
@@ -420,7 +420,7 @@ in
         ];
 
         environmentFiles = [
-          config.sops.secrets."docker/sdrhub/planefinder.env".path
+          config.sops.secrets."docker/adsbhub/planefinder.env".path
         ];
 
         tmpfs = [
@@ -440,7 +440,7 @@ in
         tty = true;
 
         environmentFiles = [
-          config.sops.secrets."docker/sdrhub/planewatch.env".path
+          config.sops.secrets."docker/adsbhub/planewatch.env".path
         ];
 
         tmpfs = [
@@ -461,7 +461,7 @@ in
         tty = true;
 
         environmentFiles = [
-          config.sops.secrets."docker/sdrhub/radarvirtuel.env".path
+          config.sops.secrets."docker/adsbhub/radarvirtuel.env".path
         ];
 
         tmpfs = [
@@ -489,7 +489,7 @@ in
         tty = false;
 
         environmentFiles = [
-          config.sops.secrets."docker/sdrhub/rbfeeder.env".path
+          config.sops.secrets."docker/adsbhub/rbfeeder.env".path
         ];
 
         volumes = [
@@ -513,7 +513,7 @@ in
         tty = true;
 
         environmentFiles = [
-          config.sops.secrets."docker/sdrhub/opensky.env".path
+          config.sops.secrets."docker/adsbhub/opensky.env".path
         ];
 
         tmpfs = [
@@ -532,7 +532,7 @@ in
         restart = "always";
 
         environmentFiles = [
-          config.sops.secrets."docker/sdrhub/sdrmap.env".path
+          config.sops.secrets."docker/adsbhub/sdrmap.env".path
         ];
       }
 
@@ -551,7 +551,7 @@ in
         ];
 
         environmentFiles = [
-          config.sops.secrets."docker/sdrhub/acarshub.env".path
+          config.sops.secrets."docker/adsbhub/acarshub.env".path
         ];
 
         volumes = [
@@ -580,7 +580,7 @@ in
         ];
 
         environmentFiles = [
-          config.sops.secrets."docker/sdrhub/acarshub.env".path
+          config.sops.secrets."docker/adsbhub/acarshub.env".path
         ];
 
         volumes = [
@@ -630,7 +630,7 @@ in
         logFilterPatterns = [ "~'[^']*': \\{'airframes'" ];
 
         environmentFiles = [
-          config.sops.secrets."docker/sdrhub/acars2pos.env".path
+          config.sops.secrets."docker/adsbhub/acars2pos.env".path
         ];
 
         tmpfs = [
@@ -665,7 +665,7 @@ in
         ];
 
         environmentFiles = [
-          config.sops.secrets."docker/sdrhub/acars_router.env".path
+          config.sops.secrets."docker/adsbhub/acars_router.env".path
         ];
 
         tmpfs = [
@@ -755,42 +755,41 @@ in
     deps = [ ];
   };
 
-  # The docker/sdrhub/* names are sdrhub's; renaming them is 5.9.
   sops.secrets = {
-    "docker/sdrhub/airspy_adsb.env" = mkContainerSecret "airspy_adsb";
+    "docker/adsbhub/airspy_adsb.env" = mkContainerSecret "airspy_adsb";
 
-    "docker/sdrhub/tar1090_airspy.env" = mkContainerSecret "tar1090_airspy";
+    "docker/adsbhub/tar1090_airspy.env" = mkContainerSecret "tar1090_airspy";
 
-    "docker/sdrhub/tar1090_rtlsdr.env" = mkContainerSecret "tar1090_rtlsdr";
+    "docker/adsbhub/tar1090_rtlsdr.env" = mkContainerSecret "tar1090_rtlsdr";
 
-    "docker/sdrhub/ultrafeeder.env" = mkContainerSecret "ultrafeeder";
+    "docker/adsbhub/ultrafeeder.env" = mkContainerSecret "ultrafeeder";
 
-    "docker/sdrhub/dump978.env" = mkContainerSecret "dump978";
+    "docker/adsbhub/dump978.env" = mkContainerSecret "dump978";
 
-    "docker/sdrhub/adsbhub.env" = mkContainerSecret "adsbhub_feeder";
+    "docker/adsbhub/adsbhub_feeder.env" = mkContainerSecret "adsbhub_feeder";
 
-    "docker/sdrhub/fr24.env" = mkContainerSecret "fr24";
+    "docker/adsbhub/fr24.env" = mkContainerSecret "fr24";
 
-    "docker/sdrhub/piaware.env" = mkContainerSecret "piaware";
+    "docker/adsbhub/piaware.env" = mkContainerSecret "piaware";
 
-    "docker/sdrhub/planefinder.env" = mkContainerSecret "planefinder";
+    "docker/adsbhub/planefinder.env" = mkContainerSecret "planefinder";
 
-    "docker/sdrhub/planewatch.env" = mkContainerSecret "planewatch";
+    "docker/adsbhub/planewatch.env" = mkContainerSecret "planewatch";
 
-    "docker/sdrhub/radarvirtuel.env" = mkContainerSecret "radarvirtuel";
+    "docker/adsbhub/radarvirtuel.env" = mkContainerSecret "radarvirtuel";
 
-    "docker/sdrhub/rbfeeder.env" = mkContainerSecret "rbfeeder";
+    "docker/adsbhub/rbfeeder.env" = mkContainerSecret "rbfeeder";
 
-    "docker/sdrhub/opensky.env" = mkContainerSecret "opensky";
+    "docker/adsbhub/opensky.env" = mkContainerSecret "opensky";
 
-    "docker/sdrhub/sdrmap.env" = mkContainerSecret "sdrmap";
+    "docker/adsbhub/sdrmap.env" = mkContainerSecret "sdrmap";
 
-    "docker/sdrhub/acars_router.env" = mkContainerSecret "acars_router";
+    "docker/adsbhub/acars_router.env" = mkContainerSecret "acars_router";
 
-    "docker/sdrhub/acars2pos.env" = mkContainerSecret "acars2pos";
+    "docker/adsbhub/acars2pos.env" = mkContainerSecret "acars2pos";
 
     # Shared by both acarshub and acarshubv4; each must pick up the change.
-    "docker/sdrhub/acarshub.env" = mkContainerSecrets [
+    "docker/adsbhub/acarshub.env" = mkContainerSecrets [
       "acarshub"
       "acarshubv4"
     ];

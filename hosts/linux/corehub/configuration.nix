@@ -549,7 +549,7 @@ let
   #   1. The SyncClipboard password must be treated as exposed and rotated once
   #      every client uses the HTTPS name and the `clipboard` entry's `legacy`
   #      list is emptied. Rotating before then re-exposes the new password by the
-  #      same route. The value lives in the `docker/sdrhub/syncclipboard.env`
+  #      same route. The value lives in the `docker/corehub/syncclipboard.env`
   #      sops secret and in each client's config.
   #   2. Deleting the legacy clipboard vhost is the actual fix, and is
   #      deliberately not done here: the mobile SyncClipboard clients are
@@ -1053,7 +1053,7 @@ in
         restart = "always";
 
         environmentFiles = [
-          config.sops.secrets."docker/sdrhub/dozzle.env".path
+          config.sops.secrets."docker/corehub/dozzle.env".path
         ];
 
         ports = [
@@ -1112,7 +1112,7 @@ in
         # over that file when both are non-empty, which is why the password
         # never has to appear in the Nix store.
         environmentFiles = [
-          config.sops.secrets."docker/sdrhub/syncclipboard.env".path
+          config.sops.secrets."docker/corehub/syncclipboard.env".path
         ];
 
         # Loopback-only. The server speaks plain HTTP and carries a password,
@@ -1252,8 +1252,8 @@ in
   };
 
   sops.secrets = {
-    "docker/sdrhub/dozzle.env" = mkContainerSecret "dozzle";
-    "docker/sdrhub/syncclipboard.env" = mkContainerSecret "syncclipboard";
+    "docker/corehub/dozzle.env" = mkContainerSecret "dozzle";
+    "docker/corehub/syncclipboard.env" = mkContainerSecret "syncclipboard";
 
     # Deliberately NOT mkContainerSecret. Declared but unconsumed: the
     # dozzle-agent container takes no environmentFiles (its secret is
@@ -1261,7 +1261,7 @@ in
     # would name a container that does not read it, which is a claim the
     # config cannot honour. If dozzle-agent ever gains real env vars,
     # convert it then.
-    "docker/sdrhub/dozzle-agent.env" = {
+    "docker/corehub/dozzle-agent.env" = {
       format = "yaml";
     };
   };

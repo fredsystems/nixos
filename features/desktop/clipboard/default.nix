@@ -24,7 +24,7 @@ let
   # the two cannot drift apart. It is an env-format file:
   #   SYNCCLIPBOARD_USERNAME=...
   #   SYNCCLIPBOARD_PASSWORD=...
-  secretKey = "docker/sdrhub/syncclipboard.env";
+  secretKey = "docker/corehub/syncclipboard.env";
 
   configure = pkgs.writeShellApplication {
     name = "syncclipboard-configure";

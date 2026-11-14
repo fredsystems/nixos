@@ -51,13 +51,13 @@
 # USAGE
 #
 #   sops.secrets = {
-#     "docker/sdrhub/ultrafeeder.env" = mkContainerSecret "ultrafeeder";
+#     "docker/adsbhub/ultrafeeder.env" = mkContainerSecret "ultrafeeder";
 #
 #     # Several containers sharing one secret:
-#     "docker/sdrhub/shared.env" = mkContainerSecrets [ "a" "b" ];
+#     "docker/adsbhub/shared.env" = mkContainerSecrets [ "a" "b" ];
 #
 #     # With extra settings:
-#     "docker/sdrhub/other.env" = mkContainerSecret "other" // { mode = "0400"; };
+#     "docker/adsbhub/other.env" = mkContainerSecret "other" // { mode = "0400"; };
 #   };
 {
   # Secret consumed by a single container. The argument is the container's
