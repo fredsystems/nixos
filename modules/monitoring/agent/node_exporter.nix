@@ -346,25 +346,29 @@ in
             # the REST API: it is not subject to the 60/hour unauthenticated API
             # limit the whole fleet shares behind one NAT, which is why this unit
             # stopped calling api.github.com in the first place. Any failure falls
-            # back to the branch URL, which is merely up to five minutes stale.
-            URL="$MANIFEST_URL"
+            # back to the branch URL, which is merely up to five minutes stale:
+            # a failed ls-remote skips the pinned URL, and a failed or invalid
+            # pinned response falls through to the branch URL below.
+            URLS=("$MANIFEST_URL")
             HEAD_SHA=$(GIT_TERMINAL_PROMPT=0 HOME="$STATE_DIR" timeout 20 \
               $GIT ls-remote "$MANIFEST_REPO" refs/heads/fleet-manifest 2>/dev/null | cut -f1)
             if [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]; then
-              URL="https://raw.githubusercontent.com/fredsystems/nixos/$HEAD_SHA/manifest.json"
+              URLS=("https://raw.githubusercontent.com/fredsystems/nixos/$HEAD_SHA/manifest.json" "$MANIFEST_URL")
             fi
 
             FETCH_OK=0
             TMP="$CACHE.tmp"
-            if $CURL -sfL --max-time 30 -o "$TMP" "$URL" \
-              && $JQ -e '.schema == 1
-                          and (.generated_at | type == "number")
-                          and (.hosts | type == "object")' "$TMP" >/dev/null 2>&1; then
-              mv "$TMP" "$CACHE"
-              FETCH_OK=1
-            else
+            for URL in "''${URLS[@]}"; do
+              if $CURL -sfL --max-time 30 -o "$TMP" "$URL" \
+                && $JQ -e '.schema == 1
+                            and (.generated_at | type == "number")
+                            and (.hosts | type == "object")' "$TMP" >/dev/null 2>&1; then
+                mv "$TMP" "$CACHE"
+                FETCH_OK=1
+                break
+              fi
               rm -f "$TMP"
-            fi
+            done
 
             STATE="unknown"
             MANIFEST_BEHIND=0
@@ -635,33 +639,59 @@ in
       # /run/current-system never fires: inotify follows the symlink to its
       # target, which never changes (tested on adsbhub; no trigger).
       #
-      # WHY Type=simple AND A LOOP
+      # WHY A TRIGGER AND A SEPARATE WORKER
       #
       # The deploy usually lands before fleet-manifest.yaml has published the
       # manifest for it, so the first run reports `unknown` (the
       # MANIFEST_BEHIND case in nixos-deploy-state-metric). Retrying every
       # minute for up to 20 minutes turns that into `up_to_date` within about a
-      # minute of publication, instead of at the next 10-minute timer. Type=
-      # simple, because the target is ordered after every unit it wants: a
-      # oneshot that waited for the manifest would hold up the switch, and boot.
+      # minute of publication, instead of at the next 10-minute timer.
       #
-      # Deliberately NOT ordered after network-online.target, for the same
-      # reason; nixos-deploy-state-metric carries that ordering itself, and
-      # `systemctl start` here waits for it.
+      # That retry loop cannot itself be the unit the target wants. A
+      # long-running unit is still active at the next switch, and the target
+      # restart only starts units that are NOT active, so a second deploy inside
+      # the window would get no reboot-metric refresh and would inherit the
+      # first deploy's deadline. It cannot be a oneshot either: the target is
+      # ordered after every unit it wants, so a oneshot that waited for the
+      # manifest would hold up the switch, and boot.
       #
-      # The timers stay as the backstop: this is what makes the metrics
+      # So the unit the target wants is a oneshot that does nothing but
+      # restart, without blocking, the reboot metric and the retry worker. It is
+      # inactive again by the next switch, so every switch re-runs it, and a
+      # restart gives every switch a fresh sample and a fresh deadline.
+      #
+      # Restart rather than start, for the metric units too: `systemctl start`
+      # on a unit whose timer run is already in flight joins that run, which may
+      # have read /run/current-system before the switch moved it -- and if that
+      # stale sample was conclusive, it would clear manifest_behind and end the
+      # retries. Every output goes through a temporary file and `mv`, so a run
+      # cut short by the restart publishes nothing partial.
+      #
+      # Neither unit is ordered after network-online.target, for the same
+      # reason as the oneshot; nixos-deploy-state-metric carries that ordering
+      # itself, and the worker's `systemctl restart` waits for it.
+      #
+      # The timers stay as the backstop: these are what make the metrics
       # prompt, they are what make them guaranteed.
       nixos-deploy-metrics-refresh = {
         description = "Refresh NixOS deploy metrics after a switch or boot";
         wantedBy = [ "multi-user.target" ];
+        serviceConfig.Type = "oneshot";
+        path = [ config.systemd.package ];
+        script = ''
+          systemctl restart --no-block nixos-needs-reboot-metric.service || true
+          systemctl restart --no-block nixos-deploy-state-catchup.service || true
+        '';
+      };
+
+      nixos-deploy-state-catchup = {
+        description = "Re-evaluate NixOS deploy state until the fleet manifest catches up";
         serviceConfig.Type = "simple";
         path = [ config.systemd.package ];
         script = ''
-          systemctl start nixos-needs-reboot-metric.service || true
-
           deadline=$(( $(date +%s) + 1200 ))
           while :; do
-            systemctl start nixos-deploy-state-metric.service || true
+            systemctl restart nixos-deploy-state-metric.service || true
             [ -e /var/lib/nixos-deploy-state/manifest_behind ] || exit 0
             [ "$(date +%s)" -lt "$deadline" ] || exit 0
             sleep 60
