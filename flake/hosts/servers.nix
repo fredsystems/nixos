@@ -81,4 +81,19 @@
     targetHost = "192.168.31.179";
     tags = [ "nvr" ];
   };
+
+  # Plan 05: sdrhub's replacements. Both are installed with nixos-anywhere,
+  # hence diskConfig. targetHost is set to the literal LAN address at install
+  # (5.3), for the same reason as nvrhub.
+  adsbhub = {
+    stateVersion = "26.05";
+    diskConfig = ../../hosts/linux/adsbhub/disk-config.nix;
+    tags = [ "adsb" ];
+  };
+
+  corehub = {
+    stateVersion = "26.05";
+    diskConfig = ../../hosts/linux/corehub/disk-config.nix;
+    tags = [ "core" ];
+  };
 }
