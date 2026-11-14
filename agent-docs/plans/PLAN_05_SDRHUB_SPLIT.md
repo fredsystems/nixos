@@ -237,7 +237,17 @@ were on `main` before install.
       which would put a reboot in the middle of the cutover. corehub gets
       `adsbhub` and `corehub` entries in 5.6. Alert rule tests that use
       `sdrhub` as a synthetic label are left for 5.9.
-- [ ] **5.5 ADS-B cutover.** In order:
+- [x] **5.5 ADS-B cutover.** Done 2026-11-14 except step 7 (the NAS,
+      by hand). 18.3 GB of `/opt/adsb/data` and 9.8 GB of backups
+      copied; every container up with no restarts; ultrafeeder at 132
+      aircraft; acarshub carried its 3.72M-message history over and is
+      ingesting; every ACARS/HFDL/VDLM feed and the fredvps feeds
+      connected; all six adsbhub scrape targets up; `2026-11-baseline-b`
+      recording both receivers; every server verified running the
+      branch's toplevel. hfdlhub2's hfdlobserver needed a manual
+      `systemctl restart docker-hfdlobserver`: its `settings.yaml` is
+      copied by an activation script, and nothing restarts the container
+      when the file changes. In order:
       1. Deploy sdrhub. That removes the moved units, so its containers
          and the beast-compare recorder stop: the feeder keys and MLAT
          identity never run twice, and the WAL-mode acarshub databases
@@ -247,13 +257,16 @@ were on `main` before install.
          directories are root-owned):
 
          ```sh
-         sudo --preserve-env=SSH_AUTH_SOCK rsync -aHAX --numeric-ids \
-           --rsync-path="sudo rsync" \
+         sudo rsync -aHAX --numeric-ids --rsync-path="sudo rsync" \
+           -e "sudo -u fred env SSH_AUTH_SOCK=$SSH_AUTH_SOCK ssh" \
            fred@192.168.31.20:/opt/adsb/data/ /opt/adsb/data/
          ```
 
          and the same for `/opt/adsb/backups/`, run on adsbhub from an
-         `ssh -A` session.
+         `ssh -A` session. rsync runs as root but its SSH transport as
+         `fred`: the forwarded agent is gpg-agent, which refuses root
+         (`agent refused operation`), and sudoers drops
+         `--preserve-env`. 5.7's copy to corehub has the same shape.
       3. Move the SDRs (a powered USB hub may be needed for the Airspy,
          two RTL-SDRs and the LNA), swapping the Airspy and Pro Stick
          Plus splitter ports while they are unplugged: Airspy to port 1,
