@@ -13,7 +13,7 @@
 #
 # Alloy is deliberately a dumb shipper: it extracts no metrics and exposes
 # nothing for Prometheus to scrape.  Log-derived alerting is evaluated
-# centrally by the Loki ruler on sdrhub
+# centrally by the Loki ruler on corehub
 # (modules/monitoring/master/loki-ruler.nix), so that tuning a pattern is a
 # one-host deploy rather than a fleet-wide one.
 #

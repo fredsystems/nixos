@@ -1,6 +1,6 @@
 groups:
   # Alerts on the state of CI across the sdr-enthusiasts and fredsystems
-  # organisations, sourced from github-ci-exporter on sdrhub.
+  # organisations, sourced from github-ci-exporter on corehub.
   #
   # SCOPE
   #
@@ -176,7 +176,7 @@ groups:
           severity: critical
         annotations:
           summary: "github-ci-exporter is not responding"
-          description: "Prometheus cannot scrape the GitHub CI exporter on sdrhub. All CI visibility is blind."
+          description: "Prometheus cannot scrape the GitHub CI exporter on {{ $labels.hostname }}. All CI visibility is blind."
 
       # The exporter serves metrics even when collection fails, so `up` alone
       # is not sufficient: a broken token or a GitHub outage leaves the

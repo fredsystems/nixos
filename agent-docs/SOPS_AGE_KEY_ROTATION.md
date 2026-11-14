@@ -9,8 +9,8 @@ removed recipient able to decrypt long after you believe they cannot.
 
 ## Read this first
 
-`modules/secrets/.sops.yaml` declares 12 age recipients as YAML anchors
-under `keys:` and wires all 12 into a single `creation_rules` entry for
+`modules/secrets/.sops.yaml` declares 13 age recipients as YAML anchors
+under `keys:` and wires all 13 into a single `creation_rules` entry for
 `secrets.yaml$`. Every host that needs any secret from this file must be
 in that list -- there is no per-secret recipient scoping, only
 per-file.
@@ -269,7 +269,7 @@ echo "$hosts"
 
    ```sh
    fail=0
-   for host in maranello Daytona acarshub hfdlhub1 hfdlhub2 sdrhub \
+   for host in maranello Daytona acarshub hfdlhub1 hfdlhub2 adsbhub corehub \
      vdlmhub fredhub nvrhub; do
      echo "== $host =="
      if ! ssh fred@"$host" '

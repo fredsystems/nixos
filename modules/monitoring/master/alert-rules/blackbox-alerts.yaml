@@ -13,7 +13,7 @@
 #                                      answer 2xx, sharing a cert with a primary
 #   blackbox-https-redirect-secondary  www aliases that must answer 3xx,
 #                                      sharing a cert with a primary
-#   blackbox-https-internal-secondary  LAN-only nginx vhosts on sdrhub, all
+#   blackbox-https-internal-secondary  LAN-only nginx vhosts on corehub, all
 #                                      sharing the int.fredsystems.org wildcard
 #   blackbox-https-internal-authed     the LAN vhost that answers 401
 #                                      unauthenticated, on that same wildcard
@@ -28,7 +28,7 @@
 #   blackbox-dns-rewrite               a local rewrite via AdGuard on :53
 #
 # blackbox-https-internal-authed is the only non-`-secondary` probe of
-# sdrhub's own wildcard, so the TLS rules below are what watches its renewal.
+# corehub's own wildcard, so the TLS rules below are what watches its renewal.
 # The internal certificate is not a special case; it is just another
 # one-target-per-certificate job.
 #
@@ -57,13 +57,13 @@
 #
 # The absence of `hostname` also means Alertmanager's NodeDown inhibit rule
 # (`equal: [hostname]`) never suppresses these. That is correct: a probe of
-# fredvps from sdrhub is not a consequence of any node being down.
+# fredvps from corehub is not a consequence of any node being down.
 #
 # EXPECTED "MISSING METRIC" REPORT
 #
 # scripts/check-alert-metrics.sh will report probe_success,
 # probe_ssl_earliest_cert_expiry and probe_duration_seconds as MISSING until
-# this configuration is actually deployed to sdrhub and the exporter has been
+# this configuration is actually deployed to corehub and the exporter has been
 # scraped at least once. That is expected and not a defect -- the script only
 # knows what Prometheus has series for, and it explains this in its own header.
 # Re-run it after deploying; the metrics must resolve then.
@@ -143,7 +143,7 @@ groups:
   - name: blackbox-dns
     rules:
       - alert: DnsResolutionFailing
-        # 2m, not the 5m used for HTTP endpoints. sdrhub is the LAN's only
+        # 2m, not the 5m used for HTTP endpoints. corehub is the LAN's only
         # resolver, so this is not one service being unreachable -- it is every
         # device on the network losing the ability to reach anything by name.
         # Two consecutive failed probes at a 60s interval.

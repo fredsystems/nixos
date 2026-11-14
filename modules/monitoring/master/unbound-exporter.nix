@@ -4,7 +4,7 @@
 #
 # WHY
 #
-# sdrhub is the LAN's only DNS server, and until now nothing collected a single
+# corehub is the LAN's only DNS server, and until now nothing collected a single
 # metric about it. Two total external-DNS outages -- 8 minutes on 2026-08-15,
 # 29 minutes on 2026-08-16 -- produced no data at all. The first went entirely
 # unnoticed. The second was diagnosed by reading journals for an hour, and the
@@ -20,7 +20,7 @@
 # WHAT IT NEEDS FROM UNBOUND
 #
 # `extended-statistics` and `statistics-cumulative`, both set in
-# hosts/linux/sdrhub/configuration.nix. Neither is on by default and the
+# hosts/linux/corehub/configuration.nix. Neither is on by default and the
 # exporter is close to worthless without them: no rcode counters at all without
 # the first, and counters that reset on every read -- including a human's
 # `unbound-control stats` -- without the second. The assertion below turns
@@ -122,7 +122,7 @@ in
           {
             targets = [ "${exporterHost}:${toString exporterPort}" ];
             labels = {
-              hostname = "sdrhub";
+              hostname = config.networking.hostName;
               role = "master";
               exporter = "unbound";
             };
@@ -133,7 +133,7 @@ in
   };
 
   # The exporter is useless if unbound is not actually running here. This module
-  # is only imported by the monitoring-master role, which today is sdrhub alone
+  # is only imported by the monitoring-master role, which today is corehub alone
   # and does run unbound -- but the coupling is implicit, so state it.
   warnings = lib.optional (!config.services.unbound.enable) ''
     modules/monitoring/master/unbound-exporter.nix is imported on a host where

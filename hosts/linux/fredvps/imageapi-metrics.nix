@@ -2,7 +2,7 @@
 #
 # WHY THIS IS NOT A BLACKBOX PROBE
 #
-# The blackbox exporter on sdrhub already probes
+# The blackbox exporter on corehub already probes
 # https://fredclausen.com/imageapi/api/v1/last-updated and asserts it answers
 # 2xx, which covers the whole public path: TLS, nginx, the proxy prefix strip,
 # Express, and the database read behind that route. What it cannot do is look at

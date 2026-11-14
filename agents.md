@@ -10,7 +10,7 @@ map; the skills give you the moves.
 
 ## Repository overview
 
-This is a NixOS flake managing **10 Linux hosts** (8 servers + 2 desktops)
+This is a NixOS flake managing **11 Linux hosts** (9 servers + 2 desktops)
 and at least one macOS (nix-darwin) host. The infrastructure is heavily
 aviation / SDR-focused -- most servers run containerised ADS-B, VDL-M,
 and HFDL decoders.
@@ -36,6 +36,8 @@ and HFDL decoders.
 ├── hosts/
 │   └── linux/             # Per-machine NixOS configurations
 │       ├── acarshub/
+│       ├── adsbhub/
+│       ├── corehub/
 │       ├── daytona/       # Desktop
 │       ├── fredhub/       # Server (but uses one nixpkgs-unstable package)
 │       ├── fredvps/
@@ -43,7 +45,6 @@ and HFDL decoders.
 │       ├── hfdlhub2/
 │       ├── maranello/     # Desktop
 │       ├── nvrhub/
-│       ├── sdrhub/
 │       └── vdlmhub/
 ├── modules/               # Shared NixOS modules (hardware, services, data)
 ├── profiles/              # System profiles (desktop, adsb-hub, …)
@@ -99,8 +100,9 @@ and HFDL decoders.
 | fredhub   | Server  | Stable channel but pulls one unstable pkg |
 | fredvps   | Server  | VPS, custom SSH port, extra user (nik)    |
 | acarshub  | Server  | ADS-B decoder hub                         |
+| adsbhub   | Server  | ADS-B / ACARS decoder hub (SDRs)          |
+| corehub   | Server  | LAN DNS, nginx, monitoring master         |
 | vdlmhub   | Server  | VDL Mode 2 decoder hub                    |
-| sdrhub    | Server  | SDR receiver hub                          |
 | hfdlhub1  | Server  | HFDL decoder                              |
 | hfdlhub2  | Server  | HFDL decoder                              |
 | nvrhub    | Server  | NVR host, stateVersion 26.05              |

@@ -169,7 +169,7 @@ let
     sopsNixInput.nixosModules.sops
     # Fleet-wide facts about the home network. Declares options only, so being
     # in every host's module set costs nothing; the two hosts that read it
-    # (fredvps's ignoreIP, sdrhub's drift check) must agree on one value, and
+    # (fredvps's ignoreIP, corehub's drift check) must agree on one value, and
     # this is where that value lives.
     ./../../modules/data/home-network.nix
     ./../../hosts/linux/${hostName}/configuration.nix

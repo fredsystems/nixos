@@ -48,11 +48,6 @@
     tags = [ "vps" ];
   };
 
-  sdrhub = {
-    stateVersion = "24.11";
-    tags = [ "sdr" ];
-  };
-
   acarshub = {
     stateVersion = "24.11";
     tags = [ "adsb" ];
@@ -95,8 +90,9 @@
   corehub = {
     stateVersion = "26.05";
     diskConfig = ../../hosts/linux/corehub/disk-config.nix;
-    # Temporary address until the 5.7 cutover hands it 192.168.31.20.
-    targetHost = "192.168.31.133";
+    # sdrhub's old address, taken over at the 5.7 cutover; every LAN host's
+    # DNS, Loki and Prometheus remote-write point at it.
+    targetHost = "192.168.31.20";
     tags = [ "core" ];
   };
 }

@@ -5,7 +5,7 @@
 #
 # WHY THIS EXISTS
 #
-# hosts/linux/sdrhub/html/index.html is the LCARS landing page, and it is
+# hosts/linux/corehub/html/index.html is the LCARS landing page, and it is
 # deliberately written in ES5. Its own comments say so twice: the page's
 # job is to be usable during a DNS/AdGuard outage, on whatever browser is
 # to hand, and a SYNTAX error is uniquely bad there because it takes out

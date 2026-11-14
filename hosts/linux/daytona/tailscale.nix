@@ -8,13 +8,13 @@
 # falling back, and with direnv loading a flake on every `cd` that is constantly.
 # `connect-timeout = 5` bounds the stall; this makes the cache actually reachable.
 #
-# sdrhub already advertises 192.168.31.0/24 to the tailnet and fredvps already
+# corehub already advertises 192.168.31.0/24 to the tailnet and fredvps already
 # consumes it -- see the comment on `extraUpFlags` in
 # hosts/linux/fredvps/configuration.nix, which cites the same motivation. This is
 # that arrangement applied to the laptop.
 #
 # Everything here is deliberately scoped to this host rather than added to
-# modules/services/tailscale, so enabling it cannot alter sdrhub's or fredvps'
+# modules/services/tailscale, so enabling it cannot alter corehub's or fredvps'
 # closures.
 {
   config,
@@ -23,7 +23,7 @@
   ...
 }:
 let
-  # The LAN sdrhub advertises. Kept as a prefix string because the check below is
+  # The LAN corehub advertises. Kept as a prefix string because the check below is
   # a substring match against `ip addr` output, not a CIDR computation.
   homeSubnetPrefix = "192.168.31.";
 

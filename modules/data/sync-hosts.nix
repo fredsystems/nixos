@@ -5,14 +5,6 @@
     type = lib.types.listOf lib.types.attrs;
     default = [
       {
-        name = "sdrhub";
-        ip = "192.168.31.20";
-        directory = "sdrhub";
-        remotePath = "/opt/adsb";
-        port = "22";
-        legacyScp = false;
-      }
-      {
         name = "hfdlhub-1";
         ip = "192.168.31.19";
         directory = "hfdlhub-1";

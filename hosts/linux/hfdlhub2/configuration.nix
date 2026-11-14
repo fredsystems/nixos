@@ -20,6 +20,13 @@ in
 
   networking.hostName = "hfdlhub2";
 
+  # The activation script below copies settings.yaml into /opt/adsb, where
+  # the container reads it once at start, so nothing restarted the container
+  # when the file changed: a deploy updated the file and left hfdlobserver
+  # running the old settings (Plan 05 cleanup 5.11). Tying the unit to the
+  # file's store path restarts it exactly when the settings change.
+  systemd.services.docker-hfdlobserver.restartTriggers = [ hfdlObserver ];
+
   sops.secrets = {
     "docker/hfdlhub2.env" = mkContainerSecrets [
       "dozzle-agent"

@@ -26,9 +26,10 @@
 # `readonly = true`.
 #
 # The listen port is read back by the nginx vhost in
-# hosts/linux/sdrhub/configuration.nix via
+# hosts/linux/corehub/configuration.nix via
 # config.services.karma.settings.listen.port, so the proxy target cannot drift
 # out of sync with the service.
+{ config, ... }:
 {
   services.karma = {
     enable = true;
@@ -37,8 +38,9 @@
       listen = {
         address = "127.0.0.1";
         # Upstream default is 8080, which ultrafeeder already publishes here.
-        # 8090 is unused: sdrhub's containers occupy 8080-8087, and nothing
-        # else in the repo references it.
+        # 8090 is unused: nothing else in the repo references it. (It was
+        # chosen beside sdrhub's 8080-8087 containers, which now live on
+        # adsbhub, so it stays clear of them if they are ever co-located again.)
         port = 8090;
       };
 
@@ -49,7 +51,7 @@
 
         servers = [
           {
-            name = "sdrhub";
+            name = config.networking.hostName;
             uri = "http://127.0.0.1:9093";
             timeout = "10s";
             # Required for silences to work at all. Without proxy mode Karma

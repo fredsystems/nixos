@@ -54,7 +54,7 @@ tests:
               description: "Blackbox job blackbox-https has been unable to get a valid response from https://acarshub.app/ for 5 minutes."
 
   # The internal job must be covered too: this is the only check that exercises
-  # the nginx reverse-proxy layer on sdrhub.
+  # the nginx reverse-proxy layer on corehub.
   - interval: 1m
     name: BlackboxProbeFailed fires for an internal LAN vhost
     input_series:

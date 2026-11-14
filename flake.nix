@@ -212,7 +212,7 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # Only sdrhub runs this (monitoring master), and sdrhub is a server, so a
+    # Only corehub runs this (monitoring master), and corehub is a server, so a
     # bump rebuilds the server set rather than the desktops.
     github-ci-exporter = {
       url = "github:FredSystems/github-ci-exporter";
@@ -221,8 +221,8 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # ADS-B receiver comparison recorder (plan 02). Only sdrhub runs it, and
-    # sdrhub is a stable-channel server, so it follows nixpkgs-stable.
+    # ADS-B receiver comparison recorder (plan 02). Only adsbhub runs it, and
+    # adsbhub is a stable-channel server, so it follows nixpkgs-stable.
     beast-compare = {
       url = "github:fredsystems/beast-compare";
       #path on disk

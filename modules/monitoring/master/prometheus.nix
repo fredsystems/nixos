@@ -51,7 +51,7 @@ in
     "pushover/user_key" = { };
 
     # htpasswd file gating the prometheus.int.fredsystems.org vhost declared in
-    # hosts/linux/sdrhub/configuration.nix.
+    # hosts/linux/corehub/configuration.nix.
     #
     # Prometheus has no authentication of its own, and `--web.enable-admin-api`
     # below means anything that can reach it can also delete the TSDB via
@@ -232,7 +232,7 @@ in
       # discord-backup.nix and the audit's item 3.4).
       #
       # The offsets also give them a deliberate order: prune first to free
-      # space, then snapshot into it. That matters on sdrhub, whose NVMe is at
+      # space, then snapshot into it. That matters on corehub, whose NVMe is at
       # 54% of rated write endurance (alert-rules/smart-alerts.yaml:9-17).
       prunePrometheusSnapshots = {
         description = "Daily prune of Prometheus snapshots older than 30 days";
@@ -356,6 +356,10 @@ in
       ];
 
       scrapeConfigs = [
+        # The ultrafeeder, dump978 and acarshub jobs scrape adsbhub, where the
+        # SDRs and their containers live (Plan 05). Series from before the move
+        # keep hostname="sdrhub" until they age out of retention.
+        #
         # Ultrafeeder serves metrics on :9274 only. Docker also publishes 9273,
         # but nothing inside the container listens on it, so docker-proxy
         # accepts the connection and immediately resets it -- it was a
@@ -365,11 +369,11 @@ in
           static_configs = [
             {
               targets = [
-                "sdrhub.local:9274"
+                "${agentScrapeMap.adsbhub}:9274"
               ];
               labels = {
-                hostname = "sdrhub";
-                role = "master";
+                hostname = "adsbhub";
+                role = "agent";
               };
             }
           ];
@@ -384,11 +388,11 @@ in
           static_configs = [
             {
               targets = [
-                "sdrhub.local:9275"
+                "${agentScrapeMap.adsbhub}:9275"
               ];
               labels = {
-                hostname = "sdrhub";
-                role = "master";
+                hostname = "adsbhub";
+                role = "agent";
               };
             }
           ];
@@ -423,11 +427,11 @@ in
           static_configs = [
             {
               targets = [
-                "sdrhub.local:8085"
+                "${agentScrapeMap.adsbhub}:8085"
               ];
               labels = {
-                hostname = "sdrhub";
-                role = "master";
+                hostname = "adsbhub";
+                role = "agent";
               };
             }
           ];
@@ -484,9 +488,9 @@ in
             }) desktopHosts)
             ++ [
               {
-                targets = [ "sdrhub.local:9100" ];
+                targets = [ "${config.networking.hostName}.local:9100" ];
                 labels = {
-                  hostname = "sdrhub";
+                  hostname = config.networking.hostName;
                   role = "master";
                   exporter = "node";
                 };
@@ -507,9 +511,9 @@ in
             }) agentHosts)
             ++ [
               {
-                targets = [ "sdrhub.local:4567" ];
+                targets = [ "${config.networking.hostName}.local:4567" ];
                 labels = {
-                  hostname = "sdrhub";
+                  hostname = config.networking.hostName;
                   role = "master";
                   exporter = "cadvisor";
                 };
@@ -540,7 +544,7 @@ in
             {
               targets = [ "127.0.0.1:9090" ];
               labels = {
-                hostname = "sdrhub";
+                hostname = config.networking.hostName;
                 role = "master";
               };
             }
@@ -556,7 +560,7 @@ in
             {
               targets = [ "127.0.0.1:9093" ];
               labels = {
-                hostname = "sdrhub";
+                hostname = config.networking.hostName;
                 role = "master";
               };
             }
@@ -569,7 +573,7 @@ in
             {
               targets = [ "127.0.0.1:5678" ];
               labels = {
-                hostname = "sdrhub";
+                hostname = config.networking.hostName;
                 role = "master";
               };
             }
@@ -582,7 +586,7 @@ in
             {
               targets = [ "127.0.0.1:3333" ];
               labels = {
-                hostname = "sdrhub";
+                hostname = config.networking.hostName;
                 role = "master";
               };
             }
@@ -601,7 +605,7 @@ in
             {
               targets = [ "127.0.0.1:9418" ];
               labels = {
-                hostname = "sdrhub";
+                hostname = config.networking.hostName;
                 role = "master";
               };
             }
@@ -613,7 +617,7 @@ in
           # honor_labels keeps whatever labels the pusher supplied. Deliberately
           # NO static hostname/role here: with honor_labels those are only a
           # fallback, so a series pushed from another machine that omitted
-          # hostname would silently inherit hostname="sdrhub", role="master" and
+          # hostname would silently inherit hostname="corehub", role="master" and
           # be attributed to the wrong host. A missing hostname is easier to
           # notice than a wrong one.
           #

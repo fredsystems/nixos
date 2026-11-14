@@ -27,7 +27,7 @@ tests:
   - interval: 5m
     name: GitHubCIFailingDefaultBranch fires on a failed default-branch run
     input_series:
-      - series: 'github_workflow_run_status{org="fredsystems", repo="frext", workflow="CI", event="push", conclusion="failure", job="github-ci", hostname="sdrhub", role="master"}'
+      - series: 'github_workflow_run_status{org="fredsystems", repo="frext", workflow="CI", event="push", conclusion="failure", job="github-ci", hostname="corehub", role="master"}'
         values: "1+0x20"
     alert_rule_test:
       - eval_time: 30m
@@ -502,7 +502,7 @@ tests:
   - interval: 5m
     name: GitHubExporterDown fires when the scrape fails
     input_series:
-      - series: 'up{job="github-ci", instance="127.0.0.1:9418", hostname="sdrhub", role="master"}'
+      - series: 'up{job="github-ci", instance="127.0.0.1:9418", hostname="corehub", role="master"}'
         values: "0+0x20"
     alert_rule_test:
       - eval_time: 20m
@@ -512,11 +512,11 @@ tests:
               severity: critical
               job: github-ci
               instance: 127.0.0.1:9418
-              hostname: sdrhub
+              hostname: corehub
               role: master
             exp_annotations:
               summary: "github-ci-exporter is not responding"
-              description: "Prometheus cannot scrape the GitHub CI exporter on sdrhub. All CI visibility is blind."
+              description: "Prometheus cannot scrape the GitHub CI exporter on corehub. All CI visibility is blind."
 
   # The exporter serves metrics even while collection fails, so `up` stays 1
   # and only scrape_success reveals the problem.

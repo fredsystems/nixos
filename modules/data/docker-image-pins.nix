@@ -41,14 +41,14 @@
   # them cleanly. Enforced by scripts/check-docker-pin-spacing.sh (pre-commit
   # hook + `checks.docker-pin-spacing`); do not collapse the spacing.
   #
-  # `acars2posAlt` is pinned here even though sdrhub's container block that
+  # `acars2posAlt` is pinned here even though adsbhub's container block that
   # would use it is currently commented out (alternate configuration) --
   # kept so Renovate still tracks it and the pin is ready if re-enabled.
   options.shared.dockerImages = lib.mkOption {
     type = lib.types.attrsOf lib.types.str;
     default = {
       # Shared by every host that imports profiles/adsb-hub.nix or
-      # modules/services/adsb-docker-units.nix directly (sdrhub), via
+      # modules/services/adsb-docker-units.nix directly (adsbhub), via
       # modules/services/mk-dozzle-agent.nix.
       dozzle = "amir20/dozzle:v11.4.3@sha256:244f218c876d6ed766277e71a537f34bfb2c01829e1927737e3673a8327deeb8";
 
@@ -62,7 +62,7 @@
 
       tar1090 = "ghcr.io/sdr-enthusiasts/docker-tar1090:telegraf-build-1507@sha256:55d0671d838e0a8a3ff4350639264ae1dbbe8731e058e0b5a2849461a22fc6d7";
 
-      # Shared verbatim: sdrhub + fredvps.
+      # Shared verbatim: adsbhub + fredvps.
       acarsRouter = "ghcr.io/sdr-enthusiasts/acars_router:latest-build-601@sha256:1be30953c8c94f4b1ba8724a722fe54d2595605b9b5a525263f2d1d214527b75";
 
       acarshub = "ghcr.io/sdr-enthusiasts/docker-acarshub:latest-build-1524@sha256:75ac513898aa0e8a3344c22659af10effdb79718cc47bb7b95129d747147347a";
@@ -73,7 +73,7 @@
       # hfdlhub2 host
       hfdlobserver = "ghcr.io/sdr-enthusiasts/docker-hfdlobserver:latest-build-40@sha256:3ca292faecb0bdce797ed4d114c25f770b3f8a905a46b5dbb3ab49de35727539";
 
-      # sdrhub host
+      # adsbhub host
       airspyAdsb = "ghcr.io/sdr-enthusiasts/airspy_adsb:latest-build-328@sha256:a5886ef2e60ac0c81072e3f831dca4d97ab92da6e42c1bbeb95fe73be920e030";
 
       adsbUltrafeeder = "ghcr.io/sdr-enthusiasts/docker-adsb-ultrafeeder:telegraf-build-990@sha256:19d57ba6bddf4454cae17abfd74d2a24964432d20b15822dee3d29c60ab0eacf";

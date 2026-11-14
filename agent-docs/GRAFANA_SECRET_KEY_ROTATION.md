@@ -1,6 +1,6 @@
 # Grafana secret_key rotation
 
-Runbook for rotating Grafana's `security.secret_key` on sdrhub, the only
+Runbook for rotating Grafana's `security.secret_key` on corehub, the only
 host running Grafana in this fleet.
 
 ## Read this first
@@ -51,11 +51,11 @@ the new key, or it has not.
    #   grafana_secret_key: <paste>
    ```
 
-3. Deploy sdrhub. This is the moment every existing session is
+3. Deploy corehub. This is the moment every existing session is
    invalidated and the `data_keys` rows above go stale:
 
    ```sh
-   colmena apply --on sdrhub
+   colmena apply --on corehub
    ```
 
 4. Confirm Grafana actually restarted, the same way Procedure B in
@@ -64,7 +64,7 @@ the new key, or it has not.
    failure mode that runbook exists to catch:
 
    ```sh
-   ssh sdrhub 'systemctl show grafana -p ActiveEnterTimestamp'
+   ssh corehub 'systemctl show grafana -p ActiveEnterTimestamp'
    ```
 
    The timestamp must be from this deploy. If it predates the deploy,
@@ -120,7 +120,7 @@ Then check the journal once for the expected, harmless `data_keys`
 decryption errors and confirm nothing else is logged as failing:
 
 ```sh
-ssh sdrhub 'journalctl -u grafana --since "10 minutes ago" | grep -i error'
+ssh corehub 'journalctl -u grafana --since "10 minutes ago" | grep -i error'
 ```
 
 Expect only decryption failures naming the stale `data_keys` rows.

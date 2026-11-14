@@ -29,7 +29,7 @@ tests:
   - interval: 1m
     name: PrometheusTargetDown fires when a target is down
     input_series:
-      - series: 'up{job="ultrafeeder", instance="sdrhub.local:9274", role="master"}'
+      - series: 'up{job="ultrafeeder", instance="adsbhub.local:9274", role="master"}'
         values: "0+0x10"
     alert_rule_test:
       - eval_time: 5m
@@ -38,15 +38,15 @@ tests:
           - exp_labels:
               severity: critical
               job: ultrafeeder
-              instance: sdrhub.local:9274
+              instance: adsbhub.local:9274
             exp_annotations:
               summary: "Targets for ultrafeeder are DOWN"
-              description: "Prometheus cannot scrape sdrhub.local:9274 for >2 minutes."
+              description: "Prometheus cannot scrape adsbhub.local:9274 for >2 minutes."
 
   - interval: 1m
     name: PrometheusTargetDown stays silent when targets are up
     input_series:
-      - series: 'up{job="ultrafeeder", instance="sdrhub.local:9274", role="master"}'
+      - series: 'up{job="ultrafeeder", instance="adsbhub.local:9274", role="master"}'
         values: "1+0x10"
     alert_rule_test:
       - eval_time: 5m
@@ -69,9 +69,9 @@ tests:
   - interval: 1m
     name: ContainerUnhealthy ignores containers with no healthcheck
     input_series:
-      - series: 'container_health_state{name="acars_router", hostname="sdrhub"}'
+      - series: 'container_health_state{name="acars_router", hostname="adsbhub"}'
         values: "-1+0x20"
-      - series: 'container_start_time_seconds{name="acars_router", hostname="sdrhub"}'
+      - series: 'container_start_time_seconds{name="acars_router", hostname="adsbhub"}'
         values: "0+0x20"
     alert_rule_test:
       - eval_time: 15m
@@ -83,9 +83,9 @@ tests:
   - interval: 5m
     name: ContainerUnhealthy fires on a genuinely unhealthy container
     input_series:
-      - series: 'container_health_state{name="ultrafeeder", hostname="sdrhub"}'
+      - series: 'container_health_state{name="ultrafeeder", hostname="adsbhub"}'
         values: "0+0x60"
-      - series: 'container_start_time_seconds{name="ultrafeeder", hostname="sdrhub"}'
+      - series: 'container_start_time_seconds{name="ultrafeeder", hostname="adsbhub"}'
         values: "0+0x60"
     alert_rule_test:
       - eval_time: 3h
@@ -94,17 +94,17 @@ tests:
           - exp_labels:
               severity: warning
               name: ultrafeeder
-              hostname: sdrhub
+              hostname: adsbhub
             exp_annotations:
-              summary: "Container ultrafeeder on sdrhub reports unhealthy"
+              summary: "Container ultrafeeder on adsbhub reports unhealthy"
               description: "The container's own HEALTHCHECK has been failing for 10 minutes, and it started long enough ago that this is not its start_period."
 
   - interval: 5m
     name: ContainerUnhealthy stays silent on a healthy container
     input_series:
-      - series: 'container_health_state{name="ultrafeeder", hostname="sdrhub"}'
+      - series: 'container_health_state{name="ultrafeeder", hostname="adsbhub"}'
         values: "1+0x60"
-      - series: 'container_start_time_seconds{name="ultrafeeder", hostname="sdrhub"}'
+      - series: 'container_start_time_seconds{name="ultrafeeder", hostname="adsbhub"}'
         values: "0+0x60"
     alert_rule_test:
       - eval_time: 3h
@@ -121,9 +121,9 @@ tests:
   - interval: 5m
     name: ContainerUnhealthy ignores a container still inside its start_period
     input_series:
-      - series: 'container_health_state{name="piaware", hostname="sdrhub"}'
+      - series: 'container_health_state{name="piaware", hostname="adsbhub"}'
         values: "0+0x30"
-      - series: 'container_start_time_seconds{name="piaware", hostname="sdrhub"}'
+      - series: 'container_start_time_seconds{name="piaware", hostname="adsbhub"}'
         values: "0+0x30"
     alert_rule_test:
       - eval_time: 1h
@@ -137,14 +137,14 @@ tests:
   - interval: 5m
     name: ContainerUnhealthy start-gate discriminates between containers
     input_series:
-      - series: 'container_health_state{name="oldbroken", hostname="sdrhub"}'
+      - series: 'container_health_state{name="oldbroken", hostname="adsbhub"}'
         values: "0+0x60"
-      - series: 'container_start_time_seconds{name="oldbroken", hostname="sdrhub"}'
+      - series: 'container_start_time_seconds{name="oldbroken", hostname="adsbhub"}'
         values: "0+0x60"
-      - series: 'container_health_state{name="newstarting", hostname="sdrhub"}'
+      - series: 'container_health_state{name="newstarting", hostname="adsbhub"}'
         values: "0+0x60"
       # Started at t=10500s, so at eval 3h it is still inside the 2h30m gate.
-      - series: 'container_start_time_seconds{name="newstarting", hostname="sdrhub"}'
+      - series: 'container_start_time_seconds{name="newstarting", hostname="adsbhub"}'
         values: "10500+0x60"
     alert_rule_test:
       - eval_time: 3h
@@ -153,16 +153,16 @@ tests:
           - exp_labels:
               severity: warning
               name: oldbroken
-              hostname: sdrhub
+              hostname: adsbhub
             exp_annotations:
-              summary: "Container oldbroken on sdrhub reports unhealthy"
+              summary: "Container oldbroken on adsbhub reports unhealthy"
               description: "The container's own HEALTHCHECK has been failing for 10 minutes, and it started long enough ago that this is not its start_period."
 
   # These selected readsb_stats_* names, which the exporter does not emit.
   - interval: 1m
     name: UltrafeederNotReceiving fires on zero valid messages
     input_series:
-      - series: 'readsb_messages_valid{job="ultrafeeder", hostname="sdrhub"}'
+      - series: 'readsb_messages_valid{job="ultrafeeder", hostname="adsbhub"}'
         values: "0+0x20"
     alert_rule_test:
       - eval_time: 18m
@@ -171,15 +171,15 @@ tests:
           - exp_labels:
               severity: critical
               job: ultrafeeder
-              hostname: sdrhub
+              hostname: adsbhub
             exp_annotations:
-              summary: "Ultrafeeder receiving no RF messages on sdrhub"
+              summary: "Ultrafeeder receiving no RF messages on adsbhub"
               description: "readsb has processed zero valid messages for 15 minutes. The SDR hardware is likely disconnected, crashed, or the decoder has stopped."
 
   - interval: 1m
     name: UltrafeederNoAircraft fires when nothing is tracked
     input_series:
-      - series: 'readsb_aircraft_with_position{job="ultrafeeder", hostname="sdrhub"}'
+      - series: 'readsb_aircraft_with_position{job="ultrafeeder", hostname="adsbhub"}'
         values: "0+0x40"
     alert_rule_test:
       - eval_time: 35m
@@ -188,17 +188,17 @@ tests:
           - exp_labels:
               severity: warning
               job: ultrafeeder
-              hostname: sdrhub
+              hostname: adsbhub
             exp_annotations:
-              summary: "Ultrafeeder tracking no aircraft on sdrhub"
+              summary: "Ultrafeeder tracking no aircraft on adsbhub"
               description: "No aircraft with position have been tracked for 30 minutes. Possible SDR hardware failure, antenna issue, or decoder problem."
 
   - interval: 1m
     name: Ultrafeeder alerts stay silent under normal traffic
     input_series:
-      - series: 'readsb_messages_valid{job="ultrafeeder", hostname="sdrhub"}'
+      - series: 'readsb_messages_valid{job="ultrafeeder", hostname="adsbhub"}'
         values: "9000+100x40"
-      - series: 'readsb_aircraft_with_position{job="ultrafeeder", hostname="sdrhub"}'
+      - series: 'readsb_aircraft_with_position{job="ultrafeeder", hostname="adsbhub"}'
         values: "220+1x40"
     alert_rule_test:
       - eval_time: 35m
@@ -229,7 +229,7 @@ tests:
   - interval: 1m
     name: DockerUnitFlapping stays silent for a stable unit
     input_series:
-      - series: 'node_systemd_service_restart_total{name="docker-ultrafeeder.service", hostname="sdrhub"}'
+      - series: 'node_systemd_service_restart_total{name="docker-ultrafeeder.service", hostname="adsbhub"}'
         values: "2+0x20"
     alert_rule_test:
       - eval_time: 16m
@@ -559,7 +559,7 @@ tests:
         values: "90000+0x200"
       - series: 'nixos_manifest_age_seconds{host="acarshub", hostname="acarshub", role="agent"}'
         values: "95000+0x200"
-      - series: 'nixos_manifest_age_seconds{host="sdrhub", hostname="sdrhub", role="master"}'
+      - series: 'nixos_manifest_age_seconds{host="adsbhub", hostname="adsbhub", role="master"}'
         values: "91000+0x200"
     alert_rule_test:
       - eval_time: 2h
@@ -622,7 +622,7 @@ tests:
         values: "90000+0x200"
       - series: 'nixos_manifest_age_seconds{host="acarshub", hostname="acarshub", role="agent"}'
         values: "91000+0x200"
-      - series: 'nixos_manifest_age_seconds{host="sdrhub", hostname="sdrhub", role="master"}'
+      - series: 'nixos_manifest_age_seconds{host="adsbhub", hostname="adsbhub", role="master"}'
         values: "90500+0x200"
     alert_rule_test:
       - eval_time: 2h
@@ -701,11 +701,11 @@ tests:
   - interval: 1m
     name: Tailscale expiry alerts stay silent when key expiry is disabled
     input_series:
-      - series: 'tailscale_key_expiry_seconds{host="sdrhub", hostname="sdrhub", role="master"}'
+      - series: 'tailscale_key_expiry_seconds{host="corehub", hostname="corehub", role="master"}'
         values: "0+0x200"
-      - series: 'tailscale_key_expiry_disabled{host="sdrhub", hostname="sdrhub", role="master"}'
+      - series: 'tailscale_key_expiry_disabled{host="corehub", hostname="corehub", role="master"}'
         values: "1+0x200"
-      - series: 'tailscale_status_scrape_success{host="sdrhub", hostname="sdrhub", role="master"}'
+      - series: 'tailscale_status_scrape_success{host="corehub", hostname="corehub", role="master"}'
         values: "1+0x200"
     alert_rule_test:
       - eval_time: 2h
@@ -721,11 +721,11 @@ tests:
   - interval: 1m
     name: Tailscale expiry alerts stay silent when the status read failed
     input_series:
-      - series: 'tailscale_key_expiry_seconds{host="sdrhub", hostname="sdrhub", role="master"}'
+      - series: 'tailscale_key_expiry_seconds{host="corehub", hostname="corehub", role="master"}'
         values: "0+0x200"
-      - series: 'tailscale_key_expiry_disabled{host="sdrhub", hostname="sdrhub", role="master"}'
+      - series: 'tailscale_key_expiry_disabled{host="corehub", hostname="corehub", role="master"}'
         values: "0+0x200"
-      - series: 'tailscale_status_scrape_success{host="sdrhub", hostname="sdrhub", role="master"}'
+      - series: 'tailscale_status_scrape_success{host="corehub", hostname="corehub", role="master"}'
         values: "0+0x200"
     alert_rule_test:
       - eval_time: 2h
@@ -738,11 +738,11 @@ tests:
   - interval: 1m
     name: TailscaleKeyExpiringSoon fires at 14 days and critical does not
     input_series:
-      - series: 'tailscale_key_expiry_seconds{host="sdrhub", hostname="sdrhub", role="master"}'
+      - series: 'tailscale_key_expiry_seconds{host="corehub", hostname="corehub", role="master"}'
         values: "1216800+0x200"
-      - series: 'tailscale_key_expiry_disabled{host="sdrhub", hostname="sdrhub", role="master"}'
+      - series: 'tailscale_key_expiry_disabled{host="corehub", hostname="corehub", role="master"}'
         values: "0+0x200"
-      - series: 'tailscale_status_scrape_success{host="sdrhub", hostname="sdrhub", role="master"}'
+      - series: 'tailscale_status_scrape_success{host="corehub", hostname="corehub", role="master"}'
         values: "1+0x200"
     alert_rule_test:
       - eval_time: 2h
@@ -750,12 +750,12 @@ tests:
         exp_alerts:
           - exp_labels:
               severity: warning
-              host: sdrhub
-              hostname: sdrhub
+              host: corehub
+              hostname: corehub
               role: master
             exp_annotations:
-              summary: "Tailscale node key on sdrhub expires in under 21 days"
-              description: "The node key for sdrhub expires in less than 21 days, after which the host drops off the tailnet until re-authenticated interactively. Rotating the sops auth key will NOT renew it. Prefer disabling key expiry for this device in the admin console, or making it a tagged device, so this stops recurring."
+              summary: "Tailscale node key on corehub expires in under 21 days"
+              description: "The node key for corehub expires in less than 21 days, after which the host drops off the tailnet until re-authenticated interactively. Rotating the sops auth key will NOT renew it. Prefer disabling key expiry for this device in the admin console, or making it a tagged device, so this stops recurring."
       - eval_time: 2h
         alertname: TailscaleKeyExpiryCritical
         exp_alerts: []
@@ -764,11 +764,11 @@ tests:
   - interval: 1m
     name: TailscaleKeyExpiryCritical fires at 3 days and warning does not
     input_series:
-      - series: 'tailscale_key_expiry_seconds{host="sdrhub", hostname="sdrhub", role="master"}'
+      - series: 'tailscale_key_expiry_seconds{host="corehub", hostname="corehub", role="master"}'
         values: "266400+0x200"
-      - series: 'tailscale_key_expiry_disabled{host="sdrhub", hostname="sdrhub", role="master"}'
+      - series: 'tailscale_key_expiry_disabled{host="corehub", hostname="corehub", role="master"}'
         values: "0+0x200"
-      - series: 'tailscale_status_scrape_success{host="sdrhub", hostname="sdrhub", role="master"}'
+      - series: 'tailscale_status_scrape_success{host="corehub", hostname="corehub", role="master"}'
         values: "1+0x200"
     alert_rule_test:
       - eval_time: 2h
@@ -776,12 +776,12 @@ tests:
         exp_alerts:
           - exp_labels:
               severity: critical
-              host: sdrhub
-              hostname: sdrhub
+              host: corehub
+              hostname: corehub
               role: master
             exp_annotations:
-              summary: "Tailscale node key on sdrhub expires in under 7 days"
-              description: "The node key for sdrhub expires in less than 7 days (or has already expired). When it goes, sdrhub stops advertising the LAN subnet route and fredvps becomes unreachable over the tailnet, which also removes it from Prometheus. Re-authenticate and then disable key expiry for this device."
+              summary: "Tailscale node key on corehub expires in under 7 days"
+              description: "The node key for corehub expires in less than 7 days (or has already expired). When it goes, corehub stops advertising the LAN subnet route and fredvps becomes unreachable over the tailnet, which also removes it from Prometheus. Re-authenticate and then disable key expiry for this device."
       - eval_time: 2h
         alertname: TailscaleKeyExpiringSoon
         exp_alerts: []
@@ -829,13 +829,13 @@ tests:
   - interval: 1m
     name: TailscaleStatusScrapeFailed fires while the expiry rules stay silent
     input_series:
-      - series: 'tailscale_status_scrape_success{host="sdrhub", hostname="sdrhub", role="master"}'
+      - series: 'tailscale_status_scrape_success{host="corehub", hostname="corehub", role="master"}'
         values: "0+0x200"
-      - series: 'tailscale_key_expiry_seconds{host="sdrhub", hostname="sdrhub", role="master"}'
+      - series: 'tailscale_key_expiry_seconds{host="corehub", hostname="corehub", role="master"}'
         values: "0+0x200"
-      - series: 'tailscale_key_expiry_disabled{host="sdrhub", hostname="sdrhub", role="master"}'
+      - series: 'tailscale_key_expiry_disabled{host="corehub", hostname="corehub", role="master"}'
         values: "0+0x200"
-      - series: 'tailscale_backend_running{host="sdrhub", hostname="sdrhub", role="master"}'
+      - series: 'tailscale_backend_running{host="corehub", hostname="corehub", role="master"}'
         values: "0+0x200"
     alert_rule_test:
       - eval_time: 1h
@@ -843,12 +843,12 @@ tests:
         exp_alerts:
           - exp_labels:
               severity: warning
-              host: sdrhub
-              hostname: sdrhub
+              host: corehub
+              hostname: corehub
               role: master
             exp_annotations:
-              summary: "Cannot read Tailscale status on sdrhub"
-              description: "tailscale status --json has been unreadable on sdrhub for 30 minutes, so key expiry and backend state are both unmonitored there. The collector bounds the call at 10s and reports the failure rather than hanging, so this points at tailscaled being wedged or absent rather than at the metric unit."
+              summary: "Cannot read Tailscale status on corehub"
+              description: "tailscale status --json has been unreadable on corehub for 30 minutes, so key expiry and backend state are both unmonitored there. The collector bounds the call at 10s and reports the failure rather than hanging, so this points at tailscaled being wedged or absent rather than at the metric unit."
       # The three suppressed rules must all stay silent on the same input.
       - eval_time: 1h
         alertname: TailscaleKeyExpiryCritical
@@ -909,7 +909,7 @@ tests:
     name: TailscaleAuthKeyExpiringSoon fires once for the fleet, not once per host
     input_series:
       # 14 days out. time() at eval_time 2h is 7200, so 7200 + 14d.
-      - series: 'tailscale_authkey_expiry_seconds{host="sdrhub", hostname="sdrhub", role="master"}'
+      - series: 'tailscale_authkey_expiry_seconds{host="corehub", hostname="corehub", role="master"}'
         values: "1216800+0x200"
       - series: 'tailscale_authkey_expiry_seconds{host="fredvps", hostname="fredvps", role="agent"}'
         values: "1216800+0x200"
@@ -933,7 +933,7 @@ tests:
   - interval: 1m
     name: TailscaleAuthKeyExpiringSoon stays silent 60 days out
     input_series:
-      - series: 'tailscale_authkey_expiry_seconds{host="sdrhub", hostname="sdrhub", role="master"}'
+      - series: 'tailscale_authkey_expiry_seconds{host="corehub", hostname="corehub", role="master"}'
         values: "5191200+0x200"
     alert_rule_test:
       - eval_time: 2h
@@ -945,7 +945,7 @@ tests:
   - interval: 1m
     name: TailscaleAuthKeyExpiryUnknown fires when the date is unrecorded
     input_series:
-      - series: 'tailscale_authkey_expiry_seconds{host="sdrhub", hostname="sdrhub", role="master"}'
+      - series: 'tailscale_authkey_expiry_seconds{host="corehub", hostname="corehub", role="master"}'
         values: "0+0x2000"
     alert_rule_test:
       - eval_time: 25h
@@ -1235,9 +1235,9 @@ tests:
   - interval: 1m
     name: NodeInodesLow still covers the root filesystem
     input_series:
-      - series: 'node_filesystem_files_free{device="/dev/nvme0n1p2", fstype="ext4", mountpoint="/", hostname="sdrhub", instance="sdrhub.local:9100", job="node", role="master"}'
+      - series: 'node_filesystem_files_free{device="/dev/nvme0n1p2", fstype="ext4", mountpoint="/", hostname="corehub", instance="corehub.local:9100", job="node", role="master"}'
         values: "1000000+0x20"
-      - series: 'node_filesystem_files{device="/dev/nvme0n1p2", fstype="ext4", mountpoint="/", hostname="sdrhub", instance="sdrhub.local:9100", job="node", role="master"}'
+      - series: 'node_filesystem_files{device="/dev/nvme0n1p2", fstype="ext4", mountpoint="/", hostname="corehub", instance="corehub.local:9100", job="node", role="master"}'
         values: "30000000+0x20"
     alert_rule_test:
       - eval_time: 20m
@@ -1248,13 +1248,13 @@ tests:
               device: /dev/nvme0n1p2
               fstype: ext4
               mountpoint: /
-              hostname: sdrhub
-              instance: sdrhub.local:9100
+              hostname: corehub
+              instance: corehub.local:9100
               job: node
               role: master
             exp_annotations:
-              summary: "Low inodes on sdrhub (/)"
-              description: "Filesystem / on sdrhub has less than 10% of its inodes remaining. It will fail writes while still reporting free space."
+              summary: "Low inodes on corehub (/)"
+              description: "Filesystem / on corehub has less than 10% of its inodes remaining. It will fail writes while still reporting free space."
 
   # vfat has no inode table and reports files=0. Without the fstype exclusion
   # the ratio is 0/0 -> NaN, which compares false and merely hides the bug;
@@ -1263,9 +1263,9 @@ tests:
   - interval: 1m
     name: NodeInodesLow ignores filesystems with no inode table
     input_series:
-      - series: 'node_filesystem_files_free{device="/dev/nvme0n1p1", fstype="vfat", mountpoint="/boot", hostname="sdrhub", instance="sdrhub.local:9100", job="node", role="master"}'
+      - series: 'node_filesystem_files_free{device="/dev/nvme0n1p1", fstype="vfat", mountpoint="/boot", hostname="corehub", instance="corehub.local:9100", job="node", role="master"}'
         values: "0+0x20"
-      - series: 'node_filesystem_files{device="/dev/nvme0n1p1", fstype="vfat", mountpoint="/boot", hostname="sdrhub", instance="sdrhub.local:9100", job="node", role="master"}'
+      - series: 'node_filesystem_files{device="/dev/nvme0n1p1", fstype="vfat", mountpoint="/boot", hostname="corehub", instance="corehub.local:9100", job="node", role="master"}'
         values: "0+0x20"
     alert_rule_test:
       - eval_time: 20m

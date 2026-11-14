@@ -69,7 +69,7 @@ let
     # days purely because 4G happened to span that long. Retention should be a
     # decision, not a side effect of volume: a quiet host keeping a year and a
     # noisy one keeping a week is exactly the inconsistency that makes
-    # cross-host incident correlation unreliable. Loki (sdrhub) is the
+    # cross-host incident correlation unreliable. Loki (corehub) is the
     # long-term store at retention_period=30d, so the local journal only needs
     # to cover the window where you would log into the box directly.
     MaxRetentionSec=30day

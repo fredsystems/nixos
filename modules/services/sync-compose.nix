@@ -23,7 +23,7 @@ in
           options = {
             name = lib.mkOption {
               type = lib.types.str;
-              description = "Identifier of the host (e.g., sdrhub)";
+              description = "Identifier of the host (e.g., acarshub)";
             };
             ip = lib.mkOption {
               type = lib.types.str;

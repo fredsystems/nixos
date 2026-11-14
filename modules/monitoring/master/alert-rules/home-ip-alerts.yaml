@@ -19,12 +19,12 @@ groups:
   # Neither is observable from fredvps itself, which is the whole reason this
   # group exists.
   #
-  # The check runs on sdrhub (hosts/linux/sdrhub/home-ip-drift.nix) and is
+  # The check runs on corehub (hosts/linux/corehub/home-ip-drift.nix) and is
   # sourced from fredvps's own nginx access log, so "observed" means the address
   # fredvps actually attributes to this network -- the same string ignoreIP has
   # to match, rather than an approximation of it from a third party.
   #
-  # Rules deliberately do NOT pin hostname="sdrhub", following the convention in
+  # Rules deliberately do NOT pin hostname="corehub", following the convention in
   # fail2ban-alerts.yaml: if the generator is ever added to a second host,
   # unpinned rules cover it automatically. The absent() rule is the one
   # exception, since it cannot work without naming the host it expects.
@@ -51,7 +51,7 @@ groups:
             fleet is configured for {{ $labels.expected }}. fredvps's fail2ban
             ignoreIP list no longer covers this network and the decoy jails ban
             on the first knock. Run scripts/rotate-home-ip.sh from the nixos
-            repo to update shared.homePublicIPv4 and deploy fredvps and sdrhub.
+            repo to update shared.homePublicIPv4 and deploy fredvps and corehub.
 
       # The check itself cannot determine the address.
       #
@@ -108,13 +108,13 @@ groups:
       # deployed, or whose textfile was removed, produces no series for any of
       # them to evaluate.
       - alert: HomePublicIPCheckMissing
-        expr: absent(home_public_ip_check_up{hostname="sdrhub"})
+        expr: absent(home_public_ip_check_up{hostname="corehub"})
         for: 1h
         labels:
           severity: warning
         annotations:
           summary: "Home public IP drift check is not reporting at all"
           description: >-
-            No home_public_ip_check_up series exists for sdrhub, so the drift
+            No home_public_ip_check_up series exists for corehub, so the drift
             check is either not deployed or not being scraped. fredvps's
             ignoreIP list is unmonitored while this fires.

@@ -116,7 +116,7 @@ let
       #
       # 90m is three missed runs. Anything tighter would false-positive on a
       # single skipped cycle.
-      host = "sdrhub";
+      host = "adsbhub";
       unit = "docker-dump978.service";
       pattern = "\\[message-monitor\\]";
       window = "90m";
@@ -166,7 +166,7 @@ let
   # runs no Alloy, and Daytona is a roaming laptop that is legitimately
   # offline for long stretches.
   loggingHosts = [
-    "sdrhub"
+    "corehub"
     "fredhub"
     "fredvps"
     "acarshub"
@@ -176,10 +176,14 @@ let
 
     # DEPLOY ORDER MATTERS: HostLogsMissing fires 40 minutes after this list
     # names a host that is not shipping. nvrhub must be deployed (and its
-    # Alloy running) BEFORE sdrhub picks up this rule set, or the master
-    # alerts on a host that has never existed. Deploy nvrhub first, sdrhub
+    # Alloy running) BEFORE corehub picks up this rule set, or the master
+    # alerts on a host that has never existed. Deploy nvrhub first, corehub
     # second.
     "nvrhub"
+
+    # Same ordering rule: adsbhub's Alloy must be shipping before corehub
+    # picks this up (Plan 05).
+    "adsbhub"
   ];
 
   # Per-host log-shipping deadman. Prometheus cannot express this: the
