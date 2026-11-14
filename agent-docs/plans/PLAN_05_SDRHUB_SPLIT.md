@@ -1,8 +1,8 @@
 # Plan 05: Split sdrhub into adsbhub and corehub
 
 - **Status:** in progress
-- **Branches:** one `plan05/5.N-*` branch and PR per subtask.
-  `plan05/5.1-disko`, then `plan05/5.2-host-scaffolds` stacked on it.
+- **Branches:** one `plan05/5.N-*` branch and PR per subtask. 5.1
+  #2867, 5.2 #2868, 5.3 `plan05/5.3-install-adsbhub`.
 
 ## Goal
 
@@ -121,11 +121,9 @@ as `2026-11-baseline-b`. The recorded runs in
 regardless of Plan 02's status: the only coupling is 2.12's second half
 riding on 5.5, recorded above.
 
-5.2 merges before the hardware exists, with a placeholder disk `by-id`
-in each `disk-config.nix`, so the sops recipients and host scaffolds are
-on `main` before install. Until 5.3 lands, `adsbhub` and `corehub` are
-colmena nodes with nothing behind them: deploy with `--on`, not a bare
-`colmena apply`.
+5.2 merged before the hardware existed, with a placeholder disk `by-id`
+in each `disk-config.nix`, so the sops recipients and host scaffolds
+were on `main` before install.
 
 ## Subtasks
 
@@ -142,13 +140,16 @@ colmena nodes with nothing behind them: deploy with `--on`, not a bare
       `.sops.yaml`, `sops updatekeys`. The disk `by-id` paths are
       filled in from the live ISO in 5.3. The private keys are kept, laid
       out for `--extra-files`, under
-      `~/.local/share/plan05-install/<host>/` on daytona, and deleted
-      once both hosts are installed.
+      `~/.local/share/plan05-install/<host>/` on daytona until install,
+      then deleted (2026-11-14); each host's copy is its only one.
 
 ### Phase 1: bare install
 
-- [ ] **5.3 Install both hosts.** For each: boot the NixOS minimal ISO,
-      `passwd`, note the address and `ls -l /dev/disk/by-id`. Set the
+- [x] **5.3 Install both hosts.** Done 2026-11-14: adsbhub at
+      192.168.31.207, corehub at 192.168.31.133 (temporary), both GMK
+      mini PCs (AMD, 256 GB NVMe). For each: boot the NixOS minimal ISO,
+      install an SSH key for `nixos` (an agent cannot answer a password
+      prompt), note the address and `ls -l /dev/disk/by-id`. Set the
       disk path, then from daytona:
 
       ```sh
@@ -156,13 +157,26 @@ colmena nodes with nothing behind them: deploy with `--on`, not a bare
         --generate-hardware-config nixos-generate-config \
           hosts/linux/<host>/hardware-configuration.nix \
         --extra-files ~/.local/share/plan05-install/<host> \
-        --chown /home/fred/.config 1000:100 \
+        --chown /home/fred 1000:100 \
         --target-host nixos@<address>
       ```
 
-      This wipes the target disk. Commit the generated hardware
-      configs, set DHCP reservations (adsbhub permanent, corehub
-      temporary), and confirm `colmena apply --on <host>` works.
+      This wipes the target disk. Lessons from the first install:
+
+      - `--extra-files` must also carry empty `home/fred/.ssh` (0700)
+        and `home/fred/.config/git`, with `--chown /home/fred`. sops-nix
+        symlinks secrets into both and creates any missing parent as
+        root, after which home-manager fails on first boot. adsbhub was
+        fixed by hand; corehub had the directories pre-created.
+      - The generated hardware config repeats `boot.` keys, which statix
+        rejects. Restructure it into one `boot` attrset; values unchanged.
+      - The fleet declares no password for `fred`, so the account is
+        locked and SSH-key only. Set a console password with
+        `sudo passwd fred` (sudo needs none); it is host-local state.
+
+      Verified: each host's `/run/current-system` equals the committed
+      toplevel, home-manager is active, no failed units, and `colmena
+      apply dry-activate --on corehub` succeeds.
 
 ### Phase 2: ADS-B and ACARS to adsbhub
 
