@@ -113,8 +113,19 @@ decided (2026-11-14) not to wait for it: 2.12's first half
 swap -- is made while the SDRs are moved in 5.5 and recorded on adsbhub
 as `2026-11-baseline-b`. The recorded runs in
 `/opt/adsb/data/beast-compare` (4.6 GB) move with the rest of
-`/opt/adsb/data`. Whether this plan may complete ahead of Plan 02, as
-Plans 03 and 04 did, is still the owner's call.
+`/opt/adsb/data`.
+
+**Completes ahead of Plan 02, as a documented exception** to
+`plan-sequencing-discipline`'s contiguous-prefix rule, as Plans 03 and
+04 did. The owner decided (2026-11-14) that this plan's subtasks merge
+regardless of Plan 02's status: the only coupling is 2.12's second half
+riding on 5.5, recorded above.
+
+5.2 merges before the hardware exists, with a placeholder disk `by-id`
+in each `disk-config.nix`, so the sops recipients and host scaffolds are
+on `main` before install. Until 5.3 lands, `adsbhub` and `corehub` are
+colmena nodes with nothing behind them: deploy with `--on`, not a bare
+`colmena apply`.
 
 ## Subtasks
 
