@@ -308,6 +308,18 @@ Nothing here waits on them.
       50 minutes after the attenuator came off rather than 24 h; validity
       is per minute, and at 14 h both receivers were valid for 99.8 % of
       it (only the start and a deploy restart excluded).
+  - [x] **First half done.** `2026-11-baseline-a` (Airspy on splitter
+        port 2, Pro Stick Plus on port 1) has well over 48 h on sdrhub
+        and stops when the SDRs are unplugged for Plan 05's ADS-B
+        cutover (5.5).
+  - [ ] **Second half.** The port swap is done during that same move:
+        Airspy on port 1, Pro Stick Plus on port 2, with each receiver's
+        `splitter_port` metadata updated to match. Recorded on adsbhub
+        as `2026-11-baseline-b`. The host change is a second difference
+        from the first half, alongside the swap; nothing in the RF chain
+        depends on the host, so this is noted in the report rather than
+        controlled for, but if the two halves disagree by more than the
+        port term explains, the host is the first suspect.
 
 ### Four receivers
 

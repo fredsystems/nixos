@@ -108,8 +108,10 @@ generation is the one CI cached and `fleet-manifest.yaml` records.
 
 Plan 02 is in progress and its 2.12 baseline records on sdrhub's SDRs.
 5.5 moves those SDRs, which is a setup change under Plan 02. The owner
-decided (2026-11-14) not to wait for it: 2.12 restarts on adsbhub under
-a new `runId` after 5.5. The recorded runs in
+decided (2026-11-14) not to wait for it: 2.12's first half
+(`2026-11-baseline-a`) is done, and its second half -- the splitter port
+swap -- is made while the SDRs are moved in 5.5 and recorded on adsbhub
+as `2026-11-baseline-b`. The recorded runs in
 `/opt/adsb/data/beast-compare` (4.6 GB) move with the rest of
 `/opt/adsb/data`. Whether this plan may complete ahead of Plan 02, as
 Plans 03 and 04 did, is still the owner's call.
@@ -165,7 +167,11 @@ Plans 03 and 04 did, is still the owner's call.
       the feeder keys and MLAT identity never run twice. `rsync -aHAX`
       `/opt/adsb/data` and `/opt/adsb/backups`; the acarshub databases
       are WAL-mode and are only copied stopped. Move the SDRs (a powered
-      USB hub may be needed for Airspy, two RTL-SDRs and the LNA).
+      USB hub may be needed for Airspy, two RTL-SDRs and the LNA), and
+      swap the Airspy and Pro Stick Plus splitter ports while they are
+      unplugged (Airspy to port 1, Pro Stick Plus to port 2). The same PR
+      sets beast-compare's `runId` to `2026-11-baseline-b` and swaps the
+      receivers' `splitter_port` metadata (Plan 02, 2.12).
       Enable on adsbhub and, in the same PR, repoint sdrhub's nginx
       proxies, the Prometheus scrape targets, hfdlhub2's
       `settings.yaml`, vdlmhub's ZMQ consumer and the
