@@ -26,19 +26,6 @@
       "locked_rev": "24f2190587513b9c2f73db112a17844ae912d965",
       "upstream_rev": "6eb2d33d1d0c95a37ef6443c88e6c1686012ee8b"
     },
-    "niri": {
-      "bases": {
-        "darwin": "30ae9754986fc1e237c906dddfa320b3b04a6775587b1f068f132fe3c13a9362",
-        "linux": "af6897cef9424d70729a1d6c62c7521386e4abcf8706e9bac58a422c930df98b"
-      },
-      "classified_at": "2026-11-13T22:49:41Z",
-      "kinds": {
-        "darwin": "none",
-        "linux": "none"
-      },
-      "locked_rev": "8471ad71a8f49527fdd98a81316720fb1b793368",
-      "upstream_rev": "e3ded13ff59e2df8ca311df551829e73e1ce1dc2"
-    },
     "nixpkgs-kernel": {
       "bases": {
         "darwin": "30ae9754986fc1e237c906dddfa320b3b04a6775587b1f068f132fe3c13a9362",
@@ -66,6 +53,6 @@
       "upstream_rev": "b2f45bbbff95cd70507098cec42cce6df8e8def6"
     }
   },
-  "planned_at": "2026-11-13T22:37:14Z",
+  "planned_at": "2026-11-14T03:13:49Z",
   "version": 1
 }
