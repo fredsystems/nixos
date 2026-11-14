@@ -88,12 +88,15 @@
   adsbhub = {
     stateVersion = "26.05";
     diskConfig = ../../hosts/linux/adsbhub/disk-config.nix;
+    targetHost = "192.168.31.207";
     tags = [ "adsb" ];
   };
 
   corehub = {
     stateVersion = "26.05";
     diskConfig = ../../hosts/linux/corehub/disk-config.nix;
+    # Temporary address until the 5.7 cutover hands it 192.168.31.20.
+    targetHost = "192.168.31.133";
     tags = [ "core" ];
   };
 }

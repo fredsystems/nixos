@@ -8,7 +8,7 @@
 {
   disko.devices.disk.main = {
     type = "disk";
-    device = "/dev/disk/by-id/REPLACE-WITH-INSTALLER-BY-ID";
+    device = "/dev/disk/by-id/nvme-GMK_256GB_AA202608230048";
     content = {
       type = "gpt";
       partitions = {
