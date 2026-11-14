@@ -198,14 +198,22 @@ colmena nodes with nothing behind them: deploy with `--on`, not a bare
       dozzle UI. Deploy once at the temporary address so the service
       users exist, then stop the stateful services. Verify DNS with
       `dig @<temporary address>`.
-- [ ] **5.7 Core cutover.** Stop the services on sdrhub. `rsync -aHAX`
-      `/var/lib/prometheus2`, `/var/lib/grafana`, `/var/lib/loki`,
+- [ ] **5.7 Core cutover.** Mask `createPrometheusSnapshot.timer` on
+      both hosts first: its service `wants` prometheus.service, so a
+      merely stopped timer can restart Prometheus mid-copy, and a stop
+      does not survive corehub's reboot. Stop the services on sdrhub and
+      on corehub, then empty corehub's `/var/lib/prometheus2`: the WAL
+      segments its own Prometheus wrote in 5.6 would otherwise sit beside
+      the copied ones (rsync runs without `--delete`) and leave a gap
+      that fails startup with "segments are not sequential". `rsync
+      -aHAX` `/var/lib/prometheus2`, `/var/lib/grafana`, `/var/lib/loki`,
       `/var/lib/private/AdGuardHome`, `/var/lib/acme`,
-      `/opt/adsb/degoog` and `/opt/adsb/syncclipboard`. Move the `.20`
-      reservation to corehub, reboot it, verify. LAN DNS is down for
-      the window; point the router's secondary DNS at 1.1.1.1 for it if
-      that matters. Re-approve the subnet route in the Tailscale admin
-      console.
+      `/opt/adsb/degoog` and `/opt/adsb/syncclipboard`. Power sdrhub off
+      -- stopping services does not release its DHCP lease on `.20` --
+      then move the `.20` reservation to corehub, reboot it, verify, and
+      unmask the timer. LAN DNS is down for the window; point the
+      router's secondary DNS at 1.1.1.1 for it if that matters.
+      Re-approve the subnet route in the Tailscale admin console.
 
 ### Phase 4: retire sdrhub
 
