@@ -7,6 +7,12 @@ on:
     types: [opened, synchronize, reopened]
   workflow_dispatch:
 
+# Same shape as ci-linux.yaml: a superseded push should not keep occupying
+# the scarce self-hosted runners the lint job now uses.
+concurrency:
+  group: lint-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
   # `gh pr view` in the merge-queue-ci-skipper composite action (used by
@@ -51,15 +57,32 @@ jobs:
   # =====================================================================
   # Primary Lint job
   # =====================================================================
+  #
+  # Self-hosted, except for fork PRs. On ubuntu-latest this job spent ~10 of
+  # its ~12 minutes in exports-standalone, and ~7 of those fetching the
+  # wallpaper flake inputs (CozyPixels alone is a ~1.9 GB repo): forcing
+  # desktop-common's toplevel drvPath forces the catppuccin-wallpapers
+  # derivation, whose `${walls-*}` sources must be in the store for that,
+  # even though nothing is built. The check is deliberately not stubbed
+  # around that; the self-hosted store already holds those sources, because
+  # every desktop eval there forces them too. Same cold-store reasoning as
+  # find-systems / colmena-parity in ci-linux.yaml.
+  #
+  # Fork PR code must not run on self-hosted hardware, but unlike the build
+  # jobs lint must not just skip for forks (lint-summary would read the skip
+  # as a pass), so forks fall back to ubuntu-latest: slow, but still linted.
+  # Nix is installed only there; the self-hosted runners are fleet hosts
+  # that already have it (see the NO "INSTALL NIX" note in ci-linux.yaml).
   lint:
     name: Lint
-    runs-on: ubuntu-latest
+    runs-on: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) && 'ubuntu-latest' || fromJSON('["self-hosted","Linux"]') }}
     needs: [skip-if-clean]
     if: ${{ needs.skip-if-clean.outputs.skip != 'true' }} # <-- now valid in PRs
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086 # v31
+      - if: ${{ runner.environment == 'github-hosted' }}
+        uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086 # v31
         with:
           nix_path: nixpkgs=channel:nixos-unstable
 
