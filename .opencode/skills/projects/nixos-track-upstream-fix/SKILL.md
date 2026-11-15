@@ -195,5 +195,3 @@ purpose.
   change to `check-upstream-fixes.sh`; design it so a null/missing
   target is BLOCKED, never falsely resolved, and document it in the
   manifest's `$comment` header.
-
-Base directory for this skill: file:///home/fred/GitHub/nixos/.opencode/skills/projects/nixos-track-upstream-fix
