@@ -245,12 +245,6 @@ let
       vhost.locations."/".proxyPass = "http://${adsbhubAddress}:8088";
     };
 
-    # RTL-SDR-only tar1090. Same reasoning as tar1090-airspy.
-    tar1090-rtlsdr = {
-      legacy = [ ];
-      vhost.locations."/".proxyPass = "http://${adsbhubAddress}:8089";
-    };
-
     dump978 = {
       legacy = [
         "dump978.sdrhub.lan"

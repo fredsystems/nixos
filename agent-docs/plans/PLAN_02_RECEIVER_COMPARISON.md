@@ -350,8 +350,12 @@ Nothing here waits on them.
       including the remote hosts. Precondition: the Airspy is off the USB
       bus it shares with the RTL-SDR hub on adsbhub (bus 3 in
       `lsusb -t`), and its Beast counter measures 12 MHz against wall time
-      over a minute (see 2.12). Re-enable the recorder on adsbhub with a
-      new `runId`.
+      over a minute (see 2.12). `tar1090_rtlsdr`, the Pro Stick Plus's
+      decoder, was removed from adsbhub on 2026-11-14 along with its
+      vhost, landing-page button, probe and secret: restore it from git
+      history (with its `127.0.0.1:30106` Beast port and its `fa-proplus`
+      recorder entry) before this run. Re-enable the recorder on adsbhub
+      with a new `runId`.
 - [ ] **2.15 Four-receiver run.** Four port assignments (cyclic Latin
       square, so every receiver uses every port once), 48 h each, about
       8 days. Report each assignment and the pooled result with the

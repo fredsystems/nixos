@@ -52,6 +52,8 @@ in
     # not 12) because it shares a USB 2.0 bus with both RTL-SDRs, and 2.15's
     # port rotation measures the port term anyway. Fix the USB layout and set
     # a new runId before re-enabling; reusing baseline-b's would append to it.
+    # The Pro Stick Plus's decoder (tar1090_rtlsdr) has been removed, so its
+    # receiver entry goes back in with that container.
     beastCompare = {
       enable = false;
       package = inputs.beast-compare.packages.${pkgs.stdenv.hostPlatform.system}.default;
@@ -66,17 +68,6 @@ in
             decoder = "airspy_adsb";
             attenuation_db = "0";
             splitter_port = "1";
-          };
-        }
-        {
-          name = "fa-proplus";
-          beast = "127.0.0.1:30106";
-          statsUrl = "http://127.0.0.1:8089/data/stats.json";
-          metadata = {
-            sdr = "FlightAware Pro Stick Plus";
-            decoder = "readsb (tar1090_rtlsdr)";
-            attenuation_db = "0";
-            splitter_port = "2";
           };
         }
       ];
@@ -169,67 +160,6 @@ in
       }
 
       ###############################################################
-      # TAR1090 (1090 RTL-SDR only)
-      ###############################################################
-      # Owns the 1090 RTL-SDR (serial 00001090) and decodes it itself, so
-      # this view is exactly what that receiver hears. Nothing else reads it:
-      # it is not fed into ultrafeeder, and there are no connectors out and
-      # no readsb feed ports published.
-      #
-      # Feeding it into ultrafeeder alongside the airspy would merge two
-      # receivers with unsynchronised clocks into one MLAT station, which is
-      # what broke MLAT while both were in ultrafeeder.
-      {
-        name = "tar1090_rtlsdr";
-        image = config.shared.dockerImages.tar1090;
-
-        hostname = "tar1090_rtlsdr";
-        restart = "always";
-        tty = false;
-
-        # TZ, LAT and LONG (the receiver position, for the range outline).
-        environmentFiles = [
-          config.sops.secrets."docker/adsbhub/tar1090_rtlsdr.env".path
-        ];
-
-        environment = {
-          READSB_DEVICE_TYPE = "rtlsdr";
-          READSB_RTLSDR_DEVICE = "00001090";
-          # readsb's built-in autogain, not the container's legacy "autogain"
-          # script. The legacy script moves one gain step per run and only
-          # reassesses daily, so when the 1090/UAT LNA went in ahead of the
-          # powered splitter it sat at 36.4 dB with the ADC clipping (noise
-          # -2 dBFS, ~0 msg/s) for hours. readsb's adjusts continuously.
-          READSB_GAIN = "auto";
-          TAR1090_PAGETITLE = "adsbhub - rtlsdr";
-          TAR1090_SITESHOW = "true";
-          TAR1090_ENABLE_AC_DB = "true";
-        };
-
-        deviceCgroupRules = [
-          "c 189:* rwm"
-        ];
-
-        ports = [
-          "8089:80"
-          # Raw Beast output for the beast-compare recorder, loopback only.
-          "127.0.0.1:30106:30005"
-        ];
-
-        volumes = [
-          "/dev/bus/usb:/dev/bus/usb:ro"
-          "/opt/adsb/data/tar1090_rtlsdr/globe_history:/var/globe_history"
-          "/opt/adsb/data/tar1090_rtlsdr/graphs1090:/var/lib/collectd"
-        ];
-
-        tmpfs = [
-          "/run:exec,size=256M"
-          "/tmp:size=128M"
-          "/var/log:size=32M"
-        ];
-      }
-
-      ###############################################################
       # ULTRAFEEDER (readsb) — central ADS-B decoder
       ###############################################################
       {
@@ -245,10 +175,11 @@ in
         ];
 
         # Network-only: ultrafeeder opens no SDR itself. Its 1090 input is
-        # airspy_adsb (beast_in in ultrafeeder.env). The 1090 RTL-SDR belongs
-        # to tar1090_rtlsdr, so ultrafeeder deliberately gets no USB access --
-        # a USB SDR can only be opened by one process, and this makes it
-        # impossible for ultrafeeder to grab the RTL again by accident.
+        # airspy_adsb (beast_in in ultrafeeder.env), and it deliberately gets
+        # no USB access, so it cannot pick up the 1090 RTL-SDR (serial
+        # 00001090) by accident. Feeding that RTL into ultrafeeder alongside
+        # the airspy would merge two receivers with unsynchronised clocks into
+        # one MLAT station, which is what broke MLAT while both were in it.
         ports = [
           "8080:80"
           "30002:30002"
@@ -762,8 +693,6 @@ in
     "docker/adsbhub/airspy_adsb.env" = mkContainerSecret "airspy_adsb";
 
     "docker/adsbhub/tar1090_airspy.env" = mkContainerSecret "tar1090_airspy";
-
-    "docker/adsbhub/tar1090_rtlsdr.env" = mkContainerSecret "tar1090_rtlsdr";
 
     "docker/adsbhub/ultrafeeder.env" = mkContainerSecret "ultrafeeder";
 
