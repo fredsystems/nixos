@@ -96,9 +96,12 @@ in
     extraLabels = [ "freminal-fuzz" ];
     replace = true;
     ephemeral = false;
-    # Tools the workflow's own shell steps use (the runner's default PATH is
-    # only bash, coreutils, git, gnutar, gzip and nix): `gh` / `jq` for the
-    # findings tracking issue, `hostname` for the corpus commit message.
+    # Tools the workflow's own shell steps use: `gh` / `jq` for the findings
+    # tracking issue, `hostname` for the corpus commit message. The runner's
+    # PATH is otherwise bash, coreutils, git, gnutar, gzip and nix from the
+    # runner module, plus findutils, gnugrep, gnused and systemd from systemd's
+    # default unit PATH. gawk, findutils, gnugrep and gnused are listed anyway
+    # so the workflow does not depend on that systemd default.
     extraPackages = with pkgs; [
       gawk
       findutils
