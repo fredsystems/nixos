@@ -46,11 +46,14 @@ in
     # whenever the setup changes (a receiver, an attenuator, a splitter
     # port); see modules/services/beast-compare.nix.
     #
-    # 2026-11-baseline-b is 2.12's second half: the two receivers' splitter
-    # ports swapped relative to 2026-11-baseline-a (recorded on sdrhub), done
-    # while the SDRs moved here in Plan 05's 5.5.
+    # Off until the four-receiver runs (2.14, 2.15). 2026-11-baseline-b, the
+    # planned second half of 2.12, was dropped after three hours: the Airspy
+    # was losing about 19% of its samples here (its counter ran at 9.77 MHz,
+    # not 12) because it shares a USB 2.0 bus with both RTL-SDRs, and 2.15's
+    # port rotation measures the port term anyway. Fix the USB layout and set
+    # a new runId before re-enabling; reusing baseline-b's would append to it.
     beastCompare = {
-      enable = true;
+      enable = false;
       package = inputs.beast-compare.packages.${pkgs.stdenv.hostPlatform.system}.default;
       runId = "2026-11-baseline-b";
       receivers = [
