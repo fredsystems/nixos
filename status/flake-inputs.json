@@ -2,35 +2,43 @@
   "inputs": {
     "beast-compare": {
       "bases": {
-        "darwin": "078f5c95bce8a05320667523b628cfe408b4d4117d37f45bef6efff046694168"
+        "darwin": "078f5c95bce8a05320667523b628cfe408b4d4117d37f45bef6efff046694168",
+        "linux": "31d40f08e553bf0d29390b44ae3aa5cd41b7c74e118f5dcfc2872680bf271f77"
       },
-      "classified_at": "2026-11-15T17:16:11Z",
+      "classified_at": "2026-11-15T17:20:57Z",
       "kinds": {
-        "darwin": "none"
+        "darwin": "none",
+        "linux": "none"
       },
       "locked_rev": "c6c1c316b04d6a2577906a6f0159cdbf6c440930",
       "upstream_rev": "f035d4b2d4501908915a267679ce7d86fa4c40b0"
     },
     "frext": {
       "bases": {
-        "darwin": "078f5c95bce8a05320667523b628cfe408b4d4117d37f45bef6efff046694168"
+        "darwin": "078f5c95bce8a05320667523b628cfe408b4d4117d37f45bef6efff046694168",
+        "linux": "31d40f08e553bf0d29390b44ae3aa5cd41b7c74e118f5dcfc2872680bf271f77"
       },
-      "classified_at": "2026-11-15T17:16:11Z",
+      "classified_at": "2026-11-15T17:20:57Z",
       "dispatched_at": "2026-11-15T17:16:11Z",
       "dispatched_rev": "7637c865ab4205422b344d0d09dca2c4e8325c4a",
       "kinds": {
-        "darwin": "source"
+        "darwin": "source",
+        "linux": "source"
       },
       "locked_rev": "98deff446acd46a360d9edffa270dc78dc0ae7e4",
       "upstream_rev": "7637c865ab4205422b344d0d09dca2c4e8325c4a"
     },
     "github-ci-exporter": {
       "bases": {
-        "darwin": "078f5c95bce8a05320667523b628cfe408b4d4117d37f45bef6efff046694168"
+        "darwin": "078f5c95bce8a05320667523b628cfe408b4d4117d37f45bef6efff046694168",
+        "linux": "31d40f08e553bf0d29390b44ae3aa5cd41b7c74e118f5dcfc2872680bf271f77"
       },
-      "classified_at": "2026-11-15T17:16:11Z",
+      "classified_at": "2026-11-15T17:20:57Z",
+      "dispatched_at": "2026-11-15T17:20:57Z",
+      "dispatched_rev": "e6ddaff8559216ad6b5029439751d59e15508cde",
       "kinds": {
-        "darwin": "none"
+        "darwin": "none",
+        "linux": "source"
       },
       "locked_rev": "5577d7731f5b4102edbaa3c57419aa8ef30f1b08",
       "upstream_rev": "e6ddaff8559216ad6b5029439751d59e15508cde"
@@ -50,13 +58,15 @@
     },
     "precommit-base": {
       "bases": {
-        "darwin": "078f5c95bce8a05320667523b628cfe408b4d4117d37f45bef6efff046694168"
+        "darwin": "078f5c95bce8a05320667523b628cfe408b4d4117d37f45bef6efff046694168",
+        "linux": "31d40f08e553bf0d29390b44ae3aa5cd41b7c74e118f5dcfc2872680bf271f77"
       },
-      "classified_at": "2026-11-15T17:16:11Z",
+      "classified_at": "2026-11-15T17:20:57Z",
       "dispatched_at": "2026-11-15T17:16:11Z",
       "dispatched_rev": "2893bcf2db9aa5a943a19ac15488b58082c413fa",
       "kinds": {
-        "darwin": "source"
+        "darwin": "source",
+        "linux": "source"
       },
       "locked_rev": "b2f45bbbff95cd70507098cec42cce6df8e8def6",
       "upstream_rev": "2893bcf2db9aa5a943a19ac15488b58082c413fa"
