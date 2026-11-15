@@ -68,9 +68,12 @@ jobs:
   # every desktop eval there forces them too. Same cold-store reasoning as
   # find-systems / colmena-parity in ci-linux.yaml.
   #
-  # Fork PR code must not run on self-hosted hardware, but unlike the build
-  # jobs lint must not just skip for forks (lint-summary would read the skip
-  # as a pass), so forks fall back to ubuntu-latest: slow, but still linted.
+  # Fork PRs are routed to ubuntu-latest rather than skipped as the build
+  # jobs are, because lint-summary would read a skip as a pass: slow, but
+  # still linted. Like the build jobs' guard, this routing only prevents
+  # accidents (a fork controls its own copy of this file), and merge_group
+  # runs, fork PRs included, go to self-hosted on purpose. See "FORK CODE AND
+  # THE SELF-HOSTED RUNNERS" in ci-linux.yaml for what actually protects them.
   # Nix is installed only there; the self-hosted runners are fleet hosts
   # that already have it (see the NO "INSTALL NIX" note in ci-linux.yaml).
   lint:

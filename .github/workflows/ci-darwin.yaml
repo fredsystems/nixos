@@ -21,6 +21,11 @@ permissions:
   # skip-if-clean below) reads the PR for the current ref.
   pull-requests: read
 
+# The fork guard on the self-hosted jobs below only prevents accidents; what
+# keeps fork code off these runners is fork-PR workflow approval and
+# maintainer-only enqueueing. See "FORK CODE AND THE SELF-HOSTED RUNNERS" in
+# ci-linux.yaml.
+
 jobs:
   # =====================================================================
   # Fast-path: Detect whether merge_queue introduces zero diff

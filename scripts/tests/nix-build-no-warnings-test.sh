@@ -66,6 +66,18 @@ status=0
 bash "$GATE" .#x >/dev/null 2>&1 || status=$?
 [[ $status -eq 3 ]] || bad "error: exit status $status, expected 3"
 
+# A build log that cannot be scanned fails closed instead of reading as zero
+# warnings. A grep that errors out stands in for one missing from PATH.
+mkdir -p "$work/brokenbin"
+printf '#!%s\nexit 2\n' "$(command -v bash)" > "$work/brokenbin/grep"
+chmod +x "$work/brokenbin/grep"
+export MOCK_CASE=clean
+if PATH="$work/brokenbin:$PATH" bash "$GATE" .#x >/dev/null 2>"$work/err"; then
+  bad 'unscannable: build passed although grep failed'
+fi
+grep -q '::error::could not scan the build log for evaluation warnings (grep exited 2)' "$work/err" ||
+  bad 'unscannable: missing or wrong ::error:: annotation'
+
 if [[ $FAIL -ne 0 ]]; then
   echo "$FAIL nix-build-no-warnings test(s) failed" >&2
   exit 1
