@@ -2,10 +2,12 @@
   "inputs": {
     "nixpkgs-kernel": {
       "bases": {
+        "darwin": "078f5c95bce8a05320667523b628cfe408b4d4117d37f45bef6efff046694168",
         "linux": "31d40f08e553bf0d29390b44ae3aa5cd41b7c74e118f5dcfc2872680bf271f77"
       },
-      "classified_at": "2026-11-15T16:13:35Z",
+      "classified_at": "2026-11-15T16:19:03Z",
       "kinds": {
+        "darwin": "none",
         "linux": "source"
       },
       "locked_rev": "39d1a6c4566dfdb75a27ae40a2ae3aad4df77408",
