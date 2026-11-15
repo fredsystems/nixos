@@ -80,6 +80,18 @@ jobs:
         # build with the specific test case that covers it.
         run: ./scripts/nix-build-no-warnings.sh --no-link --print-build-logs .#checks.x86_64-linux.pre-commit-check
 
+      - name: Check links (online)
+        # The pre-commit-check above runs in the Nix sandbox, which has no
+        # network, so its lychee hook only checks local file links. Run the
+        # same pinned checker and shared config (precommit-base's link-check
+        # package) outside the sandbox so remote links are checked too. Like
+        # the step above, this avoids entering the dev shell (colmena).
+        env:
+          # Lets lychee use the GitHub API for github.com links instead of
+          # being rate limited.
+          GITHUB_TOKEN: ${{ github.token }}
+        run: git ls-files -z '*.md' '*.mdx' | xargs -0 -r nix run --inputs-from . precommit-base#link-check --
+
       - name: Check decoder heartbeat coverage
         # Not a pre-commit hook: this one needs a full nixosConfigurations
         # evaluation to read each host's services.adsb.containers, which is
