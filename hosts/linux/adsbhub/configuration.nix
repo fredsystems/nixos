@@ -1,6 +1,7 @@
 {
   config,
   inputs,
+  lib,
   pkgs,
   ...
 }:
@@ -37,6 +38,53 @@ in
   # This host has USB SDR hardware attached; raise the global usbfs
   # transfer-buffer ceiling above the 16 MB kernel default.
   hardware-profile.usbfs.enable = true;
+
+  # CPU temperature for the containers that expect a Raspberry Pi's
+  # /sys/class/thermal/thermal_zone0/temp: rbfeeder segfaults without it
+  # (sdr-enthusiasts/docker-airnavradar, version_0.4.3_workarounds.md), and
+  # graphs1090 in ultrafeeder and tar1090_airspy reads it for its temperature
+  # chart. This host has no thermal zones at all; its CPU temperature is
+  # k10temp's Tctl, under a hwmonN whose number depends on probe order. So
+  # the link is made at boot, by name, and the directory holding it is
+  # mounted over each container's /sys/class/thermal. The link resolves
+  # inside the container, whose /sys shows the host's hwmon devices.
+  boot.kernelModules = [ "k10temp" ];
+
+  systemd.services =
+    let
+      consumers = [
+        "docker-rbfeeder"
+        "docker-ultrafeeder"
+        "docker-tar1090_airspy"
+      ];
+      ordering = {
+        wants = [ "adsb-thermal-zone.service" ];
+        after = [ "adsb-thermal-zone.service" ];
+      };
+    in
+    {
+      adsb-thermal-zone = {
+        description = "Expose k10temp Tctl as thermal_zone0 for the ADS-B containers";
+        wantedBy = [ "multi-user.target" ];
+        after = [ "systemd-modules-load.service" ];
+        serviceConfig = {
+          Type = "oneshot";
+          RemainAfterExit = true;
+        };
+        script = ''
+          for h in /sys/class/hwmon/hwmon*; do
+            if [ "$(cat "$h/name")" = k10temp ]; then
+              install -d -m 0755 /run/adsb-thermal/thermal_zone0
+              ln -sfn "$h/temp1_input" /run/adsb-thermal/thermal_zone0/temp
+              exit 0
+            fi
+          done
+          echo "no k10temp hwmon device found" >&2
+          exit 1
+        '';
+      };
+    }
+    // lib.genAttrs consumers (_: ordering);
 
   services = {
     ###########################################
@@ -150,6 +198,7 @@ in
           "/opt/adsb/data/tar1090_airspy/globe_history:/var/globe_history"
           "/opt/adsb/data/tar1090_airspy/graphs1090:/var/lib/collectd"
           "/opt/adsb/data/airspy_adsb:/run/airspy_adsb:ro"
+          "/run/adsb-thermal:/sys/class/thermal:ro"
         ];
 
         tmpfs = [
@@ -195,6 +244,7 @@ in
           "/opt/adsb/data/ultra_graphs1090:/var/lib/collectd"
           "/proc/diskstats:/proc/diskstats:ro"
           "/opt/adsb/data/airspy_adsb:/run/airspy_adsb"
+          "/run/adsb-thermal:/sys/class/thermal:ro"
         ];
 
         tmpfs = [
@@ -428,6 +478,7 @@ in
 
         volumes = [
           "/opt/adsb/data/fake_cpuinfo:/proc/cpuinfo"
+          "/run/adsb-thermal:/sys/class/thermal:ro"
         ];
 
         tmpfs = [
