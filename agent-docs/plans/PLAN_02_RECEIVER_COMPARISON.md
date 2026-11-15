@@ -44,8 +44,8 @@ and never let time of day stand in for the variable under test.
 
 | Receiver     | SDR                        | Host     | Decoder container            | Beast source (recorder view) |
 | ------------ | -------------------------- | -------- | ---------------------------- | ---------------------------- |
-| `airspy`     | Airspy R2, 20 MSPS         | sdrhub   | `airspy_adsb`                | `127.0.0.1:30105`            |
-| `fa-proplus` | FlightAware Pro Stick Plus | sdrhub   | `tar1090_rtlsdr` (`00001090`) | `127.0.0.1:30106`            |
+| `airspy`     | Airspy R2, 20 MSPS         | adsbhub  | `airspy_adsb`                | `127.0.0.1:30105`            |
+| `fa-proplus` | FlightAware Pro Stick Plus | adsbhub  | `tar1090_rtlsdr` (`00001090`) | `127.0.0.1:30106`            |
 | `rtl-v3`     | RTL-SDR Blog v3            | acarshub | `tar1090_rtlv3` (`00001093`) | `acarshub.local:30005`       |
 | `rtl-v4`     | RTL-SDR Blog v4            | vdlmhub  | `tar1090_rtlv4` (`00001094`) | `vdlmhub.local:30005`        |
 
@@ -299,7 +299,7 @@ Nothing here waits on them.
       answers.
 - [x] **2.11 Report.** The HTML report and parquet output described
       above.
-- [ ] **2.12 Two-receiver baseline.** Preconditions: neither receiver
+- [x] **2.12 Two-receiver baseline.** Preconditions: neither receiver
       attenuated, each splitter port recorded in its metadata, and both
       valid (not overloaded) over the preceding 24 h of the dry run.
       Record 48 h, swap the two receivers' ports, and record 48 h more,
@@ -312,14 +312,26 @@ Nothing here waits on them.
         port 2, Pro Stick Plus on port 1) has well over 48 h on sdrhub
         and stops when the SDRs are unplugged for Plan 05's ADS-B
         cutover (5.5).
-  - [ ] **Second half.** The port swap is done during that same move:
-        Airspy on port 1, Pro Stick Plus on port 2, with each receiver's
-        `splitter_port` metadata updated to match. Recorded on adsbhub
-        as `2026-11-baseline-b`. The host change is a second difference
-        from the first half, alongside the swap; nothing in the RF chain
-        depends on the host, so this is noted in the report rather than
-        controlled for, but if the two halves disagree by more than the
-        port term explains, the host is the first suspect.
+  - [x] **Second half dropped (2026-11-14).** It was started on adsbhub
+        as `2026-11-baseline-b`, with the ports swapped during the move
+        (Airspy on port 1, Pro Stick Plus on port 2), and stopped after
+        three hours. Two reasons:
+    - The swap only exists to separate the receiver from the splitter
+      port, and 2.15's cyclic Latin square does that for every receiver,
+      the Airspy and the Pro Stick included, and estimates the per-port
+      term. The first half's length was never the issue: it ran about
+      6.9 days.
+    - The Airspy on adsbhub was losing about 19 % of its samples: its
+      Beast counter advanced at 9.77 MHz against wall time rather than
+      12, while airspy_adsb reported `lost_buffers: 0`. It shares a USB
+      2.0 bus with the hub holding both RTL-SDRs, about 50 MB/s of
+      demand on a bus that carries about 40. The validity rules would
+      not have caught it, so the recording measured a degraded Airspy.
+
+    Until 2.15 runs, the first half's Airspy-against-Pro-Stick result is
+    confounded with the splitter port, and is reported that way. The
+    recorder is disabled on adsbhub (`enable = false`); the run data is
+    kept in `/opt/adsb/data/beast-compare/`.
 
 ### Four receivers
 
@@ -335,7 +347,15 @@ Nothing here waits on them.
       config. Test 10 dB of attenuation on each against none, as the Pro
       Stick was tested, and keep whichever decodes more.
 - [ ] **2.14 Four-receiver dry run.** Repeat 2.4 with all four sources,
-      including the remote hosts.
+      including the remote hosts. Precondition: the Airspy is off the USB
+      bus it shares with the RTL-SDR hub on adsbhub (bus 3 in
+      `lsusb -t`), and its Beast counter measures 12 MHz against wall time
+      over a minute (see 2.12). `tar1090_rtlsdr`, the Pro Stick Plus's
+      decoder, was removed from adsbhub on 2026-11-14 along with its
+      vhost, landing-page button, probe and secret: restore it from git
+      history (with its `127.0.0.1:30106` Beast port and its `fa-proplus`
+      recorder entry) before this run. Re-enable the recorder on adsbhub
+      with a new `runId`.
 - [ ] **2.15 Four-receiver run.** Four port assignments (cyclic Latin
       square, so every receiver uses every port once), 48 h each, about
       8 days. Report each assignment and the pooled result with the
