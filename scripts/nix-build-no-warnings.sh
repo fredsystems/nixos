@@ -31,7 +31,15 @@ if [[ $status -ne 0 ]]; then
   exit "$status"
 fi
 
-warnings=$(grep -c 'evaluation warning:' "$stderr_file" || true)
+# grep exits 1 for "no match", which is the clean case. Anything above that
+# (grep missing from PATH, unreadable log) must fail closed: an empty count
+# would otherwise compare equal to 0 and pass every build.
+grep_status=0
+warnings=$(grep -c 'evaluation warning:' "$stderr_file") || grep_status=$?
+if [[ $grep_status -gt 1 ]]; then
+  echo "::error::could not scan the build log for evaluation warnings (grep exited ${grep_status})" >&2
+  exit 1
+fi
 if [[ $warnings -ne 0 ]]; then
   echo "::error::${warnings} Nix evaluation warning(s) detected" >&2
   exit 1
