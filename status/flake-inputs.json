@@ -1,5 +1,40 @@
 {
   "inputs": {
+    "beast-compare": {
+      "bases": {
+        "darwin": "078f5c95bce8a05320667523b628cfe408b4d4117d37f45bef6efff046694168"
+      },
+      "classified_at": "2026-11-15T17:16:11Z",
+      "kinds": {
+        "darwin": "none"
+      },
+      "locked_rev": "c6c1c316b04d6a2577906a6f0159cdbf6c440930",
+      "upstream_rev": "f035d4b2d4501908915a267679ce7d86fa4c40b0"
+    },
+    "frext": {
+      "bases": {
+        "darwin": "078f5c95bce8a05320667523b628cfe408b4d4117d37f45bef6efff046694168"
+      },
+      "classified_at": "2026-11-15T17:16:11Z",
+      "dispatched_at": "2026-11-15T17:16:11Z",
+      "dispatched_rev": "7637c865ab4205422b344d0d09dca2c4e8325c4a",
+      "kinds": {
+        "darwin": "source"
+      },
+      "locked_rev": "98deff446acd46a360d9edffa270dc78dc0ae7e4",
+      "upstream_rev": "7637c865ab4205422b344d0d09dca2c4e8325c4a"
+    },
+    "github-ci-exporter": {
+      "bases": {
+        "darwin": "078f5c95bce8a05320667523b628cfe408b4d4117d37f45bef6efff046694168"
+      },
+      "classified_at": "2026-11-15T17:16:11Z",
+      "kinds": {
+        "darwin": "none"
+      },
+      "locked_rev": "5577d7731f5b4102edbaa3c57419aa8ef30f1b08",
+      "upstream_rev": "e6ddaff8559216ad6b5029439751d59e15508cde"
+    },
     "nixpkgs-kernel": {
       "bases": {
         "darwin": "078f5c95bce8a05320667523b628cfe408b4d4117d37f45bef6efff046694168",
@@ -12,6 +47,19 @@
       },
       "locked_rev": "39d1a6c4566dfdb75a27ae40a2ae3aad4df77408",
       "upstream_rev": "1930a8319d8d6ad9acd4a13d76e334b3c3353259"
+    },
+    "precommit-base": {
+      "bases": {
+        "darwin": "078f5c95bce8a05320667523b628cfe408b4d4117d37f45bef6efff046694168"
+      },
+      "classified_at": "2026-11-15T17:16:11Z",
+      "dispatched_at": "2026-11-15T17:16:11Z",
+      "dispatched_rev": "2893bcf2db9aa5a943a19ac15488b58082c413fa",
+      "kinds": {
+        "darwin": "source"
+      },
+      "locked_rev": "b2f45bbbff95cd70507098cec42cce6df8e8def6",
+      "upstream_rev": "2893bcf2db9aa5a943a19ac15488b58082c413fa"
     }
   },
   "planned_at": "2026-11-15T17:08:45Z",
