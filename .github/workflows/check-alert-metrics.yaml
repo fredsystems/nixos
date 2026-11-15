@@ -30,9 +30,11 @@ jobs:
     runs-on: [self-hosted, Linux]
 
     # This repository is public, and this job runs a script from the checked-out
-    # pull-request head on a persistent self-hosted runner that can reach the
-    # monitoring LAN. Without this guard a fork could edit
-    # scripts/check-alert-metrics.sh and get code execution on that runner.
+    # pull-request head on a self-hosted runner that can reach the monitoring
+    # LAN. This guard keeps an approved fork PR from running it there by
+    # accident. It cannot stop a malicious fork, which controls its own copy of
+    # this file; fork-PR workflow approval does that. See "FORK CODE AND THE
+    # SELF-HOSTED RUNNERS" in ci-linux.yaml.
     #
     # Written as "not a pull_request, or a same-repo pull_request" so
     # workflow_dispatch keeps working. Every self-hosted job in this repository

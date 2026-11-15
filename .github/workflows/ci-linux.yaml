@@ -21,6 +21,38 @@ permissions:
   # skip-if-clean below) reads the PR for the current ref.
   pull-requests: read
 
+# FORK CODE AND THE SELF-HOSTED RUNNERS
+#
+# The self-hosted jobs below carry
+#   github.event_name != 'pull_request' ||
+#   github.event.pull_request.head.repo.full_name == github.repository
+# That guard only prevents ACCIDENTS. It is not the security boundary:
+#
+#   * A fork PR's run uses the workflow files from the PR itself, so a
+#     malicious fork just deletes the guard (or adds a step) and its own
+#     pull_request run executes wherever it likes.
+#   * merge_group is not pull_request, so the guard passes for a merge group
+#     containing a fork PR, and these jobs (build-systems with ATTIC_TOKEN
+#     included) run that fork's code on the runners.
+#
+# The real boundaries are two maintainer actions, both settings rather than
+# YAML:
+#
+#   1. Fork PR workflow approval is set to "all_external_contributors"
+#      (Settings > Actions > General; API: actions/permissions/
+#      fork-pr-contributor-approval). No fork's pull_request run starts on
+#      any runner until a maintainer approves it, however many PRs the author
+#      has had merged. Do not relax it to "first_time_contributors": that lets
+#      anyone with one merged PR run code here unreviewed.
+#   2. Only a maintainer can enqueue a PR, and pushing to a queued PR
+#      removes it from the queue, so a merge group contains exactly the code
+#      the maintainer enqueued. Enqueuing a fork PR is the decision to run it
+#      here with secrets; review it as such.
+#
+# Keep the guard anyway: it stops an approved fork PR's run from reaching the
+# LAN-attached runners without anyone having to read the diff first.
+# ci-darwin.yaml, lint.yaml and check-alert-metrics.yaml rely on this note.
+
 jobs:
   # =====================================================================
   # Fast-path: MUST ALWAYS RUN or downstream jobs will skip
