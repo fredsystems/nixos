@@ -1,19 +1,5 @@
 {
-  "inputs": {
-    "nixpkgs-kernel": {
-      "bases": {
-        "darwin": "f2bb69460a193fa9bdf2716b827922d682ac0fce55f2df1adbb702f650b7adea",
-        "linux": "1282391b3462a0ab7c014fff89d96797dae3ab8c4dd1423ed3650ef66451cf5d"
-      },
-      "classified_at": "2026-11-16T09:44:22Z",
-      "kinds": {
-        "darwin": "none",
-        "linux": "source"
-      },
-      "locked_rev": "39d1a6c4566dfdb75a27ae40a2ae3aad4df77408",
-      "upstream_rev": "c22eb062fe0bc5f328207f05cb6c73d474a594a5"
-    }
-  },
-  "planned_at": "2026-11-16T09:40:49Z",
+  "inputs": {},
+  "planned_at": "2026-11-16T15:31:44Z",
   "version": 1
 }
