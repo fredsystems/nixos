@@ -870,11 +870,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1794344397,
-        "narHash": "sha256-9X/zw5tJvwtfkGkqtUkaKnZKOionpUgMC0AHgDlV8Iw=",
+        "lastModified": 1794849743,
+        "narHash": "sha256-4n5Eq8r+If+3ZN6gRyY2K/A0Cq8yPRPmrM7OsJScwWA=",
         "owner": "fredclausen",
         "repo": "nixos-needsreboot",
-        "rev": "252f2f35e71a1795a1fcaf44e149b6fa696453c8",
+        "rev": "cd8926014d899e98ec11cd2bfe46c400b7c0ad05",
         "type": "github"
       },
       "original": {
