@@ -3,9 +3,9 @@
     "nixpkgs-kernel": {
       "bases": {
         "darwin": "f2bb69460a193fa9bdf2716b827922d682ac0fce55f2df1adbb702f650b7adea",
-        "linux": "3a086ce4867bf2f235858bde3bd1b837281efefd32405dc452ea8fc638f9c4af"
+        "linux": "1282391b3462a0ab7c014fff89d96797dae3ab8c4dd1423ed3650ef66451cf5d"
       },
-      "classified_at": "2026-11-16T09:43:04Z",
+      "classified_at": "2026-11-16T09:44:22Z",
       "kinds": {
         "darwin": "none",
         "linux": "source"
