@@ -1,5 +1,17 @@
 {
-  "inputs": {},
+  "inputs": {
+    "nixpkgs-kernel": {
+      "bases": {
+        "linux": "1282391b3462a0ab7c014fff89d96797dae3ab8c4dd1423ed3650ef66451cf5d"
+      },
+      "classified_at": "2026-11-16T15:35:31Z",
+      "kinds": {
+        "linux": "source"
+      },
+      "locked_rev": "39d1a6c4566dfdb75a27ae40a2ae3aad4df77408",
+      "upstream_rev": "c089fab3b46743911df4c60199f6d0b20c4fb834"
+    }
+  },
   "planned_at": "2026-11-16T15:31:44Z",
   "version": 1
 }
