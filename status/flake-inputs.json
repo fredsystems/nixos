@@ -2,26 +2,30 @@
   "inputs": {
     "frext": {
       "bases": {
-        "darwin": "b631b24041aea9a3dcece195dcd2ebba26325c2cea3b0eed01e553ce651c7fa2"
+        "darwin": "b631b24041aea9a3dcece195dcd2ebba26325c2cea3b0eed01e553ce651c7fa2",
+        "linux": "8a6a09792374ada00a40ea8a36eccea033b75ae75215e4383483605133d67e0d"
       },
-      "classified_at": "2026-11-17T04:00:05Z",
+      "classified_at": "2026-11-17T04:08:17Z",
       "dispatched_at": "2026-11-17T04:00:05Z",
       "dispatched_rev": "d2fee8188739af3801bd06500df47fadde254d03",
       "kinds": {
-        "darwin": "source"
+        "darwin": "source",
+        "linux": "source"
       },
       "locked_rev": "694b02533427a8676e6e5d12a4b6abd91ebef974",
       "upstream_rev": "d2fee8188739af3801bd06500df47fadde254d03"
     },
     "home-manager": {
       "bases": {
-        "darwin": "b631b24041aea9a3dcece195dcd2ebba26325c2cea3b0eed01e553ce651c7fa2"
+        "darwin": "b631b24041aea9a3dcece195dcd2ebba26325c2cea3b0eed01e553ce651c7fa2",
+        "linux": "8a6a09792374ada00a40ea8a36eccea033b75ae75215e4383483605133d67e0d"
       },
-      "classified_at": "2026-11-17T04:00:05Z",
+      "classified_at": "2026-11-17T04:08:17Z",
       "dispatched_at": "2026-11-17T04:00:05Z",
       "dispatched_rev": "9d7ba6bef3904a018d38b92f83132eaf01eb8ef3",
       "kinds": {
-        "darwin": "source"
+        "darwin": "source",
+        "linux": "source"
       },
       "locked_rev": "a1293da7dd8e497e08d26173f97e2976b36a31ea",
       "upstream_rev": "9d7ba6bef3904a018d38b92f83132eaf01eb8ef3"
@@ -29,9 +33,9 @@
     "niri": {
       "bases": {
         "darwin": "b631b24041aea9a3dcece195dcd2ebba26325c2cea3b0eed01e553ce651c7fa2",
-        "linux": "24ce310efac61121974ed21ac3d2385c6e1a2e522c6a3ea608f78176ba6a1ca8"
+        "linux": "8a6a09792374ada00a40ea8a36eccea033b75ae75215e4383483605133d67e0d"
       },
-      "classified_at": "2026-11-17T04:00:05Z",
+      "classified_at": "2026-11-17T04:08:17Z",
       "kinds": {
         "darwin": "none",
         "linux": "none"
@@ -42,9 +46,9 @@
     "nixpkgs-kernel": {
       "bases": {
         "darwin": "b631b24041aea9a3dcece195dcd2ebba26325c2cea3b0eed01e553ce651c7fa2",
-        "linux": "24ce310efac61121974ed21ac3d2385c6e1a2e522c6a3ea608f78176ba6a1ca8"
+        "linux": "8a6a09792374ada00a40ea8a36eccea033b75ae75215e4383483605133d67e0d"
       },
-      "classified_at": "2026-11-17T04:00:05Z",
+      "classified_at": "2026-11-17T04:08:17Z",
       "kinds": {
         "darwin": "none",
         "linux": "source"
@@ -54,24 +58,30 @@
     },
     "sops-nix": {
       "bases": {
-        "darwin": "b631b24041aea9a3dcece195dcd2ebba26325c2cea3b0eed01e553ce651c7fa2"
+        "darwin": "b631b24041aea9a3dcece195dcd2ebba26325c2cea3b0eed01e553ce651c7fa2",
+        "linux": "8a6a09792374ada00a40ea8a36eccea033b75ae75215e4383483605133d67e0d"
       },
-      "classified_at": "2026-11-17T04:00:05Z",
+      "classified_at": "2026-11-17T04:08:17Z",
       "dispatched_at": "2026-11-17T04:00:05Z",
       "dispatched_rev": "7c637afdccdf9bcf35c4a2d67b58a77c1fd843a4",
       "kinds": {
-        "darwin": "source"
+        "darwin": "source",
+        "linux": "source"
       },
       "locked_rev": "11e5885d241743ff0193465d533b20e754bc3ce0",
       "upstream_rev": "7c637afdccdf9bcf35c4a2d67b58a77c1fd843a4"
     },
     "sops-nix-stable": {
       "bases": {
-        "darwin": "b631b24041aea9a3dcece195dcd2ebba26325c2cea3b0eed01e553ce651c7fa2"
+        "darwin": "b631b24041aea9a3dcece195dcd2ebba26325c2cea3b0eed01e553ce651c7fa2",
+        "linux": "8a6a09792374ada00a40ea8a36eccea033b75ae75215e4383483605133d67e0d"
       },
-      "classified_at": "2026-11-17T04:00:05Z",
+      "classified_at": "2026-11-17T04:08:17Z",
+      "dispatched_at": "2026-11-17T04:08:17Z",
+      "dispatched_rev": "7c637afdccdf9bcf35c4a2d67b58a77c1fd843a4",
       "kinds": {
-        "darwin": "none"
+        "darwin": "none",
+        "linux": "source"
       },
       "locked_rev": "11e5885d241743ff0193465d533b20e754bc3ce0",
       "upstream_rev": "7c637afdccdf9bcf35c4a2d67b58a77c1fd843a4"
