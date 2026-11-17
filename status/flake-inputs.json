@@ -1,20 +1,5 @@
 {
   "inputs": {
-    "home-manager": {
-      "bases": {
-        "darwin": "6a2274b4a55d68a850686af77b789381bf1aec28102375c313bf1ff6145ca8d7",
-        "linux": "d615eb96e37eaeba78441e32a0a5c75be2b6a83a0405694e7624a7da495b302d"
-      },
-      "classified_at": "2026-11-17T13:32:09Z",
-      "dispatched_at": "2026-11-17T13:27:31Z",
-      "dispatched_rev": "5b76c5b8eec25fdbce4f43309b3ee10584374a26",
-      "kinds": {
-        "darwin": "source",
-        "linux": "source"
-      },
-      "locked_rev": "9d7ba6bef3904a018d38b92f83132eaf01eb8ef3",
-      "upstream_rev": "5b76c5b8eec25fdbce4f43309b3ee10584374a26"
-    },
     "niri": {
       "bases": {
         "darwin": "6a2274b4a55d68a850686af77b789381bf1aec28102375c313bf1ff6145ca8d7",
@@ -42,6 +27,6 @@
       "upstream_rev": "1e0618088a503ebfc4e0f522f1cfa47bae42517f"
     }
   },
-  "planned_at": "2026-11-17T13:23:08Z",
+  "planned_at": "2026-11-17T19:55:17Z",
   "version": 1
 }
