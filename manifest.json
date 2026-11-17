@@ -1,8 +1,13 @@
 {
-  "generated_at": 1794888696,
+  "generated_at": 1794889291,
   "hosts": {
     "Daytona": {
       "history": [
+        {
+          "at": 1794889291,
+          "rev": "ac97960e9b1b5ad82747b6621a52df8cead6e2b9",
+          "toplevel": "/nix/store/ir7d5nsnvj04b7qyp81g33dxzff7ckf2-nixos-system-Daytona-26.11.20261113.d5cc683"
+        },
         {
           "at": 1794888696,
           "rev": "0080b0c2c78a8b9c378b4f622b1aa9c8605540d0",
@@ -122,11 +127,6 @@
           "at": 1794505377,
           "rev": "6bd94b8500bbe69aeddab8d9e77b9ecde4b6ac3e",
           "toplevel": "/nix/store/lw9sa3srhy9dy7z9rbffqdgksrpngjwr-nixos-system-Daytona-26.11.20261103.1d06008"
-        },
-        {
-          "at": 1794505235,
-          "rev": "21255faa51230cfe7fb975f1b6a822c9a0b7dbab",
-          "toplevel": "/nix/store/kvxmj20harvdmsw0a8fncg2s6fdhz4f7-nixos-system-Daytona-26.11.20261103.1d06008"
         }
       ]
     },
@@ -261,6 +261,11 @@
     },
     "adsbhub": {
       "history": [
+        {
+          "at": 1794889291,
+          "rev": "ac97960e9b1b5ad82747b6621a52df8cead6e2b9",
+          "toplevel": "/nix/store/liqjmhsla0hq8f6vyqkjbwn8j0hxj2vz-nixos-system-adsbhub-26.05.20261115.b349185"
+        },
         {
           "at": 1794869190,
           "rev": "822d692c84c5f3624234ebfc396906b65e660e68",
@@ -876,6 +881,11 @@
     "maranello": {
       "history": [
         {
+          "at": 1794889291,
+          "rev": "ac97960e9b1b5ad82747b6621a52df8cead6e2b9",
+          "toplevel": "/nix/store/lhgwj1hjl4cwrb2fkxhibpcpnwqkbb8m-nixos-system-maranello-26.11.20261113.d5cc683"
+        },
+        {
           "at": 1794888696,
           "rev": "0080b0c2c78a8b9c378b4f622b1aa9c8605540d0",
           "toplevel": "/nix/store/7h1fvmy5mv78cyl1l149k8g25cqv32k4-nixos-system-maranello-26.11.20261113.d5cc683"
@@ -994,11 +1004,6 @@
           "at": 1794505377,
           "rev": "6bd94b8500bbe69aeddab8d9e77b9ecde4b6ac3e",
           "toplevel": "/nix/store/1yk00dxnk9xl17pq1wdyfw4rz3cyg19r-nixos-system-maranello-26.11.20261103.1d06008"
-        },
-        {
-          "at": 1794505235,
-          "rev": "21255faa51230cfe7fb975f1b6a822c9a0b7dbab",
-          "toplevel": "/nix/store/mlrr4q6k8j00gll3dxngn7r4zw4hyikz-nixos-system-maranello-26.11.20261103.1d06008"
         }
       ]
     },
@@ -1261,6 +1266,6 @@
       ]
     }
   },
-  "rev": "0080b0c2c78a8b9c378b4f622b1aa9c8605540d0",
+  "rev": "ac97960e9b1b5ad82747b6621a52df8cead6e2b9",
   "schema": 1
 }
