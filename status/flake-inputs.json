@@ -1,11 +1,37 @@
 {
   "inputs": {
+    "frext": {
+      "bases": {
+        "darwin": "f86e52ea404911a493e638200bdcd287d293a3209664920bc3e6522e62f411df"
+      },
+      "classified_at": "2026-11-17T22:28:24Z",
+      "dispatched_at": "2026-11-17T22:28:24Z",
+      "dispatched_rev": "edb6566dd41f23da1be532405af377ea1517c6bd",
+      "kinds": {
+        "darwin": "source"
+      },
+      "locked_rev": "9e42248bbdcd7362a01527271b0603ee4a1aeb04",
+      "upstream_rev": "edb6566dd41f23da1be532405af377ea1517c6bd"
+    },
+    "home-manager": {
+      "bases": {
+        "darwin": "f86e52ea404911a493e638200bdcd287d293a3209664920bc3e6522e62f411df"
+      },
+      "classified_at": "2026-11-17T22:28:24Z",
+      "dispatched_at": "2026-11-17T22:28:24Z",
+      "dispatched_rev": "4246683484a7b4ced0a0d880974b67137f092289",
+      "kinds": {
+        "darwin": "source"
+      },
+      "locked_rev": "6e4bcf6931d797a3e7718e4dec84992d67a00bf1",
+      "upstream_rev": "4246683484a7b4ced0a0d880974b67137f092289"
+    },
     "home-manager-stable": {
       "bases": {
-        "darwin": "27fbdb09cc3a68d60a62112ddf650cf5d0c2acb7fcc03716dd61a4dcf8eb184b",
+        "darwin": "f86e52ea404911a493e638200bdcd287d293a3209664920bc3e6522e62f411df",
         "linux": "1c0959c723396edbf2cf0242e779c5ebdee0e7a196692db00df78fd53a2270b0"
       },
-      "classified_at": "2026-11-17T20:15:14Z",
+      "classified_at": "2026-11-17T22:28:24Z",
       "kinds": {
         "darwin": "none",
         "linux": "none"
@@ -13,12 +39,23 @@
       "locked_rev": "6eb2d33d1d0c95a37ef6443c88e6c1686012ee8b",
       "upstream_rev": "5643e73425b85ac359ba2aaf83deae8ce1cd7968"
     },
+    "niri": {
+      "bases": {
+        "darwin": "f86e52ea404911a493e638200bdcd287d293a3209664920bc3e6522e62f411df"
+      },
+      "classified_at": "2026-11-17T22:28:24Z",
+      "kinds": {
+        "darwin": "none"
+      },
+      "locked_rev": "caa08a25ec121693aa1e96bc1842b2ffea684a5e",
+      "upstream_rev": "5cd325481ab4fc400c93826da9fb2e0e742f51b7"
+    },
     "nixpkgs-kernel": {
       "bases": {
-        "darwin": "27fbdb09cc3a68d60a62112ddf650cf5d0c2acb7fcc03716dd61a4dcf8eb184b",
+        "darwin": "f86e52ea404911a493e638200bdcd287d293a3209664920bc3e6522e62f411df",
         "linux": "1c0959c723396edbf2cf0242e779c5ebdee0e7a196692db00df78fd53a2270b0"
       },
-      "classified_at": "2026-11-17T20:15:14Z",
+      "classified_at": "2026-11-17T22:28:24Z",
       "kinds": {
         "darwin": "none",
         "linux": "source"
