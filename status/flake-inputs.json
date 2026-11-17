@@ -2,13 +2,15 @@
   "inputs": {
     "home-manager": {
       "bases": {
-        "darwin": "6a2274b4a55d68a850686af77b789381bf1aec28102375c313bf1ff6145ca8d7"
+        "darwin": "6a2274b4a55d68a850686af77b789381bf1aec28102375c313bf1ff6145ca8d7",
+        "linux": "d615eb96e37eaeba78441e32a0a5c75be2b6a83a0405694e7624a7da495b302d"
       },
-      "classified_at": "2026-11-17T13:27:31Z",
+      "classified_at": "2026-11-17T13:32:09Z",
       "dispatched_at": "2026-11-17T13:27:31Z",
       "dispatched_rev": "5b76c5b8eec25fdbce4f43309b3ee10584374a26",
       "kinds": {
-        "darwin": "source"
+        "darwin": "source",
+        "linux": "source"
       },
       "locked_rev": "9d7ba6bef3904a018d38b92f83132eaf01eb8ef3",
       "upstream_rev": "5b76c5b8eec25fdbce4f43309b3ee10584374a26"
@@ -16,9 +18,9 @@
     "niri": {
       "bases": {
         "darwin": "6a2274b4a55d68a850686af77b789381bf1aec28102375c313bf1ff6145ca8d7",
-        "linux": "8a6a09792374ada00a40ea8a36eccea033b75ae75215e4383483605133d67e0d"
+        "linux": "d615eb96e37eaeba78441e32a0a5c75be2b6a83a0405694e7624a7da495b302d"
       },
-      "classified_at": "2026-11-17T13:27:31Z",
+      "classified_at": "2026-11-17T13:32:09Z",
       "kinds": {
         "darwin": "none",
         "linux": "none"
@@ -28,11 +30,13 @@
     },
     "nixpkgs-kernel": {
       "bases": {
-        "darwin": "6a2274b4a55d68a850686af77b789381bf1aec28102375c313bf1ff6145ca8d7"
+        "darwin": "6a2274b4a55d68a850686af77b789381bf1aec28102375c313bf1ff6145ca8d7",
+        "linux": "d615eb96e37eaeba78441e32a0a5c75be2b6a83a0405694e7624a7da495b302d"
       },
-      "classified_at": "2026-11-17T13:27:31Z",
+      "classified_at": "2026-11-17T13:32:09Z",
       "kinds": {
-        "darwin": "none"
+        "darwin": "none",
+        "linux": "source"
       },
       "locked_rev": "39d1a6c4566dfdb75a27ae40a2ae3aad4df77408",
       "upstream_rev": "1e0618088a503ebfc4e0f522f1cfa47bae42517f"
