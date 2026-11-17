@@ -44,7 +44,7 @@ and never let time of day stand in for the variable under test.
 
 | Receiver     | SDR                        | Host     | Decoder container            | Beast source (recorder view) |
 | ------------ | -------------------------- | -------- | ---------------------------- | ---------------------------- |
-| `airspy`     | Airspy R2, 20 MSPS         | adsbhub  | `airspy_adsb`                | `127.0.0.1:30105`            |
+| `airspy`     | Airspy R2, 12 MSPS         | adsbhub  | `airspy_adsb`                | `127.0.0.1:30105`            |
 | `fa-proplus` | FlightAware Pro Stick Plus | adsbhub  | `tar1090_rtlsdr` (`00001090`) | `127.0.0.1:30106`            |
 | `rtl-v3`     | RTL-SDR Blog v3            | acarshub | `tar1090_rtlv3` (`00001093`) | `acarshub.local:30005`       |
 | `rtl-v4`     | RTL-SDR Blog v4            | vdlmhub  | `tar1090_rtlv4` (`00001094`) | `vdlmhub.local:30005`        |
@@ -355,7 +355,11 @@ Nothing here waits on them.
       vhost, landing-page button, probe and secret: restore it from git
       history (with its `127.0.0.1:30106` Beast port and its `fa-proplus`
       recorder entry) before this run. Re-enable the recorder on adsbhub
-      with a new `runId`.
+      with a new `runId`. The Airspy has run at 12 MSPS since 2026-11-17,
+      for MLAT stability on the shared bus; `2026-11-baseline-a` was
+      recorded at 20. Decide which rate the four-receiver runs use, record
+      it in the Airspy's metadata, and treat a comparison against
+      baseline-a as confounded by the rate if it differs.
 - [ ] **2.15 Four-receiver run.** Four port assignments (cyclic Latin
       square, so every receiver uses every port once), 48 h each, about
       8 days. Report each assignment and the pooled result with the
