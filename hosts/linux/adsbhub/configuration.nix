@@ -144,6 +144,22 @@ in
           config.sops.secrets."docker/adsbhub/airspy_adsb.env".path
         ];
 
+        # 12 MSPS, not 20. After adsbhub's reboot on 2026-11-16 every MLAT
+        # server reported this receiver's clock as unstable (piaware "clock
+        # unstable", adsb.lol 44% bad sync) for 17 hours, at 20 MSPS on a USB
+        # 2.0 bus shared with the 978 RTL-SDR (~44 MB/s of demand). airspy_adsb's
+        # maintainer recommends 12 for exactly that symptom: "20 MSPS will
+        # more easily cause MLAT issues so if you find you have bad sync /
+        # clock unstable, best to go to 12 MSPS" (wiedehopf/airspy-conf), for
+        # a cost he puts at under 3% of positions. 12 also halves the
+        # Airspy's USB load to ~24 MB/s. Revisit once the Airspy has a bus to
+        # itself. Set here rather than in the env file because it is not
+        # secret; the container prefers this over the legacy
+        # AIRSPY_ADSB_MLAT_FREQ, which has been removed from the env file.
+        environment = {
+          AIRSPY_ADSB_SAMPLE_RATE = "12";
+        };
+
         deviceCgroupRules = [
           "c 189:* rwm"
         ];
