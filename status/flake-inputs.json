@@ -3,9 +3,9 @@
     "home-manager": {
       "bases": {
         "darwin": "d04393406fdc9f345c1e9021a0842b6b7aab70f8c87e4d72e3dd12f5e9b31aa5",
-        "linux": "96c995b871a6ccefdc0b2eada24225b64ce1e1fe56d021cb631f09ab7239e683"
+        "linux": "e2085133d3e47ad18f54e6397cc0bb267bd9f24ad4a259a5557c4335c7351c18"
       },
-      "classified_at": "2026-11-18T19:35:03Z",
+      "classified_at": "2026-11-18T19:39:37Z",
       "kinds": {
         "darwin": "none",
         "linux": "none"
@@ -16,9 +16,9 @@
     "home-manager-stable": {
       "bases": {
         "darwin": "d04393406fdc9f345c1e9021a0842b6b7aab70f8c87e4d72e3dd12f5e9b31aa5",
-        "linux": "96c995b871a6ccefdc0b2eada24225b64ce1e1fe56d021cb631f09ab7239e683"
+        "linux": "e2085133d3e47ad18f54e6397cc0bb267bd9f24ad4a259a5557c4335c7351c18"
       },
-      "classified_at": "2026-11-18T19:35:03Z",
+      "classified_at": "2026-11-18T19:39:37Z",
       "kinds": {
         "darwin": "none",
         "linux": "none"
@@ -29,9 +29,9 @@
     "niri": {
       "bases": {
         "darwin": "d04393406fdc9f345c1e9021a0842b6b7aab70f8c87e4d72e3dd12f5e9b31aa5",
-        "linux": "96c995b871a6ccefdc0b2eada24225b64ce1e1fe56d021cb631f09ab7239e683"
+        "linux": "e2085133d3e47ad18f54e6397cc0bb267bd9f24ad4a259a5557c4335c7351c18"
       },
-      "classified_at": "2026-11-18T19:35:03Z",
+      "classified_at": "2026-11-18T19:39:37Z",
       "kinds": {
         "darwin": "none",
         "linux": "none"
@@ -41,11 +41,13 @@
     },
     "nixpkgs-kernel": {
       "bases": {
-        "darwin": "d04393406fdc9f345c1e9021a0842b6b7aab70f8c87e4d72e3dd12f5e9b31aa5"
+        "darwin": "d04393406fdc9f345c1e9021a0842b6b7aab70f8c87e4d72e3dd12f5e9b31aa5",
+        "linux": "e2085133d3e47ad18f54e6397cc0bb267bd9f24ad4a259a5557c4335c7351c18"
       },
-      "classified_at": "2026-11-18T19:35:03Z",
+      "classified_at": "2026-11-18T19:39:37Z",
       "kinds": {
-        "darwin": "none"
+        "darwin": "none",
+        "linux": "source"
       },
       "locked_rev": "39d1a6c4566dfdb75a27ae40a2ae3aad4df77408",
       "upstream_rev": "1e6cf0d7cf5f5354d1bfd7105813dddb527851d4"
