@@ -46,7 +46,7 @@
         octet = "(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])";
       in
       lib.types.strMatching "^${octet}(\\.${octet}){3}$";
-    default = "168.93.60.127";
+    default = "168.93.61.235";
     description = ''
       Current public IPv4 address of the home network, as observed by an
       off-site host.
