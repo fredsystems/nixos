@@ -3,8 +3,6 @@
 # Shared shell aliases — sourced by BOTH zsh and bash.
 # ${GITHUB_DIR} comes from 00-env.sh, which must be sourced first.
 
-alias cd="z"
-
 alias uz="${HOME}/.config/scripts/update-zsh-stuff.sh"
 alias ugh="${HOME}/.config/scripts/update-all-git.sh ${GITHUB_DIR}"
 alias ipc="${HOME}/.config/scripts/install-all-precommit.sh ${GITHUB_DIR}"
