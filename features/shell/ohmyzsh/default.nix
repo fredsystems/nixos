@@ -22,7 +22,6 @@ in
           "copyfile"
           "copybuffer"
           "history"
-          "zoxide"
         ];
       };
     });
