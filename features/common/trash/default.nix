@@ -6,6 +6,9 @@
 }:
 let
   allUsers = config.shared.allUsers;
+  repair = pkgs.writers.writePython3Bin "autotrash-repair" { } (
+    builtins.readFile ./repair-trashinfo.py
+  );
 in
 {
   config = {
@@ -23,6 +26,9 @@ in
             };
             Service = {
               Type = "oneshot";
+              # One unreadable .trashinfo (or a missing info/ directory)
+              # makes autotrash abort without deleting anything.
+              ExecStartPre = "${repair}/bin/autotrash-repair";
               ExecStart = "${pkgs.autotrash}/bin/autotrash --days 10";
             };
           };

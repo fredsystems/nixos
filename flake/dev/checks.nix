@@ -279,6 +279,22 @@
         '';
       };
 
+      # Hermetic tests for features/common/trash/repair-trashinfo.py, run
+      # against the real autotrash: one unreadable .trashinfo makes autotrash
+      # abort without deleting anything, which went unnoticed for months.
+      trashRepairCheck = pkgs.writeShellApplication {
+        name = "check-trash-repair";
+        runtimeInputs = [
+          pkgs.autotrash
+          pkgs.python3
+          pkgs.findutils
+          pkgs.coreutils
+        ];
+        text = ''
+          bash scripts/tests/trash-repair-test.sh
+        '';
+      };
+
       # Hermetic tests for scripts/nix-build-no-warnings.sh, the gate that
       # fails lint.yaml's `nix build` steps on any evaluation warning. Nix
       # exits 0 on a warning, so if this gate stops working nothing else
@@ -577,6 +593,14 @@
               name = "home IP rotation helper tests";
               entry = "${pkgs.lib.getExe homeIpCheck}";
               files = "^(scripts/(lib/home-ip|rotate-home-ip|tests/home-ip-test)\\.sh|modules/data/home-network\\.nix)$";
+              pass_filenames = false;
+            };
+
+            trash-repair = {
+              enable = true;
+              name = "autotrash trashinfo repair tests";
+              entry = "${pkgs.lib.getExe trashRepairCheck}";
+              files = "^(features/common/trash/repair-trashinfo\\.py|scripts/tests/trash-repair-test\\.sh)$";
               pass_filenames = false;
             };
 
@@ -1069,6 +1093,17 @@
           ''
             cd ${self}
             check-home-ip
+            touch "$out"
+          '';
+
+      trash-repair =
+        pkgs.runCommand "trash-repair-check"
+          {
+            nativeBuildInputs = [ trashRepairCheck ];
+          }
+          ''
+            cd ${self}
+            check-trash-repair
             touch "$out"
           '';
 
