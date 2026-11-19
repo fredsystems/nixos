@@ -295,6 +295,24 @@
         '';
       };
 
+      # Hermetic tests for modules/monitoring/agent/systemd-user-units.sh, the
+      # textfile collector for failed systemd user units, against fake
+      # loginctl/systemctl. Output is checked with promtool, because one bad
+      # sample makes node_exporter drop the whole file.
+      systemdUserUnitsCheck = pkgs.writeShellApplication {
+        name = "check-systemd-user-units";
+        runtimeInputs = [
+          pkgs.jq
+          pkgs.prometheus.cli
+          pkgs.gnugrep
+          pkgs.findutils
+          pkgs.coreutils
+        ];
+        text = ''
+          bash scripts/tests/systemd-user-units-test.sh
+        '';
+      };
+
       # Hermetic tests for scripts/nix-build-no-warnings.sh, the gate that
       # fails lint.yaml's `nix build` steps on any evaluation warning. Nix
       # exits 0 on a warning, so if this gate stops working nothing else
@@ -601,6 +619,14 @@
               name = "autotrash trashinfo repair tests";
               entry = "${pkgs.lib.getExe trashRepairCheck}";
               files = "^(features/common/trash/repair-trashinfo\\.py|scripts/tests/trash-repair-test\\.sh)$";
+              pass_filenames = false;
+            };
+
+            systemd-user-units = {
+              enable = true;
+              name = "failed systemd user units collector tests";
+              entry = "${pkgs.lib.getExe systemdUserUnitsCheck}";
+              files = "^(modules/monitoring/agent/systemd-user-units\\.sh|scripts/tests/systemd-user-units-test\\.sh)$";
               pass_filenames = false;
             };
 
@@ -1104,6 +1130,17 @@
           ''
             cd ${self}
             check-trash-repair
+            touch "$out"
+          '';
+
+      systemd-user-units =
+        pkgs.runCommand "systemd-user-units-check"
+          {
+            nativeBuildInputs = [ systemdUserUnitsCheck ];
+          }
+          ''
+            cd ${self}
+            check-systemd-user-units
             touch "$out"
           '';
 

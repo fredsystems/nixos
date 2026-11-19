@@ -174,6 +174,8 @@ let
       '';
 in
 {
+  imports = [ ./systemd-user-units.nix ];
+
   systemd = {
     services = {
       # Outlast tailscaled when it loses the boot race.

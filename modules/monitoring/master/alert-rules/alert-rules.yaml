@@ -96,6 +96,73 @@ groups:
           summary: "Systemd unit {{ $labels.name }} is flapping"
           description: "The unit {{ $labels.name }} changed state more than 3 times in the last 10 minutes."
 
+      # User units (home-manager services such as autotrash) are invisible to
+      # node_exporter's systemd collector; these series come from
+      # modules/monitoring/agent/systemd-user-units.sh, every 5 minutes.
+      #
+      # Warning, not critical like SystemdUnitFailed: nothing a server serves
+      # runs as a user unit, so these are housekeeping. But they must not be
+      # silent -- autotrash failed daily on corehub and adsbhub for months
+      # with nothing reporting it. Desktops are dashboard-only, as for system
+      # units.
+      - alert: SystemdUserUnitFailed
+        expr: node_systemd_user_unit_failed{role!="desktop"} == 1
+        # Two collector runs, so a unit that fails and is restarted between
+        # them does not notify.
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "User unit {{ $labels.name }} FAILED for {{ $labels.user }} on {{ $labels.hostname }}"
+          description: "The systemd user unit {{ $labels.name }} (user {{ $labels.user }}) has been failed for over 10 minutes. Check `journalctl --user -u {{ $labels.name }}` as {{ $labels.user }}."
+
+      # The collector reports these as 0 rather than omitting them, so each
+      # means "failures here are unknown", which would otherwise look exactly
+      # like "nothing failed".
+      - alert: SystemdUserManagerUnreachable
+        expr: node_systemd_user_manager_up{role!="desktop"} == 0
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Cannot read user units for {{ $labels.user }} on {{ $labels.hostname }}"
+          description: "systemd-user-units-metric could not query {{ $labels.user }}'s systemd user manager for 30 minutes, so failed user units for that user are not being reported. Check `systemctl status user@$(id -u {{ $labels.user }}).service`."
+
+      - alert: SystemdUserUnitsCollectorFailing
+        expr: node_systemd_user_units_collector_ok{role!="desktop"} == 0
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "User-unit collector cannot list users on {{ $labels.hostname }}"
+          description: "systemd-user-units-metric on {{ $labels.hostname }} has failed to list users with loginctl for 30 minutes, so no failed user units are being reported from this host. Check `journalctl -u systemd-user-units-metric`."
+
+      # Six missed runs. The textfile collector never expires a file, so a
+      # stopped timer would otherwise keep reporting the last result forever.
+      - alert: SystemdUserUnitsMetricsStale
+        expr: time() - node_systemd_user_units_timestamp_seconds{role!="desktop"} > 1800
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "User-unit metrics are stale on {{ $labels.hostname }}"
+          description: "systemd-user-units-metric on {{ $labels.hostname }} last wrote its textfile over 30 minutes ago against a 5-minute timer, so failed user units there are frozen at their last value. Check systemd-user-units-metric.timer and its service."
+
+      # Every scraped server must have the collector. A host that never got it
+      # has no series for any rule above to evaluate, which looks identical to
+      # a healthy one. `up` names the hosts, so none are listed here.
+      - alert: SystemdUserUnitsMetricsMissing
+        expr: |
+          up{job="node", role!="desktop"} == 1
+            unless on (hostname)
+          node_systemd_user_units_timestamp_seconds
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "No user-unit metrics from {{ $labels.hostname }}"
+          description: "{{ $labels.hostname }} is being scraped but exports no node_systemd_user_units_* series, so failed systemd user units there are not monitored at all. It should run systemd-user-units-metric.timer (modules/monitoring/agent/systemd-user-units.nix)."
+
       - alert: GithubRunnerCrashLoop
         expr: changes(node_systemd_unit_state{state="active", name=~"github-runner-(runner-.*|freminal-fuzz.*)"}[5m]) > 6
         for: 2m
