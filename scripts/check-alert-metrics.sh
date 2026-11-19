@@ -239,11 +239,16 @@ fi
 #     modules/monitoring/agent/systemd-user-units.sh emits one series per
 #     failed systemd user unit. With every user unit healthy -- the normal
 #     state across the fleet -- there is none. The collector's health series
-#     that the rules use (node_systemd_user_manager_up,
-#     node_systemd_user_units_collector_ok,
-#     node_systemd_user_units_timestamp_seconds) are written on every run and
-#     are checked normally, so a collector that is broken or missing is still
-#     caught.
+#     that the rules use stay checked normally:
+#     node_systemd_user_units_collector_ok and
+#     node_systemd_user_units_timestamp_seconds are written on every run, and
+#     node_systemd_user_manager_up once per listed user, of which every host
+#     has at least one (modules/base/user.nix sets linger = true for every
+#     user). Like everything here, that is a fleet-wide count(): it proves the
+#     series exist somewhere, not on every host, and ignores their values.
+#     Per-host coverage and collector health are the runtime rules' job --
+#     SystemdUserUnitsMetricsMissing, SystemdUserUnitsMetricsStale,
+#     SystemdUserUnitsCollectorFailing and SystemdUserManagerUnreachable.
 CONDITIONAL_METRICS=(
     fwupd_device_update_info
     github_flake_input_update_pr_open
