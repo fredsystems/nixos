@@ -38,6 +38,17 @@
       },
       "locked_rev": "caa08a25ec121693aa1e96bc1842b2ffea684a5e",
       "upstream_rev": "e9bbde312d92c7686493752c7e90bfed11546693"
+    },
+    "nixpkgs-kernel": {
+      "bases": {
+        "darwin": "d04393406fdc9f345c1e9021a0842b6b7aab70f8c87e4d72e3dd12f5e9b31aa5"
+      },
+      "classified_at": "2026-11-19T13:04:16Z",
+      "kinds": {
+        "darwin": "none"
+      },
+      "locked_rev": "39d1a6c4566dfdb75a27ae40a2ae3aad4df77408",
+      "upstream_rev": "af71d04d30e65b5f7ed638561a7ad943d2dfcf90"
     }
   },
   "planned_at": "2026-11-19T13:02:06Z",
