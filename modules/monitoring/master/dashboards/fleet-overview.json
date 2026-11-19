@@ -216,9 +216,9 @@
     {
       "id": 6,
       "type": "stat",
-      "title": "Failed Systemd Units",
-      "description": "Total count of failed systemd units across all nodes",
-      "gridPos": { "h": 4, "w": 5, "x": 0, "y": 5 },
+      "title": "Failed Units — Servers",
+      "description": "Failed systemd units on servers, system and user units together. These alert (system units critical, user units warning).",
+      "gridPos": { "h": 4, "w": 3, "x": 0, "y": 5 },
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "options": {
         "reduceOptions": {
@@ -255,7 +255,55 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "count(node_systemd_unit_state{state=\"failed\", role!=\"desktop\"} == 1) or vector(0)",
+          "expr": "(count(node_systemd_unit_state{state=\"failed\", role!=\"desktop\"} == 1) or vector(0)) + (sum(node_systemd_user_units_failed{role!=\"desktop\"}) or vector(0))",
+          "legendFormat": "Failed Units",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 48,
+      "type": "stat",
+      "title": "Failed Units — Desktops",
+      "description": "Failed systemd units on desktops, system and user units together. Dashboard-only: desktops never alert.",
+      "gridPos": { "h": 4, "w": 3, "x": 3, "y": 5 },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 1 }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": { "0": { "text": "None", "color": "green" } }
+            }
+          ],
+          "unit": "none",
+          "color": { "mode": "thresholds" }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+          "expr": "(count(node_systemd_unit_state{state=\"failed\", role=\"desktop\"} == 1) or vector(0)) + (sum(node_systemd_user_units_failed{role=\"desktop\"}) or vector(0))",
           "legendFormat": "Failed Units",
           "instant": true
         }
@@ -266,7 +314,7 @@
       "type": "stat",
       "title": "Active Alerts",
       "description": "Currently firing Alertmanager alerts, excluding the Watchdog deadman, which fires permanently by design -- see the Alerting Pipeline panel",
-      "gridPos": { "h": 4, "w": 4, "x": 5, "y": 5 },
+      "gridPos": { "h": 4, "w": 3, "x": 6, "y": 5 },
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "options": {
         "reduceOptions": {
@@ -1137,7 +1185,7 @@
       "id": 31,
       "type": "table",
       "title": "Currently Failed Units",
-      "description": "All systemd units currently in a failed state across the fleet",
+      "description": "All systemd units currently in a failed state across the fleet, system and user units, servers and desktops. Scope says which manager the unit belongs to.",
       "gridPos": { "h": 6, "w": 24, "x": 0, "y": 38 },
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "options": {
@@ -1197,10 +1245,18 @@
               "job": true,
               "state": true,
               "role": true,
-              "exporter": true
+              "exporter": true,
+              "user": true
+            },
+            "indexByName": {
+              "hostname": 0,
+              "scope": 1,
+              "name": 2,
+              "Value": 3
             },
             "renameByName": {
               "hostname": "Host",
+              "scope": "Scope",
               "name": "Unit",
               "Value": "State"
             }
@@ -1211,7 +1267,7 @@
         {
           "refId": "A",
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "node_systemd_unit_state{state=\"failed\"} == 1",
+          "expr": "label_replace(node_systemd_unit_state{state=\"failed\"} == 1, \"scope\", \"system\", \"\", \"\") or label_replace(node_systemd_user_unit_failed == 1, \"scope\", \"user ($1)\", \"user\", \"(.*)\")",
           "instant": true,
           "format": "table",
           "legendFormat": "__auto"
