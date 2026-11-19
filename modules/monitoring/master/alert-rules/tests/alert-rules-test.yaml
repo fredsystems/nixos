@@ -963,6 +963,152 @@ tests:
         exp_alerts: []
 
   # ---------------------------------------------------------------------------
+  # systemd user units (modules/monitoring/agent/systemd-user-units.sh)
+  #
+  # Servers get a warning; desktops are dashboard-only, so every rule must
+  # also be proven silent for role="desktop".
+  # ---------------------------------------------------------------------------
+
+  - interval: 1m
+    name: SystemdUserUnitFailed warns for a server, never for a desktop
+    input_series:
+      - series: 'node_systemd_user_unit_failed{user="fred", name="autotrash.service", hostname="corehub", role="master"}'
+        values: "1+0x60"
+      - series: 'node_systemd_user_unit_failed{user="fred", name="autotrash.service", hostname="maranello", role="desktop"}'
+        values: "1+0x60"
+    alert_rule_test:
+      # Inside the 10m window: a unit restarted between two collector runs
+      # must not notify.
+      - eval_time: 9m
+        alertname: SystemdUserUnitFailed
+        exp_alerts: []
+      - eval_time: 20m
+        alertname: SystemdUserUnitFailed
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              user: fred
+              name: autotrash.service
+              hostname: corehub
+              role: master
+            exp_annotations:
+              summary: "User unit autotrash.service FAILED for fred on corehub"
+              description: "The systemd user unit autotrash.service (user fred) has been failed for over 10 minutes. Check `journalctl --user -u autotrash.service` as fred."
+
+  # The series disappears when the unit recovers, which resolves the alert.
+  - interval: 1m
+    name: SystemdUserUnitFailed resolves when the unit recovers
+    input_series:
+      - series: 'node_systemd_user_unit_failed{user="fred", name="autotrash.service", hostname="corehub", role="master"}'
+        values: "1+0x20 _x40"
+    alert_rule_test:
+      - eval_time: 45m
+        alertname: SystemdUserUnitFailed
+        exp_alerts: []
+
+  - interval: 1m
+    name: SystemdUserManagerUnreachable warns for a server, never for a desktop
+    input_series:
+      - series: 'node_systemd_user_manager_up{user="fred", hostname="fredhub", role="agent"}'
+        values: "0+0x60"
+      - series: 'node_systemd_user_manager_up{user="fred", hostname="Daytona", role="desktop"}'
+        values: "0+0x60"
+      - series: 'node_systemd_user_manager_up{user="fred", hostname="acarshub", role="agent"}'
+        values: "1+0x60"
+    alert_rule_test:
+      - eval_time: 45m
+        alertname: SystemdUserManagerUnreachable
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              user: fred
+              hostname: fredhub
+              role: agent
+            exp_annotations:
+              summary: "Cannot read user units for fred on fredhub"
+              description: "systemd-user-units-metric could not query fred's systemd user manager for 30 minutes, so failed user units for that user are not being reported. Check `systemctl status user@$(id -u fred).service`."
+
+  - interval: 1m
+    name: SystemdUserUnitsCollectorFailing warns for a server, never for a desktop
+    input_series:
+      - series: 'node_systemd_user_units_collector_ok{hostname="vdlmhub", role="agent"}'
+        values: "0+0x60"
+      - series: 'node_systemd_user_units_collector_ok{hostname="maranello", role="desktop"}'
+        values: "0+0x60"
+    alert_rule_test:
+      - eval_time: 45m
+        alertname: SystemdUserUnitsCollectorFailing
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              hostname: vdlmhub
+              role: agent
+            exp_annotations:
+              summary: "User-unit collector cannot list users on vdlmhub"
+              description: "systemd-user-units-metric on vdlmhub has failed to list users with loginctl for 30 minutes, so no failed user units are being reported from this host. Check `journalctl -u systemd-user-units-metric`."
+
+  # Timestamps are in seconds. fredvps stops writing at 0s; hfdlhub1 keeps
+  # writing every minute; the desktop is frozen too but must stay silent.
+  - interval: 1m
+    name: SystemdUserUnitsMetricsStale warns for a frozen server textfile only
+    input_series:
+      - series: 'node_systemd_user_units_timestamp_seconds{hostname="fredvps", role="agent"}'
+        values: "0+0x60"
+      - series: 'node_systemd_user_units_timestamp_seconds{hostname="hfdlhub1", role="agent"}'
+        values: "0+60x60"
+      - series: 'node_systemd_user_units_timestamp_seconds{hostname="Daytona", role="desktop"}'
+        values: "0+0x60"
+    alert_rule_test:
+      # 30m stale + 10m for.
+      - eval_time: 35m
+        alertname: SystemdUserUnitsMetricsStale
+        exp_alerts: []
+      - eval_time: 45m
+        alertname: SystemdUserUnitsMetricsStale
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              hostname: fredvps
+              role: agent
+            exp_annotations:
+              summary: "User-unit metrics are stale on fredvps"
+              description: "systemd-user-units-metric on fredvps last wrote its textfile over 30 minutes ago against a 5-minute timer, so failed user units there are frozen at their last value. Check systemd-user-units-metric.timer and its service."
+
+  - interval: 1m
+    name: SystemdUserUnitsMetricsMissing names a scraped server with no collector
+    input_series:
+      # nvrhub is up but never got the collector; adsbhub has it.
+      - series: 'up{job="node", instance="nvrhub.local:9100", hostname="nvrhub", role="agent", exporter="node"}'
+        values: "1+0x90"
+      - series: 'up{job="node", instance="adsbhub.local:9100", hostname="adsbhub", role="agent", exporter="node"}'
+        values: "1+0x90"
+      - series: 'node_systemd_user_units_timestamp_seconds{job="node", instance="adsbhub.local:9100", hostname="adsbhub", role="agent", exporter="node"}'
+        values: "0+60x90"
+      # Desktops sleep and are dashboard-only.
+      - series: 'up{job="node", instance="maranello.local:9100", hostname="maranello", role="desktop", exporter="node"}'
+        values: "1+0x90"
+      # A down host is NodeDown's business, not this rule's.
+      - series: 'up{job="node", instance="hfdlhub2.local:9100", hostname="hfdlhub2", role="agent", exporter="node"}'
+        values: "0+0x90"
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: SystemdUserUnitsMetricsMissing
+        exp_alerts: []
+      - eval_time: 75m
+        alertname: SystemdUserUnitsMetricsMissing
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: node
+              instance: nvrhub.local:9100
+              hostname: nvrhub
+              role: agent
+              exporter: node
+            exp_annotations:
+              summary: "No user-unit metrics from nvrhub"
+              description: "nvrhub is being scraped but exports no node_systemd_user_units_* series, so failed systemd user units there are not monitored at all. It should run systemd-user-units-metric.timer (modules/monitoring/agent/systemd-user-units.nix)."
+
+  # ---------------------------------------------------------------------------
   # GitHub runner self-healing rules
   #
   # These encode the division of labour introduced with the watchdog timer in
