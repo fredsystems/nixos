@@ -234,11 +234,22 @@ fi
 #     inputs that are behind upstream. With every input up to date it is
 #     empty, and before the watch first succeeds there is no file at all.
 #     FlakeWatchStale covers the watch itself going quiet.
+#
+#   node_systemd_user_unit_failed
+#     modules/monitoring/agent/systemd-user-units.sh emits one series per
+#     failed systemd user unit. With every user unit healthy -- the normal
+#     state across the fleet -- there is none. The collector's health series
+#     that the rules use (node_systemd_user_manager_up,
+#     node_systemd_user_units_collector_ok,
+#     node_systemd_user_units_timestamp_seconds) are written on every run and
+#     are checked normally, so a collector that is broken or missing is still
+#     caught.
 CONDITIONAL_METRICS=(
     fwupd_device_update_info
     github_flake_input_update_pr_open
     github_flake_input_outdated_since_timestamp_seconds
     github_flake_input_impact
+    node_systemd_user_unit_failed
 )
 
 is_conditional() {
