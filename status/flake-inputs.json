@@ -41,11 +41,13 @@
     },
     "nixpkgs-kernel": {
       "bases": {
-        "darwin": "d04393406fdc9f345c1e9021a0842b6b7aab70f8c87e4d72e3dd12f5e9b31aa5"
+        "darwin": "d04393406fdc9f345c1e9021a0842b6b7aab70f8c87e4d72e3dd12f5e9b31aa5",
+        "linux": "df43f23074e592da34e177ef3aa21e2c0d58b314d0bbb954e8d82e4fee52c36c"
       },
-      "classified_at": "2026-11-19T13:04:16Z",
+      "classified_at": "2026-11-19T13:06:22Z",
       "kinds": {
-        "darwin": "none"
+        "darwin": "none",
+        "linux": "source"
       },
       "locked_rev": "39d1a6c4566dfdb75a27ae40a2ae3aad4df77408",
       "upstream_rev": "af71d04d30e65b5f7ed638561a7ad943d2dfcf90"
