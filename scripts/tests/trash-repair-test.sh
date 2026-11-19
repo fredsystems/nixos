@@ -18,6 +18,8 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 REPAIR="$ROOT/features/common/trash/repair-trashinfo.py"
+# The vanishing-entry case imports the script; keep __pycache__ out of the tree.
+export PYTHONDONTWRITEBYTECODE=1
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
@@ -138,6 +140,83 @@ eq "unparsable: empty file gets a date" \
     "$(cat "$T/info/empty.trashinfo")"
 yes_ "unparsable: autotrash succeeds after repair" autotrash_run "$T"
 eq "unparsable: every old item purged" "" "$(ls -A "$T/files")"
+
+# ---------------------------------------------------------------------------
+# Path handling: kept whenever configparser could have read it
+# ---------------------------------------------------------------------------
+
+T="$(new_trash paths)"
+add_item "$T" spaced $'[Trash Info]\nPath = /tmp/keep me \n' "$OLD"
+add_item "$T" colon $'[Trash Info]\npath: /tmp/colon\n' "$OLD"
+add_item "$T" escaped $'[Trash Info]\nPath=/tmp/a%20b\n' "$OLD"
+add_item "$T" unicode $'[Trash Info]\nPath=/tmp/\xc3\xa9t\xc3\xa9\n' "$OLD"
+add_item "$T" invalid $'[Trash Info]\nPath=/tmp/bad\xff\xfe\n' "$OLD"
+add_item "$T" carriage $'[Trash Info]\nPath=/tmp/a\rjunk\n' "$OLD"
+no_ "paths: autotrash fails before repair" autotrash_run "$T"
+
+out="$(repair "$T")"
+eq "paths: whitespace around = is not a lost Path" \
+    $'[Trash Info]\nPath=/tmp/keep me\nDeletionDate='"$OLD" \
+    "$(cat "$T/info/spaced.trashinfo")"
+eq "paths: ':' delimiter and key case accepted" \
+    $'[Trash Info]\nPath=/tmp/colon\nDeletionDate='"$OLD" \
+    "$(cat "$T/info/colon.trashinfo")"
+eq "paths: existing escapes unchanged" \
+    $'[Trash Info]\nPath=/tmp/a%20b\nDeletionDate='"$OLD" \
+    "$(cat "$T/info/escaped.trashinfo")"
+eq "paths: valid UTF-8 unchanged" \
+    $'[Trash Info]\nPath=/tmp/\xc3\xa9t\xc3\xa9\nDeletionDate='"$OLD" \
+    "$(cat "$T/info/unicode.trashinfo")"
+eq "paths: invalid UTF-8 percent-encoded" \
+    $'[Trash Info]\nPath=/tmp/bad%FF%FE\nDeletionDate='"$OLD" \
+    "$(cat "$T/info/invalid.trashinfo")"
+eq "paths: Path dropped when it still breaks parsing" \
+    $'[Trash Info]\nDeletionDate='"$OLD" \
+    "$(cat "$T/info/carriage.trashinfo")"
+case "$out" in
+*"carriage.trashinfo: DeletionDate=$OLD (from file timestamp; Path dropped"*) ok ;;
+*) bad "paths: dropped Path is logged" "output: $out" ;;
+esac
+yes_ "paths: autotrash succeeds after repair" autotrash_run "$T"
+eq "paths: every old item purged" "" "$(ls -A "$T/files")"
+
+# ---------------------------------------------------------------------------
+# An entry restored or emptied mid-run is skipped, not fatal
+# ---------------------------------------------------------------------------
+
+T="$(new_trash vanishing)"
+add_item "$T" gone $'[Trash Info]\nPath=/tmp/gone\n' "$OLD"
+add_item "$T" stays $'[Trash Info]\nPath=/tmp/stays\n' "$OLD"
+# Deterministic race: the entry disappears right after the isfile() check.
+vanish() {
+    python3 - "$REPAIR" "$1" <<'PY'
+import importlib.util
+import os
+import sys
+
+spec = importlib.util.spec_from_file_location("repair", sys.argv[1])
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+
+real_isfile = os.path.isfile
+
+
+def isfile(path):
+    present = real_isfile(path)
+    if path.endswith("gone.trashinfo"):
+        os.unlink(path)
+    return present
+
+
+mod.os.path.isfile = isfile
+sys.exit(mod.main(["autotrash-repair", sys.argv[2]]))
+PY
+}
+yes_ "vanishing: repair still succeeds" vanish "$T"
+eq "vanishing: the rest is still repaired" \
+    $'[Trash Info]\nPath=/tmp/stays\nDeletionDate='"$OLD" \
+    "$(cat "$T/info/stays.trashinfo")"
+no_ "vanishing: nothing recreated" test -e "$T/info/gone.trashinfo"
 
 # ---------------------------------------------------------------------------
 # Valid entries are never touched; reruns are no-ops
