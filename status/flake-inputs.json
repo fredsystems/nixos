@@ -1,11 +1,24 @@
 {
   "inputs": {
+    "freminal": {
+      "bases": {
+        "darwin": "faf1adb79fc96aafec8f08731c1132c099075ef4437d53a5fb960ebf57016151"
+      },
+      "classified_at": "2026-11-19T21:37:25Z",
+      "dispatched_at": "2026-11-19T21:37:25Z",
+      "dispatched_rev": "13f73832c1518e44ecdb6edbcbf8c754d83ce423",
+      "kinds": {
+        "darwin": "source"
+      },
+      "locked_rev": "07fd4030f9b72a9cbb0dccc42f974ab0c5aca947",
+      "upstream_rev": "13f73832c1518e44ecdb6edbcbf8c754d83ce423"
+    },
     "home-manager": {
       "bases": {
-        "darwin": "d04393406fdc9f345c1e9021a0842b6b7aab70f8c87e4d72e3dd12f5e9b31aa5",
+        "darwin": "faf1adb79fc96aafec8f08731c1132c099075ef4437d53a5fb960ebf57016151",
         "linux": "df43f23074e592da34e177ef3aa21e2c0d58b314d0bbb954e8d82e4fee52c36c"
       },
-      "classified_at": "2026-11-19T03:35:35Z",
+      "classified_at": "2026-11-19T21:37:25Z",
       "kinds": {
         "darwin": "none",
         "linux": "none"
@@ -15,10 +28,10 @@
     },
     "home-manager-stable": {
       "bases": {
-        "darwin": "d04393406fdc9f345c1e9021a0842b6b7aab70f8c87e4d72e3dd12f5e9b31aa5",
+        "darwin": "faf1adb79fc96aafec8f08731c1132c099075ef4437d53a5fb960ebf57016151",
         "linux": "df43f23074e592da34e177ef3aa21e2c0d58b314d0bbb954e8d82e4fee52c36c"
       },
-      "classified_at": "2026-11-19T03:35:35Z",
+      "classified_at": "2026-11-19T21:37:25Z",
       "kinds": {
         "darwin": "none",
         "linux": "none"
@@ -28,16 +41,27 @@
     },
     "niri": {
       "bases": {
-        "darwin": "d04393406fdc9f345c1e9021a0842b6b7aab70f8c87e4d72e3dd12f5e9b31aa5",
+        "darwin": "faf1adb79fc96aafec8f08731c1132c099075ef4437d53a5fb960ebf57016151",
         "linux": "df43f23074e592da34e177ef3aa21e2c0d58b314d0bbb954e8d82e4fee52c36c"
       },
-      "classified_at": "2026-11-19T03:35:35Z",
+      "classified_at": "2026-11-19T21:37:25Z",
       "kinds": {
         "darwin": "none",
         "linux": "none"
       },
       "locked_rev": "caa08a25ec121693aa1e96bc1842b2ffea684a5e",
       "upstream_rev": "e9bbde312d92c7686493752c7e90bfed11546693"
+    },
+    "nixpkgs-kernel": {
+      "bases": {
+        "darwin": "faf1adb79fc96aafec8f08731c1132c099075ef4437d53a5fb960ebf57016151"
+      },
+      "classified_at": "2026-11-19T21:37:25Z",
+      "kinds": {
+        "darwin": "none"
+      },
+      "locked_rev": "39d1a6c4566dfdb75a27ae40a2ae3aad4df77408",
+      "upstream_rev": "69467f449339164b3f036b1dfa27b1b0c5e38925"
     }
   },
   "planned_at": "2026-11-19T21:30:45Z",
