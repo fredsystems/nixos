@@ -152,6 +152,12 @@ add_item "$T" escaped $'[Trash Info]\nPath=/tmp/a%20b\n' "$OLD"
 add_item "$T" unicode $'[Trash Info]\nPath=/tmp/\xc3\xa9t\xc3\xa9\n' "$OLD"
 add_item "$T" invalid $'[Trash Info]\nPath=/tmp/bad\xff\xfe\n' "$OLD"
 add_item "$T" carriage $'[Trash Info]\nPath=/tmp/a\rjunk\n' "$OLD"
+# Only [Trash Info]'s Path counts: restoring to another section's Path
+# would put the item in the wrong place.
+add_item "$T" sections $'[Other]\nPath=/tmp/wrong\n[Trash Info]\nPath=/tmp/right\n' "$OLD"
+add_item "$T" sections-broken $'[Other]\nPath=/tmp/wrong\n[Trash Info]\nPath=/tmp/right\njunk\n[Later]\nPath=/tmp/later\n' "$OLD"
+add_item "$T" other-only $'[Other]\nPath=/tmp/wrong\n' "$OLD"
+add_item "$T" headerless-then-other $'Path=/tmp/right\n[Other]\nPath=/tmp/wrong\n' "$OLD"
 no_ "paths: autotrash fails before repair" autotrash_run "$T"
 
 out="$(repair "$T")"
@@ -173,6 +179,18 @@ eq "paths: invalid UTF-8 percent-encoded" \
 eq "paths: Path dropped when it still breaks parsing" \
     $'[Trash Info]\nDeletionDate='"$OLD" \
     "$(cat "$T/info/carriage.trashinfo")"
+eq "sections: [Trash Info] Path wins over an earlier section" \
+    $'[Trash Info]\nPath=/tmp/right\nDeletionDate='"$OLD" \
+    "$(cat "$T/info/sections.trashinfo")"
+eq "sections: same when the file does not parse" \
+    $'[Trash Info]\nPath=/tmp/right\nDeletionDate='"$OLD" \
+    "$(cat "$T/info/sections-broken.trashinfo")"
+eq "sections: another section's Path is never used" \
+    $'[Trash Info]\nDeletionDate='"$OLD" \
+    "$(cat "$T/info/other-only.trashinfo")"
+eq "sections: headerless Path before another section is kept" \
+    $'[Trash Info]\nPath=/tmp/right\nDeletionDate='"$OLD" \
+    "$(cat "$T/info/headerless-then-other.trashinfo")"
 case "$out" in
 *"carriage.trashinfo: DeletionDate=$OLD (from file timestamp; Path dropped"*) ok ;;
 *) bad "paths: dropped Path is logged" "output: $out" ;;

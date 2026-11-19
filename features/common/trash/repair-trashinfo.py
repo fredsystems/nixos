@@ -35,12 +35,14 @@ import sys
 import tempfile
 
 DATE_FORMATS = ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M:%S.%fZ")
-# configparser accepts either delimiter, any key case and whitespace around
-# both, so a Path it would have read must not be lost here.
+SECTION = "Trash Info"
+# Fallback for files configparser rejects. It accepts either delimiter, any
+# key case and whitespace around both, so a Path it would have read must not
+# be lost here.
 PATH_LINE = re.compile(
-    rb"^[ \t]*path[ \t]*[=:][ \t]*(.*?)[ \t]*$",
-    re.MULTILINE | re.IGNORECASE,
+    r"^[ \t]*path[ \t]*[=:][ \t]*(.*?)[ \t]*$", re.MULTILINE | re.IGNORECASE
 )
+HEADER = re.compile(r"^[ \t]*\[(.*)\][ \t]*$", re.MULTILINE)
 UNDECODABLE = re.compile("[\udc80-\udcff]")
 
 
@@ -68,12 +70,46 @@ def autotrash_can_read(path):
     return False
 
 
-def encode_path(raw):
-    """Percent-encode the bytes of raw that are not valid UTF-8."""
-    text = raw.decode("utf-8", errors="surrogateescape")
+def encode_path(value):
+    """Percent-encode the bytes of value that were not valid UTF-8.
+
+    value was decoded with surrogateescape, so each such byte is a lone
+    surrogate here.
+    """
     return UNDECODABLE.sub(
-        lambda m: "%%%02X" % (ord(m.group()) - 0xDC00), text
+        lambda m: "%%%02X" % (ord(m.group()) - 0xDC00), value
     )
+
+
+def find_path(text):
+    """The Path of the [Trash Info] section, or None.
+
+    Parsed properly when the file parses (most broken entries only lack a
+    DeletionDate). Interpolation stays off: Path is percent-escaped, and
+    "%20" is an interpolation error. Otherwise only the lines of the
+    [Trash Info] section are searched, or those before any header when it
+    has none, so a Path from another section is never picked up.
+    """
+    parser = configparser.ConfigParser(interpolation=None, strict=False)
+    try:
+        parser.read_string(text)
+        if parser.has_option(SECTION, "Path"):
+            return parser.get(SECTION, "Path", raw=True)
+    except configparser.Error:
+        pass
+
+    headers = list(HEADER.finditer(text))
+    if not headers:
+        scope = text
+    else:
+        scope = text[: headers[0].start()]
+        for i, header in enumerate(headers):
+            if header.group(1) == SECTION:
+                end = headers[i + 1].start() if i + 1 < len(headers) else None
+                scope = text[header.end():end]
+                break
+    match = PATH_LINE.search(scope)
+    return match.group(1) if match else None
 
 
 def write_info(path, lines, mtime):
@@ -90,20 +126,20 @@ def write_info(path, lines, mtime):
 
 def repair(path):
     with open(path, "rb") as f:
-        content = f.read()
+        text = f.read().decode("utf-8", errors="surrogateescape")
     mtime = os.stat(path).st_mtime
     stamp = datetime.datetime.fromtimestamp(mtime).strftime(DATE_FORMATS[0])
     date_line = "DeletionDate=" + stamp
 
-    match = PATH_LINE.search(content)
+    value = find_path(text)
     kept = "no Path line to keep"
-    if match:
-        path_line = "Path=" + encode_path(match.group(1))
+    if value is not None:
+        path_line = "Path=" + encode_path(value)
         write_info(path, ["[Trash Info]", path_line, date_line], mtime)
         kept = "Path kept"
-    if not match or not autotrash_can_read(path):
+    if value is None or not autotrash_can_read(path):
         write_info(path, ["[Trash Info]", date_line], mtime)
-        if match:
+        if value is not None:
             kept = "Path dropped, still unreadable with it"
 
     print(
