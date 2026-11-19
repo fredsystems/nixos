@@ -38,21 +38,8 @@
       },
       "locked_rev": "caa08a25ec121693aa1e96bc1842b2ffea684a5e",
       "upstream_rev": "e9bbde312d92c7686493752c7e90bfed11546693"
-    },
-    "nixpkgs-kernel": {
-      "bases": {
-        "darwin": "d04393406fdc9f345c1e9021a0842b6b7aab70f8c87e4d72e3dd12f5e9b31aa5",
-        "linux": "df43f23074e592da34e177ef3aa21e2c0d58b314d0bbb954e8d82e4fee52c36c"
-      },
-      "classified_at": "2026-11-19T03:35:35Z",
-      "kinds": {
-        "darwin": "none",
-        "linux": "source"
-      },
-      "locked_rev": "39d1a6c4566dfdb75a27ae40a2ae3aad4df77408",
-      "upstream_rev": "1e6cf0d7cf5f5354d1bfd7105813dddb527851d4"
     }
   },
-  "planned_at": "2026-11-19T03:25:37Z",
+  "planned_at": "2026-11-19T13:02:06Z",
   "version": 1
 }
