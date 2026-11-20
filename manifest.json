@@ -1,5 +1,5 @@
 {
-  "generated_at": 1795202787,
+  "generated_at": 1795202952,
   "hosts": {
     "Daytona": {
       "history": [
@@ -261,6 +261,11 @@
     },
     "adsbhub": {
       "history": [
+        {
+          "at": 1795202952,
+          "rev": "6e950f582ecd9b91534d0c8f08ca79ad0b560d4c",
+          "toplevel": "/nix/store/f8zz25nawwxgv9859czzpbgf21ffhhni-nixos-system-adsbhub-26.05.20261118.3457b69"
+        },
         {
           "at": 1795202787,
           "rev": "7fe946be9dd542c3875153503a6354ca1cbf4f38",
@@ -1376,6 +1381,6 @@
       ]
     }
   },
-  "rev": "7fe946be9dd542c3875153503a6354ca1cbf4f38",
+  "rev": "6e950f582ecd9b91534d0c8f08ca79ad0b560d4c",
   "schema": 1
 }
