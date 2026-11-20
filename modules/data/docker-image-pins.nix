@@ -68,7 +68,7 @@
       acarshub = "ghcr.io/sdr-enthusiasts/docker-acarshub:latest-build-1526@sha256:7431b2a0b542e71a38322357ce07a91a4b7fcdc24f36da9c8fc73a57f189e23a";
 
       # hfdlhub1 host
-      dumphfdl = "ghcr.io/sdr-enthusiasts/docker-dumphfdl:latest-build-213@sha256:647d8f3407b033bc92f3b0c68296f37a27219d82d4f682d9bf2f3dcefccad10e";
+      dumphfdl = "ghcr.io/sdr-enthusiasts/docker-dumphfdl:latest-build-215@sha256:296e9009ca607a32c9f13a30d249f4038dac12ff469de38f4991eaa0a4ee5f50";
 
       # hfdlhub2 host
       hfdlobserver = "ghcr.io/sdr-enthusiasts/docker-hfdlobserver:latest-build-43@sha256:bd6e6a3745a1f5f076ab68569c8322261a04b897bdd9ff8acdaf93532e674f52";
