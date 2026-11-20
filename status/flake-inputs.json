@@ -2,10 +2,10 @@
   "inputs": {
     "home-manager": {
       "bases": {
-        "darwin": "faf1adb79fc96aafec8f08731c1132c099075ef4437d53a5fb960ebf57016151",
+        "darwin": "0d0cab85d1a68cd115b30706874adf4b21ee94b22c6453afd555cfa8a1436a6c",
         "linux": "176a9b0ace2032a429e0338b08a88bb3114a8ff9dedcf6b8d82ed40a725a3497"
       },
-      "classified_at": "2026-11-19T21:43:53Z",
+      "classified_at": "2026-11-20T03:19:10Z",
       "kinds": {
         "darwin": "none",
         "linux": "none"
@@ -15,10 +15,10 @@
     },
     "home-manager-stable": {
       "bases": {
-        "darwin": "faf1adb79fc96aafec8f08731c1132c099075ef4437d53a5fb960ebf57016151",
+        "darwin": "0d0cab85d1a68cd115b30706874adf4b21ee94b22c6453afd555cfa8a1436a6c",
         "linux": "176a9b0ace2032a429e0338b08a88bb3114a8ff9dedcf6b8d82ed40a725a3497"
       },
-      "classified_at": "2026-11-19T21:43:53Z",
+      "classified_at": "2026-11-20T03:19:10Z",
       "kinds": {
         "darwin": "none",
         "linux": "none"
@@ -28,16 +28,38 @@
     },
     "niri": {
       "bases": {
-        "darwin": "faf1adb79fc96aafec8f08731c1132c099075ef4437d53a5fb960ebf57016151",
+        "darwin": "0d0cab85d1a68cd115b30706874adf4b21ee94b22c6453afd555cfa8a1436a6c",
         "linux": "176a9b0ace2032a429e0338b08a88bb3114a8ff9dedcf6b8d82ed40a725a3497"
       },
-      "classified_at": "2026-11-19T21:43:53Z",
+      "classified_at": "2026-11-20T03:19:10Z",
       "kinds": {
         "darwin": "none",
         "linux": "none"
       },
       "locked_rev": "caa08a25ec121693aa1e96bc1842b2ffea684a5e",
       "upstream_rev": "e9bbde312d92c7686493752c7e90bfed11546693"
+    },
+    "nixpkgs-kernel": {
+      "bases": {
+        "darwin": "0d0cab85d1a68cd115b30706874adf4b21ee94b22c6453afd555cfa8a1436a6c"
+      },
+      "classified_at": "2026-11-20T03:19:10Z",
+      "kinds": {
+        "darwin": "none"
+      },
+      "locked_rev": "39d1a6c4566dfdb75a27ae40a2ae3aad4df77408",
+      "upstream_rev": "cdeccfad08168359fa2f89e7dae6de3b10b7bfa9"
+    },
+    "nixpkgs-stable": {
+      "bases": {
+        "darwin": "0d0cab85d1a68cd115b30706874adf4b21ee94b22c6453afd555cfa8a1436a6c"
+      },
+      "classified_at": "2026-11-20T03:19:10Z",
+      "kinds": {
+        "darwin": "none"
+      },
+      "locked_rev": "f68407657ad294471eb4b2e65d193df26edf729f",
+      "upstream_rev": "3457b69ac4aba6d9ea9a743370af160fb502db29"
     }
   },
   "planned_at": "2026-11-20T03:12:21Z",
