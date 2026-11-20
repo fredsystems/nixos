@@ -34,18 +34,18 @@ On one server closure this takes components carrying a CPE from 59 to 97 and
 restores the kernel to cpe:2.3:o:linux:linux_kernel:6.18.41.
 
 diff --git a/src/sbomnix/builder.py b/src/sbomnix/builder.py
-index c0a57f9..9c2ac02 100644
+index dd7236f..fe7e804 100644
 --- a/src/sbomnix/builder.py
 +++ b/src/sbomnix/builder.py
-@@ -7,6 +7,7 @@
- """SBOM builder orchestration."""
+@@ -8,6 +8,7 @@
 
+ import json
  import logging
 +import re
  import time
  import uuid
  from dataclasses import dataclass
-@@ -62,6 +63,60 @@ class StructuredClosure:
+@@ -64,6 +65,60 @@ class StructuredClosure:
      runtime_output_paths_by_load_path: dict[str, set[str]] | None = None
 
 
@@ -105,8 +105,8 @@ index c0a57f9..9c2ac02 100644
 +
  def _runtime_output_paths_by_load_path(output_paths_by_drv):
      output_paths_by_load_path = {}
-     for drv_path, output_paths in output_paths_by_drv.items():
-@@ -440,6 +495,15 @@ class SbomBuilder:
+     for drv_path, drv_output_paths in output_paths_by_drv.items():
+@@ -476,6 +531,15 @@ class SbomBuilder:
          override_mask = meta_cpe != ""
          if not bool(np.any(override_mask)):
              return
@@ -123,7 +123,7 @@ index c0a57f9..9c2ac02 100644
          self.df_sbomdb[cols.CPE] = np.where(override_mask, meta_cpe, current_cpe)
 
 diff --git a/src/sbomnix/package_meta.py b/src/sbomnix/package_meta.py
-index cc11a14..c8eb56d 100644
+index 92698a8..6cf1a84 100644
 --- a/src/sbomnix/package_meta.py
 +++ b/src/sbomnix/package_meta.py
 @@ -820,9 +820,63 @@ def match_package_metadata_to_components(components, metadata, *, buildtime):

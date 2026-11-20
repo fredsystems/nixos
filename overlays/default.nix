@@ -110,8 +110,8 @@ final: prev: {
   #
   # The patch adds a lowest-priority pname fallback that carries over
   # only the CPE, retargeted to the version actually in the closure.
-  # Still needed on 1.9.0, whose new canonical-CPE mapping only covers
-  # components it infers when metadata cannot be loaded at all: on sdrhub
+  # Still needed on 1.10.0 (1.9.0's new canonical-CPE mapping only covers
+  # components it infers when metadata cannot be loaded at all): on sdrhub
   # it takes scannable components from 61 to 100, and restores CPEs for
   # glibc, openssl, bash, curl, xz, zlib, sqlite and the kernel.
   #
@@ -122,7 +122,7 @@ final: prev: {
   # Only meaningful on Linux (cve-scan runs on the self-hosted Linux
   # runners); guarded to no-op on darwin.
   #
-  # The patch is additionally version-gated to exactly 1.9.0, the version
+  # The patch is additionally version-gated to exactly 1.10.0, the version
   # it was last verified against.  Two reasons:
   #
   #   * `nixpkgs-stable` ships an older sbomnix whose tree predates the
@@ -146,7 +146,12 @@ final: prev: {
   # hunk confirmed to land in the intended function), sbomnix's own test
   # suite passes with it, and an SBOM of sdrhub is identical with and
   # without the retired deriver patch.
-  sbomnixPatchedVersion = "1.9.0";
+  #
+  # Re-verified at 1.10.0: package_meta.py is unchanged from 1.9.0, so the
+  # path-only metadata match is still upstream.  The builder.py hunks only
+  # moved; the patch was regenerated against 1.10.0 so it applies without
+  # fuzz, and each hunk still lands in the intended function.
+  sbomnixPatchedVersion = "1.10.0";
 
   sbomnix =
     if prev.stdenv.hostPlatform.isDarwin || prev.sbomnix.version != final.sbomnixPatchedVersion then
