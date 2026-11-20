@@ -1,5 +1,5 @@
 {
-  "generated_at": 1795188717,
+  "generated_at": 1795201005,
   "hosts": {
     "Daytona": {
       "history": [
@@ -852,6 +852,11 @@
     "hfdlhub2": {
       "history": [
         {
+          "at": 1795201005,
+          "rev": "57676fad44ad3ef442c75dcbab48430d71e9b82d",
+          "toplevel": "/nix/store/rvig42il8jxg8dlakpgn6z7skgd43ll4-nixos-system-hfdlhub2-26.05.20261118.3457b69"
+        },
+        {
           "at": 1795146099,
           "rev": "e79de37bb92b1aaec1cbcfc8e628f129c324daf3",
           "toplevel": "/nix/store/mv1fxd4pyikz78dn6gxfs706fg5rbkyj-nixos-system-hfdlhub2-26.05.20261118.3457b69"
@@ -970,11 +975,6 @@
           "at": 1794066414,
           "rev": "035d25e801f9a98f91246a4e154c478233b2b812",
           "toplevel": "/nix/store/31gwhz6qx5qhgq5pfy393rmni1zwr98c-nixos-system-hfdlhub2-26.05.20261105.c56a87d"
-        },
-        {
-          "at": 1794066048,
-          "rev": "b795a817eeaf7990bcda5a2d3ef7d345448a78c9",
-          "toplevel": "/nix/store/3yjzickbdnhk5zypvaqb649h9gfi35x1-nixos-system-hfdlhub2-26.05.20261102.7dcdd87"
         }
       ]
     },
@@ -1366,6 +1366,6 @@
       ]
     }
   },
-  "rev": "00393a39e9b870916a3a0d3c0e9712057e18b9b8",
+  "rev": "57676fad44ad3ef442c75dcbab48430d71e9b82d",
   "schema": 1
 }
