@@ -4,7 +4,6 @@ receivers:
     client:
       address: 192.168.31.25
       port: 8073
-      recorder_path: kiwiclient/kiwirecorder.py
 dumphfdl:
   default:
     station_id: CS-KABQ-HFDL
@@ -35,7 +34,7 @@ dumphfdl:
       #observer feed
       # - output: hfdl_observer
 observer:
-  all_receivers:
+  local_receivers:
     - name: web888-01
       receiver: web888
     - name: web888-02
