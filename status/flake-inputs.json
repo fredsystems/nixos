@@ -1,20 +1,5 @@
 {
   "inputs": {
-    "freminal": {
-      "bases": {
-        "darwin": "faf1adb79fc96aafec8f08731c1132c099075ef4437d53a5fb960ebf57016151",
-        "linux": "176a9b0ace2032a429e0338b08a88bb3114a8ff9dedcf6b8d82ed40a725a3497"
-      },
-      "classified_at": "2026-11-19T21:43:53Z",
-      "dispatched_at": "2026-11-19T21:37:25Z",
-      "dispatched_rev": "13f73832c1518e44ecdb6edbcbf8c754d83ce423",
-      "kinds": {
-        "darwin": "source",
-        "linux": "source"
-      },
-      "locked_rev": "07fd4030f9b72a9cbb0dccc42f974ab0c5aca947",
-      "upstream_rev": "13f73832c1518e44ecdb6edbcbf8c754d83ce423"
-    },
     "home-manager": {
       "bases": {
         "darwin": "faf1adb79fc96aafec8f08731c1132c099075ef4437d53a5fb960ebf57016151",
@@ -53,21 +38,8 @@
       },
       "locked_rev": "caa08a25ec121693aa1e96bc1842b2ffea684a5e",
       "upstream_rev": "e9bbde312d92c7686493752c7e90bfed11546693"
-    },
-    "nixpkgs-kernel": {
-      "bases": {
-        "darwin": "faf1adb79fc96aafec8f08731c1132c099075ef4437d53a5fb960ebf57016151",
-        "linux": "176a9b0ace2032a429e0338b08a88bb3114a8ff9dedcf6b8d82ed40a725a3497"
-      },
-      "classified_at": "2026-11-19T21:43:53Z",
-      "kinds": {
-        "darwin": "none",
-        "linux": "source"
-      },
-      "locked_rev": "39d1a6c4566dfdb75a27ae40a2ae3aad4df77408",
-      "upstream_rev": "69467f449339164b3f036b1dfa27b1b0c5e38925"
     }
   },
-  "planned_at": "2026-11-19T21:30:45Z",
+  "planned_at": "2026-11-20T03:12:21Z",
   "version": 1
 }
