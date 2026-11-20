@@ -90,7 +90,7 @@
 
       planewatch = "ghcr.io/plane-watch/docker-plane-watch:v0.0.11@sha256:0033f1c9aa10f291a40eae0fc03f4f6cf18f86595eebacdd68956944b36c93ca";
 
-      radarvirtuel = "ghcr.io/sdr-enthusiasts/docker-radarvirtuel:latest-build-816@sha256:c9651d298d3b81bf7567edaea7e41ace8458ae04091a7eedb390c4379fd029f5";
+      radarvirtuel = "ghcr.io/sdr-enthusiasts/docker-radarvirtuel:latest-build-818@sha256:8a33a79439a58ab14b0ef0fa58933da68577a5f4fddf6b40150771df5bedc551";
 
       airnavradar = "ghcr.io/sdr-enthusiasts/docker-airnavradar:latest-build-899@sha256:8e10ead7d3a05ee6145b3e0fdb4f47b8964e53cbae9c8c1f97777ed3aefbd856";
 
