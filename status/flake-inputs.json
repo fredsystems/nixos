@@ -41,22 +41,26 @@
     },
     "niri": {
       "bases": {
-        "darwin": "778581551f7d1470ce56ec1bb465007b2364fb42aabd9298950cfb15ff36b090"
+        "darwin": "778581551f7d1470ce56ec1bb465007b2364fb42aabd9298950cfb15ff36b090",
+        "linux": "b8352493a0d3a315cecf26fbaa1e96b93a323980c5d7904ea253666d20407105"
       },
-      "classified_at": "2026-11-21T09:51:33Z",
+      "classified_at": "2026-11-21T09:54:03Z",
       "kinds": {
-        "darwin": "none"
+        "darwin": "none",
+        "linux": "none"
       },
       "locked_rev": "caa08a25ec121693aa1e96bc1842b2ffea684a5e",
       "upstream_rev": "9c8b516d89f96f13bb8a4a6ad34cd229c0a3a27e"
     },
     "nixpkgs-kernel": {
       "bases": {
-        "darwin": "778581551f7d1470ce56ec1bb465007b2364fb42aabd9298950cfb15ff36b090"
+        "darwin": "778581551f7d1470ce56ec1bb465007b2364fb42aabd9298950cfb15ff36b090",
+        "linux": "b8352493a0d3a315cecf26fbaa1e96b93a323980c5d7904ea253666d20407105"
       },
-      "classified_at": "2026-11-21T09:51:33Z",
+      "classified_at": "2026-11-21T09:54:03Z",
       "kinds": {
-        "darwin": "none"
+        "darwin": "none",
+        "linux": "source"
       },
       "locked_rev": "39d1a6c4566dfdb75a27ae40a2ae3aad4df77408",
       "upstream_rev": "8d94e175f0dff6790db7e1354291d965a3819d8a"
