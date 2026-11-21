@@ -156,6 +156,10 @@ let
       clipboard_enabled = true;
       # Typing in niri's overview opens the launcher with what was typed.
       niri_overview_type_to_launch_enabled = true;
+      # Apps started from the dock/launcher otherwise land in
+      # noctalia.service's cgroup, so every restart of Noctalia (a config
+      # change on switch restarts it via X-Restart-Triggers) kills them.
+      launch_apps_as_systemd_services = true;
       session.actions = sessionActions;
 
       # Noctalia cannot place a panel by how it was opened, so the control
