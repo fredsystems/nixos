@@ -13,19 +13,6 @@
       "locked_rev": "1dd30c29c88d99ce295f15e27f93c49bc5fbae07",
       "upstream_rev": "44761d4f745b95e037458a0e57133c5700c8e320"
     },
-    "home-manager": {
-      "bases": {
-        "darwin": "778581551f7d1470ce56ec1bb465007b2364fb42aabd9298950cfb15ff36b090",
-        "linux": "b8352493a0d3a315cecf26fbaa1e96b93a323980c5d7904ea253666d20407105"
-      },
-      "classified_at": "2026-11-21T01:47:58Z",
-      "kinds": {
-        "darwin": "none",
-        "linux": "none"
-      },
-      "locked_rev": "4246683484a7b4ced0a0d880974b67137f092289",
-      "upstream_rev": "2b13c9cb3aa20653e6f8ee0b7f8331a53ea9b0a9"
-    },
     "home-manager-stable": {
       "bases": {
         "darwin": "778581551f7d1470ce56ec1bb465007b2364fb42aabd9298950cfb15ff36b090",
@@ -79,6 +66,6 @@
       "upstream_rev": "fa6c0ccc09b068f967ce159117cc5794dec10114"
     }
   },
-  "planned_at": "2026-11-21T09:48:18Z",
+  "planned_at": "2026-11-21T16:20:59Z",
   "version": 1
 }
