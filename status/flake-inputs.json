@@ -13,21 +13,6 @@
       "locked_rev": "1dd30c29c88d99ce295f15e27f93c49bc5fbae07",
       "upstream_rev": "44761d4f745b95e037458a0e57133c5700c8e320"
     },
-    "freminal": {
-      "bases": {
-        "darwin": "4b7b70fe19ba315a68955cbfb1f11aee12694d48d0b51e1a4e04829d81aa3dc9",
-        "linux": "2c25cd5c86b04c478e44df63d628c4e56d5b57236db6043958fcf6d762ad947d"
-      },
-      "classified_at": "2026-11-20T20:35:40Z",
-      "dispatched_at": "2026-11-20T20:25:48Z",
-      "dispatched_rev": "2ee931b88976ae9c802bb7b2d5b2271062fd9e40",
-      "kinds": {
-        "darwin": "source",
-        "linux": "source"
-      },
-      "locked_rev": "13f73832c1518e44ecdb6edbcbf8c754d83ce423",
-      "upstream_rev": "2ee931b88976ae9c802bb7b2d5b2271062fd9e40"
-    },
     "home-manager": {
       "bases": {
         "darwin": "4b7b70fe19ba315a68955cbfb1f11aee12694d48d0b51e1a4e04829d81aa3dc9",
@@ -67,34 +52,6 @@
       "locked_rev": "caa08a25ec121693aa1e96bc1842b2ffea684a5e",
       "upstream_rev": "5fda0b42a2a05c27f77f3125763cf123358caa44"
     },
-    "nixpkgs-kernel": {
-      "bases": {
-        "darwin": "4b7b70fe19ba315a68955cbfb1f11aee12694d48d0b51e1a4e04829d81aa3dc9",
-        "linux": "2c25cd5c86b04c478e44df63d628c4e56d5b57236db6043958fcf6d762ad947d"
-      },
-      "classified_at": "2026-11-20T20:35:40Z",
-      "kinds": {
-        "darwin": "none",
-        "linux": "source"
-      },
-      "locked_rev": "39d1a6c4566dfdb75a27ae40a2ae3aad4df77408",
-      "upstream_rev": "d1a20261ac3d05e0ba3e1ce9d35370f77dfd2063"
-    },
-    "nixpkgs-stable": {
-      "bases": {
-        "darwin": "4b7b70fe19ba315a68955cbfb1f11aee12694d48d0b51e1a4e04829d81aa3dc9",
-        "linux": "2c25cd5c86b04c478e44df63d628c4e56d5b57236db6043958fcf6d762ad947d"
-      },
-      "classified_at": "2026-11-20T20:35:40Z",
-      "dispatched_at": "2026-11-20T20:35:40Z",
-      "dispatched_rev": "ab5c18fdedfc8f9bbc9d773f10a540790e2787a7",
-      "kinds": {
-        "darwin": "none",
-        "linux": "source"
-      },
-      "locked_rev": "3457b69ac4aba6d9ea9a743370af160fb502db29",
-      "upstream_rev": "ab5c18fdedfc8f9bbc9d773f10a540790e2787a7"
-    },
     "precommit-base": {
       "bases": {
         "darwin": "4b7b70fe19ba315a68955cbfb1f11aee12694d48d0b51e1a4e04829d81aa3dc9",
@@ -109,6 +66,6 @@
       "upstream_rev": "fa6c0ccc09b068f967ce159117cc5794dec10114"
     }
   },
-  "planned_at": "2026-11-20T20:14:40Z",
+  "planned_at": "2026-11-21T01:32:26Z",
   "version": 1
 }
