@@ -3,9 +3,9 @@
     "disko": {
       "bases": {
         "darwin": "778581551f7d1470ce56ec1bb465007b2364fb42aabd9298950cfb15ff36b090",
-        "linux": "2c25cd5c86b04c478e44df63d628c4e56d5b57236db6043958fcf6d762ad947d"
+        "linux": "b8352493a0d3a315cecf26fbaa1e96b93a323980c5d7904ea253666d20407105"
       },
-      "classified_at": "2026-11-21T01:40:35Z",
+      "classified_at": "2026-11-21T01:47:58Z",
       "kinds": {
         "darwin": "none",
         "linux": "none"
@@ -16,9 +16,9 @@
     "home-manager": {
       "bases": {
         "darwin": "778581551f7d1470ce56ec1bb465007b2364fb42aabd9298950cfb15ff36b090",
-        "linux": "2c25cd5c86b04c478e44df63d628c4e56d5b57236db6043958fcf6d762ad947d"
+        "linux": "b8352493a0d3a315cecf26fbaa1e96b93a323980c5d7904ea253666d20407105"
       },
-      "classified_at": "2026-11-21T01:40:35Z",
+      "classified_at": "2026-11-21T01:47:58Z",
       "kinds": {
         "darwin": "none",
         "linux": "none"
@@ -29,9 +29,9 @@
     "home-manager-stable": {
       "bases": {
         "darwin": "778581551f7d1470ce56ec1bb465007b2364fb42aabd9298950cfb15ff36b090",
-        "linux": "2c25cd5c86b04c478e44df63d628c4e56d5b57236db6043958fcf6d762ad947d"
+        "linux": "b8352493a0d3a315cecf26fbaa1e96b93a323980c5d7904ea253666d20407105"
       },
-      "classified_at": "2026-11-21T01:40:35Z",
+      "classified_at": "2026-11-21T01:47:58Z",
       "kinds": {
         "darwin": "none",
         "linux": "none"
@@ -42,9 +42,9 @@
     "niri": {
       "bases": {
         "darwin": "778581551f7d1470ce56ec1bb465007b2364fb42aabd9298950cfb15ff36b090",
-        "linux": "2c25cd5c86b04c478e44df63d628c4e56d5b57236db6043958fcf6d762ad947d"
+        "linux": "b8352493a0d3a315cecf26fbaa1e96b93a323980c5d7904ea253666d20407105"
       },
-      "classified_at": "2026-11-21T01:40:35Z",
+      "classified_at": "2026-11-21T01:47:58Z",
       "kinds": {
         "darwin": "none",
         "linux": "none"
@@ -54,11 +54,13 @@
     },
     "nixpkgs-kernel": {
       "bases": {
-        "darwin": "778581551f7d1470ce56ec1bb465007b2364fb42aabd9298950cfb15ff36b090"
+        "darwin": "778581551f7d1470ce56ec1bb465007b2364fb42aabd9298950cfb15ff36b090",
+        "linux": "b8352493a0d3a315cecf26fbaa1e96b93a323980c5d7904ea253666d20407105"
       },
-      "classified_at": "2026-11-21T01:40:35Z",
+      "classified_at": "2026-11-21T01:47:58Z",
       "kinds": {
-        "darwin": "none"
+        "darwin": "none",
+        "linux": "source"
       },
       "locked_rev": "39d1a6c4566dfdb75a27ae40a2ae3aad4df77408",
       "upstream_rev": "c78b9f9c117e3ad7a6c1a161a48dc388693049b0"
@@ -66,9 +68,9 @@
     "precommit-base": {
       "bases": {
         "darwin": "778581551f7d1470ce56ec1bb465007b2364fb42aabd9298950cfb15ff36b090",
-        "linux": "2c25cd5c86b04c478e44df63d628c4e56d5b57236db6043958fcf6d762ad947d"
+        "linux": "b8352493a0d3a315cecf26fbaa1e96b93a323980c5d7904ea253666d20407105"
       },
-      "classified_at": "2026-11-21T01:40:35Z",
+      "classified_at": "2026-11-21T01:47:58Z",
       "kinds": {
         "darwin": "rebuild",
         "linux": "rebuild"
