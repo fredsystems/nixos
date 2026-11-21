@@ -31,6 +31,12 @@
 
   security.sudo.wheelNeedsPassword = false;
 
+  # freminal advertises TERM=xterm-freminal. Desktops already get the entry
+  # from the Home Manager package, but only in the user's profile; installing
+  # it system-wide covers root login shells, services, detached tmux servers
+  # and ssh sessions arriving from a freminal pane (the servers' case).
+  programs.freminal.terminfo.enable = true;
+
   sops.secrets.github_pat = { };
 
   sops.templates."nix-access-tokens.conf".content = ''

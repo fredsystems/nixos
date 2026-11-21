@@ -167,6 +167,9 @@ let
     # nixosModules.sops and darwinModules.sops; mk-darwin-system.nix wires the
     # Darwin half the same way.
     sopsNixInput.nixosModules.sops
+    # freminal's NixOS module (programs.freminal.terminfo), enabled for every
+    # Linux host in modules/base/system-linux.nix.
+    inputs.freminal.nixosModules.default
     # Fleet-wide facts about the home network. Declares options only, so being
     # in every host's module set costs nothing; the two hosts that read it
     # (fredvps's ignoreIP, corehub's drift check) must agree on one value, and
