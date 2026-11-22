@@ -23,11 +23,11 @@
 }:
 let
   pname = "syncclipboard";
-  version = "3.3.3";
+  version = "3.3.4";
 
   src = fetchurl {
     url = "https://github.com/Jeric-X/SyncClipboard/releases/download/v${version}/SyncClipboard_linux_x64.AppImage";
-    hash = "sha256-SeCvB7MAGZ3MkttZNu0cAcHPdWlk/fIIS37y0SaCZGc=";
+    hash = "sha256-7cihmWh4+ieGzqLieFj89a/b5bkGy/8ODNQOKRv1o+g=";
   };
 
   appimageContents = appimageTools.extract { inherit pname version src; };
