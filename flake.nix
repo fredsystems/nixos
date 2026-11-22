@@ -212,6 +212,18 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    # Airframes.io desktop app. Its overlay builds the package against our own
+    # nixpkgs (features/desktop/airframes reads pkgs.airframes-desktop).
+    airframes-desktop = {
+      url = "github:fredsystems/airframes-desktop-flake";
+      #path on disk
+      #url = "git+file:/home/fred/GitHub/airframes-desktop-flake";
+      inputs = {
+        nixpkgs.follows = "nixpkgs";
+        precommit-base.follows = "precommit-base";
+      };
+    };
+
     # Only corehub runs this (monitoring master), and corehub is a server, so a
     # bump rebuilds the server set rather than the desktops.
     github-ci-exporter = {

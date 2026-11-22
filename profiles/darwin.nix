@@ -13,6 +13,7 @@ in
     ../features/shell
     ../features/common/btop
     ../features/common/git
+    ../features/desktop/airframes
     ../features/desktop/alacritty
     ../features/desktop/githubdesktop
     ../features/desktop/ghostty
@@ -62,6 +63,7 @@ in
   nixpkgs.hostPlatform = lib.mkDefault "aarch64-darwin";
 
   desktop = {
+    airframes.enable = lib.mkDefault true;
     freminal.enable = lib.mkDefault true;
     frext.enable = lib.mkDefault true;
     wezterm.enable = lib.mkDefault true;

@@ -51,6 +51,8 @@ darwin.lib.darwinSystem {
         (final: _: {
           inherit (inputs.freminal.packages.${final.stdenv.hostPlatform.system}) freminal;
         })
+        # pkgs.airframes-desktop, read by features/desktop/airframes.
+        inputs.airframes-desktop.overlays.default
       ];
       networking.hostName = hostName;
     })
