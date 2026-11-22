@@ -1283,6 +1283,8 @@ in
           "${tailscaleIP}:5550:5550"
           "${tailscaleIP}:5555:5555"
           "${tailscaleIP}:5556:5556"
+          # XNG (acarshub and vdlmhub's xng stations), pushed the same way.
+          "${tailscaleIP}:5559:5559"
 
           # Secondary listeners with no observed client on this host.
           "${tailscaleIP}:15550:15550"

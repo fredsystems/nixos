@@ -74,6 +74,10 @@ in
 
           # Outputs
           XNG_ZMQ = "tcp://0.0.0.0:5555";
+          # xng feeds Airframes itself (ACARS -> feed.airframes.io UDP 5550).
+          # acars_router on adsbhub only routes XNG to XNG outputs, so
+          # nothing from this station reaches Airframes through it.
+          XNG_FEED_AIRFRAMES = "true";
 
           # Session 1: 130.425 - 131.85 MHz
           XNG_MODE = "acars";
