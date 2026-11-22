@@ -2,24 +2,28 @@
   "inputs": {
     "darwin": {
       "bases": {
-        "darwin": "8abffc93f3f12535461dc837a25431e4a4ccd707aac55fb5c4b3158664ec2c90"
+        "darwin": "8abffc93f3f12535461dc837a25431e4a4ccd707aac55fb5c4b3158664ec2c90",
+        "linux": "b83f83ab20df5d39fefdbec04d23a4623de1ef19959d481de3eded38794f5fe9"
       },
-      "classified_at": "2026-11-22T03:17:31Z",
+      "classified_at": "2026-11-22T03:22:29Z",
       "dispatched_at": "2026-11-22T03:17:31Z",
       "dispatched_rev": "f673885103fa92c1c5b1d16b8bf2b858906809e2",
       "kinds": {
-        "darwin": "source"
+        "darwin": "source",
+        "linux": "none"
       },
       "locked_rev": "ff0e21a414d4547183396da1b44a66f2577b65e9",
       "upstream_rev": "f673885103fa92c1c5b1d16b8bf2b858906809e2"
     },
     "home-manager-stable": {
       "bases": {
-        "darwin": "8abffc93f3f12535461dc837a25431e4a4ccd707aac55fb5c4b3158664ec2c90"
+        "darwin": "8abffc93f3f12535461dc837a25431e4a4ccd707aac55fb5c4b3158664ec2c90",
+        "linux": "b83f83ab20df5d39fefdbec04d23a4623de1ef19959d481de3eded38794f5fe9"
       },
-      "classified_at": "2026-11-22T03:17:31Z",
+      "classified_at": "2026-11-22T03:22:29Z",
       "kinds": {
-        "darwin": "none"
+        "darwin": "none",
+        "linux": "none"
       },
       "locked_rev": "5643e73425b85ac359ba2aaf83deae8ce1cd7968",
       "upstream_rev": "8e2c5229332bf2b431da62f26d20e7cda711c07d"
@@ -27,9 +31,9 @@
     "niri": {
       "bases": {
         "darwin": "8abffc93f3f12535461dc837a25431e4a4ccd707aac55fb5c4b3158664ec2c90",
-        "linux": "26906eabea564bae5d8d1e324b2f792a587036e679263ec89e8089a86fae6630"
+        "linux": "b83f83ab20df5d39fefdbec04d23a4623de1ef19959d481de3eded38794f5fe9"
       },
-      "classified_at": "2026-11-22T03:17:31Z",
+      "classified_at": "2026-11-22T03:22:29Z",
       "kinds": {
         "darwin": "none",
         "linux": "none"
@@ -39,11 +43,13 @@
     },
     "nixpkgs-kernel": {
       "bases": {
-        "darwin": "8abffc93f3f12535461dc837a25431e4a4ccd707aac55fb5c4b3158664ec2c90"
+        "darwin": "8abffc93f3f12535461dc837a25431e4a4ccd707aac55fb5c4b3158664ec2c90",
+        "linux": "b83f83ab20df5d39fefdbec04d23a4623de1ef19959d481de3eded38794f5fe9"
       },
-      "classified_at": "2026-11-22T03:17:31Z",
+      "classified_at": "2026-11-22T03:22:29Z",
       "kinds": {
-        "darwin": "none"
+        "darwin": "none",
+        "linux": "source"
       },
       "locked_rev": "39d1a6c4566dfdb75a27ae40a2ae3aad4df77408",
       "upstream_rev": "27fe68d2add1f660c1b5c41b57eda5390ceba5a4"
