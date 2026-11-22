@@ -106,7 +106,7 @@
 
       degoog = "ghcr.io/fccview/degoog:0.24.0@sha256:79409f76137734baa0516a58def96e4d3842f6db26d813e75365dea8a00974e9";
 
-      syncclipboard = "jericx/syncclipboard-server:v3.3.3@sha256:4fe1486f176679e18fbcd2d220d19d21c4d19ce76ef63d92c4a00e28e9314eca";
+      syncclipboard = "jericx/syncclipboard-server:v3.3.4@sha256:c0d0ec4ad362d2d9f5f6e9c403c902a7bf6abd45bb6aec9b8d3fbf9e5be06a08";
     };
     description = "Every container image this fleet runs, keyed by logical name. See the module header for why every image is here, not just the ones shared across hosts.";
   };
