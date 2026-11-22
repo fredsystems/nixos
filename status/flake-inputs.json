@@ -2,35 +2,41 @@
   "inputs": {
     "home-manager": {
       "bases": {
-        "darwin": "4694776b070a2055b0ad6630fd03c0ecc4648691e3c5a87211c9609dff3e339d"
+        "darwin": "4694776b070a2055b0ad6630fd03c0ecc4648691e3c5a87211c9609dff3e339d",
+        "linux": "b83f83ab20df5d39fefdbec04d23a4623de1ef19959d481de3eded38794f5fe9"
       },
-      "classified_at": "2026-11-22T11:27:19Z",
+      "classified_at": "2026-11-22T11:29:30Z",
       "dispatched_at": "2026-11-22T11:27:19Z",
       "dispatched_rev": "03885bcd0b477bdecebebc57b213b0f8f0826d51",
       "kinds": {
-        "darwin": "source"
+        "darwin": "source",
+        "linux": "source"
       },
       "locked_rev": "6857c7f7c338ad181729c52071386b0d3afa24bc",
       "upstream_rev": "03885bcd0b477bdecebebc57b213b0f8f0826d51"
     },
     "home-manager-stable": {
       "bases": {
-        "darwin": "4694776b070a2055b0ad6630fd03c0ecc4648691e3c5a87211c9609dff3e339d"
+        "darwin": "4694776b070a2055b0ad6630fd03c0ecc4648691e3c5a87211c9609dff3e339d",
+        "linux": "b83f83ab20df5d39fefdbec04d23a4623de1ef19959d481de3eded38794f5fe9"
       },
-      "classified_at": "2026-11-22T11:27:19Z",
+      "classified_at": "2026-11-22T11:29:30Z",
       "kinds": {
-        "darwin": "none"
+        "darwin": "none",
+        "linux": "none"
       },
       "locked_rev": "5643e73425b85ac359ba2aaf83deae8ce1cd7968",
       "upstream_rev": "6480d7d8533b88c78cc6dcda395ab89cd546e450"
     },
     "niri": {
       "bases": {
-        "darwin": "4694776b070a2055b0ad6630fd03c0ecc4648691e3c5a87211c9609dff3e339d"
+        "darwin": "4694776b070a2055b0ad6630fd03c0ecc4648691e3c5a87211c9609dff3e339d",
+        "linux": "b83f83ab20df5d39fefdbec04d23a4623de1ef19959d481de3eded38794f5fe9"
       },
-      "classified_at": "2026-11-22T11:27:19Z",
+      "classified_at": "2026-11-22T11:29:30Z",
       "kinds": {
-        "darwin": "none"
+        "darwin": "none",
+        "linux": "none"
       },
       "locked_rev": "9c8b516d89f96f13bb8a4a6ad34cd229c0a3a27e",
       "upstream_rev": "836d60bd099a4dd1f1e7fb65e6e6acd8f662f43e"
