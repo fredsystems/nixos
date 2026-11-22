@@ -197,6 +197,10 @@ See [MODULES.md](./MODULES.md) for complete documentation.
 
 - `LibreOffice`
 
+#### Aviation
+
+- `Airframes`
+
 ### Social
 
 - `Discord`

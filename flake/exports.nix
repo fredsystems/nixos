@@ -49,6 +49,7 @@ let
       (import ../overlays/default.nix)
       (import ./lib/opencode-overlay.nix inputs)
       inputs.nixos-needsreboot.overlays.default
+      inputs.airframes-desktop.overlays.default
       (final: _: {
         inherit (inputs.freminal.packages.${final.stdenv.hostPlatform.system}) freminal;
         kernelPinPkgs = import inputs.nixpkgs-kernel {

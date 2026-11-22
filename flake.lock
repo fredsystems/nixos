@@ -1,5 +1,28 @@
 {
   "nodes": {
+    "airframes-desktop": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ],
+        "precommit-base": [
+          "precommit-base"
+        ]
+      },
+      "locked": {
+        "lastModified": 1795370737,
+        "narHash": "sha256-H5uRBmVbAOa+mMnQKtuEY3uQ4P0qAyLw5wDpky56LFc=",
+        "owner": "fredsystems",
+        "repo": "airframes-desktop-flake",
+        "rev": "bc21c2f4d8b68897a1dd2ef015cc9a910ad99144",
+        "type": "github"
+      },
+      "original": {
+        "owner": "fredsystems",
+        "repo": "airframes-desktop-flake",
+        "type": "github"
+      }
+    },
     "beast-compare": {
       "inputs": {
         "flake-utils": [
@@ -1293,6 +1316,7 @@
     },
     "root": {
       "inputs": {
+        "airframes-desktop": "airframes-desktop",
         "beast-compare": "beast-compare",
         "catppuccin": "catppuccin",
         "catppuccin-stable": "catppuccin-stable",

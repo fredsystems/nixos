@@ -22,6 +22,7 @@ in
     ./environments
 
     ./1password
+    ./airframes
     ./alacritty
     ./appimage
     ./audio
@@ -69,6 +70,8 @@ in
 
   config = lib.mkIf cfg.enable {
     desktop = {
+      # The Linux build is x86_64 only.
+      airframes.enable = lib.mkDefault cfg.enable_extra;
       alacritty.enable = lib.mkDefault true;
       appimage.enable = lib.mkDefault cfg.enable_extra;
       audio.enable = lib.mkDefault true;

@@ -109,6 +109,8 @@ let
           (final: _: {
             inherit (inputs.freminal.packages.${final.stdenv.hostPlatform.system}) freminal;
           })
+          # pkgs.airframes-desktop, read by features/desktop/airframes.
+          inputs.airframes-desktop.overlays.default
           # Exposes the kernel-pin nixpkgs tree (see modules/system/kernel-pin.nix)
           # as pkgs.kernelPinPkgs, importing kernelPkgsInput once per host with
           # only the fleet's unfree predicate threaded through.
