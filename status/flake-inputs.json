@@ -1,5 +1,54 @@
 {
-  "inputs": {},
+  "inputs": {
+    "airframes-desktop": {
+      "bases": {
+        "darwin": "e60c18c9a0692bf89fd9356f07f7407ee49184920fe29d1060c0740c9ea9e8c7"
+      },
+      "classified_at": "2026-11-22T19:42:33Z",
+      "kinds": {
+        "darwin": "none"
+      },
+      "locked_rev": "bc21c2f4d8b68897a1dd2ef015cc9a910ad99144",
+      "upstream_rev": "d5800ceb1bc14d3a5d98ef3bbd72ad7b540bfc6e"
+    },
+    "darwin": {
+      "bases": {
+        "darwin": "e60c18c9a0692bf89fd9356f07f7407ee49184920fe29d1060c0740c9ea9e8c7"
+      },
+      "classified_at": "2026-11-22T19:42:33Z",
+      "dispatched_at": "2026-11-22T19:42:33Z",
+      "dispatched_rev": "663d8b962a11cda261b6e9f14e03911fac94baf0",
+      "kinds": {
+        "darwin": "source"
+      },
+      "locked_rev": "f673885103fa92c1c5b1d16b8bf2b858906809e2",
+      "upstream_rev": "663d8b962a11cda261b6e9f14e03911fac94baf0"
+    },
+    "home-manager": {
+      "bases": {
+        "darwin": "e60c18c9a0692bf89fd9356f07f7407ee49184920fe29d1060c0740c9ea9e8c7"
+      },
+      "classified_at": "2026-11-22T19:42:33Z",
+      "dispatched_at": "2026-11-22T19:42:33Z",
+      "dispatched_rev": "3b8140d21fa0a70b1b38c2ed29853dfe686234a6",
+      "kinds": {
+        "darwin": "source"
+      },
+      "locked_rev": "03885bcd0b477bdecebebc57b213b0f8f0826d51",
+      "upstream_rev": "3b8140d21fa0a70b1b38c2ed29853dfe686234a6"
+    },
+    "nixpkgs-kernel": {
+      "bases": {
+        "darwin": "e60c18c9a0692bf89fd9356f07f7407ee49184920fe29d1060c0740c9ea9e8c7"
+      },
+      "classified_at": "2026-11-22T19:42:33Z",
+      "kinds": {
+        "darwin": "none"
+      },
+      "locked_rev": "39d1a6c4566dfdb75a27ae40a2ae3aad4df77408",
+      "upstream_rev": "1af74e9e16942f93950b35ff953af23d4f7491b9"
+    }
+  },
   "planned_at": "2026-11-22T19:37:05Z",
   "version": 1
 }
