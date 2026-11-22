@@ -1,20 +1,5 @@
 {
   "inputs": {
-    "freminal": {
-      "bases": {
-        "darwin": "68b0c62ce10ca2c485de707e8e7e73e96d23855cd04fd2432e7ecf14bb2a0ef6",
-        "linux": "26906eabea564bae5d8d1e324b2f792a587036e679263ec89e8089a86fae6630"
-      },
-      "classified_at": "2026-11-21T23:25:19Z",
-      "dispatched_at": "2026-11-21T23:19:50Z",
-      "dispatched_rev": "91eaa1d5d8c51e5666e2fa9944b429bd97f4b548",
-      "kinds": {
-        "darwin": "source",
-        "linux": "source"
-      },
-      "locked_rev": "550a700bfb54bc433f981ad46d400c2d2a5b4839",
-      "upstream_rev": "91eaa1d5d8c51e5666e2fa9944b429bd97f4b548"
-    },
     "niri": {
       "bases": {
         "darwin": "68b0c62ce10ca2c485de707e8e7e73e96d23855cd04fd2432e7ecf14bb2a0ef6",
@@ -27,36 +12,8 @@
       },
       "locked_rev": "9c8b516d89f96f13bb8a4a6ad34cd229c0a3a27e",
       "upstream_rev": "5ad1852f80b1301c2abc8a26624246e8d7cad3dc"
-    },
-    "nixpkgs-kernel": {
-      "bases": {
-        "darwin": "68b0c62ce10ca2c485de707e8e7e73e96d23855cd04fd2432e7ecf14bb2a0ef6",
-        "linux": "26906eabea564bae5d8d1e324b2f792a587036e679263ec89e8089a86fae6630"
-      },
-      "classified_at": "2026-11-21T23:25:19Z",
-      "kinds": {
-        "darwin": "none",
-        "linux": "source"
-      },
-      "locked_rev": "39d1a6c4566dfdb75a27ae40a2ae3aad4df77408",
-      "upstream_rev": "cd438274d2395d06373ce7afa65c425e0c560a00"
-    },
-    "nixpkgs-stable": {
-      "bases": {
-        "darwin": "68b0c62ce10ca2c485de707e8e7e73e96d23855cd04fd2432e7ecf14bb2a0ef6",
-        "linux": "26906eabea564bae5d8d1e324b2f792a587036e679263ec89e8089a86fae6630"
-      },
-      "classified_at": "2026-11-21T23:25:19Z",
-      "dispatched_at": "2026-11-21T23:25:19Z",
-      "dispatched_rev": "94c3211b0ee8ba969a3f12eb4aff8ba0f72971dd",
-      "kinds": {
-        "darwin": "none",
-        "linux": "source"
-      },
-      "locked_rev": "ab5c18fdedfc8f9bbc9d773f10a540790e2787a7",
-      "upstream_rev": "94c3211b0ee8ba969a3f12eb4aff8ba0f72971dd"
     }
   },
-  "planned_at": "2026-11-21T23:14:14Z",
+  "planned_at": "2026-11-22T03:12:06Z",
   "version": 1
 }
