@@ -3,9 +3,9 @@
     "airframes-desktop": {
       "bases": {
         "darwin": "338e4b4aa4341704ba14875dd003675bb1d7ed22329b861978d736c7243f246d",
-        "linux": "c741fb5aa697e813fe013517b04ee713cb879e15ebf689392f76e75680600bbf"
+        "linux": "aca8930d909e6edd26697c11e1618036c92a90b8ea9bcbce73de5b4ff874b9ab"
       },
-      "classified_at": "2026-11-23T00:54:25Z",
+      "classified_at": "2026-11-23T00:56:56Z",
       "kinds": {
         "darwin": "none",
         "linux": "none"
@@ -15,11 +15,13 @@
     },
     "nixpkgs-kernel": {
       "bases": {
-        "darwin": "338e4b4aa4341704ba14875dd003675bb1d7ed22329b861978d736c7243f246d"
+        "darwin": "338e4b4aa4341704ba14875dd003675bb1d7ed22329b861978d736c7243f246d",
+        "linux": "aca8930d909e6edd26697c11e1618036c92a90b8ea9bcbce73de5b4ff874b9ab"
       },
-      "classified_at": "2026-11-23T00:54:25Z",
+      "classified_at": "2026-11-23T00:56:56Z",
       "kinds": {
-        "darwin": "none"
+        "darwin": "none",
+        "linux": "source"
       },
       "locked_rev": "39d1a6c4566dfdb75a27ae40a2ae3aad4df77408",
       "upstream_rev": "0dc498bfe49baeb18b0f9891e800b53bb2603193"
