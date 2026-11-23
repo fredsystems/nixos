@@ -3,9 +3,9 @@
     "airframes-desktop": {
       "bases": {
         "darwin": "2b0fccfcd1a6f2dfdb24ceed6bcbcf21eec06a1e6988455aebdf2e3fa87b307a",
-        "linux": "aca8930d909e6edd26697c11e1618036c92a90b8ea9bcbce73de5b4ff874b9ab"
+        "linux": "66a079b3f6ee82d890efaf3bed1a6bb11d0d26b057593341059af5138ba7b577"
       },
-      "classified_at": "2026-11-23T19:35:09Z",
+      "classified_at": "2026-11-23T19:39:43Z",
       "kinds": {
         "darwin": "none",
         "linux": "none"
@@ -15,11 +15,13 @@
     },
     "niri": {
       "bases": {
-        "darwin": "2b0fccfcd1a6f2dfdb24ceed6bcbcf21eec06a1e6988455aebdf2e3fa87b307a"
+        "darwin": "2b0fccfcd1a6f2dfdb24ceed6bcbcf21eec06a1e6988455aebdf2e3fa87b307a",
+        "linux": "66a079b3f6ee82d890efaf3bed1a6bb11d0d26b057593341059af5138ba7b577"
       },
-      "classified_at": "2026-11-23T19:35:09Z",
+      "classified_at": "2026-11-23T19:39:43Z",
       "kinds": {
-        "darwin": "none"
+        "darwin": "none",
+        "linux": "none"
       },
       "locked_rev": "836d60bd099a4dd1f1e7fb65e6e6acd8f662f43e",
       "upstream_rev": "6ec1e69193f582abad00c3840fd477b34089bafd"
@@ -27,9 +29,9 @@
     "nixpkgs-kernel": {
       "bases": {
         "darwin": "2b0fccfcd1a6f2dfdb24ceed6bcbcf21eec06a1e6988455aebdf2e3fa87b307a",
-        "linux": "aca8930d909e6edd26697c11e1618036c92a90b8ea9bcbce73de5b4ff874b9ab"
+        "linux": "66a079b3f6ee82d890efaf3bed1a6bb11d0d26b057593341059af5138ba7b577"
       },
-      "classified_at": "2026-11-23T19:35:09Z",
+      "classified_at": "2026-11-23T19:39:43Z",
       "kinds": {
         "darwin": "none",
         "linux": "source"
@@ -39,11 +41,15 @@
     },
     "nixpkgs-stable": {
       "bases": {
-        "darwin": "2b0fccfcd1a6f2dfdb24ceed6bcbcf21eec06a1e6988455aebdf2e3fa87b307a"
+        "darwin": "2b0fccfcd1a6f2dfdb24ceed6bcbcf21eec06a1e6988455aebdf2e3fa87b307a",
+        "linux": "66a079b3f6ee82d890efaf3bed1a6bb11d0d26b057593341059af5138ba7b577"
       },
-      "classified_at": "2026-11-23T19:35:09Z",
+      "classified_at": "2026-11-23T19:39:43Z",
+      "dispatched_at": "2026-11-23T19:39:43Z",
+      "dispatched_rev": "0dc498bfe49baeb18b0f9891e800b53bb2603193",
       "kinds": {
-        "darwin": "none"
+        "darwin": "none",
+        "linux": "source"
       },
       "locked_rev": "94c3211b0ee8ba969a3f12eb4aff8ba0f72971dd",
       "upstream_rev": "0dc498bfe49baeb18b0f9891e800b53bb2603193"
