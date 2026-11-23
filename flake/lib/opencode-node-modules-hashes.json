@@ -1,12 +1,12 @@
 {
   "nodeModules": {
     "x86_64-linux": {
-      "rev": "44aed4fd144611879046ae923c25541f913780ad",
+      "rev": "6f0514052a3c859894ad01bb14cc14dda1e44b96",
       "nixpkgsRev": "e21fec321d73511849707a7585e4ea155ee4bf40",
       "hash": "sha256-sdMjb/l8SIthDbBJO3VzpyoOL9auoFGjVb6HdlxkQGg="
     },
     "aarch64-darwin": {
-      "rev": "44aed4fd144611879046ae923c25541f913780ad",
+      "rev": "6f0514052a3c859894ad01bb14cc14dda1e44b96",
       "nixpkgsRev": "e21fec321d73511849707a7585e4ea155ee4bf40",
       "hash": "sha256-3d3c6tnTD/fTefdrxUACkLLqKeXDDijLg2cp3yhz67Q="
     }
