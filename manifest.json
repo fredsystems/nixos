@@ -1,5 +1,5 @@
 {
-  "generated_at": 1795541077,
+  "generated_at": 1795541276,
   "hosts": {
     "Daytona": {
       "history": [
@@ -262,6 +262,11 @@
     "adsbhub": {
       "history": [
         {
+          "at": 1795541276,
+          "rev": "9dfece35e287cebb87ee58c573c424c9649738e1",
+          "toplevel": "/nix/store/iba7plmcrrvhsf0q4v8x1b5sp1fsf4cy-nixos-system-adsbhub-26.05.20261122.0dc498b"
+        },
+        {
           "at": 1795541077,
           "rev": "885ed849ef8c68ca4ff4e3cf266483682fa978c9",
           "toplevel": "/nix/store/pdjsffg37inhf5ks34hyx62pfyh3p6ip-nixos-system-adsbhub-26.05.20261122.0dc498b"
@@ -380,11 +385,6 @@
           "at": 1795113241,
           "rev": "b14ef4757821e647c0eff531a88aa44d07c1eedd",
           "toplevel": "/nix/store/852hkdai5pk1rr3zwkj19adr41is9j6g-nixos-system-adsbhub-26.05.20261116.f684076"
-        },
-        {
-          "at": 1795112316,
-          "rev": "207c01c3d5fed6e40caf19dfc92bc6c8df6fa0ef",
-          "toplevel": "/nix/store/2lv39lwh3qvyjjjwj2p3h4vlp4kq33ll-nixos-system-adsbhub-26.05.20261116.f684076"
         }
       ]
     },
@@ -773,6 +773,11 @@
     "hfdlhub1": {
       "history": [
         {
+          "at": 1795541276,
+          "rev": "9dfece35e287cebb87ee58c573c424c9649738e1",
+          "toplevel": "/nix/store/6c0aj1c79348dh4q07qrkshx1qc4asyd-nixos-system-hfdlhub1-26.05.20261122.0dc498b"
+        },
+        {
           "at": 1795463403,
           "rev": "ebf630acda13bc332783c3acb4e444bd6141d5cf",
           "toplevel": "/nix/store/c6svdfbwv85bf4kpsghmaspgkwl7nnpg-nixos-system-hfdlhub1-26.05.20261122.0dc498b"
@@ -891,11 +896,6 @@
           "at": 1794585584,
           "rev": "d28a11b74252b187be92a4037cdcd7ec91e22bf6",
           "toplevel": "/nix/store/kmbnxjdp6wxvx0r9i5lgbzvnwk12lchh-nixos-system-hfdlhub1-26.05.20261108.ac588ef"
-        },
-        {
-          "at": 1794510637,
-          "rev": "96ffd4702101d4eab00c15f9f1c72fac8d4bc7c4",
-          "toplevel": "/nix/store/xhnapvvmavp34q6n4y5vswrw3fs6w89s-nixos-system-hfdlhub1-26.05.20261108.ac588ef"
         }
       ]
     },
@@ -1416,6 +1416,6 @@
       ]
     }
   },
-  "rev": "885ed849ef8c68ca4ff4e3cf266483682fa978c9",
+  "rev": "9dfece35e287cebb87ee58c573c424c9649738e1",
   "schema": 1
 }
