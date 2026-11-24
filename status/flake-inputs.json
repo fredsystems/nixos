@@ -15,11 +15,13 @@
     },
     "home-manager": {
       "bases": {
-        "darwin": "03c5d11da05c18d95e0c247006bfcbd16a9ecb27f3e890e14fd56057512faf37"
+        "darwin": "03c5d11da05c18d95e0c247006bfcbd16a9ecb27f3e890e14fd56057512faf37",
+        "linux": "f8dfa4bc3fd1d1c0f8bd960ed523661ee2f6b660555377441c1b4ea377dbe9f4"
       },
-      "classified_at": "2026-11-24T16:21:11Z",
+      "classified_at": "2026-11-24T16:23:10Z",
       "kinds": {
-        "darwin": "none"
+        "darwin": "none",
+        "linux": "none"
       },
       "locked_rev": "3b8140d21fa0a70b1b38c2ed29853dfe686234a6",
       "upstream_rev": "b56bcd042b5e69ad188eca20d9bec1bfbf3dd453"
