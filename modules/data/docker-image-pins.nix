@@ -82,7 +82,7 @@
 
       adsbhub = "ghcr.io/sdr-enthusiasts/docker-adsbhub:latest-build-546@sha256:2a12260c9288755bbdcdd7398466dc95b7cd22400fdaa580fd534aaa7b0c08fb";
 
-      flightradar24 = "ghcr.io/sdr-enthusiasts/docker-flightradar24:latest-build-874@sha256:769a1436fb5137b321c7e69e29f7b7018c4b6db4acbf5d1b64478bd51ad38045";
+      flightradar24 = "ghcr.io/sdr-enthusiasts/docker-flightradar24:latest-build-875@sha256:3a3a69d9c638cbf92b1c6bb48c3a520eb1107bdd1a454ae07196695a3d63885a";
 
       piaware = "ghcr.io/sdr-enthusiasts/docker-piaware:latest-build-681@sha256:8c4ed8341213f5b55a6b447788292af1ef4a908c863dba43fa7dcaf35c148096";
 
