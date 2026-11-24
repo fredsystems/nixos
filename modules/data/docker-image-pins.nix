@@ -60,7 +60,7 @@
 
       sdreImageApi = "ghcr.io/sdr-enthusiasts/sdre-image-api:latest-build-7@sha256:38df445fe37101648032e849a477ee3221ce8517cebd72983e21d9e1ba8dfbff";
 
-      tar1090 = "ghcr.io/sdr-enthusiasts/docker-tar1090:telegraf-build-1511@sha256:3d4e7817dd9f7b7cedbef76799b1d1f8498bf674a34016d3bd9b638072d49d14";
+      tar1090 = "ghcr.io/sdr-enthusiasts/docker-tar1090:telegraf-build-1512@sha256:1a9beae80b05e2dbf34fbae7306eb600ed4fd5f95df6c2b0b8d5840f113ea5b2";
 
       # Shared verbatim: adsbhub + fredvps.
       acarsRouter = "ghcr.io/sdr-enthusiasts/acars_router:latest-build-603@sha256:13fd9e042a1283a8d69930aae192f9c47cbb5b17ae35fafa159008684608eaad";
