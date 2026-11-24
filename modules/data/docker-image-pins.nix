@@ -96,7 +96,7 @@
 
       openskyNetwork = "ghcr.io/sdr-enthusiasts/docker-opensky-network:latest-build-860@sha256:3d8293efed0ee4f8deda8c54e0278f24c7e12dbf3386e755aa51c0a45bbf54ce";
 
-      sdrmap = "ghcr.io/sdr-enthusiasts/docker-sdrmap:latest-build-116@sha256:4e362457173e9416ee98068aafacc9c90f23d0a6400df9f6d494a7085d187d4d";
+      sdrmap = "ghcr.io/sdr-enthusiasts/docker-sdrmap:latest-build-117@sha256:26a8da145fb8747ea1939d398dee2a70428fc5c98aed050800fff3326ec2aeae";
 
       acarshubV4 = "ghcr.io/sdr-enthusiasts/docker-acarshub:v4-latest-build-77@sha256:f046d57d97d20d20df8f880bd1a4d7666453d2aa435b4f6d130396d7a5ed847a";
 
