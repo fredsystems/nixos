@@ -13,6 +13,17 @@
       "locked_rev": "bc21c2f4d8b68897a1dd2ef015cc9a910ad99144",
       "upstream_rev": "d5800ceb1bc14d3a5d98ef3bbd72ad7b540bfc6e"
     },
+    "home-manager": {
+      "bases": {
+        "darwin": "03c5d11da05c18d95e0c247006bfcbd16a9ecb27f3e890e14fd56057512faf37"
+      },
+      "classified_at": "2026-11-24T16:21:11Z",
+      "kinds": {
+        "darwin": "none"
+      },
+      "locked_rev": "3b8140d21fa0a70b1b38c2ed29853dfe686234a6",
+      "upstream_rev": "b56bcd042b5e69ad188eca20d9bec1bfbf3dd453"
+    },
     "niri": {
       "bases": {
         "darwin": "03c5d11da05c18d95e0c247006bfcbd16a9ecb27f3e890e14fd56057512faf37",
