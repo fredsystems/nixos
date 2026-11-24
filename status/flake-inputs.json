@@ -3,9 +3,9 @@
     "airframes-desktop": {
       "bases": {
         "darwin": "03c5d11da05c18d95e0c247006bfcbd16a9ecb27f3e890e14fd56057512faf37",
-        "linux": "0ef82b1332218ebcad3486f5bda922d113d90f1d15e7dbd1545403a5a20e8290"
+        "linux": "f8dfa4bc3fd1d1c0f8bd960ed523661ee2f6b660555377441c1b4ea377dbe9f4"
       },
-      "classified_at": "2026-11-23T21:28:49Z",
+      "classified_at": "2026-11-24T06:12:18Z",
       "kinds": {
         "darwin": "none",
         "linux": "none"
@@ -16,9 +16,9 @@
     "niri": {
       "bases": {
         "darwin": "03c5d11da05c18d95e0c247006bfcbd16a9ecb27f3e890e14fd56057512faf37",
-        "linux": "0ef82b1332218ebcad3486f5bda922d113d90f1d15e7dbd1545403a5a20e8290"
+        "linux": "f8dfa4bc3fd1d1c0f8bd960ed523661ee2f6b660555377441c1b4ea377dbe9f4"
       },
-      "classified_at": "2026-11-23T21:28:49Z",
+      "classified_at": "2026-11-24T06:12:18Z",
       "kinds": {
         "darwin": "none",
         "linux": "none"
@@ -29,9 +29,9 @@
     "nixpkgs-kernel": {
       "bases": {
         "darwin": "03c5d11da05c18d95e0c247006bfcbd16a9ecb27f3e890e14fd56057512faf37",
-        "linux": "0ef82b1332218ebcad3486f5bda922d113d90f1d15e7dbd1545403a5a20e8290"
+        "linux": "f8dfa4bc3fd1d1c0f8bd960ed523661ee2f6b660555377441c1b4ea377dbe9f4"
       },
-      "classified_at": "2026-11-23T21:28:49Z",
+      "classified_at": "2026-11-24T06:12:18Z",
       "kinds": {
         "darwin": "none",
         "linux": "source"
@@ -41,22 +41,26 @@
     },
     "sops-nix": {
       "bases": {
-        "darwin": "03c5d11da05c18d95e0c247006bfcbd16a9ecb27f3e890e14fd56057512faf37"
+        "darwin": "03c5d11da05c18d95e0c247006bfcbd16a9ecb27f3e890e14fd56057512faf37",
+        "linux": "f8dfa4bc3fd1d1c0f8bd960ed523661ee2f6b660555377441c1b4ea377dbe9f4"
       },
-      "classified_at": "2026-11-24T06:03:16Z",
+      "classified_at": "2026-11-24T06:12:18Z",
       "kinds": {
-        "darwin": "none"
+        "darwin": "none",
+        "linux": "none"
       },
       "locked_rev": "7c637afdccdf9bcf35c4a2d67b58a77c1fd843a4",
       "upstream_rev": "d5abe5e53200ad48254e8e6bd95e6cef94e66577"
     },
     "sops-nix-stable": {
       "bases": {
-        "darwin": "03c5d11da05c18d95e0c247006bfcbd16a9ecb27f3e890e14fd56057512faf37"
+        "darwin": "03c5d11da05c18d95e0c247006bfcbd16a9ecb27f3e890e14fd56057512faf37",
+        "linux": "f8dfa4bc3fd1d1c0f8bd960ed523661ee2f6b660555377441c1b4ea377dbe9f4"
       },
-      "classified_at": "2026-11-24T06:03:16Z",
+      "classified_at": "2026-11-24T06:12:18Z",
       "kinds": {
-        "darwin": "none"
+        "darwin": "none",
+        "linux": "none"
       },
       "locked_rev": "7c637afdccdf9bcf35c4a2d67b58a77c1fd843a4",
       "upstream_rev": "d5abe5e53200ad48254e8e6bd95e6cef94e66577"
