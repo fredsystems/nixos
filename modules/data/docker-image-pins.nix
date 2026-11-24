@@ -74,7 +74,7 @@
       hfdlobserver = "ghcr.io/sdr-enthusiasts/docker-hfdlobserver:latest-build-43@sha256:bd6e6a3745a1f5f076ab68569c8322261a04b897bdd9ff8acdaf93532e674f52";
 
       # adsbhub host
-      airspyAdsb = "ghcr.io/sdr-enthusiasts/airspy_adsb:latest-build-330@sha256:0ab916d9ecc72dd39d8e485ea52061185318bc7063179a91b5b1860e4076b17c";
+      airspyAdsb = "ghcr.io/sdr-enthusiasts/airspy_adsb:latest-build-331@sha256:7f94a4c1ab46ae763779d37430b0ce1ab7eeaa8e00a6c969e8505ba7d1a0376b";
 
       adsbUltrafeeder = "ghcr.io/sdr-enthusiasts/docker-adsb-ultrafeeder:telegraf-build-995@sha256:4b9ac3e6355a50883f42b08949a6eae8e9b820df94a1454bf5b09bf8d08dd281";
 
