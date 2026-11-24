@@ -102,7 +102,7 @@
 
       acars2posAlt = "ghcr.io/rpatel3001/docker-acars2pos:latest-build-32@sha256:79eef9eaaa123f79a350e466452d577e71a6f11cedebad59ff91ebf97a6b6ea8"; # inactive (commented-out alternative)
 
-      acars2pos = "ghcr.io/fredclausen/docker-acars2pos:latest-build-9@sha256:04279ffa2186e55c4cf0403612ea0d15f82cdce929b0eee3179570ea3fc4eae1";
+      acars2pos = "ghcr.io/fredclausen/docker-acars2pos:latest-build-10@sha256:88f0576e859a53f600e03d718d1cb31717a299ca8265c56c363d0ec5725a50a0";
 
       degoog = "ghcr.io/fccview/degoog:0.24.0@sha256:79409f76137734baa0516a58def96e4d3842f6db26d813e75365dea8a00974e9";
 
