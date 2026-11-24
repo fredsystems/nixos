@@ -1,5 +1,5 @@
 {
-  "generated_at": 1795542256,
+  "generated_at": 1795542408,
   "hosts": {
     "Daytona": {
       "history": [
@@ -262,6 +262,11 @@
     "adsbhub": {
       "history": [
         {
+          "at": 1795542408,
+          "rev": "4c81e489306b780c30f7fa98c4816a550b2f416d",
+          "toplevel": "/nix/store/89ky0j05mfg1h8191jw7lj7gn4y77dak-nixos-system-adsbhub-26.05.20261122.0dc498b"
+        },
+        {
           "at": 1795542256,
           "rev": "e4080f62b0217fefb6a38967a8890a4f482bb31c",
           "toplevel": "/nix/store/da9a9yyf3q964baaj3c4fmz7nbqfr90n-nixos-system-adsbhub-26.05.20261122.0dc498b"
@@ -380,11 +385,6 @@
           "at": 1795203104,
           "rev": "8ce358c59b804965629a9436b8165b8369dc8dd1",
           "toplevel": "/nix/store/zrhb75kw006g7p9607b731rla7ljl5gl-nixos-system-adsbhub-26.05.20261118.3457b69"
-        },
-        {
-          "at": 1795202952,
-          "rev": "6e950f582ecd9b91534d0c8f08ca79ad0b560d4c",
-          "toplevel": "/nix/store/f8zz25nawwxgv9859czzpbgf21ffhhni-nixos-system-adsbhub-26.05.20261118.3457b69"
         }
       ]
     },
@@ -644,6 +644,11 @@
     "fredvps": {
       "history": [
         {
+          "at": 1795542408,
+          "rev": "4c81e489306b780c30f7fa98c4816a550b2f416d",
+          "toplevel": "/nix/store/3rvb9xq83jn3yqafc8my3hj52z7c76y0-nixos-system-fredvps-26.05.20261122.0dc498b"
+        },
+        {
           "at": 1795542256,
           "rev": "e4080f62b0217fefb6a38967a8890a4f482bb31c",
           "toplevel": "/nix/store/qykiqz57khj8wzim9mrbmrrnx7aph35w-nixos-system-fredvps-26.05.20261122.0dc498b"
@@ -762,11 +767,6 @@
           "at": 1794869190,
           "rev": "822d692c84c5f3624234ebfc396906b65e660e68",
           "toplevel": "/nix/store/yyf356n08xfag6032lygg09rg2vlpg67-nixos-system-fredvps-26.05.20261115.b349185"
-        },
-        {
-          "at": 1794868685,
-          "rev": "c4993af14cab162994d86b560447a22841153423",
-          "toplevel": "/nix/store/26vbwgv87qwhjjzlqlr7r3mh17k5ngmk-nixos-system-fredvps-26.05.20261115.b349185"
         }
       ]
     },
@@ -1416,6 +1416,6 @@
       ]
     }
   },
-  "rev": "e4080f62b0217fefb6a38967a8890a4f482bb31c",
+  "rev": "4c81e489306b780c30f7fa98c4816a550b2f416d",
   "schema": 1
 }
