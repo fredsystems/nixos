@@ -2,24 +2,28 @@
   "inputs": {
     "catppuccin": {
       "bases": {
-        "darwin": "03c5d11da05c18d95e0c247006bfcbd16a9ecb27f3e890e14fd56057512faf37"
+        "darwin": "03c5d11da05c18d95e0c247006bfcbd16a9ecb27f3e890e14fd56057512faf37",
+        "linux": "108818b4a40ed5ac843c05cc436c01757995d5fde587af3c27059a557da0e211"
       },
-      "classified_at": "2026-11-25T12:55:46Z",
+      "classified_at": "2026-11-25T12:59:37Z",
       "dispatched_at": "2026-11-25T12:55:46Z",
       "dispatched_rev": "d8561c05d09cd22d175b0cb50de634a4214a4c3e",
       "kinds": {
-        "darwin": "source"
+        "darwin": "source",
+        "linux": "source"
       },
       "locked_rev": "aa70e775fdb4e998314dd64fb4cf66aeaa87f6dd",
       "upstream_rev": "d8561c05d09cd22d175b0cb50de634a4214a4c3e"
     },
     "niri": {
       "bases": {
-        "darwin": "03c5d11da05c18d95e0c247006bfcbd16a9ecb27f3e890e14fd56057512faf37"
+        "darwin": "03c5d11da05c18d95e0c247006bfcbd16a9ecb27f3e890e14fd56057512faf37",
+        "linux": "108818b4a40ed5ac843c05cc436c01757995d5fde587af3c27059a557da0e211"
       },
-      "classified_at": "2026-11-25T12:55:46Z",
+      "classified_at": "2026-11-25T12:59:37Z",
       "kinds": {
-        "darwin": "none"
+        "darwin": "none",
+        "linux": "none"
       },
       "locked_rev": "229788bcd27a51599f8a676b7583fb9bdb947134",
       "upstream_rev": "f931c6add2d2cbf482967d2a935dd2da452753ce"
