@@ -3,9 +3,9 @@
     "niri": {
       "bases": {
         "darwin": "03c5d11da05c18d95e0c247006bfcbd16a9ecb27f3e890e14fd56057512faf37",
-        "linux": "db3be2f914e99cb33c79dfa1f70b788fd8e213be4065e439dfa3104af3e9a011"
+        "linux": "108818b4a40ed5ac843c05cc436c01757995d5fde587af3c27059a557da0e211"
       },
-      "classified_at": "2026-11-24T17:48:37Z",
+      "classified_at": "2026-11-25T01:39:17Z",
       "kinds": {
         "darwin": "none",
         "linux": "none"
@@ -15,11 +15,13 @@
     },
     "nixpkgs-kernel": {
       "bases": {
-        "darwin": "03c5d11da05c18d95e0c247006bfcbd16a9ecb27f3e890e14fd56057512faf37"
+        "darwin": "03c5d11da05c18d95e0c247006bfcbd16a9ecb27f3e890e14fd56057512faf37",
+        "linux": "108818b4a40ed5ac843c05cc436c01757995d5fde587af3c27059a557da0e211"
       },
-      "classified_at": "2026-11-25T01:35:42Z",
+      "classified_at": "2026-11-25T01:39:17Z",
       "kinds": {
-        "darwin": "none"
+        "darwin": "none",
+        "linux": "source"
       },
       "locked_rev": "39d1a6c4566dfdb75a27ae40a2ae3aad4df77408",
       "upstream_rev": "343335fc48c4df24ea3e57c95da75d1a46ba6772"
