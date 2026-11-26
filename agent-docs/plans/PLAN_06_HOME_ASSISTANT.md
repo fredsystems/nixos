@@ -2,8 +2,9 @@
 
 - **Status:** in progress, to complete ahead of Plan 02 by the owner's
   decision; see "Execution model".
-- **Branches:** one `plan06/6.N-*` branch and PR per subtask, as Plan 04
-  did. 6.1 `plan06/6.1-stick-on-corehub`.
+- **Branches:** 6.1 `plan06/6.1-stick-on-corehub` (#3017). From 6.2 on,
+  one branch, `plan06/home-assistant`, and one PR for the rest of the
+  plan, by the owner's decision (2026-11-26).
 
 ## Goal
 
@@ -145,15 +146,31 @@ What Home Assistant keeps only in `.storage`, where YAML cannot reach:
   automations refer to stays whatever Home Assistant generated.
 - Onboarding (the owner account).
 
-Closing that gap means a reconciler: a oneshot unit, ordered after Home
-Assistant, that reads a Nix attrset (Z-Wave node to area, name and
-entity ID; integrations and their options) and applies it through Home
-Assistant's websocket and config-flow APIs, idempotently, on every
-deploy. Pre-seeding `.storage` JSON was rejected: the schema is internal
-and Home Assistant rewrites it. Decided at 6.5: build the reconciler, or
-accept the four integrations and the registry as a documented one-time
-manual step. Either way, automations reference the entity IDs that the
-Nix device table fixes, never generated ones.
+The owner chose (2026-11-26) to close that gap with a reconciler (6.19):
+a oneshot unit, ordered after Home Assistant, that reads a Nix attrset
+and applies it through Home Assistant's REST and websocket APIs,
+idempotently, on every deploy. Pre-seeding `.storage` JSON was rejected:
+the schema is internal and Home Assistant rewrites it. It covers:
+
+- Onboarding: the owner account, with its password from sops, and the
+  remaining onboarding steps, so the UI never shows the setup wizard.
+- Integrations: each declared config flow is run when no entry for it
+  exists, answering each step from Nix. Secrets come from files at run
+  time. When a declared flow's inputs change, its entry is removed and
+  recreated.
+- Areas, device names and areas, and entity names and IDs. Devices are
+  matched by registry identifier (`zwave_js` `<home id>-<node id>`).
+  Automations reference only the entity IDs this table fixes, never
+  generated ones.
+- Backup settings (open question 6).
+
+It logs in with the owner's credentials on each run and revokes its
+refresh token when done, so no long-lived token is stored. It removes
+nothing it did not declare.
+
+One gap stays: `mobile_app` entries are created by the phone when the
+companion app registers, and cannot exist before that. The reconciler
+names the phone's device and entities once it has registered.
 
 ### Home Assistant is published like Grafana
 
@@ -268,11 +285,9 @@ Decide at activation:
    upstairs_hall for certain. inside_garage too?
 5. **Notifications.** Does armed also mean a push notification for a
    person indoors while `away` or `home_sleep`, or review items only?
-6. **Backing up Home Assistant's state.** Device names, integrations
-   and the recorder live in the module's `configDir`. Is the NAS's nightly pull
-   extended to cover it (with a consistent SQLite dump, as
-   `modules/services/sqlite-backup.nix` does for acarshub), or is
-   Home Assistant's own backup used?
+6. **Backing up Home Assistant's state.** Decided (2026-11-26): Home
+   Assistant's own backup, scheduled by the reconciler, and its backup
+   directory picked up by the NAS. See 6.20.
 7. **Where the NVM backup lives.** Decided (2026-11-26): in the repo,
    sops binary mode, encrypted for the owner's four workstations and no
    host. See 6.1.
@@ -321,33 +336,46 @@ Decide at activation:
       controller updates itself during traffic. Decrypt with
       `sops decrypt --input-type binary --output-type binary`.
 - [ ] **6.2 Secrets.** New sops entries: zwave-js S0 and S2 keys
-      (generated fresh), and Mosquitto passwords for `homeassistant`,
-      `frigate` and `nvr-watchdog`. Recipients: corehub, plus nvrhub for
-      the `frigate` and `nvr-watchdog` passwords only.
+      (generated fresh), Mosquitto passwords for `homeassistant`,
+      `frigate` and `nvr-watchdog`, and the Home Assistant owner's
+      password for 6.19. They go in `secrets.yaml` like every other
+      secret, readable by every host, by the owner's decision
+      (2026-11-26).
 - [ ] **6.3 Mosquitto.** `services.mosquitto` on corehub: one listener on
       1883, LAN-reachable for nvrhub, password auth per user from 6.2,
       no anonymous access. Firewall opening for 1883 only.
 - [ ] **6.4 zwave-js.** `services.zwave-js` on corehub against the
       by-id path from 6.1, keys from 6.2 via `secretsConfigFile`, server
       on loopback only (Home Assistant is the only client). Verify: the
-      server starts and reports home ID `d4558e0a` and the 19 live nodes.
+      server starts and reports home ID `d4558e0a` and the 23 live nodes.
 - [ ] **6.5 Home Assistant.** `services.home-assistant` on corehub, with
       `extraComponents` for `zwave_js`, `mqtt`, `mobile_app` and the
       defaults; the Frigate custom component; loopback bind; the
       `ha.int.fredsystems.org` vhost and AdGuard rewrite through
-      corehub's `migratedVhosts`; no `automations.yaml` include. Before
-      starting, report to the owner exactly what stays outside Nix (see
-      "Home Assistant's configuration is declarative") and get his
-      decision on the reconciler. Verify: onboarding page loads over TLS.
+      corehub's `migratedVhosts`; no `automations.yaml` include. Verify:
+      the UI loads over TLS. Onboarding is 6.19's job.
 - [ ] **6.6 Monitoring.** A blackbox probe for `ha.int.fredsystems.org`,
       and alert rules with tests for Home Assistant, zwave-js and
       Mosquitto being down, in the style of
       `modules/monitoring/master/alert-rules/frigate-alerts.yaml`.
+- [ ] **6.19 Reconciler.** Added when the owner chose it (2026-11-26),
+      numbered after the existing subtasks so none are renumbered. A
+      NixOS module whose options take the onboarding, integration,
+      area, device and entity tables, and a oneshot that applies them
+      as described in "Home Assistant's configuration is declarative".
+      Tests: a NixOS VM test running Home Assistant from corehub's
+      nixpkgs, Mosquitto and zwave-js with `--mock-driver`. It onboards,
+      creates the `mqtt` and `zwave_js` entries, and renames an
+      MQTT-discovered device and its entity. A second run changes
+      nothing.
+- [ ] **6.20 Backups.** Home Assistant's automatic backup, set by the
+      reconciler (daily, database included, a few local copies), and its
+      backup directory added to what the NAS pulls from corehub.
 
 ### Phase 2: devices
 
-- [ ] **6.7 Adopt the network.** Add the Z-Wave JS integration in Home
-      Assistant against the 6.4 server. Expect the 19 live nodes from the
+- [ ] **6.7 Adopt the network.** The reconciler creates the Z-Wave JS
+      entry against the 6.4 server. Expect the 23 live nodes from the 6.1
       inventory with model and manufacturer, unnamed.
 - [ ] **6.8 Identify every switch.** With the owner at the house:
       Home Assistant's logbook shows which node reports when a switch is
