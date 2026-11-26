@@ -90,8 +90,8 @@
   #
   # because `nofail` above lets the host boot with this disk missing. Without
   # that guard StateDirectory= would create /var/lib/frigate on the ROOT
-  # filesystem and record into it -- 8 cameras at ~7.9 Mbps fill the 465 GB
-  # root disk in under a day, and mounting the media disk later hides that
+  # filesystem and record into it -- the cameras' ~200+ GB/day fills the 465 GB
+  # root disk in about two days, and mounting the media disk later hides that
   # footage without deleting it. The guard is not added here on purpose: it
   # would materialise a stub frigate.service with no ExecStart.
 
