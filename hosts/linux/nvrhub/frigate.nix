@@ -271,7 +271,7 @@ let
     #
     # Existing footage is NOT destroyed by this. record/cleanup.py:287 deletes
     # recordings for cameras `not_in config.cameras.keys()` only where
-    # `end_time < expire_before`, i.e. already past the 3-day continuous
+    # `end_time < expire_before`, i.e. already past the continuous
     # retention. The garage's recent recordings therefore age out normally
     # rather than being purged on the next cleanup run.
     inside_garage = {
@@ -282,6 +282,28 @@ let
         height = 360;
         fps = 5;
       };
+
+      # A car parked in the garage is a `car` alert that never ends (observed:
+      # an open alert with end_time null), so under the default `motion` mode
+      # every segment with any motion in frame was kept for the full 30 days.
+      # This camera was 485 GB -- ~22 of the last 30 days of its footage, more
+      # than every other camera's events combined.
+      #
+      # `active_objects` keeps an alert segment only if a tracked object in it
+      # was actually moving: record/maintainer.py counts objects with
+      # `motionless_count == 0` and record/cleanup.py drops the segment when
+      # that count is 0. A car arriving or leaving is still kept for 30 days;
+      # the hours it spends parked are not. Continuous retention is untouched,
+      # so the parked hours are still scrubbable for the continuous window.
+      #
+      # Scoped to this camera on purpose. Fleet-wide it would also discard
+      # alert footage of a person standing still at a door, which is exactly
+      # the footage worth keeping.
+      #
+      # Only the key that differs is stated: Frigate deep-merges a camera's
+      # config over the global one, so enabled/days still come from the
+      # top-level `record` block.
+      record.alerts.retain.mode = "active_objects";
     };
     kitchen = {
       brand = "hikvision";
@@ -411,6 +433,9 @@ let
       };
 
       inherit (cam) detect;
+    }
+    // lib.optionalAttrs (cam ? record) {
+      inherit (cam) record;
     }
     # ONVIF block, emitted only for cameras that declare `ptz`. Frigate gates the
     # whole PTZ subsystem on `onvif.host` being non-empty (ptz/onvif.py:64), so
@@ -558,42 +583,40 @@ in
 
       # ── Retention ───────────────────────────────────────────────────────
       #
-      # Sized from MEASURED bitrates, not guesses. Per camera per day, against
-      # 3.5 TB usable:
+      # Sized from what the disk ACTUALLY filled at, after a full 30-day alert
+      # window had elapsed (2026-11-26, 7 cameras, 3.6 TB volume):
       #
-      #   5x Hikvision DS-2CD2342WD-I  7.9 Mbps  ~85 GB  = ~425 GB
-      #   1x Reolink D340W doorbell    4.39 Mbps ~47 GB  =  ~47 GB
-      #   1x Reolink E1 front door     6.21 Mbps ~67 GB  =  ~67 GB
-      #                                                  ---------
-      #                                                   ~539 GB/day
+      #   continuous, all cameras    ~190-235 GB/day
+      #   event-only days (>3d old)   ~10-40 GB/day, ~22 GB/day average
       #
-      # The Hikvision figure is 20s of mainstream at VBR with a 16 Mbps ceiling.
-      # Neither Reolink disturbs it despite recording more pixels, because both
-      # cap their mainstream bitrate: the doorbell at 4096 kbps (4.39 Mbps
-      # measured) and the front door at 6144 kbps (6.21 Mbps measured over 10s).
-      # The 4K HEVC front door is therefore CHEAPER per day than any Hikvision —
-      # H.265 at a capped bitrate buys resolution, not bytes.
+      # The low figure is `du` on full calendar days; the high one is the sum
+      # of /api/recordings/storage `bandwidth` (MB/hour). Either way it is well
+      # under half the ~539 GB/day this was originally sized from. That estimate
+      # took each Hikvision at 7.9 Mbps from a 20s mainstream sample, but they
+      # are VBR with a 16 Mbps ceiling and average nearer 2 Mbps over a day --
+      # a mostly static indoor scene costs far less than a 20s sample implies.
       #
-      # So continuous recording of everything is ~6.5 days and nothing else
-      # fits. Hence the tiered policy:
+      # Hence the tiered policy:
       #
-      #   * continuous 3 days  -- always able to scrub back over a long
-      #     weekend, whether or not anything was detected.
+      #   * continuous 10 days -- scrub back over anything in the last week
+      #     and a half, whether or not anything was detected.
       #   * alerts     30 days -- person/car, the events actually worth
       #     keeping.
       #   * detections 14 days -- everything the detector fired on.
       #
-      # Worst case is 3 days of everything (~1.62 TB) plus 30 days of event
-      # segments; events are a small fraction of wall-clock time, so this sits
-      # comfortably inside 3.5 TB. Frigate expires the oldest segments itself
-      # rather than filling the disk.
+      # Expected steady state: 10 x ~200 GB continuous plus ~20 further days
+      # of event segments, roughly 2.4-2.6 TB of 3.6 TB. That leaves room for
+      # garage_door (temporarily removed, see the inventory) to come back at
+      # roughly +25-35 GB/day continuous. Frigate expires the oldest segments
+      # itself rather than filling the disk, but its emergency cleanup ignores
+      # tiers, so the target is to stay well clear of it rather than lean on it.
       #
-      # Note this is currently one camera light: garage_door is temporarily
-      # removed, so restoring it adds ~85 GB/day back. The figures above already
-      # exclude it, so it is the 6.5-day headroom that shrinks, not the policy.
+      # At 3 days continuous the disk sat at 1.2 TB, of which inside_garage
+      # alone was 485 GB: a parked car kept an alert open almost permanently.
+      # See that camera's `record` override in the inventory.
       record = {
         enabled = true;
-        continuous.days = 3;
+        continuous.days = 10;
         alerts.retain.days = 30;
         detections.retain.days = 14;
       };
@@ -714,8 +737,8 @@ in
     # The /var/lib/frigate mount is `nofail` so a dead disk cannot strand this
     # headless box in an emergency shell. The consequence is that without this
     # guard Frigate would start regardless, StateDirectory= would CREATE
-    # /var/lib/frigate on the root filesystem, and the fleet's ~539 GB/day would
-    # fill the 465 GB root disk in under a day -- then mounting the media disk
+    # /var/lib/frigate on the root filesystem, and the fleet's ~200+ GB/day would
+    # fill the 465 GB root disk in about two days -- then mounting the media disk
     # later would hide that footage without deleting it.
     #
     # With this, the host always boots and stays monitored while the recorder
