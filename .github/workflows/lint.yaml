@@ -137,7 +137,7 @@ jobs:
 
       - name: Run the flake checks that are not pre-commit hooks
         # Every other flake check is also a hook, and so runs inside
-        # pre-commit-check above. These three are not, so without this step
+        # pre-commit-check above. These are not, so without this step
         # nothing in CI ever ran them, only `nix flake check` by hand
         # (agent-docs/plans/PLAN_04_MODULE_INTERFACES.md, 4.15). Each is a
         # few seconds of evaluation. Add any new check that is not a hook
@@ -147,6 +147,8 @@ jobs:
           .#checks.x86_64-linux.feature-enables-overridable
           .#checks.x86_64-linux.fleet-identity-bridge
           .#checks.x86_64-linux.sbomnix-patch-version
+          .#checks.x86_64-linux.stable-channel-consistency
+          .#checks.x86_64-linux.channel-gates
 
       - name: Check SyncClipboard server/client version parity
         # The server image and the Linux client AppImage ship from a single

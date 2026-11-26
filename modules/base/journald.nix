@@ -23,10 +23,12 @@
 # it"). One module is imported by both, so it has to emit whichever dialect
 # the host's nixpkgs actually declares.
 #
-# The dialect is chosen by asking the option tree rather than by comparing
-# release strings, so this needs no edit when stable rolls over. When it does,
-# delete `legacyExtraConfig`, `legacyDirectives`, the assertion and the `if`,
-# and move the per-directive rationale comments onto `journalSettings`.
+# The dialect is chosen by asking the option tree (channel gate
+# `journald-settings`, modules/lib/channel-gates.nix) rather than by comparing
+# release strings. The `channel-gates` flake check fails once stable reaches
+# the gate's removeAt; at that point delete `legacyExtraConfig`,
+# `legacyDirectives`, the assertion and the `if`, move the per-directive
+# rationale comments onto `journalSettings`, and drop the registry entry.
 #
 # WHY THE LEGACY STRING IS KEPT VERBATIM, NOT RENDERED FROM THE ATTRSET
 #
@@ -42,6 +44,8 @@
 # assertion below fails evaluation if the two dialects ever disagree.
 { lib, options, ... }:
 let
+  channelGates = import ../lib/channel-gates.nix;
+
   # Canonical policy, and the only representation that survives the stable
   # rollover. Values only -- each one's rationale lives on the matching
   # directive in `legacyExtraConfig` below.
@@ -111,10 +115,10 @@ let
     SyncIntervalSec=15min
   '';
 
-  # Does this host's nixpkgs declare the structured option? `?` on a dotted
-  # path tolerates missing intermediates, so this is safe to ask even of a
-  # nixpkgs that has no `services.journald` at all.
-  hasStructuredSettings = options ? services.journald.settings;
+  # Does this host's nixpkgs declare the structured option? Tolerates missing
+  # intermediates, so this is safe to ask even of a nixpkgs that has no
+  # `services.journald` at all.
+  hasStructuredSettings = channelGates.available "journald-settings" options;
 
   # The legacy string's directive lines, recovered as an attrset so the
   # assertion compares what the two dialects actually say rather than trusting

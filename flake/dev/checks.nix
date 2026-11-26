@@ -804,7 +804,7 @@
                       '';
                 }
               )}";
-              files = "^(flake/dev/checks\\.nix|\\.github/workflows/lint\\.yaml)$";
+              files = "^(flake/dev/(checks|channel-checks)\\.nix|\\.github/workflows/lint\\.yaml)$";
               pass_filenames = false;
             };
 
@@ -1525,6 +1525,14 @@
               exit 1
             ''
         );
+    }
+    // import ./channel-checks.nix {
+      inherit
+        pkgs
+        lib
+        self
+        inputs
+        ;
     }
   );
 }

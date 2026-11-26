@@ -6,6 +6,8 @@
 }:
 
 let
+  channelGates = import ../lib/channel-gates.nix;
+
   verbose_name = config.shared.user.fullName;
   github_email = config.shared.user.email;
 
@@ -31,12 +33,13 @@ in
   ##########################################################################
   ## catppuccin (home-manager)
   ##########################################################################
-  # `autoEnable` was introduced in catppuccin/nix #817 (post-25.11). The
-  # release-25.11 input used by server hosts does not have this option yet,
-  # so guard the assignment on its presence. Setting it to `false` keeps
-  # current behavior (per-port enables remain explicit in feature modules)
-  # and suppresses the "catppuccin/nix will soon auto enroll ports" warning
-  # at the home-manager profile level on hosts pinned to unstable.
+  # `autoEnable` was introduced in catppuccin/nix #817. The stable catppuccin
+  # input used by server hosts does not have it yet, so guard the assignment
+  # on its presence (channel gate `catppuccin-auto-enable-home`,
+  # modules/lib/channel-gates.nix). Enabling it lets catppuccin enrol every
+  # port it supports and suppresses the "catppuccin/nix will soon auto enroll
+  # ports" warning at the home-manager profile level on hosts pinned to
+  # unstable.
   catppuccin = {
     enable = true;
     flavor = "mocha";
@@ -45,7 +48,7 @@ in
     # `sources` depends on which catppuccin input this host uses; see
     # ./home-catppuccin.nix.
   }
-  // lib.optionalAttrs (options.catppuccin ? autoEnable) {
+  // lib.optionalAttrs (channelGates.available "catppuccin-auto-enable-home" options) {
     autoEnable = true;
   };
 
