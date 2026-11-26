@@ -15,6 +15,14 @@ under `keys:` and wires all 13 into a single `creation_rules` entry for
 in that list -- there is no per-secret recipient scoping, only
 per-file.
 
+A second rule covers `zwave/nvm-*.bin`: raw Z-Wave controller NVM
+backups, restore material that no host deploys, encrypted for the four
+workstations only (maranello, daytona, macbook, macstudio).
+`check-sops-recipients.sh` does not check these files. When one of
+those four keys is added or removed, run Procedure A step 3 or
+Procedure B steps 2-3 on each `modules/secrets/zwave/nvm-*.bin` as
+well, with `--input-type binary --output-type binary`.
+
 **Three sets have to agree, and `scripts/check-sops-recipients.sh`
 exists because nothing used to check that they did:**
 
@@ -305,9 +313,9 @@ echo "$hosts"
 
 ## Invariants
 
-- **One file, one recipient list.** There is no per-secret scoping
+- **One recipient list per file.** There is no per-secret scoping
   inside `secrets.yaml` — anyone in the recipient list can decrypt
-  everything in it.
+  everything in it. The Z-Wave NVM backups have their own, shorter list.
 - **`.sops.yaml` and `secrets.yaml` change together, in the same
   commit.** A commit that edits one without the other is the exact
   drift `check-sops-recipients.sh` exists to catch.
