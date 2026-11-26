@@ -50,8 +50,10 @@ NOT trackable (do not add a manifest entry, just a normal comment):
   a deliberate `mkForce`, a Go-vendor override). These have no
   "revert when upstream fixes X" condition.
 - Local data placeholders (a TODO email, a naming question).
-- Self-resolving channel migrations ("remove when all our hosts are
-  > = 26.05") -- these depend on OUR config, not upstream.
+- Stable-vs-unstable option drift ("remove when servers reach 26.11").
+  These are channel gates, tracked by `modules/lib/channel-gates.nix`
+  and its `channel-gates` check instead; see
+  `nixos-stable-channel-bump`.
 
 If you are unsure whether something is trackable, ask: "is there a
 specific upstream issue / PR / release whose landing tells me I can

@@ -1,7 +1,6 @@
 {
   config,
   lib,
-  options,
   ...
 }:
 let
@@ -36,8 +35,10 @@ in
     userDirs = {
       enable = true;
       createDirectories = false;
-    }
-    // lib.optionalAttrs (options.xdg.userDirs ? setSessionVariables) {
+      # The default is keyed on home.stateVersion (true below 26.05, false
+      # from 26.05) and warns, fatally in CI, until set. Pinned to the legacy
+      # value so every host keeps exporting XDG_*_DIR regardless of its
+      # stateVersion.
       setSessionVariables = true;
     };
 

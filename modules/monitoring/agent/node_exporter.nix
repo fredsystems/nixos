@@ -6,6 +6,8 @@
   ...
 }:
 let
+  channelGates = import ../../lib/channel-gates.nix;
+
   # See modules/monitoring/agent/cadvisor.nix for the reasoning. node_exporter
   # served 3021 lines of host metrics -- filesystem sizes, every interface and
   # MAC, systemd unit state -- unauthenticated to the internet on fredvps.
@@ -96,9 +98,10 @@ let
   # dialects really are evaluated). The structured option is tried first and
   # the legacy string is the fallback, so whichever one the host's nixpkgs
   # declares is the one that answers. Delete the fallback, and the regex
-  # parsing it needs, once stable has `settings`.
+  # parsing it needs, when the `channel-gates` flake check reports channel
+  # gate `journald-settings` expired.
   #
-  # Which dialect is decided by asking the option tree, as
+  # Which dialect is decided by asking the option tree through that gate, as
   # modules/base/journald.nix does, not by `or` on config: where nixpkgs has
   # the structured option, `extraConfig` is still *declared* (as a removed
   # option), so reading it throws rather than falling back. Our desktops never
@@ -108,7 +111,7 @@ let
   # If neither is set, or the value doesn't parse, this evaluates to null and
   # the systemd unit below simply omits node_journal_max_bytes rather than
   # emitting a hardcoded/wrong constant.
-  hasStructuredSettings = options ? services.journald.settings;
+  hasStructuredSettings = channelGates.available "journald-settings" options;
 
   structuredSystemMaxUse = config.services.journald.settings.Journal.SystemMaxUse or null;
 

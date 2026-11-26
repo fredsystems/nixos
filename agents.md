@@ -169,6 +169,7 @@ the task. The full bodies live under `.opencode/skills/`.
 | `nix-best-practices`        | When editing any `.nix` file. Codifies the active strict lint stack (nixfmt + statix + deadnix).   |
 | `shebang-env-discipline`    | Writing/editing any script with a `#!` line. Must be `#!/usr/bin/env <exec>`, never a fixed path.  |
 | `nixos-track-upstream-fix`  | When adding/reverting a temporary workaround for an unfixed upstream bug (overlay, disabled feat). |
+| `nixos-stable-channel-bump` | Gating config on an option only one channel has, or moving the stable inputs to a new release.     |
 
 If the skill doesn't fire automatically and you think it should, that
 means the skill description needs a stronger trigger -- fix the skill,
@@ -268,6 +269,13 @@ relock` is run.
   hack) -> register it in `.github/tracked-upstream-fixes.json` so the
   `track-upstream-fixes.yaml` workflow flags it for removal once the fix
   lands; load `nixos-track-upstream-fix`.
+- **Config that differs between stable and unstable** (an option only one
+  channel declares) goes through the registry in
+  `modules/lib/channel-gates.nix`, never an inline `options ? ...` or a
+  release-string comparison. The `channel-gates` check fails the stable
+  release bump until expired gates are deleted, and
+  `stable-channel-consistency` keeps the four stable inputs (kernel
+  included) on one release. Load `nixos-stable-channel-bump`.
 - **Never put the flake's git revision into a host's closure.** No
   `self.rev` in `system.activationScripts`, no `environment.etc` entry
   holding it, no `system.configurationRevision`. Anything reachable from

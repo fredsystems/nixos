@@ -219,6 +219,15 @@
       // commit bumps remain owned by update-flakes.yaml, since Renovate
       // never touches flake.lock (lockFileMaintenance is omitted above).
       // renovate-relock.yaml re-locks the PR branch afterwards.
+      //
+      // "Atomically" is NOT something grouping guarantees: a group only
+      // holds the members that have an update when Renovate runs, and
+      // nixos-YY.MM-small, nixos-YY.MM, home-manager's and catppuccin's
+      // release-YY.MM branches all appear on different days. The PR fills
+      // in piecemeal. The stable-channel-consistency flake check (run by
+      // lint.yaml) keeps it red until all four agree, and channel-gates
+      // keeps it red until expired gates are removed. See the
+      // nixos-stable-channel-bump skill.
       matchManagers: ["custom.regex"],
       matchDepNames: [
         "nixpkgs-stable",

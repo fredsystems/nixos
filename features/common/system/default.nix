@@ -5,6 +5,9 @@
   lib,
   ...
 }:
+let
+  channelGates = import ../../../modules/lib/channel-gates.nix;
+in
 {
   config = {
 
@@ -112,14 +115,16 @@
       # Unstable nixpkgs replaced `services.avahi.publish.*` with a freeform
       # `services.avahi.settings` (the old names now emit evaluation
       # warnings, which fail CI); nixos-26.05 only has the old names. This
-      # module is shared by both channels, so pick whichever exists. Once the
-      # stable channel has `settings` too, drop the `else` branch.
+      # module is shared by both channels, so pick whichever exists (channel
+      # gate `avahi-settings`, modules/lib/channel-gates.nix). When the
+      # `channel-gates` flake check reports it expired, drop the `else`
+      # branch and the registry entry.
       avahi = {
         enable = !config.deployment.internetFacing;
         nssmdns4 = true;
       }
       // (
-        if options.services.avahi ? settings then
+        if channelGates.available "avahi-settings" options then
           {
             settings.publish = {
               disable-publishing = false;

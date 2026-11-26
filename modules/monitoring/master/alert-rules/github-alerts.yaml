@@ -316,6 +316,23 @@ groups:
           summary: "{{ $labels.path }} in {{ $labels.repo }} follows end-of-life channel {{ $labels.channel }}"
           description: "nixos_channel_current is 0 for {{ $labels.channel }}. Move the ref to a supported channel; flake updates cannot leave it on their own."
 
+      # A newer NixOS stable release exists: prometheus.nixos.org marks the
+      # previous release `deprecated` on release day, and `unmaintained` at
+      # EOL about a month later (which FlakeInputOnEolChannel covers, so the
+      # two never fire together). This is the early signal; EOL is the
+      # backstop. github-ci-exporter also maps home-manager / catppuccin
+      # release-YY.MM branches onto nixos-YY.MM, so they are covered too.
+      - alert: FlakeInputOnSupersededChannel
+        expr: |
+          count by (repo, input, path, channel) (github_flake_input_locked_timestamp_seconds{channel!=""})
+          and on (channel) (nixos_channel_info{status="deprecated"} == 1)
+        for: 1h
+        labels:
+          severity: info
+        annotations:
+          summary: "{{ $labels.path }} in {{ $labels.repo }} follows superseded channel {{ $labels.channel }}"
+          description: "A newer NixOS stable release is out and {{ $labels.channel }} is deprecated (still supported until EOL). Plan the stable bump: see the nixos-stable-channel-bump skill."
+
   - name: nixos-channels
     rules:
       # A channel our locks follow has not advanced in 3 days and its tested

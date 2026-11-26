@@ -50,7 +50,11 @@ in
 
       programs.yazi = {
         enable = true;
-        # FIXME: Remove when all versions of our systems are 26.05 or later
+        # Not a channel gate, so it does not go away with a release bump: the
+        # default is keyed on home.stateVersion ("yy" below 26.05, "y" from
+        # 26.05), and several hosts sit on 25.x stateVersions that are never
+        # bumped. Setting it pins one wrapper name fleet-wide and keeps the
+        # stateVersion deprecation warning (fatal in CI) quiet.
         shellWrapperName = "y";
 
         plugins = {
