@@ -335,30 +335,36 @@ Decide at activation:
       the final run. Successive backups differ in a few bytes that the
       controller updates itself during traffic. Decrypt with
       `sops decrypt --input-type binary --output-type binary`.
-- [ ] **6.2 Secrets.** New sops entries: zwave-js S0 and S2 keys
+- [x] **6.2 Secrets.** New sops entries: zwave-js S0 and S2 keys
       (generated fresh), Mosquitto passwords for `homeassistant`,
       `frigate` and `nvr-watchdog`, and the Home Assistant owner's
       password for 6.19. They go in `secrets.yaml` like every other
       secret, readable by every host, by the owner's decision
       (2026-11-26).
-- [ ] **6.3 Mosquitto.** `services.mosquitto` on corehub: one listener on
+- [x] **6.3 Mosquitto.** `services.mosquitto` on corehub: one listener on
       1883, LAN-reachable for nvrhub, password auth per user from 6.2,
       no anonymous access. Firewall opening for 1883 only.
-- [ ] **6.4 zwave-js.** `services.zwave-js` on corehub against the
+- [x] **6.4 zwave-js.** `services.zwave-js` on corehub against the
       by-id path from 6.1, keys from 6.2 via `secretsConfigFile`, server
       on loopback only (Home Assistant is the only client). Verify: the
       server starts and reports home ID `d4558e0a` and the 23 live nodes.
-- [ ] **6.5 Home Assistant.** `services.home-assistant` on corehub, with
+- [x] **6.5 Home Assistant.** `services.home-assistant` on corehub, with
       `extraComponents` for `zwave_js`, `mqtt`, `mobile_app` and the
       defaults; the Frigate custom component; loopback bind; the
       `ha.int.fredsystems.org` vhost and AdGuard rewrite through
       corehub's `migratedVhosts`; no `automations.yaml` include. Verify:
       the UI loads over TLS. Onboarding is 6.19's job.
-- [ ] **6.6 Monitoring.** A blackbox probe for `ha.int.fredsystems.org`,
+- [x] **6.6 Monitoring.** A blackbox probe for `ha.int.fredsystems.org`,
       and alert rules with tests for Home Assistant, zwave-js and
       Mosquitto being down, in the style of
       `modules/monitoring/master/alert-rules/frigate-alerts.yaml`.
-- [ ] **6.19 Reconciler.** Added when the owner chose it (2026-11-26),
+
+      Done 2026-11-26, deployed by the owner with `colmena apply`. All
+      four units active; `https://ha.int.fredsystems.org/` answers 200
+      and its probe succeeds. The alert is
+      `HomeAutomationUnitNotActive`: SystemdUnitFailed already covers
+      failing and flapping, so it covers a unit that is just not running.
+- [x] **6.19 Reconciler.** Added when the owner chose it (2026-11-26),
       numbered after the existing subtasks so none are renumbered. A
       NixOS module whose options take the onboarding, integration,
       area, device and entity tables, and a oneshot that applies them
@@ -368,15 +374,36 @@ Decide at activation:
       creates the `mqtt` and `zwave_js` entries, and renames an
       MQTT-discovered device and its entity. A second run changes
       nothing.
+
+      Done 2026-11-26. zwave_js is not in the VM test: the mock driver
+      lacks controller calls Home Assistant makes while loading the
+      entry. The test also covers a Home Assistant restart, no leftover
+      refresh tokens, and a changed MQTT password recreating the entry
+      with names kept. On corehub the first run onboarded `fred`, created
+      the `mqtt` and `zwave_js` entries, removed onboarding's
+      `google_translate`, `shopping_list` and `met` entries and its three
+      default areas, and set the backup schedule (13 changes, 0
+      warnings). Entries created from configuration.yaml (`sun`) are kept.
 - [ ] **6.20 Backups.** Home Assistant's automatic backup, set by the
       reconciler (daily, database included, a few local copies), and its
       backup directory added to what the NAS pulls from corehub.
 
+      Repo side done 2026-11-26: daily at 02:30, seven kept, unencrypted
+      in `/var/lib/hass/backups`, watched by `backupFreshness`. A manual
+      run made a 260 KiB `.tar` and the freshness metric reads it. Still
+      open: the NAS job pulling `corehub:/var/lib/hass/backups`, which
+      is configured on the NAS, not in this repository.
+
 ### Phase 2: devices
 
-- [ ] **6.7 Adopt the network.** The reconciler creates the Z-Wave JS
+- [x] **6.7 Adopt the network.** The reconciler creates the Z-Wave JS
       entry against the 6.4 server. Expect the 23 live nodes from the 6.1
       inventory with model and manufacturer, unnamed.
+
+      Done 2026-11-26. Ten minutes after first start, the 22 nodes that
+      were fully interviewed in 6.1 have model and entities: 7 lights, 2
+      fans (24, 43), 13 switches. Node 37 is still uninterviewed; the
+      other 52 are dead or asleep and have no model.
 - [ ] **6.8 Identify every switch.** With the owner at the house:
       Home Assistant's logbook shows which node reports when a switch is
       flipped, so he flips each switch in turn and the node is named for
