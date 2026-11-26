@@ -42,8 +42,8 @@ in
     flavor = "mocha";
     accent = "mauve";
 
-    # `sources` and the gemini-cli guard depend on which catppuccin input
-    # this host uses; see ./home-catppuccin.nix.
+    # `sources` depends on which catppuccin input this host uses; see
+    # ./home-catppuccin.nix.
   }
   // lib.optionalAttrs (options.catppuccin ? autoEnable) {
     autoEnable = true;
