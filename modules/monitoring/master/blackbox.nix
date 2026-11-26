@@ -219,6 +219,10 @@ let
     # probe fails for a broken Grafana rather than a merely reachable one.
     # Verified 200 from sdrhub.
     "https://grafana.int.fredsystems.org/api/health" # -> 127.0.0.1:3333
+
+    # Home Assistant's frontend, which it serves in-process, so a hung core
+    # fails this. Plan 06, 6.6.
+    "https://ha.int.fredsystems.org/" # -> 127.0.0.1:8123
   ];
 
   # The legacy `.lan` / `.local` names. They no longer proxy anything -- each

@@ -353,6 +353,7 @@ in
         # .github/flake-input-policy.json.
         (import ./flake-input-policy-rules.nix pkgs)
         ./alert-rules/frigate-alerts.yaml
+        ./alert-rules/home-automation-alerts.yaml
       ];
 
       scrapeConfigs = [

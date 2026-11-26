@@ -1,0 +1,60 @@
+# Unit tests for home-automation-alerts.yaml.
+rule_files:
+  - ../home-automation-alerts.yaml
+
+evaluation_interval: 1m
+
+tests:
+  - interval: 1m
+    name: HomeAutomationUnitNotActive fires for a stopped zwave-js
+    input_series:
+      - series: 'node_systemd_unit_state{state="active", name="zwave-js.service", hostname="corehub"}'
+        values: "0+0x10"
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: HomeAutomationUnitNotActive
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              state: active
+              name: zwave-js.service
+              hostname: corehub
+            exp_annotations:
+              summary: "zwave-js.service is not running on corehub"
+              description: "zwave-js.service has not been active for 5 minutes. Home Assistant, zwave-js and Mosquitto together are the house's lighting control; home-assistant-reconciler not being active means the declared configuration was not applied. See hosts/linux/corehub/home-automation."
+
+  - interval: 1m
+    name: HomeAutomationUnitNotActive waits out a restart
+    input_series:
+      # A Home Assistant restart takes the reconciler through a few minutes
+      # of "activating" while it waits for Home Assistant to come back.
+      - series: 'node_systemd_unit_state{state="active", name="home-assistant-reconciler.service", hostname="corehub"}'
+        values: "1 0 0 0 1+0x10"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: HomeAutomationUnitNotActive
+        exp_alerts: []
+
+  - interval: 1m
+    name: HomeAutomationUnitNotActive is silent when everything runs
+    input_series:
+      - series: 'node_systemd_unit_state{state="active", name="home-assistant.service", hostname="corehub"}'
+        values: "1+0x10"
+      - series: 'node_systemd_unit_state{state="active", name="mosquitto.service", hostname="corehub"}'
+        values: "1+0x10"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: HomeAutomationUnitNotActive
+        exp_alerts: []
+
+  - interval: 1m
+    name: HomeAutomationUnitNotActive ignores other units and hosts
+    input_series:
+      - series: 'node_systemd_unit_state{state="active", name="home-assistant.service", hostname="adsbhub"}'
+        values: "0+0x10"
+      - series: 'node_systemd_unit_state{state="active", name="nginx.service", hostname="corehub"}'
+        values: "0+0x10"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: HomeAutomationUnitNotActive
+        exp_alerts: []

@@ -1,0 +1,26 @@
+# Home Assistant, zwave-js and Mosquitto on corehub. Plan 06, 6.6.
+#
+# SystemdUnitFailed and SystemdUnitFlapping already cover these units failing
+# or crash-looping. What they miss is a unit that is simply not running:
+# stopped by hand, never started after a deploy, or a reconciler run still
+# "activating" because Home Assistant never came up. Any of those leaves the
+# house's switches unreachable with nothing in the failed state.
+#
+# A hung Home Assistant (active but not answering) is the blackbox probe of
+# https://ha.int.fredsystems.org/ in blackbox.nix, through BlackboxProbeFailed.
+groups:
+  - name: home-automation-alerts
+    rules:
+      - alert: HomeAutomationUnitNotActive
+        expr: |
+          node_systemd_unit_state{
+            state="active",
+            hostname="corehub",
+            name=~"(home-assistant|home-assistant-reconciler|zwave-js|mosquitto)\\.service"
+          } == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.name }} is not running on {{ $labels.hostname }}"
+          description: "{{ $labels.name }} has not been active for 5 minutes. Home Assistant, zwave-js and Mosquitto together are the house's lighting control; home-assistant-reconciler not being active means the declared configuration was not applied. See hosts/linux/corehub/home-automation."
