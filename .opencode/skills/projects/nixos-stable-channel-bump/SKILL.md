@@ -93,9 +93,11 @@ by which nixpkgs they are built from, not by name):
    (backport, or wrong `removeAt`). Remove it now, or fix `removeAt`.
 3. **Wrong**: the option is not on unstable either. Unstable renamed it
    again; rework the gate.
-4. **Unreferenced**: an id no module uses. Delete the entry.
-5. **Ad-hoc**: an `options ? ...` test or a release read in a module
-   outside the registry. Register a gate.
+4. **Unreferenced**: an id with no `available "<id>"` call outside a
+   comment. Delete the entry.
+5. **Ad-hoc**: a presence test outside the registry (`options ? a.b`,
+   `options.a.b or <default>`, `hasAttrByPath ... options`) or a release
+   read. Register a gate.
 
 An unknown id at a call site is an evaluation error.
 

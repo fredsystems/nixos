@@ -123,15 +123,18 @@ in
     let
       channelGates = import ../../modules/lib/channel-gates.nix;
 
-      # One representative host per channel, chosen by what it is built from
-      # rather than by name, so renaming or reclassifying a host cannot leave
-      # this pointing at the wrong channel.
+      # One representative host per channel, chosen by the nixpkgs source it
+      # is built from rather than by name, so renaming or reclassifying a host
+      # cannot leave this pointing at the wrong channel. Not by release label
+      # either: unstable keeps reporting the old label for a while after
+      # branch-off, so right after a stable bump both channels can claim the
+      # same release, and a label match would pick one host for both sides.
       hostOn =
-        release:
+        input: inputName:
         let
           name =
-            lib.findFirst (n: self.nixosConfigurations.${n}.lib.trivial.release == release)
-              (throw "channel-gates: no nixosConfiguration is built from nixpkgs ${release}")
+            lib.findFirst (n: toString self.nixosConfigurations.${n}.pkgs.path == toString input.outPath)
+              (throw "channel-gates: no nixosConfiguration is built from the ${inputName} input")
               (lib.attrNames self.nixosConfigurations);
         in
         {
@@ -139,8 +142,8 @@ in
           sys = self.nixosConfigurations.${name};
         };
 
-      stableHost = hostOn stableRelease;
-      unstableHost = hostOn unstableRelease;
+      stableHost = hostOn inputs.nixpkgs-stable "nixpkgs-stable";
+      unstableHost = hostOn inputs.nixpkgs "nixpkgs";
 
       treeOf =
         host: tree:
@@ -194,11 +197,14 @@ in
 
       cd ${self}
 
-      # Every registered gate is still used somewhere.
+      # Every registered gate is still called somewhere: an `available "<id>"`
+      # with no `#` before it on the line. A comment quoting the call, whole
+      # line or trailing, does not count. (Ids are [a-z0-9-], so they are
+      # safe inside the regex.)
       for id in ${lib.escapeShellArgs ids}; do
-        if ! grep -rqF --include='*.nix' --exclude-dir=.git \
-            -e "\"$id\"" . \
-            --exclude=channel-gates.nix; then
+        if ! grep -rqE --include='*.nix' --exclude-dir=.git \
+            --exclude=channel-gates.nix \
+            -e "^[^#]*available \"$id\"" .; then
           echo "channel gate '$id' is registered but no module references it:" >&2
           echo "  delete its entry from modules/lib/channel-gates.nix." >&2
           fail=1
@@ -206,12 +212,16 @@ in
       done
 
       # Nothing gates on option presence or on a release string except
-      # through the registry. Comment lines are ignored; the registry and the
-      # check definitions themselves are the only exemptions.
+      # through the registry. Presence forms caught: `options ? a.b`,
+      # `options.a ? b`, `options.a.b or <default>`, and `hasAttrByPath`
+      # with `options` on the same line. Comment lines are ignored; the
+      # registry and the check definitions themselves are the only exemptions.
       exempt='^\./(modules/lib/channel-gates\.nix|flake/dev/(checks|channel-checks)\.nix|scripts/tests/fixtures/)'
       adhoc=$(
         grep -rnE --include='*.nix' --exclude-dir=.git \
           -e '\boptions(\.[A-Za-z0-9_"-]+)* \?' \
+          -e '\boptions(\.[A-Za-z0-9_"-]+)+ or\b' \
+          -e 'hasAttrByPath\b.*\boptions\b' \
           -e '(lib\.trivial\.release|system\.nixos\.release|home\.version\.release|lib\.trivial\.version\b|lib\.version\b|oldestSupportedRelease)' \
           . | grep -vE "$exempt" | grep -vE '^[^:]+:[0-9]+:[[:space:]]*#' || true
       )
