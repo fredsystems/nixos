@@ -34,19 +34,49 @@
   ];
   boot.extraModulePackages = [ ];
 
-  fileSystems."/" = {
-    device = "/dev/disk/by-uuid/a364e1ab-6084-4090-811f-7328dd83e783";
-    fsType = "ext4";
-    options = [ "acl" ];
-  };
+  fileSystems = {
+    "/" = {
+      device = "/dev/disk/by-uuid/a364e1ab-6084-4090-811f-7328dd83e783";
+      fsType = "ext4";
+      options = [ "acl" ];
+    };
 
-  fileSystems."/boot" = {
-    device = "/dev/disk/by-uuid/4F25-24F5";
-    fsType = "vfat";
-    options = [
-      "fmask=0077"
-      "dmask=0077"
-    ];
+    "/boot" = {
+      device = "/dev/disk/by-uuid/4F25-24F5";
+      fsType = "vfat";
+      options = [
+        "fmask=0077"
+        "dmask=0077"
+      ];
+    };
+
+    # Second NVMe (Samsung 990 PRO 1TB, GPT partition label "data"). nofail
+    # plus a short device timeout so a dead drive cannot hang boot.
+    "/data" = {
+      device = "/dev/disk/by-uuid/f6cae809-d4e0-44fb-a8a0-586ea9285e20";
+      fsType = "ext4";
+      options = [
+        "noatime"
+        "nofail"
+        "x-systemd.device-timeout=10s"
+      ];
+    };
+
+    # ~/GitHub lives on /data but is bind-mounted back at its original path,
+    # not symlinked: direnv allow hashes, the nix gcroots under .direnv,
+    # git worktree `gitdir:` lines and cargo fingerprints all record the
+    # canonical /home/fred/GitHub path, and a symlink would change it. If
+    # /data is missing the bind fails too (nofail) and ~/GitHub is just an
+    # empty directory on the root fs.
+    "/home/fred/GitHub" = {
+      device = "/data/GitHub";
+      fsType = "none";
+      depends = [ "/data" ];
+      options = [
+        "bind"
+        "nofail"
+      ];
+    };
   };
 
   swapDevices = [
