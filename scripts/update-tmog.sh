@@ -64,7 +64,7 @@ hash="$(nix store prefetch-file --json --hash-type sha256 "$url" | jq -er .hash)
 tmp="$(mktemp)"
 jq -n --arg version "$version" --arg url "$url" --arg hash "$hash" \
 	'{version: $version, url: $url, hash: $hash}' >"$tmp" || die "could not write pin"
-mv "$tmp" "$pin_file"
+mv "$tmp" "$pin_file" || die "could not replace $pin_file"
 
 echo "updated to $version ($hash)"
 exit 2
