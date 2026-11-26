@@ -68,6 +68,11 @@
     # canonical /home/fred/GitHub path, and a symlink would change it. If
     # /data is missing the bind fails too (nofail) and ~/GitHub is just an
     # empty directory on the root fs.
+    #
+    # nofail alone drops the Before=local-fs.target ordering, so the
+    # session could start against the empty directory before the bind
+    # lands. x-systemd.before restores the ordering (boot waits for the
+    # attempt) without making its success required.
     "/home/fred/GitHub" = {
       device = "/data/GitHub";
       fsType = "none";
@@ -75,6 +80,7 @@
       options = [
         "bind"
         "nofail"
+        "x-systemd.before=local-fs.target"
       ];
     };
   };
