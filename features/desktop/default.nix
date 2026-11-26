@@ -56,6 +56,7 @@ in
     ./steam
     ./stockfish
     ./thunderbird
+    ./tmog
     ./tradingview
     ./trezor
     ./vlc
@@ -111,6 +112,8 @@ in
       steam.enable = lib.mkDefault cfg.enable_games;
       stockfish.enable = lib.mkDefault true;
       thunderbird.enable = lib.mkDefault true;
+      # The Linux build is pinned x86_64 only (see overlays/tmog.nix).
+      tmog.enable = lib.mkDefault cfg.enable_extra;
       tradingview.enable = lib.mkDefault cfg.enable_extra;
       trezor.enable = lib.mkDefault cfg.enable_extra;
       vlc.enable = lib.mkDefault true;

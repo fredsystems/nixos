@@ -42,6 +42,10 @@ final: prev: {
   # not in nixpkgs; see overlays/syncclipboard.nix for the ICU caveat.
   syncclipboard = final.callPackage ./syncclipboard.nix { };
 
+  # Task Manager TMOG. Closed source and not in nixpkgs; pinned in
+  # overlays/tmog.json and bumped daily by update-tmog.yaml.
+  tmog = final.callPackage ./tmog.nix { };
+
   # `direnv`'s checkPhase runs `make test-go test-bash test-fish test-zsh`.
   # On darwin, the fish test suite hangs indefinitely (CI hits the 6h max
   # execution time with no output).  Tracked upstream:
