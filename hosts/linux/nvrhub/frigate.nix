@@ -746,6 +746,32 @@ in
     unitConfig.RequiresMountsFor = "/var/lib/frigate";
 
     serviceConfig = {
+      # ── Shutdown: SIGTERM the main process only ───────────────────────────
+      #
+      # Frigate is written to run under s6 in Docker, where only the main
+      # process receives SIGTERM and FrigateApp.stop() (app.py) then shuts the
+      # children down itself, in order: detectors, queues, recorder, review,
+      # DB, and finally the multiprocessing Manager that backs logging and
+      # shared state.
+      #
+      # systemd's default KillMode=control-group instead SIGTERMs all ~40
+      # processes in the cgroup at once. The Manager server dies with them, so
+      # the very first thing stop() does -- logger.info("Stopping...") --
+      # already hits BrokenPipeError, and stop() then waits on children and
+      # queues that no longer exist until TimeoutStopSec expires and
+      # everything is SIGKILLed. Every stop in the journal took exactly the
+      # 90s timeout, and a SIGKILL also skips stop()'s own cleanup (closing
+      # open events/reviews, flushing the DB).
+      #
+      # `mixed` sends SIGTERM to the main process alone and SIGKILL to
+      # whatever is left once it exits, which is the s6 behaviour. Measured
+      # on this host with a runtime drop-in: stop() ran to completion
+      # ("Detection queue closed" ... "Timeline queue closed") and the unit
+      # stopped in 5.5s with `Deactivated successfully`. The leftovers it
+      # reaps are the ffmpeg children, whose half-written cache segments are
+      # discarded by the module's clear-cache ExecStartPre anyway.
+      KillMode = "mixed";
+
       # ── Credentials ───────────────────────────────────────────────────────
       #
       # The camera username/password are shared across every camera and
