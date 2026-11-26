@@ -1,20 +1,5 @@
 {
   "inputs": {
-    "home-manager": {
-      "bases": {
-        "darwin": "263407a01cd90918e64e9c836761729863ca13326cec1965cb83b59df8aa73ec",
-        "linux": "9cb529ad546f6c77e4647cd675111fb5d2c3ca2fd701185c0212c5ee789236da"
-      },
-      "classified_at": "2026-11-26T22:26:57Z",
-      "dispatched_at": "2026-11-26T22:24:13Z",
-      "dispatched_rev": "361da94fb55c67094ec47322d2757d6616a0de92",
-      "kinds": {
-        "darwin": "source",
-        "linux": "source"
-      },
-      "locked_rev": "a3a080dad466c6352a869b48bd6d4860dab3ce94",
-      "upstream_rev": "361da94fb55c67094ec47322d2757d6616a0de92"
-    },
     "nixpkgs-kernel": {
       "bases": {
         "darwin": "263407a01cd90918e64e9c836761729863ca13326cec1965cb83b59df8aa73ec",
@@ -29,6 +14,6 @@
       "upstream_rev": "af0c6570b56cf852264dd82d663645b35339f4c3"
     }
   },
-  "planned_at": "2026-11-26T22:20:50Z",
+  "planned_at": "2026-11-26T23:51:01Z",
   "version": 1
 }
