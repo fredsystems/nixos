@@ -1,10 +1,10 @@
 # Plan 05: Split sdrhub into adsbhub and corehub
 
-- **Status:** pending merge. Completes ahead of Plan 02 by the owner's
-  decision; see "Execution model".
+- **Status:** complete (merged 2026-11-14), ahead of Plan 02 by the
+  owner's decision; see "Execution model".
 - **Branches:** 5.1 #2867, 5.2 #2868, 5.3 #2869 and #2870. From 5.4 on,
   one local branch, `plan05/sdrhub-split`, pushed once when the plan was
-  done.
+  done and merged as #2871.
 
 ## Goal
 
