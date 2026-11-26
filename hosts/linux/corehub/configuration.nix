@@ -345,6 +345,23 @@ let
       };
     };
 
+    # Home Assistant. Bound to loopback by ./home-automation/home-assistant.nix,
+    # which trusts X-Forwarded-For from 127.0.0.1 only, so this vhost is the
+    # only way in. New, so no `legacy` names. The frontend and the companion
+    # app both live on a websocket at /api/websocket, hence the upgrade
+    # headers.
+    ha = {
+      legacy = [ ];
+      vhost.locations."/" = {
+        proxyPass = "http://127.0.0.1:${toString config.services.home-assistant.config.http.server_port}";
+        extraConfig = ''
+          proxy_http_version 1.1;
+          proxy_set_header Upgrade $http_upgrade;
+          proxy_set_header Connection $connection_upgrade;
+        '';
+      };
+    };
+
     # Prometheus.
     #
     # UNLIKE grafana and adguard above, this does NOT come with the service
@@ -664,6 +681,7 @@ in
     ../../../modules/services/tailscale
     ../../../modules/data/docker-image-pins.nix
     ./home-ip-drift.nix
+    ./home-automation
   ];
 
   deployment.role = "monitoring-master";
@@ -1216,6 +1234,18 @@ in
 
         Set root_url (and `domain`) in modules/monitoring/master/grafana.nix to
         match, or rename the `grafana` entry in migratedVhosts.
+      '';
+    }
+
+    # Same failure as Grafana's above: Home Assistant hands its own URL to the
+    # companion app and puts it in notifications.
+    {
+      assertion =
+        config.services.home-assistant.config.homeassistant.external_url == "https://ha.${internalDomain}";
+      message = ''
+        corehub: services.home-assistant.config.homeassistant.external_url is
+        "${config.services.home-assistant.config.homeassistant.external_url}", but
+        nginx serves Home Assistant at "https://ha.${internalDomain}".
       '';
     }
 
