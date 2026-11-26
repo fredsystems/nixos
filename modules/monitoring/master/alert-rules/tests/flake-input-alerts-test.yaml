@@ -206,6 +206,69 @@ tests:
         exp_alerts: []
 
   # ---------------------------------------------------------------------------
+  # FlakeInputOnSupersededChannel
+  # ---------------------------------------------------------------------------
+
+  - interval: 5m
+    name: FlakeInputOnSupersededChannel fires for nixpkgs and a mapped release branch on a deprecated channel
+    input_series:
+      - series: 'github_flake_input_locked_timestamp_seconds{repo="fredsystems/nixos", input="nixpkgs-stable", path="nixpkgs-stable", ref="nixos-26.05", channel="nixos-26.05"}'
+        values: "1+0x30"
+      - series: 'github_flake_input_locked_timestamp_seconds{repo="fredsystems/nixos", input="home-manager-stable", path="home-manager-stable", ref="release-26.05", channel="nixos-26.05"}'
+        values: "1+0x30"
+      - series: 'nixos_channel_info{channel="nixos-26.05", status="deprecated"}'
+        values: "1+0x30"
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: FlakeInputOnSupersededChannel
+        exp_alerts:
+          - exp_labels:
+              severity: info
+              repo: fredsystems/nixos
+              input: nixpkgs-stable
+              path: nixpkgs-stable
+              channel: nixos-26.05
+            exp_annotations:
+              summary: "nixpkgs-stable in fredsystems/nixos follows superseded channel nixos-26.05"
+              description: "A newer NixOS stable release is out and nixos-26.05 is deprecated (still supported until EOL). Plan the stable bump: see the nixos-stable-channel-bump skill."
+          - exp_labels:
+              severity: info
+              repo: fredsystems/nixos
+              input: home-manager-stable
+              path: home-manager-stable
+              channel: nixos-26.05
+            exp_annotations:
+              summary: "home-manager-stable in fredsystems/nixos follows superseded channel nixos-26.05"
+              description: "A newer NixOS stable release is out and nixos-26.05 is deprecated (still supported until EOL). Plan the stable bump: see the nixos-stable-channel-bump skill."
+
+  - interval: 5m
+    name: FlakeInputOnSupersededChannel stays quiet on stable, unmaintained, rolling and beta channels
+    input_series:
+      - series: 'github_flake_input_locked_timestamp_seconds{repo="fredsystems/nixos", input="nixpkgs-stable", path="nixpkgs-stable", ref="nixos-26.05", channel="nixos-26.05"}'
+        values: "1+0x30"
+      - series: 'github_flake_input_locked_timestamp_seconds{repo="fredsystems/nixos", input="nixos-needsreboot", path="nixos-needsreboot/nixpkgs", ref="nixos-25.11", channel="nixos-25.11"}'
+        values: "1+0x30"
+      - series: 'github_flake_input_locked_timestamp_seconds{repo="fredsystems/nixos", input="nixpkgs", path="nixpkgs", ref="nixos-unstable", channel="nixos-unstable"}'
+        values: "1+0x30"
+      - series: 'github_flake_input_locked_timestamp_seconds{repo="fredsystems/nixos", input="nixpkgs-kernel", path="nixpkgs-kernel", ref="nixos-26.11-small", channel="nixos-26.11-small"}'
+        values: "1+0x30"
+      - series: 'nixos_channel_info{channel="nixos-26.05", status="stable"}'
+        values: "1+0x30"
+      - series: 'nixos_channel_info{channel="nixos-25.11", status="unmaintained"}'
+        values: "1+0x30"
+      - series: 'nixos_channel_info{channel="nixos-unstable", status="rolling"}'
+        values: "1+0x30"
+      - series: 'nixos_channel_info{channel="nixos-26.11-small", status="beta"}'
+        values: "1+0x30"
+      # A deprecated channel no tracked node follows.
+      - series: 'nixos_channel_info{channel="nixos-25.05", status="deprecated"}'
+        values: "1+0x30"
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: FlakeInputOnSupersededChannel
+        exp_alerts: []
+
+  # ---------------------------------------------------------------------------
   # NixosChannelBlocked
   # ---------------------------------------------------------------------------
 

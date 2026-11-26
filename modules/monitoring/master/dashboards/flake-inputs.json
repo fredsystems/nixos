@@ -875,7 +875,7 @@
       "id": 13,
       "type": "table",
       "title": "Channels our locks follow",
-      "description": "From prometheus.nixos.org, refreshed hourly by github-ci-exporter. Supported = still a current channel; tested = the Hydra job that gates every channel advance.",
+      "description": "From prometheus.nixos.org, refreshed hourly by github-ci-exporter. Supported = still a current channel; Status = upstream lifecycle (deprecated means a newer stable release is out, so plan the bump); tested = the Hydra job that gates every channel advance.",
       "gridPos": {
         "h": 8,
         "w": 18,
@@ -967,6 +967,53 @@
           {
             "matcher": {
               "id": "byName",
+              "options": "Status"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "rolling": {
+                        "color": "green",
+                        "index": 0
+                      },
+                      "stable": {
+                        "color": "green",
+                        "index": 1
+                      },
+                      "beta": {
+                        "color": "blue",
+                        "index": 2
+                      },
+                      "deprecated": {
+                        "color": "orange",
+                        "index": 3,
+                        "text": "deprecated (newer release out)"
+                      },
+                      "unmaintained": {
+                        "color": "red",
+                        "index": 4,
+                        "text": "unmaintained (EOL)"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
               "options": "tested"
             },
             "properties": [
@@ -1034,6 +1081,17 @@
           "format": "table",
           "expr": "time() - nixos_channel_update_timestamp_seconds",
           "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "legendFormat": "",
+          "instant": true,
+          "format": "table",
+          "expr": "nixos_channel_info",
+          "refId": "D"
         }
       ],
       "transformations": [
@@ -1050,10 +1108,12 @@
               "job": true,
               "instance": true,
               "hostname": true,
-              "role": true
+              "role": true,
+              "Value #D": true
             },
             "renameByName": {
               "channel": "Channel",
+              "status": "Status",
               "Value #A": "Supported",
               "Value #B": "tested",
               "Value #C": "Since last update"
