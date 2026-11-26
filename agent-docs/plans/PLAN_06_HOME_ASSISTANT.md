@@ -1,8 +1,9 @@
 # Plan 06: Home Assistant on corehub
 
-- **Status:** planned
-- **Branches:** none yet. Proposed: one `plan06/6.N-*` branch and PR per
-  subtask, as Plan 04 did.
+- **Status:** in progress, to complete ahead of Plan 02 by the owner's
+  decision; see "Execution model".
+- **Branches:** one `plan06/6.N-*` branch and PR per subtask, as Plan 04
+  did. 6.1 `plan06/6.1-stick-on-corehub`.
 
 ## Goal
 
@@ -38,9 +39,8 @@ that, and he travels. Sleep and wake are therefore explicit actions
 ### Z-Wave stick inventory (2026-11-26)
 
 Read with zwave-js 15.32.3 on daytona, before any Home Assistant
-existed. The raw NVM backup was taken first:
-`/tmp/opencode/zwave/nvm-d4558e0a-1795727321766.bin` (256 KiB; must be
-moved somewhere durable, see 6.1).
+existed. A raw NVM backup was taken first and left in daytona's `/tmp`.
+It was superseded by the corehub backup in 6.1.
 
 - Aeotec Z-Stick Gen5, ZW090-A (US, 908.42 MHz), firmware 1.1, Z-Wave
   protocol 4.54. Primary controller, node 1, home ID `d4558e0a`. No SUC.
@@ -67,7 +67,8 @@ gone with the old Home Assistant config. The Inovellis _support_ S2
 The dead nodes include fan controllers 9, 18 and 24 and fourteen "Secure
 Barrier Add-on" nodes (65-95), which look like one garage controller
 included over and over. Dead was measured from daytona, not from the
-stick's final position, so routing may revive some; see 6.9.
+stick's final position. Re-measured from corehub in 6.1, four of them
+answer.
 
 ## Decisions
 
@@ -120,18 +121,39 @@ listener stays loopback-only; republishing it would expose the whole
 API, which is exactly what PR #2191's review caught for the metrics
 port.
 
-### The UI owns devices; Nix owns the house mode
+### Home Assistant's configuration is declarative
 
-Home Assistant integrations are config entries created in the UI and
-stored under `.storage` in the module's `configDir`, as are device and
-entity names.
-That cannot be declared and is not fought.
+The owner's requirement (2026-11-26): all Home Assistant configuration
+lives in Nix. Nothing that matters is set only in the UI, and wiping
+`configDir` loses history, not configuration.
 
-The house-mode state machine and everything that arms or disarms
-cameras is declared in Nix, so it is reviewed and versioned. Casual
-automations (lights, scenes) stay in the UI through an
-`automations.yaml` include, so experimenting with them never needs a
-deploy.
+What `services.home-assistant` declares directly, through
+`configuration.yaml`:
+
+- Automations, scripts, scenes and helpers (`input_select`, timers,
+  templates). These are YAML-native and go in `config`. No
+  `automations.yaml` include: the UI editor shows them read-only.
+- Dashboards, through `lovelaceConfig` (YAML mode).
+- Display names and icons per entity, through `homeassistant.customize`.
+
+What Home Assistant keeps only in `.storage`, where YAML cannot reach:
+
+- Config entries for integrations that are UI-only: `zwave_js`,
+  `mqtt`, `mobile_app` and Frigate.
+- The device and entity registries: entity IDs, areas, device names.
+  `customize` changes only how a name is shown. The entity ID that
+  automations refer to stays whatever Home Assistant generated.
+- Onboarding (the owner account).
+
+Closing that gap means a reconciler: a oneshot unit, ordered after Home
+Assistant, that reads a Nix attrset (Z-Wave node to area, name and
+entity ID; integrations and their options) and applies it through Home
+Assistant's websocket and config-flow APIs, idempotently, on every
+deploy. Pre-seeding `.storage` JSON was rejected: the schema is internal
+and Home Assistant rewrites it. Decided at 6.5: build the reconciler, or
+accept the four integrations and the registry as a documented one-time
+manual step. Either way, automations reference the entity IDs that the
+Nix device table fixes, never generated ones.
 
 ### Home Assistant is published like Grafana
 
@@ -219,10 +241,11 @@ Strictly sequential: each phase builds on the one before.
 - Phase 2 needs the owner at the house to identify each switch (6.8).
 - Phase 4 needs his phone: the companion app, the geofence and the tags.
 
-Plan 02 is in progress. This plan touches nothing Plan 02 records or
-depends on, but under `plan-sequencing-discipline` it cannot complete
-ahead of Plan 02 without the owner deciding so, as he did for Plans 03
-to 05. Decide at activation.
+**Completes ahead of Plan 02, as a documented exception** to
+`plan-sequencing-discipline`'s contiguous-prefix rule, as Plans 03 to
+05 did. The owner decided (2026-11-26) that this plan's subtasks merge
+regardless of Plan 02's status, because nothing in it depends on Plan 02
+(the receiver comparison) or the other way round.
 
 Phase 1 is decomposed here against the code as of 2026-11-26. Phases 2
 to 4 carry their scope and decisions only, and are decomposed when
@@ -250,8 +273,9 @@ Decide at activation:
    extended to cover it (with a consistent SQLite dump, as
    `modules/services/sqlite-backup.nix` does for acarshub), or is
    Home Assistant's own backup used?
-7. **Where the NVM backup lives.** Encrypted into the repo with sops
-   (binary mode), or kept off-repo.
+7. **Where the NVM backup lives.** Decided (2026-11-26): in the repo,
+   sops binary mode, encrypted for the owner's four workstations and no
+   host. See 6.1.
 8. **Expiry length.** 18 h is proposed; it only re-arms with a
    notification, so erring short is cheap.
 
@@ -259,12 +283,43 @@ Decide at activation:
 
 ### Phase 1: foundation on corehub
 
-- [ ] **6.1 Stick on corehub.** Move the ZW090 to corehub. Record its
+- [x] **6.1 Stick on corehub.** Move the ZW090 to corehub. Record its
       `/dev/serial/by-id` path and the USB port it is on. Re-run the
-      read-only inventory (`/tmp/opencode/zwave/inventory.cjs`) from the
-      stick's final position and record the alive/dead counts here,
-      since dead nodes were measured from daytona. Store the NVM backup
-      per open question 7. Nothing is installed yet.
+      read-only inventory from the stick's final position and record the
+      alive/dead counts here, since dead nodes were measured from
+      daytona. Store the NVM backup per open question 7. Nothing is
+      installed yet.
+
+      Done 2026-11-26. The stick is
+      `/dev/serial/by-id/usb-0658_0200-if00`, on USB bus 3 port 3
+      (`pci-0000:05:00.4-usb-0:3:1.0`), an xHCI controller. It
+      enumerates at 12M with `cdc_acm` and needed no USB 2 workaround.
+      daytona's script was unreachable, so the inventory was rewritten as
+      `scripts/zwave-inventory.cjs`. Run it while nothing else holds the
+      port.
+
+      From corehub: 23 mains-powered alive, 26 mains-powered dead, 24
+      battery asleep, 2 FLiRS dead. All 19 from daytona answer, plus
+      four more:
+
+      | Node | Device                     | Note                          |
+      | ---- | -------------------------- | ----------------------------- |
+      | 24   | GE 14287 in-wall fan speed | was dead from daytona         |
+      | 46   | Inovelli NZW30             | was dead from daytona         |
+      | 52   | Inovelli NZW30             | was dead from daytona         |
+      | 37   | unknown                    | alive, interview stalls       |
+
+      Node 37 sends a Binary Switch report about once a second but never
+      gets past the protocol-info stage of its interview; look at it in
+      6.7. Still dead: 4, 5, 6, 8, 9, 18, 20, 21, 40, 55, 100, 101 and the
+      barrier nodes 65-95. The controller still reports no SUC after
+      three zwave-js runs.
+
+      NVM backup: `modules/secrets/zwave/nvm-d4558e0a-20261126.bin`
+      (256 KiB raw, sha256 `71139129…a4b4ac37`), taken at the start of
+      the final run. Successive backups differ in a few bytes that the
+      controller updates itself during traffic. Decrypt with
+      `sops decrypt --input-type binary --output-type binary`.
 - [ ] **6.2 Secrets.** New sops entries: zwave-js S0 and S2 keys
       (generated fresh), and Mosquitto passwords for `homeassistant`,
       `frigate` and `nvr-watchdog`. Recipients: corehub, plus nvrhub for
@@ -280,8 +335,10 @@ Decide at activation:
       `extraComponents` for `zwave_js`, `mqtt`, `mobile_app` and the
       defaults; the Frigate custom component; loopback bind; the
       `ha.int.fredsystems.org` vhost and AdGuard rewrite through
-      corehub's `migratedVhosts`; an `automations.yaml` include for
-      UI-made automations. Verify: onboarding page loads over TLS.
+      corehub's `migratedVhosts`; no `automations.yaml` include. Before
+      starting, report to the owner exactly what stays outside Nix (see
+      "Home Assistant's configuration is declarative") and get his
+      decision on the reconciler. Verify: onboarding page loads over TLS.
 - [ ] **6.6 Monitoring.** A blackbox probe for `ha.int.fredsystems.org`,
       and alert rules with tests for Home Assistant, zwave-js and
       Mosquitto being down, in the style of
@@ -296,8 +353,9 @@ Decide at activation:
       Home Assistant's logbook shows which node reports when a switch is
       flipped, so he flips each switch in turn and the node is named for
       its room and load. The plug-in switches (7, 44) are identified by
-      toggling them from Home Assistant instead. The result is recorded
-      here as a node, room and load table.
+      toggling them from Home Assistant instead. The result is a Nix
+      device table (node, area, name, entity ID) in corehub's config,
+      not names typed into the UI.
 - [ ] **6.9 Dead and ghost nodes.** Deferred by the owner (2026-11-26).
       Remove the "Secure Barrier Add-on" ghosts and other confirmed-dead
       nodes with "remove failed node"; find out whether fan controllers
