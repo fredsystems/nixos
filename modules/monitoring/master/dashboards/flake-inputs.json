@@ -1057,7 +1057,7 @@
           "legendFormat": "",
           "instant": true,
           "format": "table",
-          "expr": "nixos_channel_current",
+          "expr": "max by (channel) (nixos_channel_current) * on (channel) group_left (status) max by (channel, status) (nixos_channel_info)",
           "refId": "A"
         },
         {
@@ -1068,7 +1068,7 @@
           "legendFormat": "",
           "instant": true,
           "format": "table",
-          "expr": "nixos_channel_tested_failed",
+          "expr": "max by (channel) (nixos_channel_tested_failed) * on (channel) group_left (status) max by (channel, status) (nixos_channel_info)",
           "refId": "B"
         },
         {
@@ -1079,19 +1079,8 @@
           "legendFormat": "",
           "instant": true,
           "format": "table",
-          "expr": "time() - nixos_channel_update_timestamp_seconds",
+          "expr": "max by (channel) (time() - nixos_channel_update_timestamp_seconds) * on (channel) group_left (status) max by (channel, status) (nixos_channel_info)",
           "refId": "C"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "legendFormat": "",
-          "instant": true,
-          "format": "table",
-          "expr": "nixos_channel_info",
-          "refId": "D"
         }
       ],
       "transformations": [
@@ -1108,8 +1097,7 @@
               "job": true,
               "instance": true,
               "hostname": true,
-              "role": true,
-              "Value #D": true
+              "role": true
             },
             "renameByName": {
               "channel": "Channel",
