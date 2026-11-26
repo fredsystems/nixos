@@ -2,35 +2,43 @@
   "inputs": {
     "home-manager": {
       "bases": {
-        "darwin": "f5857fd5b2be08a9efdda82c099d7400fdcb04c47dd6473f4cebbb9c8db55ae4"
+        "darwin": "f5857fd5b2be08a9efdda82c099d7400fdcb04c47dd6473f4cebbb9c8db55ae4",
+        "linux": "2a915220c297b113dc4933decd0053d2ce111d010fdf67771dd7407730ab8b7a"
       },
-      "classified_at": "2026-11-26T14:51:22Z",
+      "classified_at": "2026-11-26T14:56:47Z",
       "dispatched_at": "2026-11-26T14:51:22Z",
       "dispatched_rev": "a3a080dad466c6352a869b48bd6d4860dab3ce94",
       "kinds": {
-        "darwin": "source"
+        "darwin": "source",
+        "linux": "source"
       },
       "locked_rev": "b56bcd042b5e69ad188eca20d9bec1bfbf3dd453",
       "upstream_rev": "a3a080dad466c6352a869b48bd6d4860dab3ce94"
     },
     "niri": {
       "bases": {
-        "darwin": "f5857fd5b2be08a9efdda82c099d7400fdcb04c47dd6473f4cebbb9c8db55ae4"
+        "darwin": "f5857fd5b2be08a9efdda82c099d7400fdcb04c47dd6473f4cebbb9c8db55ae4",
+        "linux": "2a915220c297b113dc4933decd0053d2ce111d010fdf67771dd7407730ab8b7a"
       },
-      "classified_at": "2026-11-26T14:51:22Z",
+      "classified_at": "2026-11-26T14:56:47Z",
+      "dispatched_at": "2026-11-26T14:56:47Z",
+      "dispatched_rev": "91ec3c3e30726d20419da4da8851d1bc08d818f1",
       "kinds": {
-        "darwin": "none"
+        "darwin": "none",
+        "linux": "source"
       },
       "locked_rev": "229788bcd27a51599f8a676b7583fb9bdb947134",
       "upstream_rev": "91ec3c3e30726d20419da4da8851d1bc08d818f1"
     },
     "nixpkgs-kernel": {
       "bases": {
-        "darwin": "f5857fd5b2be08a9efdda82c099d7400fdcb04c47dd6473f4cebbb9c8db55ae4"
+        "darwin": "f5857fd5b2be08a9efdda82c099d7400fdcb04c47dd6473f4cebbb9c8db55ae4",
+        "linux": "2a915220c297b113dc4933decd0053d2ce111d010fdf67771dd7407730ab8b7a"
       },
-      "classified_at": "2026-11-26T14:51:22Z",
+      "classified_at": "2026-11-26T14:56:47Z",
       "kinds": {
-        "darwin": "none"
+        "darwin": "none",
+        "linux": "source"
       },
       "locked_rev": "39d1a6c4566dfdb75a27ae40a2ae3aad4df77408",
       "upstream_rev": "af0c6570b56cf852264dd82d663645b35339f4c3"
