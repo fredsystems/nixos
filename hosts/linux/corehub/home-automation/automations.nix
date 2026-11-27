@@ -163,10 +163,12 @@ in
           }
           {
             action = "light.turn_on";
+            # light.turn_on: lights only, so the rooms' fans never start.
             target.area_id = [
               "master_bedroom"
               "living_room"
               "kitchen"
+              "upstairs_hallway"
             ];
           }
           {
@@ -185,6 +187,7 @@ in
         "master_bedroom"
         "living_room"
         "kitchen"
+        "upstairs_hallway"
       ];
       message = "corehub: an area automations.nix targets is no longer declared in devices.nix.";
     }
