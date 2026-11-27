@@ -10,11 +10,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1795374918,
-        "narHash": "sha256-NcbzLaqA7fGOf+DCUqEl1k9Q3+53mjIUr4B8nMOYZkg=",
+        "lastModified": 1795790958,
+        "narHash": "sha256-dHWOGKap+oyUENDEsaFUQ4YONDXeVcAqGE99q4WfW2Y=",
         "owner": "fredsystems",
         "repo": "airframes-desktop-flake",
-        "rev": "d5800ceb1bc14d3a5d98ef3bbd72ad7b540bfc6e",
+        "rev": "dc6ab7d9104aa8eb5ea73678615b84185436c3c5",
         "type": "github"
       },
       "original": {
