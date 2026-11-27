@@ -1,0 +1,150 @@
+---
+name: update-alarmdotcom
+
+# Keeps corehub's Alarm.com Home Assistant integration
+# (hosts/linux/corehub/home-automation/alarmdotcom/pin.json) pinned to the
+# latest release of ibasebcast/ha-alarmdotcom. It is not in nixpkgs, and
+# Renovate cannot recompute the source hash.
+#
+# The PR is NOT set to auto-merge: this is the house's alarm system, so the
+# owner reviews each bump and its release notes before it deploys.
+#
+# Runs at :50 rather than on the hour. GitHub documents the top of the hour
+# as its highest-contention slot for scheduled workflows.
+
+on:
+  schedule:
+    - cron: "50 4 * * *"
+  workflow_dispatch:
+
+# Static group name: the daily cron and a manual dispatch open/update the
+# same PR branch. cancel-in-progress must stay false so a cancelled run
+# cannot leave a pushed branch with no PR attached.
+concurrency:
+  group: update-alarmdotcom
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-alarmdotcom:
+    name: Update Alarm.com integration pin
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # PAT (not GITHUB_TOKEN) so the pushed branch triggers CI on the
+          # resulting PR -- see the same note in renovate-relock.yaml.
+          token: ${{ secrets.PAT }}
+          persist-credentials: true
+
+      - uses: DeterminateSystems/nix-installer-action@3138316df39ed29be04236d7ffc686fa525866aa # v23
+        with:
+          extra-conf: accept-flake-config = true
+
+      - name: Configure Git identity
+        run: |
+          git config --global user.email "noreply@github.com"
+          git config --global user.name "github[bot]"
+
+      - name: Re-pin to the latest upstream release
+        id: update
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -uo pipefail
+
+          # update-alarmdotcom.sh exits 2 to mean "changed, not an error";
+          # the invocation must BE the `if` condition so bash -e does not
+          # abort first. See the same note in update-tmog.yaml.
+          if nix shell nixpkgs#jq nixpkgs#curl -c ./scripts/update-alarmdotcom.sh; then
+            rc=0
+          else
+            rc=$?
+          fi
+
+          # 0 = already current, 2 = pin was updated, anything else = error.
+          case "$rc" in
+            0) echo "changed=false" >> "$GITHUB_OUTPUT" ;;
+            2) echo "changed=true"  >> "$GITHUB_OUTPUT" ;;
+            *) echo "update failed with exit $rc" >&2; exit "$rc" ;;
+          esac
+
+          echo "version=$(jq -r .version hosts/linux/corehub/home-automation/alarmdotcom/pin.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Verify the integration builds
+        if: steps.update.outputs.changed == 'true'
+        # Proves the hash, that nixpkgs' Python packages still satisfy the
+        # new manifest.json (the manifest check), and that every module
+        # imports. CI then builds corehub on the PR as usual.
+        run: |
+          nix build --no-link --impure --expr '
+            builtins.head (builtins.filter (c: c.pname or "" == "ibasebcast/alarmdotcom")
+              (builtins.getFlake (toString ./.)).nixosConfigurations.corehub.config.services.home-assistant.customComponents)'
+
+      - name: Check whether the version exceptions are still needed
+        id: exceptions
+        if: steps.update.outputs.changed == 'true'
+        # package.nix waives manifest version requirements that nixpkgs does
+        # not meet (ignoreVersionRequirement, FIXME alarmdotcom-pyhumps-pin).
+        # The owner chose not to file upstream, so this is the signal: build
+        # the new release without the waivers and say in the PR whether
+        # they can go.
+        run: |
+          if nix build --no-link --impure --expr '
+            (builtins.head (builtins.filter (c: c.pname or "" == "ibasebcast/alarmdotcom")
+              (builtins.getFlake (toString ./.)).nixosConfigurations.corehub.config.services.home-assistant.customComponents)).overrideAttrs
+              { ignoreVersionRequirement = [ ]; }' 2> waivers.log; then
+            echo "note=The build also passes without \`ignoreVersionRequirement\`: delete it from package.nix (FIXME alarmdotcom-pyhumps-pin) in this PR." >> "$GITHUB_OUTPUT"
+          else
+            echo "note=\`ignoreVersionRequirement\` in package.nix is still needed: $(grep -o '[^ ]* not satisfied by version [^ ]*' waivers.log | sort -u | paste -sd ';' -)." >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Commit, push, and open a PR
+        if: steps.update.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.PAT }}
+          NEW_VERSION: ${{ steps.update.outputs.version }}
+          WAIVERS: ${{ steps.exceptions.outputs.note }}
+        run: |
+          set -euo pipefail
+
+          branch="update-alarmdotcom-${NEW_VERSION}"
+
+          # Any PR for this branch (open, closed, or merged) means the bump
+          # has been filed or ruled on; a closed PR is not reopened daily.
+          existing="$(gh pr list --head "$branch" --state all --json number --jq '.[0].number // empty')"
+          if [ -n "$existing" ]; then
+            echo "PR #${existing} already exists for $branch; nothing to do"
+            exit 0
+          fi
+
+          git checkout -b "$branch"
+          git add hosts/linux/corehub/home-automation/alarmdotcom/pin.json
+          git commit -m "chore(alarmdotcom): update to ${NEW_VERSION}"
+
+          # --force is reachable only when no PR exists for this branch.
+          git push --force -u origin "$branch"
+
+          gh pr create \
+            --title "chore(alarmdotcom): update to ${NEW_VERSION}" \
+            --body "$(cat <<BODY
+          Automated bump of corehub's Alarm.com Home Assistant integration to
+          upstream ${NEW_VERSION}.
+
+          **Review before merging; this PR does not auto-merge.** It is the
+          house's alarm system.
+
+          Release notes: https://github.com/ibasebcast/ha-alarmdotcom/releases/tag/v${NEW_VERSION}
+
+          The build was proven by this workflow: source hash, manifest
+          requirements against nixpkgs, and an import of every module.
+
+          ${WAIVERS}
+
+          Opened automatically by \`.github/workflows/update-alarmdotcom.yaml\`.
+          BODY
+          )" \
+            --label dependencies
