@@ -84,12 +84,18 @@ let
   }
   // lib.mapAttrs' (cam: a: lib.nameValuePair "camera.${cam}" a) cameraAccessories;
 
+  # The Z-Wave devices' named entities only. Other integrations' devices
+  # (Alarm.com's panel and sensors, Sense) are named and placed by the
+  # reconciler too, but stay out of Apple Home unless listed here on purpose:
+  # the alarm panel in particular must not become something Siri can disarm.
+  zwaveDevices = lib.filter (
+    d: lib.head d.identifier == "zwave_js"
+  ) config.services.home-assistant-reconciler.devices;
+
   bridged =
     scripts
     ++ map expose (
-      lib.subtractLists notExposed (
-        lib.concatMap (d: map (e: e.entityId) d.entities) config.services.home-assistant-reconciler.devices
-      )
+      lib.subtractLists notExposed (lib.concatMap (d: map (e: e.entityId) d.entities) zwaveDevices)
     );
 
   exposed = lib.subtractLists (lib.attrNames accessories) bridged;
