@@ -276,6 +276,7 @@ let
     # rather than being purged on the next cleanup run.
     inside_garage = {
       brand = "hikvision";
+      indoor = true;
       host = "192.168.31.180";
       detect = {
         width = 640;
@@ -303,10 +304,16 @@ let
       # Only the key that differs is stated: Frigate deep-merges a camera's
       # config over the global one, so enabled/days still come from the
       # top-level `record` block.
+      #
+      # Since 2026-11-26 this camera is `indoor` and no longer tracks cars at
+      # all, so the parked-car alert cannot happen. Kept anyway: it is what
+      # keeps a person standing in the garage from pinning segments the same
+      # way.
       record.alerts.retain.mode = "active_objects";
     };
     kitchen = {
       brand = "hikvision";
+      indoor = true;
       host = "192.168.31.87";
       detect = {
         width = 640;
@@ -316,6 +323,7 @@ let
     };
     living_room = {
       brand = "hikvision";
+      indoor = true;
       host = "192.168.31.18";
       detect = {
         width = 640;
@@ -325,6 +333,7 @@ let
     };
     office = {
       brand = "hikvision";
+      indoor = true;
       host = "192.168.31.15";
       detect = {
         width = 640;
@@ -334,6 +343,7 @@ let
     };
     upstairs_hall = {
       brand = "hikvision";
+      indoor = true;
       host = "192.168.31.10";
       detect = {
         width = 640;
@@ -401,6 +411,27 @@ let
       (streamPaths.${cam.brand} cam).${role}
     }";
 
+  # The same main stream, in go2rtc's syntax: go2rtc substitutes `${NAME}`
+  # from $CREDENTIALS_DIRECTORY/NAME (pkg/creds/creds.go), so the credentials
+  # come from the same sops secrets through its own LoadCredential=.
+  mkRestreamSource =
+    cam:
+    "rtsp://\${CAMERA_USER}:\${CAMERA_PASSWORD}@${cam.host}:554/${
+      (streamPaths.${cam.brand} cam).record
+    }";
+
+  restreams = lib.mapAttrs (_: mkRestreamSource) cameras;
+
+  # What an `indoor` camera tracks, instead of the fleet-wide `objects.track`
+  # below: no vehicles inside the house (owner, 2026-11-26). Each tracked
+  # label costs detector work and makes its own review items, and becomes a
+  # count, an occupancy and an image entity per camera in Home Assistant.
+  indoorObjects = [
+    "person"
+    "dog"
+    "cat"
+  ];
+
   mkCamera =
     _name: cam:
     {
@@ -436,6 +467,9 @@ let
     }
     // lib.optionalAttrs (cam ? record) {
       inherit (cam) record;
+    }
+    // lib.optionalAttrs (cam.indoor or false) {
+      objects.track = indoorObjects;
     }
     # ONVIF block, emitted only for cameras that declare `ptz`. Frigate gates the
     # whole PTZ subsystem on `onvif.host` being non-empty (ptz/onvif.py:64), so
@@ -500,6 +534,15 @@ in
         user = "frigate";
         password = "{FRIGATE_MQTT_PASSWORD}";
       };
+
+      # The go2rtc restream, which ./go2rtc.nix runs from this list. Frigate
+      # never starts go2rtc itself here (the module runs services.go2rtc);
+      # this section only tells it which streams exist. Home Assistant's Frigate
+      # integration reads it from /api/config and treats a camera as
+      # streaming only when the camera is listed, and Frigate's own UI then
+      # uses go2rtc for live view, falling back to jsmpeg for a stream the
+      # browser cannot play. The values carry only `${...}` placeholders.
+      go2rtc.streams = lib.mapAttrs (_: source: [ source ]) restreams;
 
       # ── Detector ────────────────────────────────────────────────────────
       #
