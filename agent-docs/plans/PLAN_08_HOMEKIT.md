@@ -1,8 +1,10 @@
 # Plan 08: Apple Home and iOS integration
 
-- **Status:** stub
+- **Status:** in progress, started on 2026-11-26 by the owner's
+  decision while Plans 06 and 07 are on hold; see "Execution model".
 - **Depends on:** Plan 06 (Home Assistant and its devices) and Plan 07
   (the garage door entity, if it is to be exposed).
+- **Branch:** `plan06/home-assistant`, shared with Plan 06 and one PR.
 
 ## Goal
 
@@ -26,11 +28,26 @@ bridge.
   them directly. Homebridge would be a second integration layer
   between the same devices and the same phone, with its own plugins to
   keep up to date. Revisit only if a device turns up that has a
-  Homebridge plugin and no Home Assistant integration.
+  Homebridge plugin and no Home Assistant integration. There is no
+  existing Homebridge to migrate (owner, 2026-11-26).
 - **An explicit allowlist of entities.** Lights, dimmers and the fan
   from Plan 06, and the garage door from Plan 07. Nothing is exposed by
   default, so adding a device to Home Assistant never silently adds it
   to Apple Home.
+- **Every Plan 06 device except the garbage disposal** (owner,
+  2026-11-26), so "Hey Siri, turn everything on" cannot start it.
+- **On/off switches whose load is a light are exposed as lights.**
+  HomeKit treats a `switch` as a switch, so Siri's "lights" commands and
+  the Home app's light controls would skip the stair, hallway, porch,
+  laundry, kitchen and vanity lights and the two lamps. Each is wrapped
+  in a `light` entity of the same name (Home Assistant's `switch` light
+  platform, in `configuration.yaml`) and the wrapper is exposed.
+- **Declared in `configuration.yaml`.** The bridge is a `homekit:`
+  entry, which Home Assistant imports into its config entry on every
+  start. Pairing with the Home app is the one manual step.
+- **LAN only.** The bridge binds to and advertises corehub's LAN
+  address. Remote control goes through the HomePod as home hub, not
+  through any port opened beyond the LAN.
 - **Apple's own garage door protection applies.** iOS requires the
   device to be unlocked before a garage door accessory can be operated
   from the lock screen, Control Center or Siri. This plan relies on
@@ -39,19 +56,44 @@ bridge.
 
 ## Open questions
 
-Decide at activation:
+Answered 2026-11-26:
 
-1. **Home hub.** Is there an Apple TV or HomePod in the house? Without
-   one, Apple Home works only on the LAN and HomeKit automations do not
-   run. Remote control would then come from the companion app instead.
-2. **Networking on corehub.** HomeKit discovery needs mDNS on the LAN
-   and a TCP port for the bridge. Confirm that corehub's firewall and
-   mDNS setup can support it without exposing anything beyond the LAN.
-3. **House mode in Apple Home.** Expose a "Goodnight" scene (for "Hey
-   Siri, goodnight") as an extra deliberate trigger for `home_sleep`,
-   alongside the NFC tag? Plan 06's rule holds: deliberate actions only.
-4. **Cameras.** Expose the Frigate cameras to Apple Home for live view?
-   HomeKit Secure Video is not available through Home Assistant's
-   bridge, so this would be live streams only.
-5. **Existing Homebridge.** Is there an old Homebridge setup with
-   plugins worth keeping? The decision above assumes not.
+1. **Home hub.** A HomePod is in the house, so Apple Home works away
+   from home and HomeKit automations run.
+2. **Networking on corehub.** avahi already runs there with UDP 5353
+   open. The bridge needs only its own TCP port, 21063.
+3. **House mode in Apple Home.** Deferred until Plan 06 builds house
+   mode (6.15); see 8.5.
+4. **Cameras.** Deferred until Plan 06 integrates Frigate (6.11); see
+   8.6.
+5. **Existing Homebridge.** None.
+
+## Execution model
+
+Plans 06 and 07 are on hold and Plan 08 started anyway, by the owner's
+decision. It needs only Plan 06's devices, which exist. All three share
+one branch and one PR, so under `plan-sequencing-discipline` the PR
+merges when all three are complete, unless the owner decides otherwise
+then.
+
+## Subtasks
+
+- [ ] **8.1 Bridge.** `hosts/linux/corehub/home-automation/homekit.nix`:
+      the `homekit` component and a `homekit:` entry on port 21063,
+      bound to and advertised on 192.168.31.20, its allowlist built from
+      Plan 06's device table minus the disposal. The light wrappers in
+      `devices.nix`. Firewall opening for 21063/tcp. Verify: the bridge
+      advertises `_hap._tcp` on the LAN and Home Assistant shows the
+      pairing notification.
+- [ ] **8.2 Pair.** The owner adds the bridge in the Home app with the
+      code from the notification. Home Assistant areas do not carry over
+      to Apple Home rooms, so the owner assigns rooms there, once.
+- [ ] **8.3 Verify.** Each exposed accessory responds from the Home
+      app, Siri ("turn off the kitchen lights") and away from home
+      through the HomePod.
+- [ ] **8.4 Garage door.** Once Plan 07 provides the entity.
+- [ ] **8.5 Goodnight.** A Siri-triggered "Goodnight" scene as a
+      deliberate trigger for `home_sleep`, once Plan 06 builds house
+      mode.
+- [ ] **8.6 Cameras.** Whether to expose Frigate's cameras as live
+      streams, once Plan 06 integrates Frigate.

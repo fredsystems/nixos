@@ -1,7 +1,8 @@
 # Plan 06: Home Assistant on corehub
 
 - **Status:** in progress, to complete ahead of Plan 02 by the owner's
-  decision; see "Execution model".
+  decision; see "Execution model". Paused by the owner on 2026-11-26
+  after 6.8, with Plan 08 worked on meanwhile on the same branch.
 - **Branches:** 6.1 `plan06/6.1-stick-on-corehub` (#3017). From 6.2 on,
   one branch, `plan06/home-assistant`, and one PR for the rest of the
   plan, by the owner's decision (2026-11-26).
