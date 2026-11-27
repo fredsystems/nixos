@@ -5,6 +5,7 @@
   imports = [
     ./hardware-configuration.nix
     ./frigate.nix
+    ./frigate-users.nix
     ./nvidia.nix
     ./cuda-onnxruntime.nix
     ./nginx.nix

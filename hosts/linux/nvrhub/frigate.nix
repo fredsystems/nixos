@@ -486,10 +486,20 @@ in
     preCheckConfig = ''
       export FRIGATE_CAMERA_USER=validate-only
       export FRIGATE_CAMERA_PASSWORD=validate-only
+      export FRIGATE_MQTT_PASSWORD=validate-only
     '';
 
     settings = {
-      mqtt.enabled = false;
+      # corehub's broker, for Home Assistant's Frigate integration (Plan 06,
+      # 6.10). Its own user, which may only touch frigate/#, and the
+      # password through LoadCredential= below, like the camera credentials.
+      mqtt = {
+        enabled = true;
+        host = "192.168.31.20";
+        port = 1883;
+        user = "frigate";
+        password = "{FRIGATE_MQTT_PASSWORD}";
+      };
 
       # ── Detector ────────────────────────────────────────────────────────
       #
@@ -785,6 +795,7 @@ in
       LoadCredential = [
         "FRIGATE_CAMERA_USER:${config.sops.secrets."cameras/username".path}"
         "FRIGATE_CAMERA_PASSWORD:${config.sops.secrets."cameras/password".path}"
+        "FRIGATE_MQTT_PASSWORD:${config.sops.secrets."home-assistant/mqtt/frigate".path}"
       ];
 
       # Drop stale per-camera shared-memory segments before starting.
@@ -881,6 +892,9 @@ in
       restartUnits = [ "frigate.service" ];
     };
     "cameras/password" = {
+      restartUnits = [ "frigate.service" ];
+    };
+    "home-assistant/mqtt/frigate" = {
       restartUnits = [ "frigate.service" ];
     };
   };
