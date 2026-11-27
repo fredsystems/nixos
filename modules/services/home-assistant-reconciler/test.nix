@@ -179,6 +179,11 @@ in
                   name = "Lamp";
                   hidden = true;
                 }
+                # Never created: must warn, not fail the run.
+                {
+                  domain = "cover";
+                  entityId = "cover.lamp_cover";
+                }
               ];
             }
           ];
@@ -363,7 +368,8 @@ in
         out = machine.succeed("journalctl -u home-assistant-reconciler.service -o cat")
         assert "removed mqtt entry '127.0.0.1' (declaration changed)" in out, out
         last = [line for line in out.splitlines() if "done:" in line][-1]
-        assert "0 warnings" in last, last
+        # The cover that is never created, and only that.
+        assert "1 warnings" in last, last
         machine.wait_until_succeeds(
             "jq -e '.data.entities[] | select(.entity_id == \"switch.lamp\" and .name == \"Lamp\")' "
             "/var/lib/hass/.storage/core.entity_registry",

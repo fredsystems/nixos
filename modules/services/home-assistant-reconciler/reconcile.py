@@ -536,7 +536,15 @@ class Reconciler:
             ]
         elif len(candidates) > 1:
             candidates = [e for e in candidates if e.get("entity_category") is None]
-        if len(candidates) != 1:
+        if not candidates:
+            # Not created yet, e.g. a Z-Wave node still being interviewed.
+            # Like a missing device: warn, and the next run picks it up.
+            self.warn(
+                f"device {device_label(device)}: no {domain} entity matching "
+                f"{spec['entityId']} yet; skipped"
+            )
+            return None
+        if len(candidates) > 1:
             found = [(e["entity_id"], e.get("original_name")) for e in candidates]
             raise ReconcileError(
                 f"device {device_label(device)}: {spec} matches {len(found)} "
@@ -577,7 +585,8 @@ class Reconciler:
 
             for entity_spec in spec["entities"]:
                 entity = self.pick_entity(device, entities, entity_spec)
-                await self.update_entity(entity, entity_spec, area_ids)
+                if entity is not None:
+                    await self.update_entity(entity, entity_spec, area_ids)
 
             if spec.get("keepEntities") is not None:
                 await self.keep_only(device, spec["keepEntities"])
