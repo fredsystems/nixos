@@ -189,7 +189,8 @@ class Reconciler:
                             self.api.url = url
                             return await r.json()
                         raise ReconcileError(f"GET /api/onboarding: HTTP {r.status}")
-                except (aiohttp.ClientError, ReconcileError) as err:
+                # A port that accepts but never answers times out; try the next.
+                except (aiohttp.ClientError, asyncio.TimeoutError, ReconcileError) as err:
                     if time.monotonic() > deadline:
                         raise ReconcileError(f"Home Assistant never answered: {err}")
             await asyncio.sleep(2)
@@ -381,7 +382,15 @@ class Reconciler:
                     and other["entry_id"] not in owned
                     and other.get("source") not in ("ignore", "system", "import")
                 ):
-                    await self.remove_entry(other, "not declared in Nix")
+                    # A warning, not a failure: one entry Home Assistant will
+                    # not delete must not hold up everything after it on
+                    # every run. It is tried again on the next.
+                    try:
+                        await self.remove_entry(other, "not declared in Nix")
+                    except ReconcileError as err:
+                        self.warn(
+                            f"could not remove {domain} entry {other['title']!r}: {err}"
+                        )
 
             if entry is None:
                 result = await self.run_flow(
