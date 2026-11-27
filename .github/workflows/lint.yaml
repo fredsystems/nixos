@@ -150,6 +150,25 @@ jobs:
           .#checks.x86_64-linux.stable-channel-consistency
           .#checks.x86_64-linux.channel-gates
 
+      - name: Give the VM test /dev/kvm
+        # Hosted runners (fork PRs) have KVM, but not usable by the build
+        # user; without it the test below fails rather than run slowly. The
+        # rule GitHub documents for hosted Linux runners. Self-hosted
+        # runners already have it.
+        if: ${{ runner.environment == 'github-hosted' }}
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Test the Home Assistant reconciler
+        # A NixOS VM test of modules/services/home-assistant-reconciler, a few
+        # minutes rather than seconds, so it gets its own step. It runs Home
+        # Assistant from corehub's nixpkgs, so a Home Assistant bump that
+        # changes the onboarding, config-flow or registry APIs fails here
+        # rather than on corehub.
+        run: ./scripts/nix-build-no-warnings.sh --no-link --print-build-logs .#checks.x86_64-linux.home-assistant-reconciler
+
       - name: Check SyncClipboard server/client version parity
         # The server image and the Linux client AppImage ship from a single
         # upstream tag but are pinned in two files, and only the image is

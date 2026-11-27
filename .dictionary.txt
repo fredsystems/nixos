@@ -5,3 +5,4 @@ ags
 deriver
 trough
 cna
+hass

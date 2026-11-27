@@ -276,6 +276,7 @@ let
     # rather than being purged on the next cleanup run.
     inside_garage = {
       brand = "hikvision";
+      indoor = true;
       host = "192.168.31.180";
       detect = {
         width = 640;
@@ -303,10 +304,16 @@ let
       # Only the key that differs is stated: Frigate deep-merges a camera's
       # config over the global one, so enabled/days still come from the
       # top-level `record` block.
+      #
+      # Since 2026-11-26 this camera is `indoor` and no longer tracks cars at
+      # all, so the parked-car alert cannot happen. Kept anyway: it is what
+      # keeps a person standing in the garage from pinning segments the same
+      # way.
       record.alerts.retain.mode = "active_objects";
     };
     kitchen = {
       brand = "hikvision";
+      indoor = true;
       host = "192.168.31.87";
       detect = {
         width = 640;
@@ -316,6 +323,7 @@ let
     };
     living_room = {
       brand = "hikvision";
+      indoor = true;
       host = "192.168.31.18";
       detect = {
         width = 640;
@@ -325,6 +333,7 @@ let
     };
     office = {
       brand = "hikvision";
+      indoor = true;
       host = "192.168.31.15";
       detect = {
         width = 640;
@@ -334,6 +343,7 @@ let
     };
     upstairs_hall = {
       brand = "hikvision";
+      indoor = true;
       host = "192.168.31.10";
       detect = {
         width = 640;
@@ -401,6 +411,54 @@ let
       (streamPaths.${cam.brand} cam).${role}
     }";
 
+  # The same main stream, in go2rtc's syntax: go2rtc substitutes `${NAME}`
+  # from $CREDENTIALS_DIRECTORY/NAME (pkg/creds/creds.go), so the credentials
+  # come from the same sops secrets through its own LoadCredential=.
+  mkRestreamUrl =
+    cam:
+    "rtsp://\${CAMERA_USER}:\${CAMERA_PASSWORD}@${cam.host}:554/${
+      (streamPaths.${cam.brand} cam).record
+    }";
+
+  # The restream is for live view only (Home Assistant, Apple Home and
+  # Frigate's own live view); Frigate records the cameras directly. Browsers
+  # and HomeKit cannot play H.265, so an H.265 camera's restream is
+  # re-encoded to 1080p H.264 on the RTX 3070 (NVENC, measured at stream rate
+  # in go2rtc's sandbox, 2026-11-27), only while someone watches. Audio is
+  # copied.
+  mkRestreamSource =
+    cam:
+    if (cam.codec or "h264") == "h265" then
+      "ffmpeg:${mkRestreamUrl cam}#video=h264#width=1920#height=1080#hardware#audio=copy"
+    else
+      mkRestreamUrl cam;
+
+  # Each camera's own substream as `<cam>_sub`, stream-copied: the live view
+  # for Home Assistant and Apple Home. HomeKit failed on the full-size
+  # streams (Home Assistant re-encodes at the source's size, and iOS dropped
+  # them) and on a 720p GPU copy (about 8 s to its first frame, longer than
+  # the Home app waits); a substream plays at once (2026-11-27). All seven
+  # are H.264: 640x480 on the doorbell, 640x360 on the rest.
+  mkSubstreamUrl =
+    cam:
+    "rtsp://\${CAMERA_USER}:\${CAMERA_PASSWORD}@${cam.host}:554/${
+      (streamPaths.${cam.brand} cam).detect
+    }";
+
+  restreams =
+    lib.mapAttrs (_: mkRestreamSource) cameras
+    // lib.mapAttrs' (name: cam: lib.nameValuePair "${name}_sub" (mkSubstreamUrl cam)) cameras;
+
+  # What an `indoor` camera tracks, instead of the fleet-wide `objects.track`
+  # below: no vehicles inside the house (owner, 2026-11-26). Each tracked
+  # label costs detector work and makes its own review items, and becomes a
+  # count, an occupancy and an image entity per camera in Home Assistant.
+  indoorObjects = [
+    "person"
+    "dog"
+    "cat"
+  ];
+
   mkCamera =
     _name: cam:
     {
@@ -436,6 +494,9 @@ let
     }
     // lib.optionalAttrs (cam ? record) {
       inherit (cam) record;
+    }
+    // lib.optionalAttrs (cam.indoor or false) {
+      objects.track = indoorObjects;
     }
     # ONVIF block, emitted only for cameras that declare `ptz`. Frigate gates the
     # whole PTZ subsystem on `onvif.host` being non-empty (ptz/onvif.py:64), so
@@ -486,10 +547,29 @@ in
     preCheckConfig = ''
       export FRIGATE_CAMERA_USER=validate-only
       export FRIGATE_CAMERA_PASSWORD=validate-only
+      export FRIGATE_MQTT_PASSWORD=validate-only
     '';
 
     settings = {
-      mqtt.enabled = false;
+      # corehub's broker, for Home Assistant's Frigate integration (Plan 06,
+      # 6.10). Its own user, which may only touch frigate/#, and the
+      # password through LoadCredential= below, like the camera credentials.
+      mqtt = {
+        enabled = true;
+        host = "192.168.31.20";
+        port = 1883;
+        user = "frigate";
+        password = "{FRIGATE_MQTT_PASSWORD}";
+      };
+
+      # The go2rtc restream, which ./go2rtc.nix runs from this list. Frigate
+      # never starts go2rtc itself here (the module runs services.go2rtc);
+      # this section only tells it which streams exist. Home Assistant's Frigate
+      # integration reads it from /api/config and treats a camera as
+      # streaming only when the camera is listed, and Frigate's own UI then
+      # uses go2rtc for live view, falling back to jsmpeg for a stream the
+      # browser cannot play. The values carry only `${...}` placeholders.
+      go2rtc.streams = lib.mapAttrs (_: source: [ source ]) restreams;
 
       # ── Detector ────────────────────────────────────────────────────────
       #
@@ -785,6 +865,7 @@ in
       LoadCredential = [
         "FRIGATE_CAMERA_USER:${config.sops.secrets."cameras/username".path}"
         "FRIGATE_CAMERA_PASSWORD:${config.sops.secrets."cameras/password".path}"
+        "FRIGATE_MQTT_PASSWORD:${config.sops.secrets."home-assistant/mqtt/frigate".path}"
       ];
 
       # Drop stale per-camera shared-memory segments before starting.
@@ -881,6 +962,9 @@ in
       restartUnits = [ "frigate.service" ];
     };
     "cameras/password" = {
+      restartUnits = [ "frigate.service" ];
+    };
+    "home-assistant/mqtt/frigate" = {
       restartUnits = [ "frigate.service" ];
     };
   };

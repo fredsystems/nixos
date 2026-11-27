@@ -1,6 +1,6 @@
 # Plan 07: Garage door control
 
-- **Status:** stub
+- **Status:** stub, on hold by the owner's decision (2026-11-26).
 - **Depends on:** Plan 06 (Home Assistant, the adopted Z-Wave network
   and its fresh security keys). Not started until Plan 06's core works:
   switches and dimmers controllable, and the cameras arming as designed.
@@ -26,6 +26,16 @@ The old network keys are gone, so whatever controller is used has to
 be included fresh with the keys Plan 06 generates (6.2). That is a new
 inclusion, unlike the switches, which were adopted.
 
+The opener is a Chamberlain myQ, and the owner uses the myQ app. Home
+Assistant's `myq` integration is not an option: it was removed after
+Chamberlain blocked third-party access in November 2023, and in Home
+Assistant 2026.5 it is a stub that only raises a repair issue. The
+cloud-scraping replacements need HACS, which Plan 06 rules out. The
+local alternative is a ratgdo or Konnected blaQ board on the opener's
+wall-button terminals, speaking Security+ 2.0 and reached through the
+built-in `esphome` integration. It reports the door's real position,
+which "Closing remotely needs real door state" below asks for.
+
 `frigate.nix` has a `garage_door` camera, a DS-2CD2342WD-I at
 192.168.31.35, temporarily removed on 2026-08-18. If restored, it shows
 the door.
@@ -48,10 +58,9 @@ the door.
 
 Decide at activation:
 
-1. **Hardware.** Is the old Z-Wave controller still installed, and what
-   model is it? If it is gone or unreliable, the alternatives are a
-   new Z-Wave or Zigbee controller, or a local-only one such as ratgdo
-   (ESPHome, wired to the opener's terminals). What is the opener?
+1. **Hardware.** The opener's model and learn-button colour decide
+   whether ratgdo or blaQ fits (see "Background"). Is the old Z-Wave
+   controller still installed?
 2. **Auto-close.** Close after it has been open for N minutes while
    `away` or `home_sleep`, with a notification first, or notify only?
 3. **The garage_door camera.** Restore it as part of this plan?

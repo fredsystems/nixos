@@ -1,0 +1,182 @@
+# Unit tests for home-automation-alerts.yaml.
+rule_files:
+  - ../home-automation-alerts.yaml
+
+evaluation_interval: 1m
+
+tests:
+  - interval: 1m
+    name: HomeAutomationUnitNotActive fires for a stopped zwave-js
+    input_series:
+      - series: 'node_systemd_unit_state{state="active", name="zwave-js.service", hostname="corehub"}'
+        values: "0+0x10"
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: HomeAutomationUnitNotActive
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              state: active
+              name: zwave-js.service
+              hostname: corehub
+            exp_annotations:
+              summary: "zwave-js.service is not running on corehub"
+              description: "zwave-js.service has not been active for 5 minutes. Home Assistant, zwave-js and Mosquitto together are the house's lighting control; home-assistant-reconciler not being active means the declared configuration was not applied. See hosts/linux/corehub/home-automation."
+
+  - interval: 1m
+    name: HomeAutomationUnitNotActive waits out a restart
+    input_series:
+      # A Home Assistant restart takes the reconciler through a few minutes
+      # of "activating" while it waits for Home Assistant to come back.
+      - series: 'node_systemd_unit_state{state="active", name="home-assistant-reconciler.service", hostname="corehub"}'
+        values: "1 0 0 0 1+0x10"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: HomeAutomationUnitNotActive
+        exp_alerts: []
+
+  - interval: 1m
+    name: HomeAutomationUnitNotActive is silent when everything runs
+    input_series:
+      - series: 'node_systemd_unit_state{state="active", name="home-assistant.service", hostname="corehub"}'
+        values: "1+0x10"
+      - series: 'node_systemd_unit_state{state="active", name="mosquitto.service", hostname="corehub"}'
+        values: "1+0x10"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: HomeAutomationUnitNotActive
+        exp_alerts: []
+
+  - interval: 1m
+    name: HomeAutomationUnitNotActive ignores other units and hosts
+    input_series:
+      - series: 'node_systemd_unit_state{state="active", name="home-assistant.service", hostname="adsbhub"}'
+        values: "0+0x10"
+      - series: 'node_systemd_unit_state{state="active", name="nginx.service", hostname="corehub"}'
+        values: "0+0x10"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: HomeAutomationUnitNotActive
+        exp_alerts: []
+
+  - interval: 1m
+    name: DeviceBatteryLow fires for the lock below 25% for an hour, not before
+    input_series:
+      - series: 'homeassistant_sensor_battery_percent{entity="sensor.front_door_lock_battery_level", friendly_name="Front Door Lock Battery level", domain="sensor", job="home-assistant", hostname="corehub"}'
+        values: "22+0x90"
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: DeviceBatteryLow
+        exp_alerts: []
+      - eval_time: 70m
+        alertname: DeviceBatteryLow
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              entity: sensor.front_door_lock_battery_level
+              friendly_name: Front Door Lock Battery level
+              domain: sensor
+              job: home-assistant
+              hostname: corehub
+            exp_annotations:
+              summary: "Front Door Lock Battery level battery is at 22%"
+              description: "sensor.front_door_lock_battery_level has reported under 25% for an hour. Replace its batteries soon."
+      - eval_time: 70m
+        alertname: DeviceBatteryCritical
+        exp_alerts: []
+
+  - interval: 1m
+    name: DeviceBatteryCritical fires below 10%
+    input_series:
+      - series: 'homeassistant_sensor_battery_percent{entity="sensor.front_door_lock_battery_level", friendly_name="Front Door Lock Battery level", domain="sensor", job="home-assistant", hostname="corehub"}'
+        values: "8+0x30"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: DeviceBatteryCritical
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              entity: sensor.front_door_lock_battery_level
+              friendly_name: Front Door Lock Battery level
+              domain: sensor
+              job: home-assistant
+              hostname: corehub
+            exp_annotations:
+              summary: "Front Door Lock Battery level battery is at 8%"
+              description: "sensor.front_door_lock_battery_level has reported under 10% for 15 minutes. Replace its batteries now; it may stop responding at any time."
+
+  - interval: 1m
+    name: Battery alerts are silent at a healthy level
+    input_series:
+      - series: 'homeassistant_sensor_battery_percent{entity="sensor.front_door_lock_battery_level", friendly_name="Front Door Lock Battery level", domain="sensor", job="home-assistant", hostname="corehub"}'
+        values: "100+0x120"
+    alert_rule_test:
+      - eval_time: 110m
+        alertname: DeviceBatteryLow
+        exp_alerts: []
+      - eval_time: 110m
+        alertname: DeviceBatteryCritical
+        exp_alerts: []
+
+  - interval: 1m
+    name: LockJammed fires for a jammed lock only
+    input_series:
+      - series: 'homeassistant_binary_sensor_state{entity="binary_sensor.front_door_lock_lock_jammed", friendly_name="Front Door Lock Lock jammed", domain="binary_sensor", job="home-assistant", hostname="corehub"}'
+        values: "0 0 1+0x10"
+      - series: 'homeassistant_binary_sensor_state{entity="binary_sensor.kitchen_person_occupancy", friendly_name="Kitchen Person occupancy", domain="binary_sensor", job="home-assistant", hostname="corehub"}'
+        values: "1+0x12"
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: LockJammed
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              entity: binary_sensor.front_door_lock_lock_jammed
+              friendly_name: Front Door Lock Lock jammed
+              domain: binary_sensor
+              job: home-assistant
+              hostname: corehub
+            exp_annotations:
+              summary: "Front Door Lock Lock jammed"
+              description: "binary_sensor.front_door_lock_lock_jammed reports the bolt jammed: the door may not be locked. Check it."
+
+  - interval: 1m
+    name: LockUnavailable waits out restarts, then fires
+    input_series:
+      - series: 'homeassistant_entity_available{entity="lock.front_door", friendly_name="Front Door", domain="lock", job="home-assistant", hostname="corehub"}'
+        values: "1 0 0 0 1 0+0x40"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: LockUnavailable
+        exp_alerts: []
+      - eval_time: 40m
+        alertname: LockUnavailable
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              entity: lock.front_door
+              friendly_name: Front Door
+              domain: lock
+              job: home-assistant
+              hostname: corehub
+            exp_annotations:
+              summary: "Front Door is unreachable"
+              description: "lock.front_door has been unavailable in Home Assistant for 30 minutes: out of Z-Wave reach, flat batteries, or zwave-js down. It cannot be locked remotely."
+
+  - interval: 1m
+    name: HomeAssistantMetricsDown fires when the scrape fails
+    input_series:
+      - series: 'up{job="home-assistant", hostname="corehub", instance="127.0.0.1:8123"}'
+        values: "0+0x15"
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: HomeAssistantMetricsDown
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: home-assistant
+              hostname: corehub
+              instance: 127.0.0.1:8123
+            exp_annotations:
+              summary: "Home Assistant's metrics are not scrapeable on corehub"
+              description: "The /api/prometheus endpoint has not answered for 10 minutes, so the battery and lock alerts in this group cannot fire."
