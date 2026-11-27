@@ -12,5 +12,6 @@
     ./dashboard.nix
     ./cameras.nix
     ./monitoring.nix
+    ./energy.nix
   ];
 }
