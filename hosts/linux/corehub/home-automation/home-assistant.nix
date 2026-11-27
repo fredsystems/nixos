@@ -68,7 +68,10 @@ in
         passwordFile = config.sops.secrets."home-assistant/owner_password".path;
       };
 
-      secrets.mqtt-password = config.sops.secrets."home-assistant/mqtt/homeassistant".path;
+      secrets = {
+        mqtt-password = config.sops.secrets."home-assistant/mqtt/homeassistant".path;
+        frigate-password = config.sops.secrets."home-assistant/frigate_password".path;
+      };
 
       integrations = {
         mqtt.steps.broker = {
@@ -79,6 +82,18 @@ in
         };
 
         zwave_js.steps.manual.url = "ws://127.0.0.1:${toString config.services.zwave-js.port}";
+
+        # Plan 06, 6.11. Over the TLS name, as the login nvrhub's
+        # frigate-users.nix keeps for it; Frigate's unauthenticated
+        # 127.0.0.1:5000 listener is never published. Camera state and
+        # switches arrive over MQTT, which Frigate publishes to the broker
+        # above.
+        frigate.steps.user = {
+          url = "https://nvr.int.fredsystems.org";
+          validate_ssl = true;
+          username = "homeassistant";
+          password._secret = "frigate-password";
+        };
       };
 
       # Onboarding's own entries (met, radio_browser, shopping_list,
@@ -141,5 +156,6 @@ in
     "home-assistant/longitude" = { };
     "home-assistant/elevation" = { };
     "home-assistant/owner_password".restartUnits = [ "home-assistant-reconciler.service" ];
+    "home-assistant/frigate_password".restartUnits = [ "home-assistant-reconciler.service" ];
   };
 }
