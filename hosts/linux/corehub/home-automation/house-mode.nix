@@ -1,12 +1,12 @@
-# House mode: away, home_awake or home_sleep, and what it does to the indoor
+# House mode: Away, Home or Asleep, and what it does to the indoor
 # cameras. agent-docs/plans/PLAN_06_HOME_ASSISTANT.md, "House mode" and
 # 6.15-6.17.
 #
-# The indoor cameras' review alerts and detections are off in home_awake and
+# The indoor cameras' review alerts and detections are off in Home and
 # on in the other two modes. Detection and recording are never touched.
 # Modes change through Good Night and Good Morning (./automations.nix), by
-# hand in Home Assistant, and with person.fred (6.13): away once he has
-# been out of the home zone for 5 minutes, home_awake when he comes back
+# hand in Home Assistant, and with person.fred (6.13): Away once he has
+# been out of the home zone for 5 minutes, Home when he comes back
 # while away, whatever the hour.
 #
 # The person follows the iPhone only (declared below). A person takes the
@@ -20,7 +20,7 @@
 #   through the integration's switches, and again whenever Frigate comes
 #   online: Frigate restarts with review on, from its Nix config, and the
 #   switches are unavailable for a moment around that.
-# - home_awake falls to home_sleep after 18 hours without renewal.
+# - Home falls to Asleep after 18 hours without renewal.
 # - Home Assistant publishes a heartbeat; nvrhub's house watchdog re-arms the
 #   cameras when it stops (hosts/linux/nvrhub/house-mode.nix).
 {
@@ -41,9 +41,35 @@ let
     "frigate/${cam}/review_detections/set"
   ]) indoor;
 
+  # The plan's away, home_awake and home_sleep, under the names the UI
+  # shows, which are the selector's actual values.
+  modes = {
+    away = "Away";
+    awake = "Home";
+    asleep = "Asleep";
+  };
+
   mode = "input_select.house_mode";
   expiry = "timer.house_awake_expiry";
   person = "person.fred";
+
+  # Every option a script selects on the house mode, however nested, so a
+  # misspelt mode fails the build rather than the script at run time.
+  scriptModes =
+    let
+      collect =
+        v:
+        if lib.isList v then
+          lib.concatMap collect v
+        else if lib.isAttrs v then
+          lib.optional (
+            (v.action or null) == "input_select.select_option" && (v.target.entity_id or null) == mode
+          ) v.data.option
+          ++ lib.concatMap collect (lib.attrValues v)
+        else
+          [ ];
+    in
+    collect (lib.attrValues config.services.home-assistant.config.script);
 in
 {
   # The owner's person, made at onboarding, follows the iPhone and nothing
@@ -53,14 +79,15 @@ in
 
   services.home-assistant.config = {
     # No `initial`, so the mode survives a restart. The first option is what
-    # a new install starts in: away, which is armed.
+    # a new install starts in, and what a restored value that is no longer an
+    # option becomes: Away, which is armed.
     input_select.house_mode = {
       name = "House mode";
       icon = "mdi:home-account";
-      options = [
-        "away"
-        "home_awake"
-        "home_sleep"
+      options = with modes; [
+        away
+        awake
+        asleep
       ];
     };
 
@@ -101,9 +128,9 @@ in
                   action = "mqtt.publish";
                   data = {
                     topic = "{{ repeat.item }}";
-                    # Anything but home_awake, including a mode not yet
+                    # Anything but Home, including a mode not yet
                     # restored, arms.
-                    payload = "{{ 'OFF' if is_state('${mode}', 'home_awake') else 'ON' }}";
+                    payload = "{{ 'OFF' if is_state('${mode}', '${modes.awake}') else 'ON' }}";
                   };
                 }
               ];
@@ -127,7 +154,7 @@ in
               {
                 condition = "state";
                 entity_id = mode;
-                state = "home_awake";
+                state = modes.awake;
               }
             ];
             "then" = [
@@ -160,14 +187,14 @@ in
           {
             condition = "state";
             entity_id = mode;
-            state = "home_awake";
+            state = modes.awake;
           }
         ];
         actions = [
           {
             action = "input_select.select_option";
             target.entity_id = mode;
-            data.option = "home_sleep";
+            data.option = modes.asleep;
           }
           {
             action = "notify.mobile_app_iphone";
@@ -216,7 +243,7 @@ in
               {
                 condition = "state";
                 entity_id = mode;
-                state = "away";
+                state = modes.away;
               }
             ];
           }
@@ -225,7 +252,7 @@ in
           {
             action = "input_select.select_option";
             target.entity_id = mode;
-            data.option = "away";
+            data.option = modes.away;
           }
         ];
       }
@@ -255,14 +282,14 @@ in
           {
             condition = "state";
             entity_id = mode;
-            state = "away";
+            state = modes.away;
           }
         ];
         actions = [
           {
             action = "input_select.select_option";
             target.entity_id = mode;
-            data.option = "home_awake";
+            data.option = modes.awake;
           }
         ];
       }
@@ -297,7 +324,7 @@ in
               {
                 condition = "state";
                 entity_id = mode;
-                state = "home_awake";
+                state = modes.awake;
               }
             ];
           }
@@ -313,7 +340,7 @@ in
             action = "notify.mobile_app_iphone";
             data = {
               title = "Person in the {{ room }}";
-              message = "Seen while the house is {{ states('${mode}') | replace('_', ' ') }}.";
+              message = "Seen while the house is {{ states('${mode}') | lower }}.";
               data = {
                 image = "/api/frigate/notifications/{{ review.data.detections[0] }}/snapshot.jpg";
                 tag = "{{ review.id }}";
@@ -351,6 +378,10 @@ in
   };
 
   assertions = [
+    {
+      assertion = lib.all (o: lib.elem o (lib.attrValues modes)) scriptModes;
+      message = "corehub: a script sets house mode to ${toString scriptModes}, not one of ${toString (lib.attrValues modes)}.";
+    }
     {
       assertion = indoor != [ ];
       message = "corehub: house mode found no indoor cameras in nvrhub's Frigate config.";

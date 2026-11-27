@@ -107,7 +107,8 @@ in
     # Run from Home Assistant, or from Siri and the Home app through the
     # HomeKit bridge. Both set the house mode (./house-mode.nix): Good Night
     # arms the indoor cameras; Good Morning, with Fred home, disarms
-    # them and renews the 18-hour expiry, even when already home_awake.
+    # them and renews the 18-hour expiry, even when already Home. The mode
+    # names are house-mode.nix's, which checks these against them.
     script = {
       good_night = {
         alias = "Good Night";
@@ -116,7 +117,7 @@ in
           {
             action = "input_select.select_option";
             target.entity_id = "input_select.house_mode";
-            data.option = "home_sleep";
+            data.option = "Asleep";
           }
           # Neither step is fatal to the other: a light that fails still
           # leaves the door locked, a lock out of reach the lights off.
@@ -152,7 +153,7 @@ in
               {
                 action = "input_select.select_option";
                 target.entity_id = "input_select.house_mode";
-                data.option = "home_awake";
+                data.option = "Home";
               }
               {
                 action = "timer.start";

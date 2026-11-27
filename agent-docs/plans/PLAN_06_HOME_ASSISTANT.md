@@ -192,7 +192,9 @@ The design the owner and the agent settled on, 2026-11-26.
 | `home_awake` | off                  | home, and said he is up       |
 | `home_sleep` | on                   | home, and said he is sleeping |
 
-Held in an `input_select` so it survives Home Assistant restarts.
+Held in an `input_select` so it survives Home Assistant restarts. Its
+values, and so what the UI shows, are Away, Home and Asleep (owner,
+2026-11-27); this plan keeps the names above.
 
 ### Transitions
 
