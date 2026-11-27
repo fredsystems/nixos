@@ -82,7 +82,7 @@ then.
 
 ## Subtasks
 
-- [ ] **8.1 Bridge.** `hosts/linux/corehub/home-automation/homekit.nix`:
+- [x] **8.1 Bridge.** `hosts/linux/corehub/home-automation/homekit.nix`:
       the `homekit` component and a `homekit:` entry on port 21063,
       bound to and advertised on 192.168.31.20, its allowlist built from
       Plan 06's device table minus the disposal. The template light
@@ -90,6 +90,13 @@ then.
       Downstairs) for every area. Firewall opening for 21063/tcp. Verify: the bridge
       advertises `_hap._tcp` on the LAN and Home Assistant shows the
       pairing notification.
+
+      Done 2026-11-26. The bridge listens on 192.168.31.20:21063 only and
+      advertises there. After the template-light fix, the reconciler run
+      made 35 changes with 0 warnings: the nine wrappers kept their
+      `light.*` IDs and got their switches' areas, and all 13 areas are
+      on a floor. The nine wrappers have new HomeKit accessory IDs, so
+      Apple Home saw them as new accessories.
 - [ ] **8.2 Pair.** The owner adds the bridge in the Home app with the
       code from the notification. Home Assistant areas do not carry over
       to Apple Home rooms, so the owner assigns rooms there, once.
