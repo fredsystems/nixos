@@ -516,10 +516,10 @@ Requested 2026-11-26, ahead of house mode, in
       companion app and record their tag IDs.
 - [ ] **6.15 Mode state machine.** The `input_select`, transitions and
       expiry from "House mode", declared in Nix.
-- [ ] **6.16 Camera effect.** Mode changes drive the indoor cameras'
+- [x] **6.16 Camera effect.** Mode changes drive the indoor cameras'
       review switches, and the current mode is re-applied whenever
       Frigate's availability goes `online`.
-- [ ] **6.17 nvrhub watchdog.** Home Assistant publishes a heartbeat. On
+- [x] **6.17 nvrhub watchdog.** Home Assistant publishes a heartbeat. On
       nvrhub, a service re-enables review on the indoor cameras through
       Frigate's local websocket when the heartbeat is stale.
 
@@ -540,10 +540,17 @@ Requested 2026-11-26, ahead of house mode, in
       heartbeat it has seen is 5 minutes old, which rides out a Home
       Assistant restart. Frigate's loopback listener on 127.0.0.1:5000
       accepts websocket commands as admin, verified 2026-11-27 by
-      turning the kitchen's alerts off and on. To verify after deploy:
-      each script's effect on the indoor cameras in Frigate, a Frigate
-      restart in `home_awake`, and Home Assistant stopped for 6 minutes
-      in `home_awake`.
+      turning the kitchen's alerts off and on.
+
+      Deployed and verified 2026-11-27: Good Morning turned the five
+      indoor cameras' review off and left the doorbell and front door
+      alone; Good Night turned them on and cancelled the expiry. A
+      Frigate restart in `home_awake` came up armed and was disarmed 2 s
+      after start, before its camera processors started. With Home
+      Assistant stopped in `home_awake`, the watchdog re-armed when the
+      heartbeat was 320 s old; Home Assistant disarmed them again 7 s
+      after it started. 6.15 stays open for the `away` and arrival
+      transitions (6.13) and the tags (6.14).
 - [ ] **6.18 End-to-end test.** Every row of the transitions table, plus
       Home Assistant stopped while `home_awake`, Frigate restarted in
       each mode, the expiry, and a tag scanned while away (must do
