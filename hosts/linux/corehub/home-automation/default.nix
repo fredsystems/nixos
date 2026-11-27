@@ -7,5 +7,6 @@
     ./devices.nix
     ./homekit.nix
     ./automations.nix
+    ./cameras.nix
   ];
 }

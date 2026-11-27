@@ -71,6 +71,7 @@ in
       secrets = {
         mqtt-password = config.sops.secrets."home-assistant/mqtt/homeassistant".path;
         frigate-password = config.sops.secrets."home-assistant/frigate_password".path;
+        frigate-rtsp-url = config.sops.templates."frigate-rtsp-url-template".path;
       };
 
       integrations = {
@@ -93,6 +94,18 @@ in
           validate_ssl = true;
           username = "homeassistant";
           password._secret = "frigate-password";
+        };
+
+        # Live video comes from nvrhub's go2rtc restream, which needs a login
+        # from off-host. The integration renders this per camera, with
+        # `name` the Frigate camera name. The rest are the flow's defaults,
+        # stated because the options form submits every field.
+        frigate.optionsFlow.init = {
+          rtsp_url_template._secret = "frigate-rtsp-url";
+          enable_webrtc = false;
+          notification_proxy_enable = true;
+          media_browser_enable = true;
+          notification_proxy_expire_after_seconds = 0;
         };
       };
 
@@ -138,24 +151,36 @@ in
     };
   };
 
-  # Home Assistant reads `!secret` values from secrets.yaml in its config
-  # directory.
-  sops.templates."home-assistant-secrets.yaml" = {
-    owner = "hass";
-    path = "${hass.configDir}/secrets.yaml";
-    restartUnits = [ "home-assistant.service" ];
-    content = ''
-      home_latitude: ${config.sops.placeholder."home-assistant/latitude"}
-      home_longitude: ${config.sops.placeholder."home-assistant/longitude"}
-      home_elevation: ${config.sops.placeholder."home-assistant/elevation"}
-    '';
-  };
+  sops = {
+    # Home Assistant reads `!secret` values from secrets.yaml in its config
+    # directory.
+    templates."home-assistant-secrets.yaml" = {
+      owner = "hass";
+      path = "${hass.configDir}/secrets.yaml";
+      restartUnits = [ "home-assistant.service" ];
+      content = ''
+        home_latitude: ${config.sops.placeholder."home-assistant/latitude"}
+        home_longitude: ${config.sops.placeholder."home-assistant/longitude"}
+        home_elevation: ${config.sops.placeholder."home-assistant/elevation"}
+      '';
+    };
 
-  sops.secrets = {
-    "home-assistant/latitude" = { };
-    "home-assistant/longitude" = { };
-    "home-assistant/elevation" = { };
-    "home-assistant/owner_password".restartUnits = [ "home-assistant-reconciler.service" ];
-    "home-assistant/frigate_password".restartUnits = [ "home-assistant-reconciler.service" ];
+    # A whole URL, because the reconciler substitutes a secret for a whole
+    # value. Root-only; the reconciler reads it through LoadCredential=.
+    templates."frigate-rtsp-url-template" = {
+      content = "rtsp://homeassistant:${
+        config.sops.placeholder."home-assistant/go2rtc_rtsp_password"
+      }@nvr.int.fredsystems.org:8554/{{ name }}";
+      restartUnits = [ "home-assistant-reconciler.service" ];
+    };
+
+    secrets = {
+      "home-assistant/go2rtc_rtsp_password" = { };
+      "home-assistant/latitude" = { };
+      "home-assistant/longitude" = { };
+      "home-assistant/elevation" = { };
+      "home-assistant/owner_password".restartUnits = [ "home-assistant-reconciler.service" ];
+      "home-assistant/frigate_password".restartUnits = [ "home-assistant-reconciler.service" ];
+    };
   };
 }

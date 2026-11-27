@@ -19,7 +19,7 @@
 #
 # Areas are grouped into floors. Office and Upstairs Hallway have no working
 # device yet (Plan 06, 6.9), but are declared so the floor plan is complete.
-{ lib, ... }:
+{ config, lib, ... }:
 let
   homeId = "3562376714";
 
@@ -145,7 +145,10 @@ in
 {
   services.home-assistant-reconciler = {
     inherit devices floors;
-    areas = lib.concatMap (f: f.areas) (lib.attrValues floors);
+    # Every area on a floor, including ones other files add (cameras.nix).
+    areas = lib.unique (
+      lib.concatMap (f: f.areas) (lib.attrValues config.services.home-assistant-reconciler.floors)
+    );
     pruneFloors = true;
     entities = map (n: {
       entityId = n.lightId;

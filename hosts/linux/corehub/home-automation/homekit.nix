@@ -6,9 +6,15 @@
 # Home app is the one manual step: Home Assistant shows the code as a
 # notification until the bridge is paired.
 #
-# An explicit allowlist, built from ./devices.nix, so a device added to Home
+# An explicit allowlist, built from ./devices.nix, ./automations.nix and
+# nvrhub's cameras, so a device added to Home
 # Assistant is never silently added to Apple Home.
-{ config, lib, ... }:
+{
+  config,
+  inputs,
+  lib,
+  ...
+}:
 let
   # "Hey Siri, turn everything on" must not start it.
   notExposed = [ "switch.garbage_disposal" ];
@@ -25,8 +31,17 @@ let
   # ./automations.nix's scripts, as switches: "Hey Siri, turn on Good Night".
   scripts = map (name: "script.${name}") (lib.attrNames config.services.home-assistant.config.script);
 
+  # Frigate's cameras, read from nvrhub's own camera table so the two cannot
+  # drift: the Frigate integration names each one camera.<Frigate name>.
+  # Plan 08, 8.6. Live video is nvrhub's go2rtc restream, re-encoded here to
+  # H.264 at what the viewing device asks for, only while someone watches.
+  cameras = map (name: "camera.${name}") (
+    lib.attrNames inputs.self.nixosConfigurations.nvrhub.config.services.frigate.settings.cameras
+  );
+
   exposed =
-    scripts
+    cameras
+    ++ scripts
     ++ map expose (
       lib.subtractLists notExposed (
         lib.concatMap (d: map (e: e.entityId) d.entities) config.services.home-assistant-reconciler.devices
