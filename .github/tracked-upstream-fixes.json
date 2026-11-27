@@ -525,6 +525,22 @@
       ],
       "workaround": "hosts/linux/corehub/home-automation/zwave-js.nix -- deviceConfigOverrides, a priority device file for the Kwikset 910 with no configuration parameters (FIXME(zwave-js-configurationcc-unexpected-report-crash))",
       "revert_action": "File an upstream issue and set upstream_pr/min_version once a zwave-js-server release bundles the guarded log line. Then delete deviceConfigOverrides and storage.deviceConfigPriorityDir from zwave-js.nix, deploy corehub, re-interview the front door lock, and confirm zwave-js does not restart (systemctl show zwave-js -p NRestarts)."
+    },
+    {
+      "id": "nixpkgs-zwave-js-server-3.12",
+      "done": false,
+      "summary": "Home Assistant 2026.11 needs zwave-js-server API schema 52 (zwave-js-server 3.12.0); nixpkgs unstable has 3.11.0 (schema 51), so corehub builds 3.12.0 from unstable's recipe.",
+      "repo": "NixOS/nixpkgs",
+      "check": "pkgs-min-version",
+      "package": "zwave-js-server",
+      "eval_host": "Daytona",
+      "min_version": "3.12.0",
+      "upstream_pr": null,
+      "tracking": [
+        "https://github.com/zwave-js/zwave-js-server/releases/tag/3.12.0"
+      ],
+      "workaround": "hosts/linux/corehub/home-automation/zwave-js.nix -- zwaveJsServer, unstable's zwave-js-server at 3.12.0 (FIXME(nixpkgs-zwave-js-server-3.12))",
+      "revert_action": "Replace zwaveJsServer with unstablePkgs.zwave-js-server in zwave-js.nix, deploy corehub, and confirm the Z-Wave JS config entry is loaded (not setup_retry)."
     }
   ]
 }

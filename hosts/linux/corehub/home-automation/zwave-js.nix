@@ -15,6 +15,30 @@
 }:
 let
   cfg = config.services.zwave-js;
+  inherit (config.services.home-assistant) unstablePkgs;
+
+  # FIXME(nixpkgs-zwave-js-server-3.12): WORKAROUND, not a fix. Home
+  # Assistant 2026.11 (./unstable.nix) needs zwave-js-server's API schema 52,
+  # which arrived in zwave-js-server 3.12.0 (2026-11-10); nixpkgs unstable
+  # still has 3.11.0 (schema 51), so the Z-Wave JS entry stays in setup_retry
+  # and no Z-Wave device works. This is unstable's own recipe at 3.12.0.
+  # Delete it, and use `unstablePkgs.zwave-js-server` directly, once nixpkgs
+  # unstable has 3.12.0 or later. Tracked in .github/tracked-upstream-fixes.json,
+  # checked by .github/workflows/track-upstream-fixes.yaml.
+  zwaveJsServer = unstablePkgs.zwave-js-server.overrideAttrs (_: rec {
+    version = "3.12.0";
+    src = unstablePkgs.fetchFromGitHub {
+      owner = "zwave-js";
+      repo = "zwave-js-server";
+      rev = version;
+      hash = "sha256-jhHeQfWtDPEnSdA9/s6p04f++3JHMeC/AWsGNgWpv9o=";
+    };
+    npmDeps = unstablePkgs.fetchNpmDeps {
+      inherit src;
+      name = "zwave-js-server-${version}-npm-deps";
+      hash = "sha256-BirJSLT6HbdD78RmS1Vyq+g4j0x4K8nKEdWeGDz+L3k=";
+    };
+  });
 
   # zwave-js's own device files, as shipped inside zwave-js-server.
   deviceConfigs = "${cfg.package}/lib/node_modules/@zwave-js/server/node_modules/@zwave-js/config/config/devices";
@@ -52,6 +76,8 @@ in
 {
   services.zwave-js = {
     enable = true;
+    # Matching Home Assistant, which comes from unstable (./unstable.nix).
+    package = zwaveJsServer;
     serialPort = "/dev/serial/by-id/usb-0658_0200-if00";
     secretsConfigFile = config.sops.secrets."home-assistant/zwave_js_keys".path;
     extraFlags = [
