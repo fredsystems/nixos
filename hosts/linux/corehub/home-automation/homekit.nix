@@ -31,13 +31,45 @@ let
   # ./automations.nix's scripts, as switches: "Hey Siri, turn on Good Night".
   scripts = map (name: "script.${name}") (lib.attrNames config.services.home-assistant.config.script);
 
-  # Frigate's cameras, read from nvrhub's own camera table so the two cannot
-  # drift: the Frigate integration names each one camera.<Frigate name>.
-  # Plan 08, 8.6. Live video is nvrhub's go2rtc restream, re-encoded here to
-  # H.264 at what the viewing device asks for, only while someone watches.
-  cameras = map (name: "camera.${name}") (
-    lib.attrNames inputs.self.nixosConfigurations.nvrhub.config.services.frigate.settings.cameras
-  );
+  # Frigate's cameras on nvrhub; the Frigate integration names each one
+  # camera.<Frigate name>. Plan 08, 8.6. Live video is nvrhub's go2rtc
+  # restream, re-encoded here to H.264 at what the viewing device asks for,
+  # only while someone watches.
+  frigateCameras = lib.attrNames inputs.self.nixosConfigurations.nvrhub.config.services.frigate.settings.cameras;
+
+  # Each camera is its own accessory (see `accessories`), with a fixed
+  # HomeKit name and port. "... Camera" so the front door's does not share a
+  # name with the lock.
+  cameraAccessories = {
+    doorbell = {
+      name = "Doorbell";
+      port = 21065;
+    };
+    front_door = {
+      name = "Front Door Camera";
+      port = 21066;
+    };
+    inside_garage = {
+      name = "Garage Camera";
+      port = 21067;
+    };
+    kitchen = {
+      name = "Kitchen Camera";
+      port = 21068;
+    };
+    living_room = {
+      name = "Living Room Camera";
+      port = 21069;
+    };
+    office = {
+      name = "Office Camera";
+      port = 21070;
+    };
+    upstairs_hall = {
+      name = "Upstairs Hall Camera";
+      port = 21071;
+    };
+  };
 
   # Entities that Home Assistant's HomeKit docs say must be their own
   # accessory, not bridged: cameras, locks, TVs and activity remotes. Each is
@@ -49,11 +81,11 @@ let
       name = "Front Door";
       port = 21064;
     };
-  };
+  }
+  // lib.mapAttrs' (cam: a: lib.nameValuePair "camera.${cam}" a) cameraAccessories;
 
   bridged =
-    cameras
-    ++ scripts
+    scripts
     ++ map expose (
       lib.subtractLists notExposed (
         lib.concatMap (d: map (e: e.entityId) d.entities) config.services.home-assistant-reconciler.devices
@@ -101,4 +133,15 @@ in
   # The bridge's and accessories' HAP ports. mDNS (UDP 5353) is already open
   # for avahi.
   networking.firewall.allowedTCPPorts = [ port ] ++ lib.mapAttrsToList (_: a: a.port) accessories;
+
+  assertions = [
+    {
+      assertion = lib.attrNames cameraAccessories == frigateCameras;
+      message = ''
+        corehub: homekit.nix gives HomeKit accessories to
+        ${toString (lib.attrNames cameraAccessories)}, but nvrhub's Frigate has
+        ${toString frigateCameras}. Give each camera a name and port here.
+      '';
+    }
+  ];
 }
