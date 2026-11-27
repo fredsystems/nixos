@@ -106,8 +106,8 @@ in
 
     # Run from Home Assistant, or from Siri and the Home app through the
     # HomeKit bridge. Both set the house mode (./house-mode.nix): Good Night
-    # arms the indoor cameras, Good Morning disarms them and renews the
-    # 18-hour expiry, even when the mode is already home_awake.
+    # arms the indoor cameras; Good Morning, with Fred home, disarms
+    # them and renews the 18-hour expiry, even when already home_awake.
     script = {
       good_night = {
         alias = "Good Night";
@@ -138,14 +138,27 @@ in
         alias = "Good Morning";
         icon = "mdi:weather-sunny";
         sequence = [
+          # Disarms only with Fred home: run through Siri away from home, it
+          # still turns the lights on but leaves the cameras armed.
           {
-            action = "input_select.select_option";
-            target.entity_id = "input_select.house_mode";
-            data.option = "home_awake";
-          }
-          {
-            action = "timer.start";
-            target.entity_id = "timer.house_awake_expiry";
+            "if" = [
+              {
+                condition = "state";
+                entity_id = "person.fred";
+                state = "home";
+              }
+            ];
+            "then" = [
+              {
+                action = "input_select.select_option";
+                target.entity_id = "input_select.house_mode";
+                data.option = "home_awake";
+              }
+              {
+                action = "timer.start";
+                target.entity_id = "timer.house_awake_expiry";
+              }
+            ];
           }
           {
             action = "light.turn_on";
