@@ -35,9 +35,10 @@ let
       name = "Front Door";
       area = "Entrance Hallway";
     };
+    # Not living_room_motion: that is the Living Room camera's, from Frigate.
     "4" = {
-      id = "living_room_motion";
-      name = "Living Room Motion";
+      id = "living_room_motion_detector";
+      name = "Living Room Motion Detector";
       area = "Living Room";
     };
     "5" = {
