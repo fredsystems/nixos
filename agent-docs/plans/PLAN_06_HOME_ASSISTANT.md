@@ -462,6 +462,30 @@ Decide at activation:
       Tap") reports to the controller, so a double tap can trigger an
       automation.
 
+- [ ] **6.22 Cloud integrations.** Added 2026-11-27 at the owner's
+      request, in this order:
+
+      | Integration | Source                                  | Entry created by                  |
+      | ----------- | --------------------------------------- | --------------------------------- |
+      | Sense       | core, `energy.nix`                      | the reconciler, sops credentials  |
+      | Alarm.com   | `ibasebcast/ha-alarmdotcom`, packaged   | the owner in the UI, once (code)  |
+      | MyQ         | `bvdcode/home-assistant-myq`, to do     | to decide                         |
+
+      Sense: no MFA; credentials verified against the Sense API with
+      the library version Home Assistant uses. Alarm.com: a custom
+      component, so it is packaged in `alarmdotcom/package.nix` from a
+      pin file, with its requirements from Home Assistant's nixpkgs
+      (Marketplace installs need pip, which NixOS's Home Assistant runs
+      without; 4 of its 5 requirements were missing). The build runs
+      nixpkgs' manifest check and imports every module.
+      `scripts/update-alarmdotcom.sh` and `update-alarmdotcom.yaml`
+      re-pin daily into a PR that is not auto-merged. `pyhumps` 3.9 is
+      waived against the manifest's `~=3.8.0`; the owner chose not to
+      file upstream, so each bump PR reports whether the waiver is still
+      needed. Alarm.com asks for a one-time code at login, so its entry
+      is created by hand and kept by `keepDomains`. The garage door is
+      MyQ and not linked in Alarm.com, so MyQ is the route for it.
+
 ### Phase 3: Frigate
 
 - [x] **6.10 Frigate MQTT.** Enable MQTT in `hosts/linux/nvrhub/frigate.nix`
