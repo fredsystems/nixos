@@ -53,7 +53,7 @@
       dozzle = "amir20/dozzle:v11.5.0@sha256:74600d62dd73a72a5d36fbd0c98af649203df921d74310b7ed383ef63392358e";
 
       # acarshub + vdlmhub hosts
-      xng = "ghcr.io/sdr-enthusiasts/docker-xng:latest-build-26@sha256:e89ae00c0b51b80554575dfe216a0ec9737f8752feb1adf6c92f3b3ba062b308";
+      xng = "ghcr.io/sdr-enthusiasts/docker-xng:latest-build-27@sha256:bd4be8a8c151b88e2950a5abaed8eec7395368530c0acd6c9e88a29a340b52be";
 
       # fredvps host
       fredSite = "ghcr.io/fredsystems/fred-site:latest-build-8@sha256:53659b897364c139dc504e6824ae999febdfe96616fbf306b8681a493510ed81";
