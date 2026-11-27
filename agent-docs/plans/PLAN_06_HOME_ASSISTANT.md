@@ -420,14 +420,36 @@ Decide at activation:
 
 ### Phase 3: Frigate
 
-- [ ] **6.10 Frigate MQTT.** Enable MQTT in `hosts/linux/nvrhub/frigate.nix`
+- [x] **6.10 Frigate MQTT.** Enable MQTT in `hosts/linux/nvrhub/frigate.nix`
       against corehub's broker, password via `LoadCredential=`.
-- [ ] **6.11 Frigate integration.** A dedicated Frigate user for Home
+- [x] **6.11 Frigate integration.** A dedicated Frigate user for Home
       Assistant (role decided at activation), and the integration
       configured against `https://nvr.int.fredsystems.org`.
+
+      Done 2026-11-26 (6.10 and 6.11). Frigate publishes to the broker as
+      `frigate` (`frigate/available` is `online`). Its users live in its
+      database, so `hosts/linux/nvrhub/frigate-users.nix` keeps a
+      `homeassistant` login, role viewer, in step with sops through the
+      loopback admin listener. The reconciler created the integration,
+      and Home Assistant has all 7 cameras, 63 switches and 189 sensors.
+      Viewer covers reading and MQTT switching. PTZ and exports would
+      need admin.
 - [ ] **6.12 Verify control.** Toggling an indoor camera's review switch
       in Home Assistant flips it in Frigate, and a Frigate restart
       returns it to the Nix default.
+
+### Owner's automations
+
+Requested 2026-11-26, ahead of house mode, in
+`hosts/linux/corehub/home-automation/automations.nix`:
+
+- Front porch light on at a random moment 30 to 15 minutes before
+  sunset, off 30 to 45 minutes after sunrise.
+- Good Night (lights off in every area but Front Porch) and Good Morning
+  (lights on in Master Bedroom, Living Room and Kitchen). Scripts, run
+  from Home Assistant or Siri through the HomeKit bridge, until house
+  mode (6.15) gives them triggers.
+- Garbage disposal off after 2 minutes continuously on.
 
 ### Phase 4: house mode
 
