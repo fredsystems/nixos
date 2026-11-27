@@ -417,6 +417,49 @@ Decide at activation:
       9, 18 and 24 still physically exist. The garage controller itself
       is re-included securely in Plan 07, not here.
 
+      Five wall switches still work their load by hand but have left the
+      Z-Wave network (owner, 2026-11-27):
+
+      | Load                    | Area             | Node             |
+      | ----------------------- | ---------------- | ---------------- |
+      | Office Light            | Office           | unknown          |
+      | Office Fan              | Office           | unknown          |
+      | Master Bedroom Fan      | Master Bedroom   | unknown          |
+      | Upstairs Hallway Light  | Upstairs Hallway | unknown          |
+      | Dining Room Light       | Kitchen          | 56               |
+
+      Node 56 is known because Kitchen Overhead Lights (97) still has it
+      in its association group (6.21). Five replacement switches arrive
+      2026-11-27; the owner installs them as he gets to them. Each is
+      included (S2 where the switch supports it), added to the device
+      table in `devices.nix`, and its dead node removed with "remove
+      failed node", along with its place in any association group.
+
+- [ ] **6.21 Switch associations.** Added 2026-11-27, numbered after
+      the existing subtasks. Some wall switches command other devices
+      directly through a Z-Wave association group, which is what the
+      owner calls a scene: the lights follow the switch without the hub,
+      so they keep working with Home Assistant or zwave-js down. Home
+      Assistant has no editor for these, but zwave-js-server reads and
+      writes them (`controller.get_associations`,
+      `controller.add_associations`, `controller.remove_associations`),
+      so they become a table in `devices.nix` (switch node, group,
+      target nodes) applied by the reconciler, which adds what is missing
+      and removes what is not declared. Group 1 (Lifeline, to the
+      controller) is never touched. As read from zwave-js on 2026-11-27:
+
+      | Switch (node)                | Group          | Targets now            | Wanted                          |
+      | ---------------------------- | -------------- | ---------------------- | ------------------------------- |
+      | Kitchen Overhead Lights (97) | 2 "BASIC SET"  | 56 (dead), 53          | 53 and the new Dining Room Light |
+      | Master Bedroom Light (19)    | 2 "Local Load" | 13                     | 13 and Bed Lamp (7)             |
+      | Living Room Light (42)       | 2 "Local Load" | 44, 45 (no such node)  | 44 and a second lamp plug       |
+
+      Each group takes at most 5 targets. The kitchen row waits on the
+      Dining Room Light's replacement (6.9), the living room's second
+      plug on the owner finding a spare. The dimmers' group 3 ("Double
+      Tap") reports to the controller, so a double tap can trigger an
+      automation.
+
 ### Phase 3: Frigate
 
 - [x] **6.10 Frigate MQTT.** Enable MQTT in `hosts/linux/nvrhub/frigate.nix`
@@ -453,7 +496,8 @@ Requested 2026-11-26, ahead of house mode, in
 - Front porch light on at a random moment 30 to 15 minutes before
   sunset, off 30 to 45 minutes after sunrise.
 - Good Night (lights off in every area but Front Porch) and Good Morning
-  (lights on in Master Bedroom, Living Room and Kitchen). Scripts, run
+  (lights on in Master Bedroom, Living Room and Kitchen, and the Master
+  Vanity, added 2026-11-27). Scripts, run
   from Home Assistant or Siri through the HomeKit bridge, until house
   mode (6.15) gives them triggers.
 - Garbage disposal off after 2 minutes continuously on.
