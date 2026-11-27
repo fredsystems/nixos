@@ -3,9 +3,9 @@
     "catppuccin": {
       "bases": {
         "darwin": "5e924dfd37b3c4be09cacdec43e04858432672e85c2806993443f5a6162814b7",
-        "linux": "fb2a3cf8590a28706f39fe7dd17e47c21440141ccef5b964841b8bde6d97eba1"
+        "linux": "49638cf27ce9d0225844c6ff1d3cc21dae639494f2ad6e31c33bdfcb1b755a17"
       },
-      "classified_at": "2026-11-27T14:59:45Z",
+      "classified_at": "2026-11-27T15:02:19Z",
       "kinds": {
         "darwin": "none",
         "linux": "none"
@@ -16,9 +16,9 @@
     "nixpkgs-kernel": {
       "bases": {
         "darwin": "5e924dfd37b3c4be09cacdec43e04858432672e85c2806993443f5a6162814b7",
-        "linux": "fb2a3cf8590a28706f39fe7dd17e47c21440141ccef5b964841b8bde6d97eba1"
+        "linux": "49638cf27ce9d0225844c6ff1d3cc21dae639494f2ad6e31c33bdfcb1b755a17"
       },
-      "classified_at": "2026-11-27T14:59:45Z",
+      "classified_at": "2026-11-27T15:02:19Z",
       "kinds": {
         "darwin": "none",
         "linux": "source"
