@@ -512,6 +512,32 @@ Requested 2026-11-26, ahead of house mode, in
       arrival transitions. Also a declared dashboard (owner,
       2026-11-27): the current house mode, and buttons that run Good
       Night and Good Morning.
+
+      Built 2026-11-27, by the owner's choices: `away` once
+      `person.fred` has been out of the home zone for 5 minutes;
+      `home_awake` on arriving while `away`, at any hour. The person
+      followed the iPhone and the iPad, and takes the latest report of
+      either, so the iPad at home could make him home while out; the
+      reconciler's new `persons` table declares the iPhone as his only
+      tracker. The owner is the only occupant (open question 2). Leaving
+      is re-checked every 5 minutes and at start, since a restart
+      cancels the pending 5 minutes; unknown and unavailable never count
+      as away. Good Morning disarms only with the phone home. The House
+      dashboard (`dashboard.nix`, YAML from the store, in the sidebar)
+      shows the mode, the phone and the expiry, with confirm-first
+      buttons for both scripts. Remote access (open question 1): Tailscale
+      on the iPhone, through corehub as subnet router; the app reports
+      leaving over it, so without it the house is never armed by leaving.
+      Verify by leaving: `person.fred` goes `not_home` and the mode
+      `away`, then back.
+
+      Open questions 3 and 5, decided with it (2026-11-27): indoor
+      cameras make review items for people only
+      (`review.detections.labels = [ "person" ]` in nvrhub's
+      `frigate.nix`), so pets make none while armed; and a person
+      indoors while armed is pushed to the iPhone, time-sensitive, with
+      Frigate's snapshot through the integration's notification proxy,
+      once per review item.
 - [ ] **6.14 NFC tags.** Write the goodnight and morning tags from the
       companion app and record their tag IDs.
 - [ ] **6.15 Mode state machine.** The `input_select`, transitions and
