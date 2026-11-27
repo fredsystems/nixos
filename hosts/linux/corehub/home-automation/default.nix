@@ -14,5 +14,6 @@
     ./monitoring.nix
     ./energy.nix
     ./alarmdotcom
+    ./myq
   ];
 }
