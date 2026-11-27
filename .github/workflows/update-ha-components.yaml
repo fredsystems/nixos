@@ -1,0 +1,162 @@
+---
+name: update-ha-components
+
+# Keeps corehub's packaged Home Assistant custom integrations
+# (hosts/linux/corehub/home-automation/<component>/pin.json, built by
+# custom-component.nix) pinned to their latest GitHub releases. They are not
+# in nixpkgs, and Renovate cannot recompute the source hash.
+#
+# The PRs are NOT set to auto-merge: Alarm.com is the house's alarm system and
+# MyQ opens the garage door, so the owner reviews each bump and its release
+# notes before it deploys.
+#
+# Runs at :50 rather than on the hour. GitHub documents the top of the hour
+# as its highest-contention slot for scheduled workflows.
+
+on:
+  schedule:
+    - cron: "50 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update:
+    name: Update ${{ matrix.component }} pin
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        component:
+          - alarmdotcom
+          - myq
+    # Per component: the daily cron and a manual dispatch open/update the same
+    # PR branch. cancel-in-progress must stay false so a cancelled run cannot
+    # leave a pushed branch with no PR attached.
+    concurrency:
+      group: update-ha-components-${{ matrix.component }}
+      cancel-in-progress: false
+    env:
+      COMPONENT: ${{ matrix.component }}
+      PIN: hosts/linux/corehub/home-automation/${{ matrix.component }}/pin.json
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # PAT (not GITHUB_TOKEN) so the pushed branch triggers CI on the
+          # resulting PR -- see the same note in renovate-relock.yaml.
+          token: ${{ secrets.PAT }}
+          persist-credentials: true
+
+      - uses: DeterminateSystems/nix-installer-action@3138316df39ed29be04236d7ffc686fa525866aa # v23
+        with:
+          extra-conf: accept-flake-config = true
+
+      - name: Configure Git identity
+        run: |
+          git config --global user.email "noreply@github.com"
+          git config --global user.name "github[bot]"
+
+      - name: Re-pin to the latest upstream release
+        id: update
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -uo pipefail
+
+          # update-ha-component.sh exits 2 to mean "changed, not an error";
+          # the invocation must BE the `if` condition so bash -e does not
+          # abort first. See the same note in update-tmog.yaml.
+          if nix shell nixpkgs#jq nixpkgs#curl -c ./scripts/update-ha-component.sh "$COMPONENT"; then
+            rc=0
+          else
+            rc=$?
+          fi
+
+          # 0 = already current, 2 = pin was updated, anything else = error.
+          case "$rc" in
+            0) echo "changed=false" >> "$GITHUB_OUTPUT" ;;
+            2) echo "changed=true"  >> "$GITHUB_OUTPUT" ;;
+            *) echo "update failed with exit $rc" >&2; exit "$rc" ;;
+          esac
+
+          echo "version=$(jq -r .version "$PIN")" >> "$GITHUB_OUTPUT"
+          echo "repo=$(jq -r .repo "$PIN")" >> "$GITHUB_OUTPUT"
+
+      - name: Verify the integration builds
+        if: steps.update.outputs.changed == 'true'
+        # Proves the hash, that nixpkgs' Python packages still satisfy the
+        # new manifest.json (the manifest check), and that every module
+        # imports. CI then builds corehub on the PR as usual.
+        run: |
+          nix build --no-link --impure --expr "
+            builtins.head (builtins.filter (c: c.pname or \"\" == \"$(dirname "$(jq -r .repo "$PIN")")/$COMPONENT\")
+              (builtins.getFlake (toString ./.)).nixosConfigurations.corehub.config.services.home-assistant.customComponents)"
+
+      - name: Check whether the version waivers are still needed
+        id: waivers
+        if: steps.update.outputs.changed == 'true'
+        # A package may waive manifest version requirements that nixpkgs does
+        # not meet (ignoreVersionRequirement, e.g. FIXME
+        # alarmdotcom-pyhumps-pin). The owner chose not to file upstream, so
+        # this is the signal: build the new release without the waivers and
+        # say in the PR whether they can go.
+        run: |
+          owner="$(dirname "$(jq -r .repo "$PIN")")"
+          component="(builtins.head (builtins.filter (c: c.pname or \"\" == \"$owner/$COMPONENT\")
+            (builtins.getFlake (toString ./.)).nixosConfigurations.corehub.config.services.home-assistant.customComponents))"
+          if [ "$(nix eval --impure --expr "builtins.length $component.ignoreVersionRequirement")" = "0" ]; then
+            echo "note=" >> "$GITHUB_OUTPUT"
+          elif nix build --no-link --impure --expr "$component.overrideAttrs { ignoreVersionRequirement = [ ]; }" 2> waivers.log; then
+            echo "note=The build also passes without \`ignoreVersionRequirement\`: delete it from $COMPONENT/package.nix in this PR." >> "$GITHUB_OUTPUT"
+          else
+            echo "note=\`ignoreVersionRequirement\` in $COMPONENT/package.nix is still needed: $(grep -o '[^ ]* not satisfied by version [^ ]*' waivers.log | sort -u | paste -sd ';' -)." >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Commit, push, and open a PR
+        if: steps.update.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.PAT }}
+          NEW_VERSION: ${{ steps.update.outputs.version }}
+          REPO: ${{ steps.update.outputs.repo }}
+          WAIVERS: ${{ steps.waivers.outputs.note }}
+        run: |
+          set -euo pipefail
+
+          branch="update-${COMPONENT}-${NEW_VERSION}"
+
+          # Any PR for this branch (open, closed, or merged) means the bump
+          # has been filed or ruled on; a closed PR is not reopened daily.
+          existing="$(gh pr list --head "$branch" --state all --json number --jq '.[0].number // empty')"
+          if [ -n "$existing" ]; then
+            echo "PR #${existing} already exists for $branch; nothing to do"
+            exit 0
+          fi
+
+          git checkout -b "$branch"
+          git add "$PIN"
+          git commit -m "chore(${COMPONENT}): update to ${NEW_VERSION}"
+
+          # --force is reachable only when no PR exists for this branch.
+          git push --force -u origin "$branch"
+
+          gh pr create \
+            --title "chore(${COMPONENT}): update to ${NEW_VERSION}" \
+            --body "$(cat <<BODY
+          Automated bump of corehub's ${COMPONENT} Home Assistant integration to
+          upstream ${NEW_VERSION}.
+
+          **Review before merging; this PR does not auto-merge.**
+
+          Release notes: https://github.com/${REPO}/releases/tag/v${NEW_VERSION}
+
+          The build was proven by this workflow: source hash, manifest
+          requirements against nixpkgs, and an import of every module.
+
+          ${WAIVERS}
+
+          Opened automatically by \`.github/workflows/update-ha-components.yaml\`.
+          BODY
+          )" \
+            --label dependencies

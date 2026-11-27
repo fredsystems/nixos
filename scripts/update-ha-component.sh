@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 #
-# update-alarmdotcom.sh -- re-pin corehub's Alarm.com Home Assistant
-# integration (hosts/linux/corehub/home-automation/alarmdotcom/pin.json) to
-# the latest GitHub release of ibasebcast/ha-alarmdotcom.
+# update-ha-component.sh COMPONENT -- re-pin one of corehub's packaged Home
+# Assistant custom integrations
+# (hosts/linux/corehub/home-automation/COMPONENT/pin.json) to the latest
+# GitHub release of the repo its pin names.
 #
 # The hash is the fetchFromGitHub (NAR) hash of the release tag's source,
-# from `nix flake prefetch`. Run by .github/workflows/update-alarmdotcom.yaml,
+# from `nix flake prefetch`. Run by .github/workflows/update-ha-components.yaml,
 # which proves the build and opens a PR for review.
 #
 # Requires curl, jq and nix on PATH.
@@ -17,16 +18,20 @@
 #   1  error
 set -uo pipefail
 
-repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-pin_file="${repo_root}/hosts/linux/corehub/home-automation/alarmdotcom/pin.json"
-repo="ibasebcast/ha-alarmdotcom"
-
 die() {
-	echo "update-alarmdotcom: $*" >&2
+	echo "update-ha-component: $*" >&2
 	exit 1
 }
 
+component="${1:-}"
+[[ "$component" =~ ^[a-z0-9_]+$ ]] || die "usage: $0 COMPONENT (a directory under hosts/linux/corehub/home-automation)"
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+pin_file="${repo_root}/hosts/linux/corehub/home-automation/${component}/pin.json"
+
 [ -f "$pin_file" ] || die "$pin_file not found"
+repo="$(jq -er .repo "$pin_file")" || die "no repo in $pin_file"
+[[ "$repo" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || die "unexpected repo in $pin_file: $repo"
 
 auth=()
 [ -n "${GH_TOKEN:-}" ] && auth=(-H "Authorization: Bearer ${GH_TOKEN}")
@@ -54,8 +59,8 @@ hash="$(nix flake prefetch --json "github:${repo}/v${version}" | jq -er .hash)" 
 	die "could not prefetch tag v${version}"
 
 tmp="$(mktemp)"
-jq -n --arg version "$version" --arg hash "$hash" \
-	'{version: $version, hash: $hash}' >"$tmp" || die "could not write pin"
+jq -n --arg repo "$repo" --arg version "$version" --arg hash "$hash" \
+	'{repo: $repo, version: $version, hash: $hash}' >"$tmp" || die "could not write pin"
 mv "$tmp" "$pin_file" || die "could not replace $pin_file"
 
 echo "updated to $version ($hash)"
