@@ -5,8 +5,8 @@
 #
 # Home Assistant and Mosquitto. The reconciler onboards, creates the mqtt
 # entry, prunes onboarding's leftovers, names a device that MQTT discovery
-# registers and hides its switch, and places the light that wraps that switch,
-# an entity with no device. Then it runs again, and after a Home Assistant restart, and must
+# registers and hides its switch, places the light that wraps that switch,
+# an entity with no device, and sets the trackers the owner's person follows. Then it runs again, and after a Home Assistant restart, and must
 # change nothing either time.
 #
 # zwave_js is not covered: zwave-js-server's --mock-driver gets the config
@@ -138,6 +138,9 @@ in
             username = "owner";
             passwordFile = pkgs.writeText "owner-password" ownerPassword;
           };
+          # Onboarding makes the owner's person; no tracker exists, which
+          # the person takes anyway.
+          persons."Test Owner".deviceTrackers = [ "device_tracker.test_phone" ];
           secrets.mqtt-password = pkgs.writeText "mqtt-password" mqttPassword;
 
           integrations = {
@@ -359,6 +362,14 @@ in
         machine.succeed(
             "jq -e '.data.entities[] | select(.entity_id == \"switch.lamp\" and .disabled_by == null)' "
             "/var/lib/hass/.storage/core.entity_registry"
+        )
+
+    with subtest("the owner's person follows exactly the declared trackers"):
+        machine.wait_until_succeeds(
+            "jq -e '.data.items[] | select(.name == \"Test Owner\") "
+            "| .device_trackers == [\"device_tracker.test_phone\"]' "
+            "/var/lib/hass/.storage/person",
+            timeout=60,
         )
 
     with subtest("backup settings are applied"):

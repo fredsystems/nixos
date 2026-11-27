@@ -720,6 +720,25 @@ class Reconciler:
             )
             self.changed(f"entity {entity['entity_id']}: {update}")
 
+    # -- persons -----------------------------------------------------------
+
+    async def reconcile_persons(self):
+        declared = self.decl["persons"]
+        if not declared:
+            return
+        persons = {p["name"]: p for p in (await self.ws.call("person/list"))["storage"]}
+        for name, spec in sorted(declared.items()):
+            person = persons.get(name)
+            if person is None:
+                self.warn(f"person {name!r} does not exist; skipped")
+                continue
+            wanted = spec["deviceTrackers"]
+            if person.get("device_trackers") != wanted:
+                await self.ws.call(
+                    "person/update", person_id=person["id"], device_trackers=wanted
+                )
+                self.changed(f"person {name!r}: device trackers {wanted}")
+
     # -- HTTP --------------------------------------------------------------
 
     async def reconcile_http(self):
@@ -822,6 +841,7 @@ class Reconciler:
             await self.reconcile_floors(area_ids)
             await self.reconcile_devices(area_ids)
             await self.reconcile_entities(area_ids)
+            await self.reconcile_persons()
             await self.reconcile_backup()
         finally:
             try:

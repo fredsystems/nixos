@@ -246,6 +246,7 @@ let
       backup
       http
       ;
+    persons = lib.mapAttrs (_: p: { inherit (p) deviceTrackers; }) cfg.persons;
     owner = {
       inherit (cfg.owner) name username language;
       password._secret = "owner-password";
@@ -394,6 +395,25 @@ in
         Entities to name, place or hide by entity ID, for those not reached
         through `devices`. One that is not registered is skipped with a
         warning.
+      '';
+    };
+
+    persons = lib.mkOption {
+      type = lib.types.attrsOf (
+        lib.types.submodule {
+          options.deviceTrackers = lib.mkOption {
+            type = lib.types.listOf lib.types.str;
+            description = "Device tracker entity IDs the person follows, exactly.";
+          };
+        }
+      );
+      default = { };
+      example = lib.literalExpression ''{ Fred.deviceTrackers = [ "device_tracker.iphone" ]; }'';
+      description = ''
+        Persons by name, and the device trackers each follows; trackers
+        not listed are removed from the person. Persons themselves come
+        from Home Assistant (the owner's at onboarding); one that does not
+        exist is skipped with a warning.
       '';
     };
 
