@@ -7,6 +7,7 @@
     ./frigate.nix
     ./frigate-users.nix
     ./go2rtc.nix
+    ./house-mode.nix
     ./nvidia.nix
     ./cuda-onnxruntime.nix
     ./nginx.nix
