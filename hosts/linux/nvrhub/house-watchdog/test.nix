@@ -185,6 +185,20 @@ in
         run()
         assert sent() == rearmed, sent()
 
+    with subtest("a heartbeat from the future is ignored"):
+        # The stored heartbeat is stale by now; a future one must not
+        # replace it and hold off re-arming.
+        reset()
+        machine.succeed(
+            "mosquitto_pub -h 127.0.0.1 -u homeassistant -P test-ha-password "
+            "-r -t house/heartbeat -m $(( $(date +%s) + 7200 ))"
+        )
+        machine.sleep(25)
+        run()
+        assert sent() == rearmed, sent()
+        out = machine.succeed("journalctl -u house-watchdog.service -o cat")
+        assert "ignoring a heartbeat" in out, out
+
     with subtest("Frigate down is not a failure"):
         machine.succeed("systemctl stop fake-frigate.service")
         run()

@@ -63,15 +63,37 @@ def read_heartbeat(args, password):
         return None
 
 
+# How far ahead of nvrhub's clock a heartbeat may be. A larger lead is a
+# wrong clock on corehub, and believing it would hold off re-arming until
+# real time caught up with it.
+CLOCK_SKEW = 60
+
+
+def plausible(timestamp):
+    return timestamp is not None and timestamp <= time.time() + CLOCK_SKEW
+
+
 def newest_heartbeat(args, password):
     state = Path(args.state)
     try:
         stored = float(state.read_text())
     except (OSError, ValueError):
         stored = None
+    if not plausible(stored):
+        stored = None
     seen = read_heartbeat(args, password)
+    if seen is not None and not plausible(seen):
+        log.warning("ignoring a heartbeat %.0fs in the future", seen - time.time())
+        seen = None
     if seen is not None and (stored is None or seen > stored):
-        state.write_text(f"{seen}\n")
+        # Atomically, so a failed write leaves the old value; and a failure
+        # is only logged, never allowed to stop the re-arm check below.
+        tmp = state.with_name(state.name + ".tmp")
+        try:
+            tmp.write_text(f"{seen}\n")
+            tmp.replace(state)
+        except OSError as err:
+            log.warning("could not store the heartbeat: %s", err)
     known = [t for t in (seen, stored) if t is not None]
     return max(known) if known else None
 
