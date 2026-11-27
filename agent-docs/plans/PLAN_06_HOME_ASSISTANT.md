@@ -428,10 +428,11 @@ Decide at activation:
       | Office Fan              | Office           | unknown          |
       | Master Bedroom Fan      | Master Bedroom   | unknown          |
       | Upstairs Hallway Light  | Upstairs Hallway | unknown          |
-      | Dining Room Light       | Kitchen          | 56               |
+      | Dining Room Light       | Kitchen          | 56, now 103      |
 
       Node 56 is known because Kitchen Overhead Lights (97) still has it
-      in its association group (6.21). Five replacement switches arrive
+      in its association group (6.21). Replaced 2026-11-27 by node 103,
+      an Enbrighten 800 series dimmer included with S2 Authenticated. Five replacement switches arrive
       2026-11-27; the owner installs them as he gets to them. Each is
       included (S2 where the switch supports it), added to the device
       table in `devices.nix`, and its dead node removed with "remove
