@@ -36,6 +36,9 @@ in
       config = {
         default_config = { };
 
+        # The go2rtc server below.
+        go2rtc.url = "http://${config.services.go2rtc.settings.api.listen}";
+
         homeassistant = {
           name = "Home";
           # The house's location is not published in this repository. The
@@ -164,12 +167,26 @@ in
     };
   };
 
-  # Camera live view over WebRTC. Home Assistant 2026.11 runs its own go2rtc
-  # (./unstable.nix puts it on the path), and the browser or app streams from
-  # it directly, not through nginx: WebRTC on 18555/tcp (homeassistant/
-  # components/go2rtc/server.py). Its API is a Unix socket and its RTSP is on
-  # loopback, so this is the only opening.
-  networking.firewall.allowedTCPPorts = [ 18555 ];
+  # Camera live view over WebRTC, through a go2rtc server for Home
+  # Assistant. Home Assistant only runs its own go2rtc inside its Docker
+  # image; anywhere else its go2rtc integration needs `go2rtc.url`
+  # (homeassistant/components/go2rtc/__init__.py). It registers each
+  # camera's stream (nvrhub's restream) with this server, and the browser or
+  # app streams from it directly over WebRTC, not through nginx. The API and
+  # RTSP stay on loopback; WebRTC is LAN-reachable on 8555/tcp.
+  #
+  # corehub runs no other go2rtc. nvrhub's is the camera restream, separate.
+  services.go2rtc = {
+    enable = true;
+    package = hass.unstablePkgs.go2rtc;
+    settings = {
+      api.listen = "127.0.0.1:1984";
+      rtsp.listen = "127.0.0.1:8554";
+      webrtc.listen = ":8555/tcp";
+    };
+  };
+
+  networking.firewall.allowedTCPPorts = [ 8555 ];
 
   sops = {
     # Home Assistant reads `!secret` values from secrets.yaml in its config

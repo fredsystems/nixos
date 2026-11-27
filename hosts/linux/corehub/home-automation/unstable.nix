@@ -41,8 +41,5 @@ in
       doInstallCheck = false;
     });
 
-    # The module puts the host's go2rtc on Home Assistant's PATH for its
-    # WebRTC streaming; Home Assistant expects the go2rtc of its own era.
-    systemd.services.home-assistant.path = lib.mkBefore [ unstable.go2rtc ];
   };
 }
