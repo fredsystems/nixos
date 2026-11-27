@@ -469,7 +469,7 @@ Decide at activation:
       | ----------- | --------------------------------------- | --------------------------------- |
       | Sense       | core, `energy.nix`                      | the reconciler, sops credentials  |
       | Alarm.com   | `ibasebcast/ha-alarmdotcom`, packaged   | the owner in the UI, once (code)  |
-      | MyQ         | `bvdcode/home-assistant-myq`, to do     | to decide                         |
+      | MyQ         | `bvdcode/home-assistant-myq`, packaged  | the owner in the UI, once (code)  |
 
       Sense: no MFA; credentials verified against the Sense API with
       the library version Home Assistant uses. Alarm.com: a custom
@@ -478,13 +478,18 @@ Decide at activation:
       (Marketplace installs need pip, which NixOS's Home Assistant runs
       without; 4 of its 5 requirements were missing). The build runs
       nixpkgs' manifest check and imports every module.
-      `scripts/update-alarmdotcom.sh` and `update-alarmdotcom.yaml`
-      re-pin daily into a PR that is not auto-merged. `pyhumps` 3.9 is
+      Both packaged integrations are built by
+      `home-automation/custom-component.nix` from a pin file each;
+      `scripts/update-ha-component.sh` and `update-ha-components.yaml`
+      re-pin them daily into PRs that are not auto-merged. `pyhumps` 3.9 is
       waived against the manifest's `~=3.8.0`; the owner chose not to
       file upstream, so each bump PR reports whether the waiver is still
       needed. Alarm.com asks for a one-time code at login, so its entry
       is created by hand and kept by `keepDomains`. The garage door is
-      MyQ and not linked in Alarm.com, so MyQ is the route for it.
+      MyQ and not linked in Alarm.com, so MyQ is the route for it. MyQ
+      has no Python requirements of its own and, like Alarm.com, asks
+      for a one-time code at sign-in, so its entry is made by hand and
+      kept by `keepDomains`.
 
 ### Phase 3: Frigate
 
