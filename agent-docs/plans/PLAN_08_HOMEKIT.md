@@ -108,14 +108,23 @@ then.
       deliberate trigger for `home_sleep`, once Plan 06 builds house
       mode.
 - [ ] **8.6 Cameras.** Frigate's seven cameras as live-view
-      accessories. nvrhub had no restream, so this adds go2rtc there: one
-      RTSP restream per camera's main stream on :8554, login required
-      except from loopback, opened only while someone watches, with
-      Frigate still reading the cameras directly. Frigate's config lists
-      the streams, which is what makes the Home Assistant integration
-      treat a camera as streaming. The integration's RTSP URL template,
-      carrying the restream login, is set through the reconciler's
-      options flow. On the bridge, the camera list is read from nvrhub's
-      camera table, and Home Assistant re-encodes to H.264 on demand, so
-      the 4K H.265 front door works too. HomeKit Secure Video is not
-      available through Home Assistant's bridge.
+      accessories. nvrhub had no restream, so this adds go2rtc there,
+      on :8554, login required except from loopback, opened only while
+      someone watches, with Frigate still reading the cameras directly.
+      It restreams each camera's main stream under the camera's name
+      (the 4K H.265 front door as 1080p H.264 on the GPU, for Frigate's
+      own live view) and its substream as `<cam>_sub`. Frigate's config
+      lists the streams, which is what makes the Home Assistant
+      integration treat a camera as streaming. The integration's RTSP URL
+      template, carrying the restream login, points at `<cam>_sub` and is
+      set through the reconciler's options flow, so Home Assistant's live
+      view and the HomeKit cameras both play the substream. Each camera
+      is its own HomeKit accessory, as Home Assistant requires, with the
+      list read from nvrhub's camera table.
+
+      Not the main streams for HomeKit: Home Assistant re-encodes at the
+      size the source arrives, and iOS dropped the 2688x1520 streams. Not
+      a 720p GPU copy either: it took about 8 s to its first frame,
+      longer than the Home app waits. A substream starts in about a
+      second (2026-11-27). HomeKit Secure Video is not available through
+      Home Assistant's bridge.

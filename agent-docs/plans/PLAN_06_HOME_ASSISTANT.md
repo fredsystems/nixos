@@ -371,10 +371,9 @@ Decide at activation:
       area, device and entity tables, and a oneshot that applies them
       as described in "Home Assistant's configuration is declarative".
       Tests: a NixOS VM test running Home Assistant from corehub's
-      nixpkgs, Mosquitto and zwave-js with `--mock-driver`. It onboards,
-      creates the `mqtt` and `zwave_js` entries, and renames an
-      MQTT-discovered device and its entity. A second run changes
-      nothing.
+      nixpkgs and Mosquitto. It onboards, creates the `mqtt` entry, and
+      renames an MQTT-discovered device and its entity. A second run
+      changes nothing.
 
       Done 2026-11-26. zwave_js is not in the VM test: the mock driver
       lacks controller calls Home Assistant makes while loading the
