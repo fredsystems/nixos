@@ -81,6 +81,12 @@ let
       name = "Front Door";
       port = 21064;
     };
+    # MyQ's opener (./myq), at the owner's choice (2026-11-27). HomeKit
+    # treats a garage door as secure: opening it needs an unlocked device.
+    "cover.garage_door" = {
+      name = "Garage Door";
+      port = 21072;
+    };
   }
   // lib.mapAttrs' (cam: a: lib.nameValuePair "camera.${cam}" a) cameraAccessories;
 
