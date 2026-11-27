@@ -1526,11 +1526,15 @@
             ''
         );
     }
-    # A VM test, so Linux only. It uses corehub's own pkgs, so the Home
-    # Assistant whose APIs it exercises is the one deployed there, not this
-    # file's unstable nixpkgs.
+    # A VM test, so Linux only. It runs on corehub's own pkgs with corehub's
+    # Home Assistant swap (unstable module and package), so the Home Assistant
+    # whose APIs it exercises is the one deployed there.
     // lib.optionalAttrs (system == "x86_64-linux") {
-      home-assistant-reconciler = self.nixosConfigurations.corehub.pkgs.testers.runNixOSTest ../../modules/services/home-assistant-reconciler/test.nix;
+      home-assistant-reconciler = self.nixosConfigurations.corehub.pkgs.testers.runNixOSTest {
+        imports = [ ../../modules/services/home-assistant-reconciler/test.nix ];
+        defaults.imports = [ ../../hosts/linux/corehub/home-automation/unstable.nix ];
+        node.specialArgs = { inherit inputs; };
+      };
     }
     // import ./channel-checks.nix {
       inherit

@@ -662,6 +662,52 @@ class Reconciler:
             )
             self.changed(f"entity {entity['entity_id']}: {update}")
 
+    # -- HTTP --------------------------------------------------------------
+
+    async def reconcile_http(self):
+        """Apply the declared HTTP settings, returning True if that restarts
+        Home Assistant.
+
+        From 2026.11 Home Assistant keeps these in .storage and changes them
+        only through http/config/configure, which stores them as `pending`
+        and restarts. A pending config is a trial: unless it is promoted it
+        reverts to `stable` after five minutes. So a change is applied, and
+        promoted on the next pass, once the restarted Home Assistant has
+        answered on it.
+        """
+        wanted = self.decl["http"]
+        if wanted is None:
+            return False
+        info = await self.ws.call("http/config")
+        stable, pending = info.get("stable") or {}, info.get("pending")
+        if pending is None and contains(stable, wanted):
+            return False
+        if (
+            pending is not None
+            and contains(pending, wanted)
+            and not pending.get("error")
+            and info.get("active_config_type") == "pending"
+        ):
+            # We reached Home Assistant through it, so it works: confirm it.
+            await self.ws.call("http/config/promote")
+            self.changed("http: confirmed the new settings")
+            return False
+        result = await self.ws.call("http/config/configure", config=wanted)
+        self.changed("http: applied new settings")
+        return bool(result and result.get("restart"))
+
+    async def wait_for_restart(self):
+        """Wait for a Home Assistant restart to begin and finish."""
+        deadline = time.monotonic() + 60
+        while time.monotonic() < deadline:
+            try:
+                async with self.session.get(self.api.url + "/api/") as r:
+                    await r.read()
+            except aiohttp.ClientError:
+                break
+            await asyncio.sleep(1)
+        await self.wait_for_api()
+
     # -- backups ---------------------------------------------------------
 
     async def reconcile_backup(self):
@@ -684,6 +730,18 @@ class Reconciler:
                 self.session, self.api.url, self.api.token
             )
             await self.wait_until_running()
+            # First, because applying it restarts Home Assistant. Twice at
+            # most: apply and restart, then confirm.
+            for _ in range(2):
+                if not await self.reconcile_http():
+                    break
+                await self.ws.close()
+                self.ws = None
+                await self.wait_for_restart()
+                self.ws = await Websocket.connect(
+                    self.session, self.api.url, self.api.token
+                )
+                await self.wait_until_running()
             await self.reconcile_integrations()
             area_ids = await self.reconcile_areas()
             await self.reconcile_floors(area_ids)

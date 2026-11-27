@@ -228,7 +228,7 @@ let
     };
 
   declaration = json.generate "home-assistant-reconciler.json" {
-    url = "http://127.0.0.1:${toString hass.config.http.server_port}";
+    url = "http://127.0.0.1:${toString cfg.port}";
     stateFile = "${hass.configDir}/.nix-reconciler-state.json";
     inherit (cfg)
       startTimeout
@@ -240,6 +240,7 @@ let
       pruneIntegrations
       keepDomains
       backup
+      http
       ;
     owner = {
       inherit (cfg.owner) name username language;
@@ -398,6 +399,36 @@ in
       description = ''
         Arguments to the `backup/config/update` websocket command, applied
         when the current backup settings differ. Null leaves them alone.
+      '';
+    };
+
+    port = lib.mkOption {
+      type = lib.types.port;
+      default = 8123;
+      description = ''
+        Port Home Assistant serves on, reached on 127.0.0.1. Match it to
+        `http.server_port` when that is set.
+      '';
+    };
+
+    http = lib.mkOption {
+      type = lib.types.nullOr json.type;
+      default = null;
+      example = lib.literalExpression ''
+        {
+          server_host = [ "127.0.0.1" ];
+          server_port = 8123;
+          use_x_forwarded_for = true;
+          trusted_proxies = [ "127.0.0.1/32" ];
+        }
+      '';
+      description = ''
+        Home Assistant's HTTP settings, for 2026.11 and later, where they live
+        in .storage and `http:` in configuration.yaml is only imported once.
+        Applied through `http/config/configure`, which restarts Home
+        Assistant, then confirmed once it answers. Write values in the form
+        Home Assistant stores them, e.g. networks as `127.0.0.1/32`, or every
+        run sees a difference. Null leaves them alone.
       '';
     };
 

@@ -1,6 +1,7 @@
-# VM test for ./default.nix, run against the nixpkgs corehub uses (see
-# flake/dev/checks.nix), so the Home Assistant APIs exercised are the ones
-# that will be deployed.
+# VM test for ./default.nix, run against the Home Assistant corehub runs:
+# flake/dev/checks.nix imports corehub's home-automation/unstable.nix into the
+# node, so the Home Assistant APIs exercised are the ones that will be
+# deployed.
 #
 # Home Assistant and Mosquitto. The reconciler onboards, creates the mqtt
 # entry, prunes onboarding's leftovers, names a device that MQTT discovery
@@ -93,7 +94,6 @@ in
               time_zone = "UTC";
               country = "US";
             };
-            http.server_host = [ "127.0.0.1" ];
             # Shaped like corehub's light wrappers in devices.nix.
             template = [
               {
@@ -124,6 +124,15 @@ in
 
         home-assistant-reconciler = {
           enable = true;
+
+          # Home Assistant starts on its defaults (all addresses), so the
+          # first run must apply this, restart it, and confirm it.
+          http = {
+            server_host = [ "127.0.0.1" ];
+            server_port = 8123;
+            use_x_forwarded_for = true;
+            trusted_proxies = [ "127.0.0.1/32" ];
+          };
           owner = {
             name = "Test Owner";
             username = "owner";
@@ -137,6 +146,13 @@ in
               port = 1883;
               username = "homeassistant";
               password._secret = "mqtt-password";
+              # A required section from Home Assistant 2026.11: plain TCP, no TLS
+              # client certificate or CA, as before.
+              other_settings = {
+                set_client_cert = false;
+                set_ca_cert = "off";
+                transport = "tcp";
+              };
             };
             # The options flow, as corehub's Frigate entry uses one. The test
             # device is announced under this prefix, so it is only discovered
@@ -236,8 +252,6 @@ in
     };
 
   testScript = ''
-    import json
-
     machine.wait_for_unit("mosquitto.service")
     machine.wait_for_open_port(1883)
     # Retained, so Home Assistant sees it as soon as the mqtt entry exists.
@@ -254,9 +268,26 @@ in
     machine.wait_for_unit("home-assistant-reconciler.service", timeout=600)
     print(machine.succeed("journalctl -u home-assistant-reconciler.service -o cat"))
 
+    with subtest("the HTTP settings were applied, then confirmed"):
+        out = machine.succeed("journalctl -u home-assistant-reconciler.service -o cat")
+        assert "http: applied new settings" in out, out
+        assert "http: confirmed the new settings" in out, out
+        machine.wait_until_succeeds(
+            "jq -e '.data.pending == null and .data.stable.server_host == [\"127.0.0.1\"] "
+            "and .data.stable.trusted_proxies == [\"127.0.0.1/32\"]' /var/lib/hass/.storage/http",
+            timeout=60,
+        )
+        machine.succeed("ss -ltn | grep -q '127.0.0.1:8123 '")
+        machine.fail("ss -ltn | grep -qE '(0.0.0.0|\\[::\\]):8123 '")
+
     with subtest("onboarding is finished"):
-        steps = json.loads(machine.succeed("curl -sf http://127.0.0.1:8123/api/onboarding"))
-        assert all(s["done"] for s in steps), steps
+        # Not /api/onboarding: once onboarding is done, Home Assistant stops
+        # serving it after a restart, and the HTTP cycle above restarts it.
+        machine.wait_until_succeeds(
+            "jq -e '.data.done | sort == [\"analytics\", \"core_config\", \"integration\", \"user\"]' "
+            "/var/lib/hass/.storage/onboarding",
+            timeout=60,
+        )
 
     with subtest("declared entries exist, onboarding's are pruned"):
         # Home Assistant writes .storage on a short delay, hence waiting.
