@@ -94,15 +94,6 @@ let
 
   exposed = lib.subtractLists (lib.attrNames accessories) bridged;
 
-  # HomeKit video for a camera: nvrhub's 720p H.264 copy (its go2rtc.nix),
-  # relayed by corehub's go2rtc, rather than the camera's main stream, which
-  # Home Assistant would pass on at full size and iOS would refuse.
-  cameraVideo = cam: {
-    stream_source = "rtsp://127.0.0.1:8554/${cam}_homekit";
-    max_width = 1280;
-    max_height = 720;
-  };
-
   lanAddress = "192.168.31.20";
   port = 21063;
 
@@ -136,22 +127,8 @@ in
         mode = "accessory";
         filter.include_entities = [ entity ];
       }
-      // lib.optionalAttrs (lib.hasPrefix "camera." entity) {
-        entity_config.${entity} = cameraVideo (lib.removePrefix "camera." entity);
-      }
     ) accessories;
   };
-
-  # The 720p relays that cameraVideo reads, from nvrhub's go2rtc with its
-  # restream login. corehub's go2rtc (./home-assistant.nix) serves RTSP on
-  # loopback only, without a login.
-  services.go2rtc.settings.streams = lib.genAttrs (map (c: "${c}_homekit") frigateCameras) (
-    name: "rtsp://homeassistant:\${RTSP_PASSWORD}@nvr.int.fredsystems.org:8554/${name}"
-  );
-  systemd.services.go2rtc.serviceConfig.LoadCredential = [
-    "RTSP_PASSWORD:${config.sops.secrets."home-assistant/go2rtc_rtsp_password".path}"
-  ];
-  sops.secrets."home-assistant/go2rtc_rtsp_password".restartUnits = [ "go2rtc.service" ];
 
   # The bridge's and accessories' HAP ports. mDNS (UDP 5353) is already open
   # for avahi.

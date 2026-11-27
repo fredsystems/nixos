@@ -112,8 +112,9 @@ in
           password._secret = "frigate-password";
         };
 
-        # Live video comes from nvrhub's go2rtc restream, which needs a login
-        # from off-host. The integration renders this per camera, with
+        # Live video comes from nvrhub's go2rtc restream of each camera's
+        # substream (`<name>_sub`, ../../nvrhub/frigate.nix), which needs a
+        # login from off-host. The HomeKit cameras stream the same source. The integration renders this per camera, with
         # `name` the Frigate camera name. The rest are the flow's defaults,
         # stated because the options form submits every field.
         frigate.optionsFlow.init = {
@@ -207,7 +208,7 @@ in
     templates."frigate-rtsp-url-template" = {
       content = "rtsp://homeassistant:${
         config.sops.placeholder."home-assistant/go2rtc_rtsp_password"
-      }@nvr.int.fredsystems.org:8554/{{ name }}";
+      }@nvr.int.fredsystems.org:8554/{{ name }}_sub";
       restartUnits = [ "home-assistant-reconciler.service" ];
     };
 

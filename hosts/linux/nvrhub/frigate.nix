@@ -433,7 +433,21 @@ let
     else
       mkRestreamUrl cam;
 
-  restreams = lib.mapAttrs (_: mkRestreamSource) cameras;
+  # Each camera's own substream as `<cam>_sub`, stream-copied: the live view
+  # for Home Assistant and Apple Home. HomeKit failed on the full-size
+  # streams (Home Assistant re-encodes at the source's size, and iOS dropped
+  # them) and on a 720p GPU copy (about 8 s to its first frame, longer than
+  # the Home app waits); a substream plays at once (2026-11-27). All seven
+  # are H.264: 640x480 on the doorbell, 640x360 on the rest.
+  mkSubstreamUrl =
+    cam:
+    "rtsp://\${CAMERA_USER}:\${CAMERA_PASSWORD}@${cam.host}:554/${
+      (streamPaths.${cam.brand} cam).detect
+    }";
+
+  restreams =
+    lib.mapAttrs (_: mkRestreamSource) cameras
+    // lib.mapAttrs' (name: cam: lib.nameValuePair "${name}_sub" (mkSubstreamUrl cam)) cameras;
 
   # What an `indoor` camera tracks, instead of the fleet-wide `objects.track`
   # below: no vehicles inside the house (owner, 2026-11-26). Each tracked
