@@ -142,6 +142,11 @@ in
     ) accessories;
   };
 
+  # HomeKit reads entity IDs only when it starts, and a device added in the
+  # same deploy is renamed by the reconciler after that, so it would be
+  # missing until the next restart (the new fans, 2026-11-27).
+  services.home-assistant-reconciler.afterRename = [ "homekit.reload" ];
+
   # The bridge's and accessories' HAP ports. mDNS (UDP 5353) is already open
   # for avahi.
   networking.firewall.allowedTCPPorts = [ port ] ++ lib.mapAttrsToList (_: a: a.port) accessories;
