@@ -139,6 +139,10 @@ in
               "kitchen"
             ];
           }
+          {
+            action = "light.turn_on";
+            target.entity_id = "light.master_vanity";
+          }
         ];
       };
     };
