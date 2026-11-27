@@ -68,8 +68,8 @@ Answered 2026-11-26:
    open. The bridge needs only its own TCP port, 21063.
 3. **House mode in Apple Home.** Deferred until Plan 06 builds house
    mode (6.15); see 8.5.
-4. **Cameras.** Deferred until Plan 06 integrates Frigate (6.11); see
-   8.6.
+4. **Cameras.** Yes, live view only, asked for by the owner once
+   Frigate was connected (2026-11-26); see 8.6.
 5. **Existing Homebridge.** None.
 
 ## Execution model
@@ -107,5 +107,15 @@ then.
 - [ ] **8.5 Goodnight.** A Siri-triggered "Goodnight" scene as a
       deliberate trigger for `home_sleep`, once Plan 06 builds house
       mode.
-- [ ] **8.6 Cameras.** Whether to expose Frigate's cameras as live
-      streams, once Plan 06 integrates Frigate.
+- [ ] **8.6 Cameras.** Frigate's seven cameras as live-view
+      accessories. nvrhub had no restream, so this adds go2rtc there: one
+      RTSP restream per camera's main stream on :8554, login required
+      except from loopback, opened only while someone watches, with
+      Frigate still reading the cameras directly. Frigate's config lists
+      the streams, which is what makes the Home Assistant integration
+      treat a camera as streaming. The integration's RTSP URL template,
+      carrying the restream login, is set through the reconciler's
+      options flow. On the bridge, the camera list is read from nvrhub's
+      camera table, and Home Assistant re-encodes to H.264 on demand, so
+      the 4K H.265 front door works too. HomeKit Secure Video is not
+      available through Home Assistant's bridge.

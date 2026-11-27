@@ -434,6 +434,14 @@ Decide at activation:
       and Home Assistant has all 7 cameras, 63 switches and 189 sensors.
       Viewer covers reading and MQTT switching. PTZ and exports would
       need admin.
+
+      Then, by the owner's decisions (2026-11-26): indoor cameras
+      (kitchen, living_room, office, upstairs_hall, inside_garage) track
+      only person, dog and cat in Frigate; Home Assistant keeps a lean set
+      of each camera's entities enabled (`cameras.nix`), down from about
+      44 per camera; and the cameras are placed in areas, with a new
+      Garage area downstairs. Live video comes from a go2rtc restream on
+      nvrhub (Plan 08, 8.6).
 - [ ] **6.12 Verify control.** Toggling an indoor camera's review switch
       in Home Assistant flips it in Frigate, and a Frigate restart
       returns it to the Nix default.
