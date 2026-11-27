@@ -349,11 +349,13 @@ in
 
     keepDomains = lib.mkOption {
       type = lib.types.listOf lib.types.str;
-      default = [ "mobile_app" ];
+      default = [ ];
       description = ''
-        Domains whose entries are never pruned. `mobile_app` entries are
-        created by the companion app when a phone registers, so they cannot
-        be declared.
+        Domains whose entries are never pruned, in addition to `mobile_app`,
+        which the reconciler always keeps: the companion app creates those
+        entries when a phone registers, so they cannot be declared. Kept out
+        of this option's default because setting the option replaces its
+        default, which once dropped `mobile_app` and pruned both phones.
       '';
     };
 

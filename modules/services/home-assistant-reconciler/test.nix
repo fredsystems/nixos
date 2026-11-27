@@ -37,6 +37,68 @@ let
       name = "Test device";
     };
   };
+
+  # Registers a phone the way the companion app does, as the owner, so the
+  # test can check that its mobile_app entry survives pruning.
+  registerPhone =
+    pkgs: ownerUsername:
+    pkgs.writers.writePython3Bin "register-test-phone"
+      {
+        libraries = [ pkgs.python3Packages.aiohttp ];
+        flakeIgnore = [ "E501" ];
+      }
+      ''
+        import asyncio
+
+        import aiohttp
+
+        URL = "http://127.0.0.1:8123"
+
+
+        async def main():
+            async with aiohttp.ClientSession() as s:
+                flow = await (await s.post(URL + "/auth/login_flow", json={
+                    "client_id": URL + "/",
+                    "handler": ["homeassistant", None],
+                    "redirect_uri": URL + "/",
+                })).json()
+                result = await (await s.post(
+                    URL + "/auth/login_flow/" + flow["flow_id"],
+                    json={
+                        "client_id": URL + "/",
+                        "username": "${ownerUsername}",
+                        "password": "${ownerPassword}",
+                    },
+                )).json()
+                tokens = await (await s.post(URL + "/auth/token", data={
+                    "grant_type": "authorization_code",
+                    "code": result["result"],
+                    "client_id": URL + "/",
+                })).json()
+                headers = {"Authorization": "Bearer " + tokens["access_token"]}
+                r = await s.post(
+                    URL + "/api/mobile_app/registrations",
+                    headers=headers,
+                    json={
+                        "device_id": "testphone",
+                        "app_id": "io.robbie.HomeAssistant.test",
+                        "app_name": "Home Assistant",
+                        "app_version": "1.0",
+                        "device_name": "Test Phone",
+                        "manufacturer": "Test",
+                        "model": "Test",
+                        "os_name": "iOS",
+                        "os_version": "18",
+                        "supports_encryption": False,
+                        "app_data": {},
+                    },
+                )
+                assert r.status == 201, (r.status, await r.text())
+                await s.post(URL + "/auth/revoke", data={"token": tokens["refresh_token"]})
+
+
+        asyncio.run(main())
+      '';
 in
 {
   name = "home-assistant-reconciler";
@@ -54,6 +116,7 @@ in
         systemPackages = [
           pkgs.mosquitto
           pkgs.jq
+          (registerPhone pkgs "owner")
         ];
       };
 
@@ -138,9 +201,11 @@ in
             username = "owner";
             passwordFile = pkgs.writeText "owner-password" ownerPassword;
           };
-          # Onboarding makes the owner's person; no tracker exists, which
-          # the person takes anyway.
+          # Onboarding makes the owner's person. Its tracker is the phone the
+          # test registers later; until then the person takes it anyway.
           persons."Test Owner".deviceTrackers = [ "device_tracker.test_phone" ];
+          # Set, so the test proves that setting it cannot drop mobile_app.
+          keepDomains = [ "sun" ];
           secrets.mqtt-password = pkgs.writeText "mqtt-password" mqttPassword;
 
           integrations = {
@@ -406,6 +471,25 @@ in
         run = machine.succeed(show).strip()
         out = machine.succeed(f"journalctl _SYSTEMD_INVOCATION_ID={run} -o cat")
         assert "done: 0 changes" in out, out
+
+    with subtest("a registered phone's entry is never pruned"):
+        machine.succeed("register-test-phone")
+        machine.wait_until_succeeds(
+            "jq -e '.data.entries[] | select(.domain == \"mobile_app\")' "
+            "/var/lib/hass/.storage/core.config_entries",
+            timeout=60,
+        )
+        show = "systemctl show -p InvocationID --value home-assistant-reconciler.service"
+        machine.succeed("systemctl restart home-assistant-reconciler.service")
+        run = machine.succeed(show).strip()
+        out = machine.succeed(f"journalctl _SYSTEMD_INVOCATION_ID={run} -o cat")
+        assert "done:" in out, out
+        assert "removed mobile_app" not in out, out
+        machine.sleep(15)
+        machine.succeed(
+            "jq -e '.data.entries[] | select(.domain == \"mobile_app\")' "
+            "/var/lib/hass/.storage/core.config_entries"
+        )
 
     with subtest("changed steps recreate the entry, and the names come back"):
         machine.succeed(

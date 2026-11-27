@@ -23,6 +23,10 @@ from pathlib import Path
 
 import aiohttp
 
+# Never pruned, whatever keepDomains says: the companion app creates these
+# entries when a phone registers, so they can never be declared.
+ALWAYS_KEEP = frozenset({"mobile_app"})
+
 log = logging.getLogger("reconcile")
 
 
@@ -425,7 +429,7 @@ class Reconciler:
         if self.decl["pruneIntegrations"]:
             if self.onboarded_now:
                 await self.settle_onboarding_flows()
-            keep = set(self.decl["keepDomains"]) | domains
+            keep = ALWAYS_KEEP | set(self.decl["keepDomains"]) | domains
             owned = {r["entry_id"] for r in managed.values()}
             for entry in await self.entries():
                 if entry["domain"] in keep or entry["entry_id"] in owned:
