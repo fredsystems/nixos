@@ -248,6 +248,7 @@ let
       ;
     persons = lib.mapAttrs (_: p: { inherit (p) deviceTrackers; }) cfg.persons;
     disableEntities = map (r: { inherit (r) platform uniqueId; }) cfg.disableEntities;
+    inherit (cfg) afterRename;
     owner = {
       inherit (cfg.owner) name username language;
       password._secret = "owner-password";
@@ -398,6 +399,18 @@ in
         Entities to name, place or hide by entity ID, for those not reached
         through `devices`. One that is not registered is skipped with a
         warning.
+      '';
+    };
+
+    afterRename = lib.mkOption {
+      type = lib.types.listOf (lib.types.strMatching "[a-z0-9_]+\\.[a-z0-9_]+");
+      default = [ ];
+      example = [ "homekit.reload" ];
+      description = ''
+        Services, without data, called once at the end of a run that renamed
+        an entity. For integrations that read entity IDs only when they
+        start: a device added in the same deploy is renamed after they have
+        started, and they miss it until reloaded.
       '';
     };
 

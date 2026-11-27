@@ -237,6 +237,9 @@ in
           persons."Test Owner".deviceTrackers = [ "device_tracker.test_phone" ];
           # Set, so the test proves that setting it cannot drop mobile_app.
           keepDomains = [ "sun" ];
+          # Any reload without data will do; input_boolean is in
+          # default_config.
+          afterRename = [ "input_boolean.reload" ];
           disableEntities = [
             {
               platform = "mqtt";
@@ -528,6 +531,10 @@ in
             "/var/lib/hass/.storage/core.entity_registry"
         )
 
+    with subtest("a run that renames calls the afterRename services, others do not"):
+        out = machine.succeed("journalctl -u home-assistant-reconciler.service -o cat")
+        assert "called input_boolean.reload after" in out, out
+
     with subtest("a skipped rename keeps its entity enabled under keepEntities"):
         machine.wait_until_succeeds(
             "jq -e '.data.entities[] | select(.unique_id == \"gadget_level\" and .disabled_by == null)' "
@@ -563,6 +570,8 @@ in
         out = machine.succeed("journalctl -u home-assistant-reconciler.service -o cat")
         last = [line for line in out.splitlines() if "done:" in line][-1]
         assert "done: 0 changes" in last, last
+        tail = out[out.rindex("Starting Apply declared"):] if "Starting Apply declared" in out else out
+        assert "called input_boolean.reload" not in tail, tail
         after = refresh_tokens()
         assert before == after, f"refresh tokens went from {before} to {after}"
 

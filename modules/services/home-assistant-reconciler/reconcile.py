@@ -154,6 +154,7 @@ class Reconciler:
         # Entities keepEntities excludes, by entity_key, filled as devices
         # are reconciled.
         self.keep_excluded = set()
+        self.renamed = 0
 
     # -- bookkeeping -----------------------------------------------------
 
@@ -800,7 +801,19 @@ class Reconciler:
                 **update,
             )
             self.changed(f"entity {entity['entity_id']}: {update}")
+            if "new_entity_id" in update:
+                self.renamed += 1
         return update.get("new_entity_id", entity["entity_id"])
+
+    async def after_rename(self):
+        """Call the declared services once if this run renamed an entity,
+        for integrations that read entity IDs only at start (HomeKit)."""
+        if not self.renamed:
+            return
+        for service in self.decl["afterRename"]:
+            domain, name = service.split(".", 1)
+            await self.ws.call("call_service", domain=domain, service=name)
+            log.info("called %s after %d renames", service, self.renamed)
 
     # -- persons -----------------------------------------------------------
 
@@ -926,6 +939,7 @@ class Reconciler:
             await self.reconcile_entities(area_ids)
             await self.reconcile_persons()
             await self.reconcile_backup()
+            await self.after_rename()
         finally:
             try:
                 if self.ws:
@@ -936,8 +950,10 @@ class Reconciler:
 
 
 def entity_key(entity):
-    """An entity's identity that survives renames: platform and unique ID."""
-    return f"{entity.get('platform')}:{entity['unique_id']}"
+    """An entity's identity that survives renames: its domain, platform and
+    unique ID, which Home Assistant keeps unique only together."""
+    domain = entity["entity_id"].split(".", 1)[0]
+    return f"{domain}:{entity.get('platform')}:{entity['unique_id']}"
 
 
 def device_label(device):
