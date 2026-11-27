@@ -1,5 +1,5 @@
 {
-  "generated_at": 1795791958,
+  "generated_at": 1795795555,
   "hosts": {
     "Daytona": {
       "history": [
@@ -133,6 +133,11 @@
     "acarshub": {
       "history": [
         {
+          "at": 1795795555,
+          "rev": "ee551a027a836744a881b994448f1776548f455d",
+          "toplevel": "/nix/store/s7h96zzxrnny8lhs25zzrrns4pl71iiq-nixos-system-acarshub-26.05.20261122.0dc498b"
+        },
+        {
           "at": 1795713651,
           "rev": "9deb3d5b0d8eec505824496c495d09152b102560",
           "toplevel": "/nix/store/h80x8ymbrpzm16hm9vsy2dbmyihjl0py-nixos-system-acarshub-26.05.20261122.0dc498b"
@@ -251,11 +256,6 @@
           "at": 1794697496,
           "rev": "d232aa8da0b479e52fa4c2b706b5497c6628af41",
           "toplevel": "/nix/store/q579flk5qsp6dapv146ggaanysia1mad-nixos-system-acarshub-26.05.20261113.f1e5c35"
-        },
-        {
-          "at": 1794687887,
-          "rev": "8c416655113e6816b9334046ddb4e6df61b50e07",
-          "toplevel": "/nix/store/sj6vpxmwmadh2zandsgpm66rgayw8kad-nixos-system-acarshub-26.05.20261113.f1e5c35"
         }
       ]
     },
@@ -1294,6 +1294,11 @@
     "vdlmhub": {
       "history": [
         {
+          "at": 1795795555,
+          "rev": "ee551a027a836744a881b994448f1776548f455d",
+          "toplevel": "/nix/store/085r1mdsqakarlgxf5lan6z6x59c90zc-nixos-system-vdlmhub-26.05.20261122.0dc498b"
+        },
+        {
           "at": 1795713651,
           "rev": "9deb3d5b0d8eec505824496c495d09152b102560",
           "toplevel": "/nix/store/x7p5ihf681qskc7jyc5ybwkvc5b092zs-nixos-system-vdlmhub-26.05.20261122.0dc498b"
@@ -1412,15 +1417,10 @@
           "at": 1794697496,
           "rev": "d232aa8da0b479e52fa4c2b706b5497c6628af41",
           "toplevel": "/nix/store/4vdfxqmq1rlm736q8acb1zz6i1g5n5rf-nixos-system-vdlmhub-26.05.20261113.f1e5c35"
-        },
-        {
-          "at": 1794687887,
-          "rev": "8c416655113e6816b9334046ddb4e6df61b50e07",
-          "toplevel": "/nix/store/fjg10bq8f5qpivs4vb5qldgnq288bg3d-nixos-system-vdlmhub-26.05.20261113.f1e5c35"
         }
       ]
     }
   },
-  "rev": "7f8ce45ac351b5a8a18059bea5f1299734193be1",
+  "rev": "ee551a027a836744a881b994448f1776548f455d",
   "schema": 1
 }
