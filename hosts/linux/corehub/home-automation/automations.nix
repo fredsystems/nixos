@@ -156,8 +156,11 @@ in
                 data.option = "Home";
               }
               {
+                # The full duration: without it a timer restored after a
+                # restart would resume its remaining time.
                 action = "timer.start";
                 target.entity_id = "timer.house_awake_expiry";
+                data.duration = "18:00:00";
               }
             ];
           }

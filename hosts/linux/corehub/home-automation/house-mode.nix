@@ -53,6 +53,13 @@ let
   expiry = "timer.house_awake_expiry";
   person = "person.fred";
 
+  # Fred known to be somewhere other than home. Unknown and unavailable are
+  # not "away": they are Home Assistant or the app glitching, or not yet
+  # restored at start.
+  knownAway = "states('${person}') not in ['home', 'unknown', 'unavailable']";
+
+  fullExpiry = "18:00:00";
+
   # Every option a script selects on the house mode, however nested, so a
   # misspelt mode fails the build rather than the script at run time.
   scriptModes =
@@ -63,7 +70,8 @@ let
           lib.concatMap collect v
         else if lib.isAttrs v then
           lib.optional (
-            (v.action or null) == "input_select.select_option" && (v.target.entity_id or null) == mode
+            (v.action or null) == "input_select.select_option"
+            && lib.elem mode (lib.toList (v.target.entity_id or [ ]))
           ) v.data.option
           ++ lib.concatMap collect (lib.attrValues v)
         else
@@ -128,9 +136,17 @@ in
                   action = "mqtt.publish";
                   data = {
                     topic = "{{ repeat.item }}";
-                    # Anything but Home, including a mode not yet
-                    # restored, arms.
-                    payload = "{{ 'OFF' if is_state('${mode}', '${modes.awake}') else 'ON' }}";
+                    # Disarm only in Home, never with Fred known away (a
+                    # dashboard selection cannot bypass the presence
+                    # rule), and not at start with the expiry run out
+                    # while Home Assistant was down (that is Asleep, set
+                    # by house_mode_expired_while_down). Anything else,
+                    # including a mode not yet restored, arms.
+                    payload = ''
+                      {{ 'OFF' if is_state('${mode}', '${modes.awake}')
+                           and not (${knownAway})
+                           and not (trigger.platform == 'homeassistant' and is_state('${expiry}', 'idle'))
+                         else 'ON' }}'';
                   };
                 }
               ];
@@ -159,8 +175,11 @@ in
             ];
             "then" = [
               {
+                # The full duration: without it a timer restored after a
+                # restart would resume its remaining time.
                 action = "timer.start";
                 target.entity_id = expiry;
+                data.duration = fullExpiry;
               }
             ];
             "else" = [
@@ -207,6 +226,82 @@ in
         ];
       }
 
+      # A Home expiry that ran out while Home Assistant was down finishes
+      # during startup, before automations exist, so house_mode_awake_expiry
+      # never sees it. An idle timer in Home at start means exactly that.
+      {
+        id = "house_mode_expired_while_down";
+        alias = "House mode: home awake expired while Home Assistant was down";
+        triggers = [
+          {
+            trigger = "homeassistant";
+            event = "start";
+          }
+        ];
+        conditions = [
+          {
+            condition = "state";
+            entity_id = mode;
+            state = modes.awake;
+          }
+          {
+            condition = "state";
+            entity_id = expiry;
+            state = "idle";
+          }
+        ];
+        actions = [
+          {
+            action = "input_select.select_option";
+            target.entity_id = mode;
+            data.option = modes.asleep;
+          }
+          {
+            action = "notify.mobile_app_iphone";
+            data = {
+              title = "House re-armed";
+              message = "Home awake ran out while Home Assistant was down, so the indoor cameras are alerting again. Run Good Morning to turn them off.";
+            };
+            continue_on_error = true;
+          }
+        ];
+      }
+
+      # Home is for when Fred is home: chosen on the dashboard while he is
+      # away, it goes back to Away (and house_mode_apply never disarmed).
+      {
+        id = "house_mode_home_needs_fred";
+        alias = "House mode: Home needs Fred home";
+        triggers = [
+          {
+            trigger = "state";
+            entity_id = mode;
+            to = modes.awake;
+          }
+        ];
+        conditions = [
+          {
+            condition = "template";
+            value_template = "{{ ${knownAway} }}";
+          }
+        ];
+        actions = [
+          {
+            action = "input_select.select_option";
+            target.entity_id = mode;
+            data.option = modes.away;
+          }
+          {
+            action = "notify.mobile_app_iphone";
+            data = {
+              title = "House stays armed";
+              message = "Home can only be chosen while you are home; the house is back to Away.";
+            };
+            continue_on_error = true;
+          }
+        ];
+      }
+
       # A restart cancels a pending `for`, and a person already gone does not
       # change state again, so the same check also runs every few minutes
       # and at start. Unknown and unavailable are not "away": they are Home
@@ -217,8 +312,8 @@ in
         triggers = [
           {
             trigger = "state";
-            entity_id = person;
-            from = "home";
+            entity_id = "zone.home";
+            to = "0";
             "for".minutes = 5;
           }
           {
@@ -231,11 +326,15 @@ in
           }
         ];
         conditions = [
+          # Time out of the home zone, from zone.home's count of people in
+          # it (only Fred has a person): unlike person.fred's last change,
+          # it does not restart when he enters another zone.
           {
             condition = "template";
             value_template = ''
-              {{ states('${person}') not in ['home', 'unknown', 'unavailable']
-                 and now() - states.${person}.last_changed > timedelta(minutes=5) }}'';
+              {{ states('zone.home') == '0'
+                 and ${knownAway}
+                 and now() - states.zone.home.last_changed > timedelta(minutes=5) }}'';
           }
           {
             condition = "not";
