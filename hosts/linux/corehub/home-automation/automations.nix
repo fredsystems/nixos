@@ -105,12 +105,19 @@ in
     ];
 
     # Run from Home Assistant, or from Siri and the Home app through the
-    # HomeKit bridge. House mode (Plan 06, 6.15) will call these too.
+    # HomeKit bridge. Both set the house mode (./house-mode.nix): Good Night
+    # arms the indoor cameras, Good Morning disarms them and renews the
+    # 18-hour expiry, even when the mode is already home_awake.
     script = {
       good_night = {
         alias = "Good Night";
         icon = "mdi:weather-night";
         sequence = [
+          {
+            action = "input_select.select_option";
+            target.entity_id = "input_select.house_mode";
+            data.option = "home_sleep";
+          }
           # Neither step is fatal to the other: a light that fails still
           # leaves the door locked, a lock out of reach the lights off.
           {
@@ -131,6 +138,15 @@ in
         alias = "Good Morning";
         icon = "mdi:weather-sunny";
         sequence = [
+          {
+            action = "input_select.select_option";
+            target.entity_id = "input_select.house_mode";
+            data.option = "home_awake";
+          }
+          {
+            action = "timer.start";
+            target.entity_id = "timer.house_awake_expiry";
+          }
           {
             action = "light.turn_on";
             target.area_id = [

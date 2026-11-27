@@ -8,6 +8,7 @@
     ./devices.nix
     ./homekit.nix
     ./automations.nix
+    ./house-mode.nix
     ./cameras.nix
     ./monitoring.nix
   ];
