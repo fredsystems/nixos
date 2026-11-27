@@ -656,6 +656,21 @@ class Reconciler:
             if spec.get("keepEntities") is not None:
                 await self.keep_only(device, spec["keepEntities"])
 
+    async def entity_id_free(self, entity, wanted):
+        """Whether `entity` can be renamed to `wanted`. Taken by another
+        entity is a warning, not a failure, so one clash does not stop the
+        rest of the run."""
+        try:
+            other = await self.ws.call("config/entity_registry/get", entity_id=wanted)
+        except ReconcileError:
+            return True
+        self.warn(
+            f"cannot rename {entity['entity_id']} to {wanted}: taken by "
+            f"{other.get('platform')} entity {other.get('unique_id')!r}; "
+            "pick another entity ID"
+        )
+        return False
+
     async def reconcile_entity_rules(self):
         """Disable each entity of a ruled platform whose unique ID matches a
         rule, and enable again those it disabled that no longer match.
@@ -733,7 +748,9 @@ class Reconciler:
 
     async def update_entity(self, entity, spec, area_ids):
         update = {}
-        if entity["entity_id"] != spec["entityId"]:
+        if entity["entity_id"] != spec["entityId"] and await self.entity_id_free(
+            entity, spec["entityId"]
+        ):
             update["new_entity_id"] = spec["entityId"]
         if spec.get("name") is not None and entity.get("name") != spec["name"]:
             update["name"] = spec["name"]

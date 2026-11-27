@@ -272,6 +272,21 @@ in
           pruneFloors = true;
 
           devices = [
+            # An entity ID that is already taken: the rename must warn and the
+            # run carry on.
+            {
+              identifier = [
+                "mqtt"
+                "meter"
+              ];
+              entities = [
+                {
+                  domain = "sensor";
+                  uniqueId = "meter_humidity";
+                  entityId = "sensor.meter_pressure";
+                }
+              ];
+            }
             {
               identifier = [
                 "mqtt"
@@ -474,6 +489,14 @@ in
             "/var/lib/hass/.storage/core.entity_registry"
         )
 
+    with subtest("a rename to a taken entity ID warns, and the run carries on"):
+        out = machine.succeed("journalctl -u home-assistant-reconciler.service -o cat")
+        assert "cannot rename sensor.meter_humidity to sensor.meter_pressure" in out, out
+        machine.succeed(
+            "jq -e '.data.entities[] | select(.unique_id == \"meter_pressure\" and .entity_id == \"sensor.meter_pressure\")' "
+            "/var/lib/hass/.storage/core.entity_registry"
+        )
+
     with subtest("the owner's person follows exactly the declared trackers"):
         machine.wait_until_succeeds(
             "jq -e '.data.items[] | select(.name == \"Test Owner\") "
@@ -560,8 +583,8 @@ in
         out = machine.succeed("journalctl -u home-assistant-reconciler.service -o cat")
         assert "removed mqtt entry '127.0.0.1' (declaration changed)" in out, out
         last = [line for line in out.splitlines() if "done:" in line][-1]
-        # The cover that is never created, and only that.
-        assert "1 warnings" in last, last
+        # The cover that is never created, and the clashing rename.
+        assert "2 warnings" in last, last
         machine.wait_until_succeeds(
             "jq -e '.data.entities[] | select(.entity_id == \"switch.lamp\" and .name == \"Lamp\")' "
             "/var/lib/hass/.storage/core.entity_registry",
