@@ -1,0 +1,46 @@
+# Home Assistant device health in Prometheus, for the alerts in
+# modules/monitoring/master/alert-rules/home-automation-alerts.yaml: battery
+# levels, the front door lock being jammed or unreachable.
+#
+# Home Assistant's prometheus integration serves /api/prometheus. It is
+# scraped over loopback by corehub's own Prometheus, so it needs no token
+# (requires_auth = false). The nginx vhost refuses that path, so it is not
+# readable through ha.int.fredsystems.org. Only the entities the alerts use
+# are exported.
+{ config, ... }:
+let
+  port = config.services.home-assistant-reconciler.port;
+in
+{
+  services.home-assistant = {
+    extraComponents = [ "prometheus" ];
+    config.prometheus = {
+      requires_auth = false;
+      filter = {
+        include_domains = [ "lock" ];
+        include_entity_globs = [
+          "sensor.*_battery_level"
+          "binary_sensor.*_lock_jammed"
+        ];
+      };
+    };
+  };
+
+  services.prometheus.scrapeConfigs = [
+    {
+      job_name = "home-assistant";
+      scrape_interval = "60s";
+      metrics_path = "/api/prometheus";
+      static_configs = [
+        {
+          targets = [ "127.0.0.1:${toString port}" ];
+          labels = {
+            hostname = "corehub";
+            role = "master";
+            exporter = "home-assistant";
+          };
+        }
+      ];
+    }
+  ];
+}

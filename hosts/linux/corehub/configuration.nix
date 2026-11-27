@@ -352,6 +352,10 @@ let
     # headers.
     ha = {
       legacy = [ ];
+      # Home Assistant's Prometheus exporter has no login
+      # (./home-automation/monitoring.nix); only corehub's Prometheus reads
+      # it, over loopback.
+      vhost.locations."= /api/prometheus".return = "404";
       vhost.locations."/" = {
         proxyPass = "http://127.0.0.1:${toString config.services.home-assistant-reconciler.port}";
         extraConfig = ''

@@ -8,6 +8,13 @@
 #
 # A hung Home Assistant (active but not answering) is the blackbox probe of
 # https://ha.int.fredsystems.org/ in blackbox.nix, through BlackboxProbeFailed.
+#
+# The device rules read Home Assistant's own exporter, scraped as job
+# home-assistant (hosts/linux/corehub/home-automation/monitoring.nix). Metric
+# names are Home Assistant's: a battery sensor is
+# homeassistant_sensor_battery_percent{entity, friendly_name}, a binary
+# sensor homeassistant_binary_sensor_state, and every exported entity has
+# homeassistant_entity_available.
 groups:
   - name: home-automation-alerts
     rules:
@@ -24,3 +31,55 @@ groups:
         annotations:
           summary: "{{ $labels.name }} is not running on {{ $labels.hostname }}"
           description: "{{ $labels.name }} has not been active for 5 minutes. Home Assistant, zwave-js and Mosquitto together are the house's lighting control; home-assistant-reconciler not being active means the declared configuration was not applied. See hosts/linux/corehub/home-automation."
+
+      - alert: HomeAssistantMetricsDown
+        expr: up{job="home-assistant"} == 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Home Assistant's metrics are not scrapeable on {{ $labels.hostname }}"
+          description: "The /api/prometheus endpoint has not answered for 10 minutes, so the battery and lock alerts in this group cannot fire."
+
+      # Battery-powered Z-Wave devices, the front door lock first among them.
+      # A Kwikset 910 runs months on one set of batteries but gives little warning
+      # near the end, and a lock with flat batteries cannot be locked from
+      # anywhere. Low is days to weeks of margin; critical is change them now.
+      - alert: DeviceBatteryLow
+        expr: homeassistant_sensor_battery_percent < 25
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.friendly_name }} battery is at {{ $value }}%"
+          description: "{{ $labels.entity }} has reported under 25% for an hour. Replace its batteries soon."
+
+      - alert: DeviceBatteryCritical
+        expr: homeassistant_sensor_battery_percent < 10
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.friendly_name }} battery is at {{ $value }}%"
+          description: "{{ $labels.entity }} has reported under 10% for 15 minutes. Replace its batteries now; it may stop responding at any time."
+
+      - alert: LockJammed
+        expr: homeassistant_binary_sensor_state{entity=~"binary_sensor\\..*_lock_jammed"} == 1
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.friendly_name }}"
+          description: "{{ $labels.entity }} reports the bolt jammed: the door may not be locked. Check it."
+
+      # A lock out of radio reach or with flat batteries reads unavailable in
+      # Home Assistant. Long enough to ride out a zwave-js or Home Assistant
+      # restart, short enough to matter the same day.
+      - alert: LockUnavailable
+        expr: homeassistant_entity_available{domain="lock"} == 0
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.friendly_name }} is unreachable"
+          description: "{{ $labels.entity }} has been unavailable in Home Assistant for 30 minutes: out of Z-Wave reach, flat batteries, or zwave-js down. It cannot be locked remotely."

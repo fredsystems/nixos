@@ -9,5 +9,6 @@
     ./homekit.nix
     ./automations.nix
     ./cameras.nix
+    ./monitoring.nix
   ];
 }
