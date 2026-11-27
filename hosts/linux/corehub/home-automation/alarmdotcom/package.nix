@@ -1,35 +1,15 @@
 # The Alarm.com custom integration, ibasebcast's maintained fork, which
-# vendors its Alarm.com client. Pinned by ./pin.json, which
-# scripts/update-alarmdotcom.sh and .github/workflows/update-alarmdotcom.yaml
-# keep current through reviewed PRs.
-#
-# Its Python requirements come from the nixpkgs Home Assistant is built from,
-# never pip: the manifest check fails the build when one no longer satisfies
-# manifest.json, and the install check imports every module, so a missing or
-# renamed dependency fails here rather than on corehub.
+# vendors its Alarm.com client. Built as ../custom-component.nix describes.
 {
-  lib,
-  fetchFromGitHub,
-  buildHomeAssistantComponent,
+  callPackage,
   home-assistant,
+  lib,
 }:
-let
-  pin = lib.importJSON ./pin.json;
-  python = home-assistant.python3Packages;
-in
-buildHomeAssistantComponent {
-  owner = "ibasebcast";
+callPackage ../custom-component.nix { } {
+  pinFile = ./pin.json;
   domain = "alarmdotcom";
-  inherit (pin) version;
 
-  src = fetchFromGitHub {
-    owner = "ibasebcast";
-    repo = "ha-alarmdotcom";
-    tag = "v${pin.version}";
-    inherit (pin) hash;
-  };
-
-  dependencies = with python; [
+  dependencies = with home-assistant.python3Packages; [
     beautifulsoup4
     mashumaro
     phonenumbers
@@ -42,31 +22,9 @@ buildHomeAssistantComponent {
   # only uses it to convert names between camelCase and snake_case. Delete
   # this once the manifest accepts 3.9. No upstream issue (owner's choice),
   # so it is not in .github/tracked-upstream-fixes.json: instead
-  # .github/workflows/update-alarmdotcom.yaml builds each new release without
-  # it and says in the bump PR whether it can go.
+  # .github/workflows/update-ha-components.yaml builds each new release
+  # without it and says in the bump PR whether it can go.
   ignoreVersionRequirement = [ "pyhumps" ];
-
-  # Import every module with Home Assistant and the dependencies above, as
-  # Home Assistant would when loading the integration. A hook, not
-  # installCheckPhase: defining that switches off the manifest check.
-  doInstallCheck = true;
-  nativeInstallCheckInputs = [ python.homeassistant ];
-  postInstallCheck = ''
-    PYTHONPATH="$out:$PYTHONPATH" python3 - <<'EOF'
-    import importlib
-    import pkgutil
-
-    import custom_components.alarmdotcom as integration
-
-    modules = [integration.__name__] + [
-        m.name
-        for m in pkgutil.walk_packages(integration.__path__, integration.__name__ + ".")
-    ]
-    for name in modules:
-        importlib.import_module(name)
-    print(f"imported {len(modules)} modules")
-    EOF
-  '';
 
   meta = {
     description = "Alarm.com integration for Home Assistant, maintained fork";
