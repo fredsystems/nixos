@@ -32,6 +32,7 @@ let
     switch = "Switch";
     lightSwitch = "Switch";
     lampPlug = "Plug";
+    lock = "Lock";
     # The loads are already named "... Fan".
     fan = "Control";
   };
@@ -43,6 +44,7 @@ let
     switch = "switch";
     lightSwitch = "switch";
     lampPlug = "switch";
+    lock = "lock";
     fan = "fan";
   };
 
@@ -95,6 +97,10 @@ let
     (node 52 "switch" "Kitchen" "Garbage Disposal")
     (node 53 "dimmer" "Kitchen" "Kitchen Sink Light")
     (node 97 "lightSwitch" "Kitchen" "Kitchen Overhead Lights")
+    # Kwikset SmartCode 910 deadbolt, re-included with S0 as node 102 on
+    # 2026-11-26 (it was node 81, included with the old, lost S0 key). See
+    # ./zwave-js.nix for the device-file override its interview needs.
+    (node 102 "lock" "Entrance Hallway" "Front Door")
   ];
 
   devices = map (n: n.device) table;

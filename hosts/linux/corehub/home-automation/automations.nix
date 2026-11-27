@@ -90,6 +90,14 @@ in
             action = "light.turn_off";
             target.area_id = lib.remove "front_porch" areas;
           }
+          # Good Night locks; nothing unlocks automatically. After the
+          # lights, and not fatal, so a lock out of reach still leaves the
+          # lights off.
+          {
+            action = "lock.lock";
+            target.entity_id = "lock.front_door";
+            continue_on_error = true;
+          }
         ];
       };
 
