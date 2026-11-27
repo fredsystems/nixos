@@ -513,7 +513,7 @@
     {
       "id": "zwave-js-configurationcc-unexpected-report-crash",
       "done": false,
-      "summary": "zwave-js crashes the server when a node answers a Configuration Get with a report it cannot parse (unguarded response.value.toString() in ConfigurationCCAPI.get); the front door Kwikset 910 does so for its user-code parameters 1-30.",
+      "summary": "zwave-js crashes the server when a node answers a Configuration Get with a report for another parameter that it cannot parse (unguarded response.value.toString() in ConfigurationCCAPI.get); the front door Kwikset 910 does so, so its device file is overridden with no configuration parameters.",
       "repo": "zwave-js/zwave-js",
       "check": "pkgs-min-version",
       "package": "zwave-js-server",
@@ -523,7 +523,7 @@
       "tracking": [
         "https://github.com/zwave-js/zwave-js/blob/master/packages/cc/src/cc/ConfigurationCC.ts"
       ],
-      "workaround": "hosts/linux/corehub/home-automation/zwave-js.nix -- deviceConfigOverrides, a priority device file for the Kwikset 910 without parameters 1-30 (FIXME(zwave-js-configurationcc-unexpected-report-crash))",
+      "workaround": "hosts/linux/corehub/home-automation/zwave-js.nix -- deviceConfigOverrides, a priority device file for the Kwikset 910 with no configuration parameters (FIXME(zwave-js-configurationcc-unexpected-report-crash))",
       "revert_action": "File an upstream issue and set upstream_pr/min_version once a zwave-js-server release bundles the guarded log line. Then delete deviceConfigOverrides and storage.deviceConfigPriorityDir from zwave-js.nix, deploy corehub, re-interview the front door lock, and confirm zwave-js does not restart (systemctl show zwave-js -p NRestarts)."
     }
   ]

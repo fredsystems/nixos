@@ -21,19 +21,23 @@ let
 
   # FIXME(zwave-js-configurationcc-unexpected-report-crash): WORKAROUND, not a
   # fix. zwave-js crashes the whole server when a node answers a Configuration
-  # Get with a report it cannot parse: ConfigurationCCAPI.get() logs
-  # `response.value.toString()` unguarded (ConfigurationCC.ts, still so on
-  # master on 2026-11-26). The front door's Kwikset 910 (Plan 06) does that
-  # for one of parameters 1-30, which its device file lists as user-code
-  # slots read through Configuration CC, so every interview attempt took
-  # zwave-js, and with it every Z-Wave device in Home Assistant, down.
+  # Get with a report for a different parameter that it cannot parse:
+  # ConfigurationCCAPI.get() logs `response.value.toString()` unguarded
+  # (ConfigurationCC.ts, still so on master on 2026-11-26). The front door's
+  # Kwikset 910 (Plan 06) does that: its secure replies come late enough to
+  # be matched against a later query. Dropping only its user-code parameters
+  # (1-30) was not enough; any of them can trip it. So every interview
+  # attempt took zwave-js, and with it every Z-Wave device in Home Assistant,
+  # down.
   #
-  # The override is that same file without parameters 1-30. The codes are
-  # still on the lock and readable through User Code CC; only the slow,
-  # crash-prone path is dropped. Delete this override, and the
-  # deviceConfigPriorityDir setting, once the zwave-js in zwave-js-server
-  # guards that log line. Tracked in .github/tracked-upstream-fixes.json,
-  # checked by .github/workflows/track-upstream-fixes.yaml.
+  # The override is that same file with no configuration parameters, so the
+  # interview has none to read. Lost: the DIP-switch settings (keypad LED,
+  # auto-lock, buzzer) as entities; they still apply on the lock. User codes
+  # stay on the lock and are read through User Code CC. Delete this override,
+  # and the deviceConfigPriorityDir setting, once the zwave-js in
+  # zwave-js-server guards that log line. Tracked in
+  # .github/tracked-upstream-fixes.json, checked by
+  # .github/workflows/track-upstream-fixes.yaml.
   deviceConfigOverrides =
     pkgs.runCommand "zwave-js-device-config-overrides"
       {
@@ -42,13 +46,7 @@ let
       ''
         mkdir -p "$out/0x0090/templates"
         cp ${deviceConfigs}/0x0090/templates/kwikset_template.json "$out/0x0090/templates/"
-        jq '.paramInformation |= map(select(
-              (."#" | test("^[0-9]+$") | not) or ((."#" | tonumber) > 30)
-            ))' ${deviceConfigs}/0x0090/910.json > "$out/0x0090/910.json"
-        # Fail the build rather than ship an override that drops nothing, if
-        # upstream ever renumbers the file.
-        test "$(jq '.paramInformation | length' ${deviceConfigs}/0x0090/910.json)" -gt \
-          "$(jq '.paramInformation | length' "$out/0x0090/910.json")"
+        jq '.paramInformation = []' ${deviceConfigs}/0x0090/910.json > "$out/0x0090/910.json"
       '';
 in
 {
