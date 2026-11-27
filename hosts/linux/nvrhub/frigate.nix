@@ -497,6 +497,12 @@ let
     }
     // lib.optionalAttrs (cam.indoor or false) {
       objects.track = indoorObjects;
+      # Review items for people only: a person is an alert, and nothing else
+      # becomes a detection, so the dog and cat make none (owner,
+      # 2026-11-27). Review runs only while house mode is armed
+      # (hosts/linux/corehub/home-automation/house-mode.nix), so this is
+      # "only people when armed". Pets are still detected and recorded.
+      review.detections.labels = [ "person" ];
     }
     # ONVIF block, emitted only for cameras that declare `ptz`. Frigate gates the
     # whole PTZ subsystem on `onvif.host` being non-empty (ptz/onvif.py:64), so
