@@ -13,5 +13,6 @@
     ./cameras.nix
     ./monitoring.nix
     ./energy.nix
+    ./alarmdotcom
   ];
 }
