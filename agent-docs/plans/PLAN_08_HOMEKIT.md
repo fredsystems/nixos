@@ -40,8 +40,12 @@ bridge.
   HomeKit treats a `switch` as a switch, so Siri's "lights" commands and
   the Home app's light controls would skip the stair, hallway, porch,
   laundry, kitchen and vanity lights and the two lamps. Each is wrapped
-  in a `light` entity of the same name (Home Assistant's `switch` light
-  platform, in `configuration.yaml`) and the wrapper is exposed.
+  in a template light of the same name, with its own `unique_id`, in
+  `configuration.yaml`, and the wrapper is exposed. The reconciler gives
+  the wrapper its switch's area and hides the switch, so each load shows
+  once. The `switch` light platform was tried first and dropped: it
+  takes its registry ID from the switch at startup, so on a fresh
+  install it is never registered and cannot have an area.
 - **Declared in `configuration.yaml`.** The bridge is a `homekit:`
   entry, which Home Assistant imports into its config entry on every
   start. Pairing with the Home app is the one manual step.
@@ -81,8 +85,9 @@ then.
 - [ ] **8.1 Bridge.** `hosts/linux/corehub/home-automation/homekit.nix`:
       the `homekit` component and a `homekit:` entry on port 21063,
       bound to and advertised on 192.168.31.20, its allowlist built from
-      Plan 06's device table minus the disposal. The light wrappers in
-      `devices.nix`. Firewall opening for 21063/tcp. Verify: the bridge
+      Plan 06's device table minus the disposal. The template light
+      wrappers in `devices.nix`, with their areas, and floors (Upstairs,
+      Downstairs) for every area. Firewall opening for 21063/tcp. Verify: the bridge
       advertises `_hap._tcp` on the LAN and Home Assistant shows the
       pairing notification.
 - [ ] **8.2 Pair.** The owner adds the bridge in the Home app with the
