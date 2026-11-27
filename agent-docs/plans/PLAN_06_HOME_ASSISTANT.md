@@ -432,7 +432,11 @@ Decide at activation:
 
       Node 56 is known because Kitchen Overhead Lights (97) still has it
       in its association group (6.21). Replaced 2026-11-27 by node 103,
-      an Enbrighten 800 series dimmer included with S2 Authenticated. Five replacement switches arrive
+      an Enbrighten 800 series dimmer included with S2 Authenticated.
+
+      Dead nodes, 56 included, are left alone for now by the owner's
+      decision (2026-11-27): they are removed together once the other
+      replacements are in, not one at a time. Five replacement switches arrive
       2026-11-27; the owner installs them as he gets to them. Each is
       included (S2 where the switch supports it), added to the device
       table in `devices.nix`, and its dead node removed with "remove
@@ -457,9 +461,11 @@ Decide at activation:
       | Master Bedroom Light (19)    | 2 "Local Load" | 13                     | 13 and Bed Lamp (7)             |
       | Living Room Light (42)       | 2 "Local Load" | 44, 45 (no such node)  | 44 and a second lamp plug       |
 
-      Each group takes at most 5 targets. The kitchen row waits on the
-      Dining Room Light's replacement (6.9), the living room's second
-      plug on the owner finding a spare. The dimmers' group 3 ("Double
+      Each group takes at most 5 targets. Deferred by the owner
+      (2026-11-27) until the living room's second plug is in, so the
+      whole table is done at once. Until then node 97 still sends to
+      dead node 56, so the overhead switch does not drive the new Dining
+      Room Light (103). The dimmers' group 3 ("Double
       Tap") reports to the controller, so a double tap can trigger an
       automation.
 
