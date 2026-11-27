@@ -24,8 +24,12 @@
 #                  With pruneIntegrations, entries of undeclared domains are
 #                  removed too, except keepDomains.
 #   areas          created from `areas`; with pruneAreas, others are removed.
+#   floors         likewise, each with its areas; with pruneFloors, others
+#                  are removed.
 #   devices        only the declared ones are touched, and only the fields
 #                  that are not null.
+#   entities       likewise, for entities found by entity ID, such as ones
+#                  with no device.
 #
 # It logs in as the owner on every run and revokes that session at the end, so
 # no long-lived token exists. The password therefore has to keep matching the
@@ -77,6 +81,51 @@ let
         default = null;
         description = "Display name. Null leaves the name alone.";
       };
+
+      hidden = lib.mkOption {
+        type = lib.types.nullOr lib.types.bool;
+        default = null;
+        description = ''
+          Hide it from the UI's default views, e.g. a switch that is also
+          wrapped as a light. Null leaves it alone. Only hiding by the user is
+          changed; an integration's own hiding is never undone.
+        '';
+      };
+    };
+  };
+
+  # An entity found by its entity ID rather than through a device: one that
+  # has no device, such as a `switch` light platform wrapper from
+  # configuration.yaml.
+  standaloneEntityModule = {
+    options = {
+      entityId = lib.mkOption {
+        type = lib.types.strMatching "[a-z_]+\\.[a-z0-9_]+";
+        example = "light.stair_light";
+        description = "The entity's current ID.";
+      };
+
+      name = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        description = "Display name. Null leaves the name alone.";
+      };
+
+      area = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        description = "Name of a declared area. Null leaves the area alone.";
+      };
+
+      hidden = lib.mkOption {
+        type = lib.types.nullOr lib.types.bool;
+        default = null;
+        description = ''
+          Hide it from the UI's default views, e.g. a switch that is also
+          wrapped as a light. Null leaves it alone. Only hiding by the user is
+          changed; an integration's own hiding is never undone.
+        '';
+      };
     };
   };
 
@@ -110,6 +159,23 @@ let
         type = lib.types.listOf (lib.types.submodule entityModule);
         default = [ ];
         description = "The device's entities to name.";
+      };
+    };
+  };
+
+  floorModule = {
+    options = {
+      level = lib.mkOption {
+        type = lib.types.nullOr lib.types.int;
+        default = null;
+        example = 1;
+        description = "Floor level, 0 for the ground floor. Orders the floors in the UI.";
+      };
+
+      areas = lib.mkOption {
+        type = lib.types.listOf lib.types.str;
+        default = [ ];
+        description = "Names of declared areas on this floor.";
       };
     };
   };
@@ -154,7 +220,9 @@ let
       startTimeout
       deviceTimeout
       areas
+      floors
       pruneAreas
+      pruneFloors
       pruneIntegrations
       keepDomains
       backup
@@ -176,9 +244,18 @@ let
           uniqueId
           entityId
           name
+          hidden
           ;
       }) d.entities;
     }) cfg.devices;
+    entities = map (e: {
+      inherit (e)
+        entityId
+        name
+        area
+        hidden
+        ;
+    }) cfg.entities;
   };
 
   reconcile = pkgs.writers.writePython3Bin "home-assistant-reconcile" {
@@ -267,10 +344,33 @@ in
       description = "Remove areas that are not declared, such as onboarding's defaults.";
     };
 
+    floors = lib.mkOption {
+      type = lib.types.attrsOf (lib.types.submodule floorModule);
+      default = { };
+      example = lib.literalExpression ''{ Upstairs = { level = 1; areas = [ "Office" ]; }; }'';
+      description = "Floors by name, and the areas on each.";
+    };
+
+    pruneFloors = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = "Remove floors that are not declared.";
+    };
+
     devices = lib.mkOption {
       type = lib.types.listOf (lib.types.submodule deviceModule);
       default = [ ];
       description = "Devices to name and place, and their entities.";
+    };
+
+    entities = lib.mkOption {
+      type = lib.types.listOf (lib.types.submodule standaloneEntityModule);
+      default = [ ];
+      description = ''
+        Entities to name, place or hide by entity ID, for those not reached
+        through `devices`. One that is not registered is skipped with a
+        warning.
+      '';
     };
 
     backup = lib.mkOption {

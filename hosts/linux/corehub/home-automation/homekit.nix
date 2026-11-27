@@ -15,8 +15,11 @@ let
 
   # Switches that ./devices.nix also wraps as lights are exposed as the light,
   # so Siri's "lights" commands and the Home app's light controls include
-  # them. The wrapper is light.<same name>.
-  wrapped = map (l: l.entity_id) config.services.home-assistant.config.light;
+  # them.
+  # The wrapper is light.<same name>; it switches the switch it wraps.
+  wrapped = lib.concatMap (
+    t: map (l: (lib.head l.turn_on).target.entity_id) (t.light or [ ])
+  ) config.services.home-assistant.config.template;
   expose = id: if lib.elem id wrapped then "light.${lib.removePrefix "switch." id}" else id;
 
   exposed = map expose (

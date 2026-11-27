@@ -9,9 +9,16 @@
 # being d4558e0a in decimal.
 #
 # An on/off switch or plug whose load is a light (lightSwitch, lampPlug) is
-# also wrapped in a light entity of the same name, light.<name>, so Apple Home
-# and Siri treat it as a light. Its switch entity stays; automations may use
-# either.
+# also wrapped in a template light of the same name, light.<name>, so Apple
+# Home and Siri treat it as a light. A template light rather than the `switch`
+# light platform: that one copies the switch's registry ID when Home Assistant
+# starts, so on a fresh install, before Z-Wave has created the switch, it gets
+# no registry entry and cannot be given an area. The wrapper has no device, so
+# it is given the switch's area directly, and the switch entity is hidden so
+# each load shows once. The switch still works; automations may use either.
+#
+# Areas are grouped into floors. Office and Upstairs Hallway have no working
+# device yet (Plan 06, 6.9), but are declared so the floor plan is complete.
 { lib, ... }:
 let
   homeId = "3562376714";
@@ -44,8 +51,9 @@ let
     "lampPlug"
   ];
 
-  node = id: kind: area: name: {
+  node = id: kind: area: name: rec {
     asLight = lib.elem kind wrapsAsLight;
+    lightId = "light.${slug name}";
     device = {
       identifier = [
         "zwave_js"
@@ -58,6 +66,7 @@ let
           domain = domains.${kind};
           inherit name;
           entityId = "${domain}.${slug name}";
+          hidden = if asLight then true else null;
         }
       ];
     };
@@ -89,16 +98,60 @@ let
   ];
 
   devices = map (n: n.device) table;
+  lights = lib.filter (n: n.asLight) table;
+
+  floors = {
+    Upstairs = {
+      level = 1;
+      areas = [
+        "Office"
+        "Server Room"
+        "Upstairs Hallway"
+        "Master Bedroom"
+        "Master Bathroom"
+        "Guest Bathroom"
+      ];
+    };
+    Downstairs = {
+      level = 0;
+      areas = lib.subtractLists floors.Upstairs.areas (lib.unique (map (d: d.area) devices));
+    };
+  };
+
+  wrapper =
+    n:
+    let
+      switch = (lib.head n.device.entities).entityId;
+    in
+    {
+      inherit (lib.head n.device.entities) name;
+      unique_id = "light_wrapper_${slug (lib.head n.device.entities).name}";
+      state = "{{ is_state('${switch}', 'on') }}";
+      availability = "{{ has_value('${switch}') }}";
+      turn_on = [
+        {
+          action = "switch.turn_on";
+          target.entity_id = switch;
+        }
+      ];
+      turn_off = [
+        {
+          action = "switch.turn_off";
+          target.entity_id = switch;
+        }
+      ];
+    };
 in
 {
   services.home-assistant-reconciler = {
-    inherit devices;
-    areas = lib.unique (map (d: d.area) devices);
+    inherit devices floors;
+    areas = lib.concatMap (f: f.areas) (lib.attrValues floors);
+    pruneFloors = true;
+    entities = map (n: {
+      entityId = n.lightId;
+      inherit (n.device) area;
+    }) lights;
   };
 
-  services.home-assistant.config.light = map (n: {
-    platform = "switch";
-    inherit (lib.head n.device.entities) name;
-    entity_id = (lib.head n.device.entities).entityId;
-  }) (lib.filter (n: n.asLight) table);
+  services.home-assistant.config.template = [ { light = map wrapper lights; } ];
 }

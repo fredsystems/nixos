@@ -443,6 +443,54 @@ class Reconciler:
                     self.changed(f"removed area {area['name']!r}")
         return {name: by_name[name]["area_id"] for name in declared}
 
+    async def reconcile_floors(self, area_ids):
+        declared = self.decl["floors"]
+        floors = {f["name"]: f for f in await self.ws.call("config/floor_registry/list")}
+        for name, spec in sorted(declared.items()):
+            floor = floors.get(name)
+            if floor is None:
+                floors[name] = await self.ws.call(
+                    "config/floor_registry/create", name=name, level=spec["level"]
+                )
+                self.changed(f"created floor {name!r}")
+            elif floor.get("level") != spec["level"]:
+                await self.ws.call(
+                    "config/floor_registry/update",
+                    floor_id=floor["floor_id"],
+                    level=spec["level"],
+                )
+                self.changed(f"floor {name!r}: level {spec['level']}")
+
+        wanted = {}
+        for name, spec in declared.items():
+            for area in spec["areas"]:
+                if area not in area_ids:
+                    raise ReconcileError(f"floor {name!r}: area {area!r} is not declared")
+                if area in wanted:
+                    raise ReconcileError(f"area {area!r} is on two floors")
+                wanted[area] = floors[name]["floor_id"]
+
+        if declared:
+            for area in await self.ws.call("config/area_registry/list"):
+                if area["name"] not in wanted:
+                    continue
+                floor_id = wanted[area["name"]]
+                if area.get("floor_id") != floor_id:
+                    await self.ws.call(
+                        "config/area_registry/update",
+                        area_id=area["area_id"],
+                        floor_id=floor_id,
+                    )
+                    self.changed(f"area {area['name']!r}: floor {floor_id!r}")
+
+        if self.decl["pruneFloors"]:
+            for name, floor in floors.items():
+                if name not in declared:
+                    await self.ws.call(
+                        "config/floor_registry/delete", floor_id=floor["floor_id"]
+                    )
+                    self.changed(f"removed floor {name!r}")
+
     async def find_devices(self):
         wanted = [tuple(d["identifier"]) for d in self.decl["devices"]]
         deadline = time.monotonic() + self.decl["deviceTimeout"]
@@ -514,21 +562,50 @@ class Reconciler:
 
             for entity_spec in spec["entities"]:
                 entity = self.pick_entity(device, entities, entity_spec)
-                update = {}
-                if entity["entity_id"] != entity_spec["entityId"]:
-                    update["new_entity_id"] = entity_spec["entityId"]
-                if (
-                    entity_spec["name"] is not None
-                    and entity.get("name") != entity_spec["name"]
-                ):
-                    update["name"] = entity_spec["name"]
-                if update:
-                    await self.ws.call(
-                        "config/entity_registry/update",
-                        entity_id=entity["entity_id"],
-                        **update,
-                    )
-                    self.changed(f"entity {entity['entity_id']}: {update}")
+                await self.update_entity(entity, entity_spec, area_ids)
+
+    async def reconcile_entities(self, area_ids):
+        """Entities declared by entity ID, such as those with no device."""
+        if not self.decl["entities"]:
+            return
+        registry = {
+            e["entity_id"]: e for e in await self.ws.call("config/entity_registry/list")
+        }
+        for spec in self.decl["entities"]:
+            entity = registry.get(spec["entityId"])
+            if entity is None:
+                self.warn(f"entity {spec['entityId']} is not registered; skipped")
+                continue
+            await self.update_entity(entity, spec, area_ids)
+
+    async def update_entity(self, entity, spec, area_ids):
+        update = {}
+        if entity["entity_id"] != spec["entityId"]:
+            update["new_entity_id"] = spec["entityId"]
+        if spec.get("name") is not None and entity.get("name") != spec["name"]:
+            update["name"] = spec["name"]
+        if spec.get("area") is not None:
+            area_id = area_ids.get(spec["area"])
+            if area_id is None:
+                raise ReconcileError(
+                    f"entity {spec['entityId']}: area {spec['area']!r} is not declared"
+                )
+            if entity.get("area_id") != area_id:
+                update["area_id"] = area_id
+        if spec.get("hidden") is not None:
+            hidden_by = "user" if spec["hidden"] else None
+            # Only "user" is ours to change; integrations hide entities too.
+            if spec["hidden"] and entity.get("hidden_by") is None:
+                update["hidden_by"] = hidden_by
+            elif not spec["hidden"] and entity.get("hidden_by") == "user":
+                update["hidden_by"] = hidden_by
+        if update:
+            await self.ws.call(
+                "config/entity_registry/update",
+                entity_id=entity["entity_id"],
+                **update,
+            )
+            self.changed(f"entity {entity['entity_id']}: {update}")
 
     # -- backups ---------------------------------------------------------
 
@@ -554,7 +631,9 @@ class Reconciler:
             await self.wait_until_running()
             await self.reconcile_integrations()
             area_ids = await self.reconcile_areas()
+            await self.reconcile_floors(area_ids)
             await self.reconcile_devices(area_ids)
+            await self.reconcile_entities(area_ids)
             await self.reconcile_backup()
         finally:
             if self.ws:

@@ -3,8 +3,9 @@
 # that will be deployed.
 #
 # Home Assistant and Mosquitto. The reconciler onboards, creates the mqtt
-# entry, prunes onboarding's leftovers, and names a device that MQTT discovery
-# registers. Then it runs again, and after a Home Assistant restart, and must
+# entry, prunes onboarding's leftovers, names a device that MQTT discovery
+# registers and hides its switch, and places the light that wraps that switch,
+# an entity with no device. Then it runs again, and after a Home Assistant restart, and must
 # change nothing either time.
 #
 # zwave_js is not covered: zwave-js-server's --mock-driver gets the config
@@ -83,6 +84,31 @@ in
               country = "US";
             };
             http.server_host = [ "127.0.0.1" ];
+            # Shaped like corehub's light wrappers in devices.nix.
+            template = [
+              {
+                light = [
+                  {
+                    name = "Lamp Light";
+                    unique_id = "light_wrapper_lamp";
+                    state = "{{ is_state('switch.lamp', 'on') }}";
+                    availability = "{{ has_value('switch.lamp') }}";
+                    turn_on = [
+                      {
+                        action = "switch.turn_on";
+                        target.entity_id = "switch.lamp";
+                      }
+                    ];
+                    turn_off = [
+                      {
+                        action = "switch.turn_off";
+                        target.entity_id = "switch.lamp";
+                      }
+                    ];
+                  }
+                ];
+              }
+            ];
           };
         };
 
@@ -105,8 +131,23 @@ in
           };
           pruneIntegrations = true;
 
-          areas = [ "Office" ];
+          areas = [
+            "Office"
+            "Kitchen"
+          ];
           pruneAreas = true;
+
+          floors = {
+            Upstairs = {
+              level = 1;
+              areas = [ "Office" ];
+            };
+            Downstairs = {
+              level = 0;
+              areas = [ "Kitchen" ];
+            };
+          };
+          pruneFloors = true;
 
           devices = [
             {
@@ -121,8 +162,16 @@ in
                   domain = "switch";
                   entityId = "switch.lamp";
                   name = "Lamp";
+                  hidden = true;
                 }
               ];
+            }
+          ];
+
+          entities = [
+            {
+              entityId = "light.lamp_light";
+              area = "Office";
             }
           ];
 
@@ -197,7 +246,21 @@ in
 
     with subtest("areas are exactly the declared ones"):
         machine.wait_until_succeeds(
-            "jq -e '[.data.areas[].name] == [\"Office\"]' /var/lib/hass/.storage/core.area_registry",
+            "jq -e '[.data.areas[].name] | sort == [\"Kitchen\", \"Office\"]' /var/lib/hass/.storage/core.area_registry",
+            timeout=60,
+        )
+
+    with subtest("floors exist, and their areas are on them"):
+        machine.wait_until_succeeds(
+            "jq -e '[.data.floors[] | {name, level}] | sort_by(.level) == "
+            "[{\"name\": \"Downstairs\", \"level\": 0}, {\"name\": \"Upstairs\", \"level\": 1}]' "
+            "/var/lib/hass/.storage/core.floor_registry",
+            timeout=60,
+        )
+        machine.wait_until_succeeds(
+            "jq -e '[.data.areas[] | {name, floor_id}] | sort_by(.name) == "
+            "[{\"name\": \"Kitchen\", \"floor_id\": \"downstairs\"}, {\"name\": \"Office\", \"floor_id\": \"upstairs\"}]' "
+            "/var/lib/hass/.storage/core.area_registry",
             timeout=60,
         )
 
@@ -210,6 +273,18 @@ in
         machine.wait_until_succeeds(
             "jq -e '.data.devices[] | select(.name_by_user == \"Lamp\" and .area_id != null)' "
             "/var/lib/hass/.storage/core.device_registry",
+            timeout=60,
+        )
+
+    with subtest("the wrapped switch is hidden, and its light wrapper placed"):
+        machine.wait_until_succeeds(
+            "jq -e '.data.entities[] | select(.entity_id == \"switch.lamp\" and .hidden_by == \"user\")' "
+            "/var/lib/hass/.storage/core.entity_registry",
+            timeout=60,
+        )
+        machine.wait_until_succeeds(
+            "jq -e '.data.entities[] | select(.entity_id == \"light.lamp_light\" and .area_id == \"office\")' "
+            "/var/lib/hass/.storage/core.entity_registry",
             timeout=60,
         )
 
