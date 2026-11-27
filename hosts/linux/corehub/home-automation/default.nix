@@ -6,5 +6,6 @@
     ./home-assistant.nix
     ./devices.nix
     ./homekit.nix
+    ./automations.nix
   ];
 }

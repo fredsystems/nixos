@@ -22,11 +22,16 @@ let
   ) config.services.home-assistant.config.template;
   expose = id: if lib.elem id wrapped then "light.${lib.removePrefix "switch." id}" else id;
 
-  exposed = map expose (
-    lib.subtractLists notExposed (
-      lib.concatMap (d: map (e: e.entityId) d.entities) config.services.home-assistant-reconciler.devices
-    )
-  );
+  # ./automations.nix's scripts, as switches: "Hey Siri, turn on Good Night".
+  scripts = map (name: "script.${name}") (lib.attrNames config.services.home-assistant.config.script);
+
+  exposed =
+    scripts
+    ++ map expose (
+      lib.subtractLists notExposed (
+        lib.concatMap (d: map (e: e.entityId) d.entities) config.services.home-assistant-reconciler.devices
+      )
+    );
 
   lanAddress = "192.168.31.20";
   port = 21063;
