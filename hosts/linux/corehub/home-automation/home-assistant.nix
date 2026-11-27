@@ -10,7 +10,7 @@
 #
 # Bound to loopback and reached only through the `ha` vhost in
 # ../configuration.nix, like Grafana.
-{ config, pkgs, ... }:
+{ config, ... }:
 let
   hass = config.services.home-assistant;
   url = "https://ha.int.fredsystems.org";
@@ -30,7 +30,8 @@ in
         "zwave_js"
       ];
 
-      customComponents = [ pkgs.home-assistant-custom-components.frigate ];
+      # From the same nixpkgs as Home Assistant itself (./unstable.nix).
+      customComponents = [ hass.unstablePkgs.home-assistant-custom-components.frigate ];
 
       config = {
         default_config = { };
@@ -51,16 +52,21 @@ in
           internal_url = url;
         };
 
-        http = {
-          server_host = [ "127.0.0.1" ];
-          use_x_forwarded_for = true;
-          trusted_proxies = [ "127.0.0.1" ];
-        };
       };
     };
 
     home-assistant-reconciler = {
       enable = true;
+
+      # Loopback only, reached through the nginx vhost, which is trusted for
+      # X-Forwarded-For. In .storage from Home Assistant 2026.11, so set
+      # here rather than in configuration.yaml; see ./unstable.nix.
+      http = {
+        server_host = [ "127.0.0.1" ];
+        server_port = config.services.home-assistant-reconciler.port;
+        use_x_forwarded_for = true;
+        trusted_proxies = [ "127.0.0.1/32" ];
+      };
 
       owner = {
         name = "Fred";
@@ -80,6 +86,13 @@ in
           port = 1883;
           username = "homeassistant";
           password._secret = "mqtt-password";
+          # A required section from Home Assistant 2026.11: plain TCP, no TLS
+          # client certificate or CA, as before.
+          other_settings = {
+            set_client_cert = false;
+            set_ca_cert = "off";
+            transport = "tcp";
+          };
         };
 
         zwave_js.steps.manual.url = "ws://127.0.0.1:${toString config.services.zwave-js.port}";
@@ -150,6 +163,13 @@ in
       description = "Home Assistant backups";
     };
   };
+
+  # Camera live view over WebRTC. Home Assistant 2026.11 runs its own go2rtc
+  # (./unstable.nix puts it on the path), and the browser or app streams from
+  # it directly, not through nginx: WebRTC on 18555/tcp (homeassistant/
+  # components/go2rtc/server.py). Its API is a Unix socket and its RTSP is on
+  # loopback, so this is the only opening.
+  networking.firewall.allowedTCPPorts = [ 18555 ];
 
   sops = {
     # Home Assistant reads `!secret` values from secrets.yaml in its config

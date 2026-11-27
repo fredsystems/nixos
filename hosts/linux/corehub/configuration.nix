@@ -353,7 +353,7 @@ let
     ha = {
       legacy = [ ];
       vhost.locations."/" = {
-        proxyPass = "http://127.0.0.1:${toString config.services.home-assistant.config.http.server_port}";
+        proxyPass = "http://127.0.0.1:${toString config.services.home-assistant-reconciler.port}";
         extraConfig = ''
           proxy_http_version 1.1;
           proxy_set_header Upgrade $http_upgrade;
