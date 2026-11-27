@@ -17,8 +17,7 @@
 # it is given the switch's area directly, and the switch entity is hidden so
 # each load shows once. The switch still works; automations may use either.
 #
-# Areas are grouped into floors. Office and Upstairs Hallway have no working
-# device yet (Plan 06, 6.9), but are declared so the floor plan is complete.
+# Areas are grouped into floors.
 { config, lib, ... }:
 let
   homeId = "3562376714";
@@ -110,6 +109,9 @@ let
     # 2026-11-27, replacing the Upstairs Hallway Light switch that left the
     # network.
     (node 106 "lightSwitch" "Upstairs Hallway" "Upstairs Hallway Light")
+    # Jasco 14314 fan speed control, included on 2026-11-27 (no S2), replacing
+    # the Master Bedroom Fan control that left the network.
+    (node 107 "fan" "Master Bedroom" "Master Bedroom Fan")
     # Kwikset SmartCode 910 deadbolt, re-included with S0 as node 102 on
     # 2026-11-26 (it was node 81, included with the old, lost S0 key). See
     # ./zwave-js.nix for the device-file override its interview needs.
