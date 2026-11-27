@@ -464,11 +464,12 @@ Decide at activation:
       | ---------------------------- | -------------- | ---------------------- | ------------------------------- |
       | Kitchen Overhead Lights (97) | 2 "BASIC SET"  | 56 (dead), 53          | 53 and the new Dining Room Light |
       | Master Bedroom Light (19)    | 2 "Local Load" | 13                     | 13 and Bed Lamp (7)             |
-      | Living Room Light (42)       | 2 "Local Load" | 44, 45 (no such node)  | 44 and a second lamp plug       |
+      | Living Room Light (42)       | 2 "Local Load" | 44, 45 (no such node)  | 44 and Living Room Lamp 2 (108) |
 
       Each group takes at most 5 targets. Deferred by the owner
-      (2026-11-27) until the living room's second plug is in, so the
-      whole table is done at once. Until then node 97 still sends to
+      (2026-11-27) until the living room's second plug was in, so the
+      whole table is done at once; that plug, a Minoston MP21Z (S2
+      Authenticated), is node 108 since 2026-11-27. Until then node 97 still sends to
       dead node 56, so the overhead switch does not drive the new Dining
       Room Light (103). The dimmers' group 3 ("Double
       Tap") reports to the controller, so a double tap can trigger an
