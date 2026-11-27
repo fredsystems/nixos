@@ -1,9 +1,12 @@
 # The Z-Wave devices, by node. Plan 06, 6.8.
 #
-# Identified by the owner at the house on 2026-11-26. Each node's one control
-# entity is named for its load, with an entity ID made from that name, and
-# automations refer to those entity IDs. The device, the switch in the wall
-# or the plug, is named for the load plus what kind of device it is.
+# Identified by the owner at the house on 2026-11-26. Each device, the switch
+# in the wall or the plug, is named for its load, and its one control entity
+# shows under that name (nameFromDevice), with an entity ID made from it;
+# automations refer to those entity IDs. Home Assistant 2026.11 names a new
+# entity "<device> <entity>", so a name on the entity as well would read
+# "Office Fan Office Fan" (owner's choice, 2026-11-27). Entities from before
+# keep the names they had.
 #
 # Nodes are matched by registry identifier "<home id>-<node id>", the home ID
 # being d4558e0a in decimal.
@@ -17,25 +20,12 @@
 # it is given the switch's area directly, and the switch entity is hidden so
 # each load shows once. The switch still works; automations may use either.
 #
-# Areas are grouped into floors. Office and Upstairs Hallway have no working
-# device yet (Plan 06, 6.9), but are declared so the floor plan is complete.
+# Areas are grouped into floors.
 { config, lib, ... }:
 let
   homeId = "3562376714";
 
   slug = name: lib.toLower (lib.replaceStrings [ " " ] [ "_" ] name);
-
-  kinds = {
-    dimmer = "Dimmer";
-    motionDimmer = "Motion Dimmer";
-    motionSwitch = "Motion Switch";
-    switch = "Switch";
-    lightSwitch = "Switch";
-    lampPlug = "Plug";
-    lock = "Lock";
-    # The loads are already named "... Fan".
-    fan = "Control";
-  };
 
   domains = {
     dimmer = "light";
@@ -61,12 +51,11 @@ let
         "zwave_js"
         "${homeId}-${toString id}"
       ];
-      name = "${name} ${kinds.${kind}}";
-      inherit area;
+      inherit name area;
       entities = [
         rec {
           domain = domains.${kind};
-          inherit name;
+          nameFromDevice = true;
           entityId = "${domain}.${slug name}";
           hidden = if asLight then true else null;
         }
@@ -97,6 +86,25 @@ let
     (node 52 "switch" "Kitchen" "Garbage Disposal")
     (node 53 "dimmer" "Kitchen" "Kitchen Sink Light")
     (node 97 "lightSwitch" "Kitchen" "Kitchen Overhead Lights")
+    # Enbrighten 800 series dimmer, included with S2 Authenticated on
+    # 2026-11-27, replacing node 56, which left the network (6.9).
+    (node 103 "dimmer" "Kitchen" "Dining Room Light")
+    # GE 800 series on/off switch, included with S2 Authenticated on
+    # 2026-11-27, replacing the Office Light switch that left the network.
+    (node 104 "lightSwitch" "Office" "Office Light")
+    # Jasco 14314 fan speed control, included on 2026-11-27 (no S2), replacing
+    # the Office Fan control that left the network.
+    (node 105 "fan" "Office" "Office Fan")
+    # GE 800 series on/off switch, included with S2 Authenticated on
+    # 2026-11-27, replacing the Upstairs Hallway Light switch that left the
+    # network.
+    (node 106 "lightSwitch" "Upstairs Hallway" "Upstairs Hallway Light")
+    # Jasco 14314 fan speed control, included on 2026-11-27 (no S2), replacing
+    # the Master Bedroom Fan control that left the network.
+    (node 107 "fan" "Master Bedroom" "Master Bedroom Fan")
+    # Minoston MP21Z 800 series plug, included with S2 Authenticated on
+    # 2026-11-27: the living room's second lamp.
+    (node 108 "lampPlug" "Living Room" "Living Room Lamp 2")
     # Kwikset SmartCode 910 deadbolt, re-included with S0 as node 102 on
     # 2026-11-26 (it was node 81, included with the old, lost S0 key). See
     # ./zwave-js.nix for the device-file override its interview needs.
@@ -147,8 +155,8 @@ let
       switch = (lib.head n.device.entities).entityId;
     in
     {
-      inherit (lib.head n.device.entities) name;
-      unique_id = "light_wrapper_${slug (lib.head n.device.entities).name}";
+      inherit (n.device) name;
+      unique_id = "light_wrapper_${slug n.device.name}";
       state = "{{ is_state('${switch}', 'on') }}";
       availability = "{{ has_value('${switch}') }}";
       turn_on = [

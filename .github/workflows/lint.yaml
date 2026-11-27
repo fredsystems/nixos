@@ -169,6 +169,11 @@ jobs:
         # rather than on corehub.
         run: ./scripts/nix-build-no-warnings.sh --no-link --print-build-logs .#checks.x86_64-linux.home-assistant-reconciler
 
+      - name: Test the house watchdog
+        # A NixOS VM test of nvrhub's hosts/linux/nvrhub/house-watchdog, which
+        # re-arms Frigate's indoor cameras when Home Assistant is gone.
+        run: ./scripts/nix-build-no-warnings.sh --no-link --print-build-logs .#checks.x86_64-linux.house-watchdog
+
       - name: Check SyncClipboard server/client version parity
         # The server image and the Linux client AppImage ship from a single
         # upstream tag but are pinned in two files, and only the image is

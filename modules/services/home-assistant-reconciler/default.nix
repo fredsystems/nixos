@@ -82,6 +82,16 @@ let
         description = "Display name. Null leaves the name alone.";
       };
 
+      nameFromDevice = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = ''
+          Show the entity under its device's name: clears a name given to the
+          entity itself, which Home Assistant would otherwise put after the
+          device's ("Office Fan Office Fan"). Not together with `name`.
+        '';
+      };
+
       hidden = lib.mkOption {
         type = lib.types.nullOr lib.types.bool;
         default = null;
@@ -115,6 +125,16 @@ let
         type = lib.types.nullOr lib.types.str;
         default = null;
         description = "Name of a declared area. Null leaves the area alone.";
+      };
+
+      nameFromDevice = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = ''
+          Show the entity under its device's name: clears a name given to the
+          entity itself, which Home Assistant would otherwise put after the
+          device's ("Office Fan Office Fan"). Not together with `name`.
+        '';
       };
 
       hidden = lib.mkOption {
@@ -246,6 +266,9 @@ let
       backup
       http
       ;
+    persons = lib.mapAttrs (_: p: { inherit (p) deviceTrackers; }) cfg.persons;
+    disableEntities = map (r: { inherit (r) platform uniqueId; }) cfg.disableEntities;
+    inherit (cfg) afterRename;
     owner = {
       inherit (cfg.owner) name username language;
       password._secret = "owner-password";
@@ -268,6 +291,7 @@ let
           uniqueId
           entityId
           name
+          nameFromDevice
           hidden
           ;
       }) d.entities;
@@ -276,6 +300,7 @@ let
       inherit (e)
         entityId
         name
+        nameFromDevice
         area
         hidden
         ;
@@ -348,11 +373,13 @@ in
 
     keepDomains = lib.mkOption {
       type = lib.types.listOf lib.types.str;
-      default = [ "mobile_app" ];
+      default = [ ];
       description = ''
-        Domains whose entries are never pruned. `mobile_app` entries are
-        created by the companion app when a phone registers, so they cannot
-        be declared.
+        Domains whose entries are never pruned, in addition to `mobile_app`,
+        which the reconciler always keeps: the companion app creates those
+        entries when a phone registers, so they cannot be declared. Kept out
+        of this option's default because setting the option replaces its
+        default, which once dropped `mobile_app` and pruned both phones.
       '';
     };
 
@@ -394,6 +421,65 @@ in
         Entities to name, place or hide by entity ID, for those not reached
         through `devices`. One that is not registered is skipped with a
         warning.
+      '';
+    };
+
+    afterRename = lib.mkOption {
+      type = lib.types.listOf (lib.types.strMatching "[a-z0-9_]+\\.[a-z0-9_]+");
+      default = [ ];
+      example = [ "homekit.reload" ];
+      description = ''
+        Services, without data, called once at the end of a run that renamed
+        an entity. For integrations that read entity IDs only when they
+        start: a device added in the same deploy is renamed after they have
+        started, and they miss it until reloaded.
+      '';
+    };
+
+    disableEntities = lib.mkOption {
+      type = lib.types.listOf (
+        lib.types.submodule {
+          options = {
+            platform = lib.mkOption {
+              type = lib.types.str;
+              description = "Integration whose entities the rule covers, e.g. `sense`.";
+            };
+            uniqueId = lib.mkOption {
+              type = lib.types.str;
+              description = "Python regular expression the whole unique ID must match.";
+            };
+          };
+        }
+      );
+      default = [ ];
+      example = lib.literalExpression ''[ { platform = "sense"; uniqueId = "[0-9]+-[^-]+-(weekly|yearly)-energy"; } ]'';
+      description = ''
+        Entities disabled by pattern, for integrations that keep adding
+        entities, where a per-device keepEntities list would always lag. Every
+        entity of a listed platform whose unique ID matches one of its rules
+        is disabled. One a rule disabled that no longer matches, because the
+        rule changed or went, is enabled again; the reconciler records which
+        it disabled, so entities disabled by keepEntities, by a person or by
+        the integration are never touched.
+      '';
+    };
+
+    persons = lib.mkOption {
+      type = lib.types.attrsOf (
+        lib.types.submodule {
+          options.deviceTrackers = lib.mkOption {
+            type = lib.types.listOf lib.types.str;
+            description = "Device tracker entity IDs the person follows, exactly.";
+          };
+        }
+      );
+      default = { };
+      example = lib.literalExpression ''{ Fred.deviceTrackers = [ "device_tracker.iphone" ]; }'';
+      description = ''
+        Persons by name, and the device trackers each follows; trackers
+        not listed are removed from the person. Persons themselves come
+        from Home Assistant (the owner's at onboarding); one that does not
+        exist is skipped with a warning.
       '';
     };
 
@@ -471,11 +557,22 @@ in
       after = [ "home-assistant.service" ];
       requires = [ "home-assistant.service" ];
       partOf = [ "home-assistant.service" ];
-      wantedBy = [ "home-assistant.service" ];
+      # multi-user.target too: a switch then starts it again after a failed
+      # run (it stays active after a good one), not only when Home Assistant
+      # itself changes.
+      wantedBy = [
+        "home-assistant.service"
+        "multi-user.target"
+      ];
 
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;
+        # Applying the HTTP settings makes Home Assistant restart itself,
+        # which (PartOf) stops this run mid-way; the run started with the
+        # new Home Assistant confirms them. That stop is expected, so it
+        # counts as a clean exit rather than leaving the unit failed.
+        SuccessExitStatus = "SIGTERM";
         ExecStart = "${lib.getExe reconcile} ${declaration}";
         User = "hass";
         Group = "hass";

@@ -1535,6 +1535,11 @@
         defaults.imports = [ ../../hosts/linux/corehub/home-automation/unstable.nix ];
         node.specialArgs = { inherit inputs; };
       };
+      # nvrhub's house watchdog (hosts/linux/nvrhub/house-watchdog), built
+      # with nvrhub's nixpkgs.
+      house-watchdog = self.nixosConfigurations.nvrhub.pkgs.testers.runNixOSTest {
+        imports = [ ../../hosts/linux/nvrhub/house-watchdog/test.nix ];
+      };
     }
     // import ./channel-checks.nix {
       inherit

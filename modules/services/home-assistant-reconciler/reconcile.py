@@ -17,11 +17,16 @@ import hashlib
 import json
 import logging
 import os
+import re
 import sys
 import time
 from pathlib import Path
 
 import aiohttp
+
+# Never pruned, whatever keepDomains says: the companion app creates these
+# entries when a phone registers, so they can never be declared.
+ALWAYS_KEEP = frozenset({"mobile_app"})
 
 log = logging.getLogger("reconcile")
 
@@ -146,6 +151,10 @@ class Reconciler:
         self.onboarded_now = False
         self.state_path = Path(decl["stateFile"])
         self.state = self.load_state()
+        # Entities keepEntities excludes, by entity_key, filled as devices
+        # are reconciled.
+        self.keep_excluded = set()
+        self.renamed = 0
 
     # -- bookkeeping -----------------------------------------------------
 
@@ -425,7 +434,7 @@ class Reconciler:
         if self.decl["pruneIntegrations"]:
             if self.onboarded_now:
                 await self.settle_onboarding_flows()
-            keep = set(self.decl["keepDomains"]) | domains
+            keep = ALWAYS_KEEP | set(self.decl["keepDomains"]) | domains
             owned = {r["entry_id"] for r in managed.values()}
             for entry in await self.entries():
                 if entry["domain"] in keep or entry["entry_id"] in owned:
@@ -570,7 +579,9 @@ class Reconciler:
             index = {}
             for device in devices:
                 for identifier in device.get("identifiers") or []:
-                    index[tuple(identifier)] = device
+                    # As text: Nix declares strings, and some integrations
+                    # use numbers (Sense's monitor is ["sense", 6241]).
+                    index[tuple(str(part) for part in identifier)] = device
             missing = [w for w in wanted if w not in index]
             if not missing or time.monotonic() > deadline:
                 return index
@@ -641,13 +652,79 @@ class Reconciler:
                 )
                 self.changed(f"device {device_label(device)}: {update}")
 
+            # A declared entity whose rename was skipped (its ID is taken)
+            # keeps its current ID; keepEntities lists the wanted one, so
+            # keep the current one in its place.
+            kept_as = {}
             for entity_spec in spec["entities"]:
                 entity = self.pick_entity(device, entities, entity_spec)
                 if entity is not None:
-                    await self.update_entity(entity, entity_spec, area_ids)
+                    actual = await self.update_entity(entity, entity_spec, area_ids)
+                    kept_as[entity_spec["entityId"]] = actual
 
             if spec.get("keepEntities") is not None:
-                await self.keep_only(device, spec["keepEntities"])
+                keep = {kept_as.get(eid, eid) for eid in spec["keepEntities"]}
+                await self.keep_only(device, keep)
+
+    async def entity_id_free(self, entity, wanted):
+        """Whether `entity` can be renamed to `wanted`. Taken by another
+        entity is a warning, not a failure, so one clash does not stop the
+        rest of the run."""
+        try:
+            other = await self.ws.call("config/entity_registry/get", entity_id=wanted)
+        except ReconcileError:
+            return True
+        self.warn(
+            f"cannot rename {entity['entity_id']} to {wanted}: taken by "
+            f"{other.get('platform')} entity {other.get('unique_id')!r}; "
+            "pick another entity ID"
+        )
+        return False
+
+    async def reconcile_entity_rules(self):
+        """Disable each entity of a ruled platform whose unique ID matches a
+        rule, and enable again those it disabled that no longer match.
+
+        Only what a rule disabled is ever re-enabled, recorded in the state
+        file by platform and unique ID (so a rename keeps it): an entity
+        keepEntities or a person disabled is left alone, and one a rule
+        disabled that keepEntities now excludes stays disabled.
+        """
+        rules = {}
+        for rule in self.decl["disableEntities"]:
+            rules.setdefault(rule["platform"], []).append(re.compile(rule["uniqueId"]))
+        owned = set(self.state.get("ruleDisabled", []))
+        if not rules and not owned:
+            return
+        entities = await self.ws.call("config/entity_registry/list")
+        # Records from before ownership was keyed by unique ID held entity
+        # IDs, which never contain a colon.
+        by_id = {e["entity_id"]: entity_key(e) for e in entities}
+        owned = {by_id.get(o, o) if ":" not in o else o for o in owned}
+        for entity in entities:
+            eid, key = entity["entity_id"], entity_key(entity)
+            patterns = rules.get(entity.get("platform"), [])
+            matched = any(p.fullmatch(str(entity["unique_id"])) for p in patterns)
+            by = entity.get("disabled_by")
+            if matched and by is None:
+                update = {"disabled_by": "user"}
+                owned.add(key)
+            elif not matched and key in owned:
+                owned.discard(key)
+                if by != "user" or key in self.keep_excluded:
+                    self.save_owned(owned)
+                    continue
+                update = {"disabled_by": None}
+            else:
+                continue
+            await self.ws.call("config/entity_registry/update", entity_id=eid, **update)
+            self.changed(f"entity {eid}: {update}")
+            self.save_owned(owned)
+        self.save_owned(owned)
+
+    def save_owned(self, owned):
+        self.state["ruleDisabled"] = sorted(owned)
+        self.save_state()
 
     async def keep_only(self, device, keep):
         """Disable every entity on the device that is not in `keep`, and
@@ -659,6 +736,8 @@ class Reconciler:
         for entity in entities:
             if entity.get("device_id") != device["id"]:
                 continue
+            if entity["entity_id"] not in keep:
+                self.keep_excluded.add(entity_key(entity))
             eid = entity["entity_id"]
             by = entity.get("disabled_by")
             if eid in keep and by == "user":
@@ -692,10 +771,20 @@ class Reconciler:
             await self.update_entity(entity, spec, area_ids)
 
     async def update_entity(self, entity, spec, area_ids):
+        """Apply an entity spec; return the entity's ID afterwards."""
         update = {}
-        if entity["entity_id"] != spec["entityId"]:
+        if entity["entity_id"] != spec["entityId"] and await self.entity_id_free(
+            entity, spec["entityId"]
+        ):
             update["new_entity_id"] = spec["entityId"]
-        if spec.get("name") is not None and entity.get("name") != spec["name"]:
+        if spec.get("nameFromDevice"):
+            if spec.get("name") is not None:
+                raise ReconcileError(
+                    f"entity {spec['entityId']}: name and nameFromDevice together"
+                )
+            if entity.get("name") is not None:
+                update["name"] = None
+        elif spec.get("name") is not None and entity.get("name") != spec["name"]:
             update["name"] = spec["name"]
         if spec.get("area") is not None:
             area_id = area_ids.get(spec["area"])
@@ -719,6 +808,60 @@ class Reconciler:
                 **update,
             )
             self.changed(f"entity {entity['entity_id']}: {update}")
+            if "new_entity_id" in update:
+                self.renamed += 1
+                # Recorded before anything else can fail, so a later run
+                # still calls them (after_rename).
+                pending = set(self.state.get("afterRenamePending", []))
+                if not set(self.decl["afterRename"]) <= pending:
+                    self.state["afterRenamePending"] = sorted(
+                        pending | set(self.decl["afterRename"])
+                    )
+                    self.save_state()
+        return update.get("new_entity_id", entity["entity_id"])
+
+    async def after_rename(self):
+        """Call the declared services once a run has renamed an entity, for
+        integrations that read entity IDs only at start (HomeKit).
+
+        Pending calls are kept in the state file from the moment of the
+        rename, and each is cleared only once it succeeds, so a run that
+        failed before getting here leaves them for the next one.
+        """
+        pending = [
+            s for s in self.state.get("afterRenamePending", []) if s in self.decl["afterRename"]
+        ]
+        for service in pending:
+            domain, name = service.split(".", 1)
+            await self.ws.call("call_service", domain=domain, service=name)
+            log.info("called %s after renames", service)
+            self.state["afterRenamePending"] = [
+                s for s in self.state.get("afterRenamePending", []) if s != service
+            ]
+            self.save_state()
+        if self.state.get("afterRenamePending"):
+            # Services no longer declared: drop them.
+            self.state["afterRenamePending"] = []
+            self.save_state()
+
+    # -- persons -----------------------------------------------------------
+
+    async def reconcile_persons(self):
+        declared = self.decl["persons"]
+        if not declared:
+            return
+        persons = {p["name"]: p for p in (await self.ws.call("person/list"))["storage"]}
+        for name, spec in sorted(declared.items()):
+            person = persons.get(name)
+            if person is None:
+                self.warn(f"person {name!r} does not exist; skipped")
+                continue
+            wanted = spec["deviceTrackers"]
+            if person.get("device_trackers") != wanted:
+                await self.ws.call(
+                    "person/update", person_id=person["id"], device_trackers=wanted
+                )
+                self.changed(f"person {name!r}: device trackers {wanted}")
 
     # -- HTTP --------------------------------------------------------------
 
@@ -821,8 +964,11 @@ class Reconciler:
             area_ids = await self.reconcile_areas()
             await self.reconcile_floors(area_ids)
             await self.reconcile_devices(area_ids)
+            await self.reconcile_entity_rules()
             await self.reconcile_entities(area_ids)
+            await self.reconcile_persons()
             await self.reconcile_backup()
+            await self.after_rename()
         finally:
             try:
                 if self.ws:
@@ -830,6 +976,13 @@ class Reconciler:
             finally:
                 await self.revoke()
         log.info("done: %d changes, %d warnings", self.changes, self.warnings)
+
+
+def entity_key(entity):
+    """An entity's identity that survives renames: its domain, platform and
+    unique ID, which Home Assistant keeps unique only together."""
+    domain = entity["entity_id"].split(".", 1)[0]
+    return f"{domain}:{entity.get('platform')}:{entity['unique_id']}"
 
 
 def device_label(device):

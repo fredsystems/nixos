@@ -8,7 +8,12 @@
     ./devices.nix
     ./homekit.nix
     ./automations.nix
+    ./house-mode.nix
+    ./dashboard.nix
     ./cameras.nix
     ./monitoring.nix
+    ./energy.nix
+    ./alarmdotcom
+    ./myq
   ];
 }

@@ -105,12 +105,20 @@ in
     ];
 
     # Run from Home Assistant, or from Siri and the Home app through the
-    # HomeKit bridge. House mode (Plan 06, 6.15) will call these too.
+    # HomeKit bridge. Both set the house mode (./house-mode.nix): Good Night
+    # arms the indoor cameras; Good Morning, with Fred home, disarms
+    # them and renews the 18-hour expiry, even when already Home. The mode
+    # names are house-mode.nix's, which checks these against them.
     script = {
       good_night = {
         alias = "Good Night";
         icon = "mdi:weather-night";
         sequence = [
+          {
+            action = "input_select.select_option";
+            target.entity_id = "input_select.house_mode";
+            data.option = "Asleep";
+          }
           # Neither step is fatal to the other: a light that fails still
           # leaves the door locked, a lock out of reach the lights off.
           {
@@ -131,13 +139,44 @@ in
         alias = "Good Morning";
         icon = "mdi:weather-sunny";
         sequence = [
+          # Disarms only with Fred home: run through Siri away from home, it
+          # still turns the lights on but leaves the cameras armed.
+          {
+            "if" = [
+              {
+                condition = "state";
+                entity_id = "person.fred";
+                state = "home";
+              }
+            ];
+            "then" = [
+              {
+                action = "input_select.select_option";
+                target.entity_id = "input_select.house_mode";
+                data.option = "Home";
+              }
+              {
+                # The full duration: without it a timer restored after a
+                # restart would resume its remaining time.
+                action = "timer.start";
+                target.entity_id = "timer.house_awake_expiry";
+                data.duration = "18:00:00";
+              }
+            ];
+          }
           {
             action = "light.turn_on";
+            # light.turn_on: lights only, so the rooms' fans never start.
             target.area_id = [
               "master_bedroom"
               "living_room"
               "kitchen"
+              "upstairs_hallway"
             ];
+          }
+          {
+            action = "light.turn_on";
+            target.entity_id = "light.master_vanity";
           }
         ];
       };
@@ -151,6 +190,7 @@ in
         "master_bedroom"
         "living_room"
         "kitchen"
+        "upstairs_hallway"
       ];
       message = "corehub: an area automations.nix targets is no longer declared in devices.nix.";
     }

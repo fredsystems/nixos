@@ -5,8 +5,8 @@
 #
 # Home Assistant and Mosquitto. The reconciler onboards, creates the mqtt
 # entry, prunes onboarding's leftovers, names a device that MQTT discovery
-# registers and hides its switch, and places the light that wraps that switch,
-# an entity with no device. Then it runs again, and after a Home Assistant restart, and must
+# registers and hides its switch, places the light that wraps that switch,
+# an entity with no device, and sets the trackers the owner's person follows. Then it runs again, and after a Home Assistant restart, and must
 # change nothing either time.
 #
 # zwave_js is not covered: zwave-js-server's --mock-driver gets the config
@@ -27,6 +27,32 @@ let
     device.identifiers = [ "testdev" ];
   };
 
+  # A device of two sensors for the disableEntities rule, which must disable
+  # the humidity sensor and leave the pressure sensor.
+  meterSensor =
+    kind:
+    builtins.toJSON {
+      name = kind;
+      unique_id = "meter_${kind}";
+      state_topic = "test/meter/${kind}";
+      device = {
+        identifiers = [ "meter" ];
+        name = "Meter";
+      };
+    };
+
+  # A device whose declared rename clashes and whose keepEntities names the
+  # wanted ID: its sensor must stay enabled under the ID it keeps.
+  gadget = builtins.toJSON {
+    name = "Level";
+    unique_id = "gadget_level";
+    state_topic = "test/gadget/level";
+    device = {
+      identifiers = [ "gadget" ];
+      name = "Gadget";
+    };
+  };
+
   discovery = builtins.toJSON {
     name = "Relay";
     unique_id = "testdev_relay";
@@ -37,6 +63,68 @@ let
       name = "Test device";
     };
   };
+
+  # Registers a phone the way the companion app does, as the owner, so the
+  # test can check that its mobile_app entry survives pruning.
+  registerPhone =
+    pkgs: ownerUsername:
+    pkgs.writers.writePython3Bin "register-test-phone"
+      {
+        libraries = [ pkgs.python3Packages.aiohttp ];
+        flakeIgnore = [ "E501" ];
+      }
+      ''
+        import asyncio
+
+        import aiohttp
+
+        URL = "http://127.0.0.1:8123"
+
+
+        async def main():
+            async with aiohttp.ClientSession() as s:
+                flow = await (await s.post(URL + "/auth/login_flow", json={
+                    "client_id": URL + "/",
+                    "handler": ["homeassistant", None],
+                    "redirect_uri": URL + "/",
+                })).json()
+                result = await (await s.post(
+                    URL + "/auth/login_flow/" + flow["flow_id"],
+                    json={
+                        "client_id": URL + "/",
+                        "username": "${ownerUsername}",
+                        "password": "${ownerPassword}",
+                    },
+                )).json()
+                tokens = await (await s.post(URL + "/auth/token", data={
+                    "grant_type": "authorization_code",
+                    "code": result["result"],
+                    "client_id": URL + "/",
+                })).json()
+                headers = {"Authorization": "Bearer " + tokens["access_token"]}
+                r = await s.post(
+                    URL + "/api/mobile_app/registrations",
+                    headers=headers,
+                    json={
+                        "device_id": "testphone",
+                        "app_id": "io.robbie.HomeAssistant.test",
+                        "app_name": "Home Assistant",
+                        "app_version": "1.0",
+                        "device_name": "Test Phone",
+                        "manufacturer": "Test",
+                        "model": "Test",
+                        "os_name": "iOS",
+                        "os_version": "18",
+                        "supports_encryption": False,
+                        "app_data": {},
+                    },
+                )
+                assert r.status == 201, (r.status, await r.text())
+                await s.post(URL + "/auth/revoke", data={"token": tokens["refresh_token"]})
+
+
+        asyncio.run(main())
+      '';
 in
 {
   name = "home-assistant-reconciler";
@@ -49,11 +137,17 @@ in
       virtualisation.memorySize = 2048;
 
       environment = {
-        etc."test/discovery.json".text = discovery;
-        etc."test/discovery-extra.json".text = discoveryExtra;
+        etc = {
+          "test/discovery.json".text = discovery;
+          "test/discovery-extra.json".text = discoveryExtra;
+          "test/meter-humidity.json".text = meterSensor "humidity";
+          "test/meter-pressure.json".text = meterSensor "pressure";
+          "test/gadget.json".text = gadget;
+        };
         systemPackages = [
           pkgs.mosquitto
           pkgs.jq
+          (registerPhone pkgs "owner")
         ];
       };
 
@@ -138,6 +232,20 @@ in
             username = "owner";
             passwordFile = pkgs.writeText "owner-password" ownerPassword;
           };
+          # Onboarding makes the owner's person. Its tracker is the phone the
+          # test registers later; until then the person takes it anyway.
+          persons."Test Owner".deviceTrackers = [ "device_tracker.test_phone" ];
+          # Set, so the test proves that setting it cannot drop mobile_app.
+          keepDomains = [ "sun" ];
+          # Any reload without data will do; input_boolean is in
+          # default_config.
+          afterRename = [ "input_boolean.reload" ];
+          disableEntities = [
+            {
+              platform = "mqtt";
+              uniqueId = "meter_hum.*";
+            }
+          ];
           secrets.mqtt-password = pkgs.writeText "mqtt-password" mqttPassword;
 
           integrations = {
@@ -183,6 +291,35 @@ in
             {
               identifier = [
                 "mqtt"
+                "gadget"
+              ];
+              entities = [
+                {
+                  domain = "sensor";
+                  uniqueId = "gadget_level";
+                  entityId = "sensor.meter_pressure";
+                }
+              ];
+              keepEntities = [ "sensor.meter_pressure" ];
+            }
+            # An entity ID that is already taken: the rename must warn and the
+            # run carry on.
+            {
+              identifier = [
+                "mqtt"
+                "meter"
+              ];
+              entities = [
+                {
+                  domain = "sensor";
+                  uniqueId = "meter_humidity";
+                  entityId = "sensor.meter_pressure";
+                }
+              ];
+            }
+            {
+              identifier = [
+                "mqtt"
                 "testdev"
               ];
               name = "Lamp";
@@ -209,6 +346,11 @@ in
               entityId = "light.lamp_light";
               area = "Office";
             }
+            # Named here; the unruled specialisation clears it again.
+            {
+              entityId = "sensor.meter_pressure";
+              name = "Pressure";
+            }
           ];
 
           # The shape corehub uses, so a schema change in it fails here.
@@ -233,6 +375,21 @@ in
 
       };
       # A rotated MQTT password changes the mqtt entry's declared steps.
+      # The disableEntities rule gone: what it disabled comes back.
+      specialisation.unruled.configuration = {
+        services.home-assistant-reconciler.disableEntities = lib.mkForce [ ];
+        services.home-assistant-reconciler.entities = lib.mkForce [
+          {
+            entityId = "light.lamp_light";
+            area = "Office";
+          }
+          {
+            entityId = "sensor.meter_pressure";
+            nameFromDevice = true;
+          }
+        ];
+      };
+
       specialisation.rotated.configuration = {
         services.mosquitto.listeners = lib.mkForce [
           {
@@ -252,6 +409,26 @@ in
     };
 
   testScript = ''
+    import time
+
+    def wait_reconciled(timeout=600):
+        """Wait for the reconciler to be active. A run that applies HTTP
+        settings is stopped by the Home Assistant restart they cause and
+        started again, so the unit is briefly inactive; only failed means
+        failed."""
+        deadline = time.monotonic() + timeout
+        while True:
+            state = machine.succeed(
+                "systemctl show -p ActiveState --value home-assistant-reconciler.service"
+            ).strip()
+            if state == "active":
+                return
+            if state == "failed":
+                raise Exception("home-assistant-reconciler.service failed")
+            if time.monotonic() > deadline:
+                raise Exception(f"home-assistant-reconciler.service still {state}")
+            time.sleep(2)
+
     machine.wait_for_unit("mosquitto.service")
     machine.wait_for_open_port(1883)
     # Retained, so Home Assistant sees it as soon as the mqtt entry exists.
@@ -263,9 +440,18 @@ in
         "mosquitto_pub -h 127.0.0.1 -u homeassistant -P ${mqttPassword} -r "
         "-t discovered/sensor/testdev/config -f /etc/test/discovery-extra.json"
     )
+    machine.succeed(
+        "mosquitto_pub -h 127.0.0.1 -u homeassistant -P ${mqttPassword} -r "
+        "-t discovered/sensor/gadget_level/config -f /etc/test/gadget.json"
+    )
+    for kind in ("humidity", "pressure"):
+        machine.succeed(
+            "mosquitto_pub -h 127.0.0.1 -u homeassistant -P ${mqttPassword} -r "
+            f"-t discovered/sensor/meter_{kind}/config -f /etc/test/meter-{kind}.json"
+        )
 
     machine.wait_for_unit("home-assistant.service")
-    machine.wait_for_unit("home-assistant-reconciler.service", timeout=600)
+    wait_reconciled()
     print(machine.succeed("journalctl -u home-assistant-reconciler.service -o cat"))
 
     with subtest("the HTTP settings were applied, then confirmed"):
@@ -361,6 +547,44 @@ in
             "/var/lib/hass/.storage/core.entity_registry"
         )
 
+    with subtest("disableEntities disables exactly the matching entities"):
+        machine.wait_until_succeeds(
+            "jq -e '.data.entities[] | select(.unique_id == \"meter_humidity\" and .disabled_by == \"user\")' "
+            "/var/lib/hass/.storage/core.entity_registry",
+            timeout=60,
+        )
+        machine.succeed(
+            "jq -e '.data.entities[] | select(.unique_id == \"meter_pressure\" and .disabled_by == null)' "
+            "/var/lib/hass/.storage/core.entity_registry"
+        )
+
+    with subtest("a rename to a taken entity ID warns, and the run carries on"):
+        out = machine.succeed("journalctl -u home-assistant-reconciler.service -o cat")
+        assert "cannot rename sensor.meter_humidity to sensor.meter_pressure" in out, out
+        machine.succeed(
+            "jq -e '.data.entities[] | select(.unique_id == \"meter_pressure\" and .entity_id == \"sensor.meter_pressure\")' "
+            "/var/lib/hass/.storage/core.entity_registry"
+        )
+
+    with subtest("a run that renames calls the afterRename services, others do not"):
+        out = machine.succeed("journalctl -u home-assistant-reconciler.service -o cat")
+        assert "called input_boolean.reload after renames" in out, out
+
+    with subtest("a skipped rename keeps its entity enabled under keepEntities"):
+        machine.wait_until_succeeds(
+            "jq -e '.data.entities[] | select(.unique_id == \"gadget_level\" and .disabled_by == null)' "
+            "/var/lib/hass/.storage/core.entity_registry",
+            timeout=30,
+        )
+
+    with subtest("the owner's person follows exactly the declared trackers"):
+        machine.wait_until_succeeds(
+            "jq -e '.data.items[] | select(.name == \"Test Owner\") "
+            "| .device_trackers == [\"device_tracker.test_phone\"]' "
+            "/var/lib/hass/.storage/person",
+            timeout=60,
+        )
+
     with subtest("backup settings are applied"):
         machine.wait_until_succeeds(
             "jq -e '.data.config.retention.copies == 3' /var/lib/hass/.storage/backup",
@@ -381,6 +605,8 @@ in
         out = machine.succeed("journalctl -u home-assistant-reconciler.service -o cat")
         last = [line for line in out.splitlines() if "done:" in line][-1]
         assert "done: 0 changes" in last, last
+        tail = out[out.rindex("Starting Apply declared"):] if "Starting Apply declared" in out else out
+        assert "called input_boolean.reload" not in tail, tail
         after = refresh_tokens()
         assert before == after, f"refresh tokens went from {before} to {after}"
 
@@ -391,21 +617,69 @@ in
         before = machine.succeed(show).strip()
         machine.succeed("systemctl restart home-assistant.service")
         machine.wait_until_succeeds(f'test "$({show})" != "{before}"', timeout=120)
-        machine.wait_for_unit("home-assistant-reconciler.service", timeout=600)
+        wait_reconciled()
         run = machine.succeed(show).strip()
         out = machine.succeed(f"journalctl _SYSTEMD_INVOCATION_ID={run} -o cat")
         assert "done: 0 changes" in out, out
 
+    with subtest("a registered phone's entry is never pruned"):
+        machine.succeed("register-test-phone")
+        machine.wait_until_succeeds(
+            "jq -e '.data.entries[] | select(.domain == \"mobile_app\")' "
+            "/var/lib/hass/.storage/core.config_entries",
+            timeout=60,
+        )
+        show = "systemctl show -p InvocationID --value home-assistant-reconciler.service"
+        machine.succeed("systemctl restart home-assistant-reconciler.service")
+        run = machine.succeed(show).strip()
+        out = machine.succeed(f"journalctl _SYSTEMD_INVOCATION_ID={run} -o cat")
+        assert "done:" in out, out
+        assert "removed mobile_app" not in out, out
+        machine.sleep(15)
+        machine.succeed(
+            "jq -e '.data.entries[] | select(.domain == \"mobile_app\")' "
+            "/var/lib/hass/.storage/core.config_entries"
+        )
+
+    with subtest("a declared entity name is set"):
+        machine.wait_until_succeeds(
+            "jq -e '.data.entities[] | select(.entity_id == \"sensor.meter_pressure\" and .name == \"Pressure\")' "
+            "/var/lib/hass/.storage/core.entity_registry",
+            timeout=60,
+        )
+
+    with subtest("a rule's entities come back when it goes, and nothing else does"):
+        machine.succeed(
+            "/run/booted-system/specialisation/unruled/bin/switch-to-configuration test"
+        )
+        wait_reconciled()
+        machine.wait_until_succeeds(
+            "jq -e '.data.entities[] | select(.unique_id == \"meter_humidity\" and .disabled_by == null)' "
+            "/var/lib/hass/.storage/core.entity_registry",
+            timeout=60,
+        )
+        # Disabled by keepEntities, not by the rule.
+        machine.succeed(
+            "jq -e '.data.entities[] | select(.unique_id == \"testdev_temperature\" and .disabled_by == \"user\")' "
+            "/var/lib/hass/.storage/core.entity_registry"
+        )
+        # nameFromDevice cleared the name the base configuration gave it.
+        machine.wait_until_succeeds(
+            "jq -e '.data.entities[] | select(.entity_id == \"sensor.meter_pressure\" and .name == null)' "
+            "/var/lib/hass/.storage/core.entity_registry",
+            timeout=60,
+        )
+
     with subtest("changed steps recreate the entry, and the names come back"):
         machine.succeed(
-            "/run/current-system/specialisation/rotated/bin/switch-to-configuration test"
+            "/run/booted-system/specialisation/rotated/bin/switch-to-configuration test"
         )
-        machine.wait_for_unit("home-assistant-reconciler.service", timeout=600)
+        wait_reconciled()
         out = machine.succeed("journalctl -u home-assistant-reconciler.service -o cat")
         assert "removed mqtt entry '127.0.0.1' (declaration changed)" in out, out
         last = [line for line in out.splitlines() if "done:" in line][-1]
-        # The cover that is never created, and only that.
-        assert "1 warnings" in last, last
+        # The cover that is never created, and the two clashing renames.
+        assert "3 warnings" in last, last
         machine.wait_until_succeeds(
             "jq -e '.data.entities[] | select(.entity_id == \"switch.lamp\" and .name == \"Lamp\")' "
             "/var/lib/hass/.storage/core.entity_registry",

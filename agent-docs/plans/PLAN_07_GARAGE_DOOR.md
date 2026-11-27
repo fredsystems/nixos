@@ -1,6 +1,11 @@
 # Plan 07: Garage door control
 
 - **Status:** stub, on hold by the owner's decision (2026-11-26).
+- **2026-11-27:** the owner chose the cloud route for now: the
+  `bvdcode/home-assistant-myq` integration, packaged in Nix rather than
+  installed through HACS (Plan 06, 6.22), which removes the objection
+  below. The local ratgdo / blaQ route stays the alternative if the
+  cloud route breaks or remote closing needs better door state.
 - **Depends on:** Plan 06 (Home Assistant, the adopted Z-Wave network
   and its fresh security keys). Not started until Plan 06's core works:
   switches and dimmers controllable, and the cameras arming as designed.

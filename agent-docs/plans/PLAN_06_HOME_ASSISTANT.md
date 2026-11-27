@@ -192,7 +192,9 @@ The design the owner and the agent settled on, 2026-11-26.
 | `home_awake` | off                  | home, and said he is up       |
 | `home_sleep` | on                   | home, and said he is sleeping |
 
-Held in an `input_select` so it survives Home Assistant restarts.
+Held in an `input_select` so it survives Home Assistant restarts. Its
+values, and so what the UI shows, are Away, Home and Asleep (owner,
+2026-11-27); this plan keeps the names above.
 
 ### Transitions
 
@@ -417,6 +419,91 @@ Decide at activation:
       9, 18 and 24 still physically exist. The garage controller itself
       is re-included securely in Plan 07, not here.
 
+      Five wall switches still work their load by hand but have left the
+      Z-Wave network (owner, 2026-11-27):
+
+      | Load                    | Area             | Node             |
+      | ----------------------- | ---------------- | ---------------- |
+      | Office Light            | Office           | now 104          |
+      | Office Fan              | Office           | now 105          |
+      | Master Bedroom Fan      | Master Bedroom   | now 107          |
+      | Upstairs Hallway Light  | Upstairs Hallway | now 106          |
+      | Dining Room Light       | Kitchen          | 56, now 103      |
+
+      Node 56 is known because Kitchen Overhead Lights (97) still has it
+      in its association group (6.21). Replaced 2026-11-27 by node 103,
+      an Enbrighten 800 series dimmer included with S2 Authenticated.
+      The other four followed the same day: GE 800 series on/off
+      switches for the two lights (S2 Authenticated; the office one had
+      to be excluded first, having been paired before) and Jasco 14314
+      fan controls for the two fans (no S2). The old switches' node
+      numbers were never known; their dead nodes go with the rest.
+
+      Dead nodes, 56 included, are left alone for now by the owner's
+      decision (2026-11-27): they are removed together once the other
+      replacements are in, not one at a time. Five replacement switches arrive
+      2026-11-27; the owner installs them as he gets to them. Each is
+      included (S2 where the switch supports it), added to the device
+      table in `devices.nix`, and its dead node removed with "remove
+      failed node", along with its place in any association group.
+
+- [ ] **6.21 Switch associations.** Added 2026-11-27, numbered after
+      the existing subtasks. Some wall switches command other devices
+      directly through a Z-Wave association group, which is what the
+      owner calls a scene: the lights follow the switch without the hub,
+      so they keep working with Home Assistant or zwave-js down. Home
+      Assistant has no editor for these, but zwave-js-server reads and
+      writes them (`controller.get_associations`,
+      `controller.add_associations`, `controller.remove_associations`),
+      so they become a table in `devices.nix` (switch node, group,
+      target nodes) applied by the reconciler, which adds what is missing
+      and removes what is not declared. Group 1 (Lifeline, to the
+      controller) is never touched. As read from zwave-js on 2026-11-27:
+
+      | Switch (node)                | Group          | Targets now            | Wanted                          |
+      | ---------------------------- | -------------- | ---------------------- | ------------------------------- |
+      | Kitchen Overhead Lights (97) | 2 "BASIC SET"  | 56 (dead), 53          | 53 and the new Dining Room Light |
+      | Master Bedroom Light (19)    | 2 "Local Load" | 13                     | 13 and Bed Lamp (7)             |
+      | Living Room Light (42)       | 2 "Local Load" | 44, 45 (no such node)  | 44 and Living Room Lamp 2 (108) |
+
+      Each group takes at most 5 targets. Deferred by the owner
+      (2026-11-27) until the living room's second plug was in, so the
+      whole table is done at once; that plug, a Minoston MP21Z (S2
+      Authenticated), is node 108 since 2026-11-27. Until then node 97 still sends to
+      dead node 56, so the overhead switch does not drive the new Dining
+      Room Light (103). The dimmers' group 3 ("Double
+      Tap") reports to the controller, so a double tap can trigger an
+      automation.
+
+- [ ] **6.22 Cloud integrations.** Added 2026-11-27 at the owner's
+      request, in this order:
+
+      | Integration | Source                                  | Entry created by                  |
+      | ----------- | --------------------------------------- | --------------------------------- |
+      | Sense       | core, `energy.nix`                      | the reconciler, sops credentials  |
+      | Alarm.com   | `ibasebcast/ha-alarmdotcom`, packaged   | the owner in the UI, once (code)  |
+      | MyQ         | `bvdcode/home-assistant-myq`, packaged  | the owner in the UI, once (code)  |
+
+      Sense: no MFA; credentials verified against the Sense API with
+      the library version Home Assistant uses. Alarm.com: a custom
+      component, so it is packaged in `alarmdotcom/package.nix` from a
+      pin file, with its requirements from Home Assistant's nixpkgs
+      (Marketplace installs need pip, which NixOS's Home Assistant runs
+      without; 4 of its 5 requirements were missing). The build runs
+      nixpkgs' manifest check and imports every module.
+      Both packaged integrations are built by
+      `home-automation/custom-component.nix` from a pin file each;
+      `scripts/update-ha-component.sh` and `update-ha-components.yaml`
+      re-pin them daily into PRs that are not auto-merged. `pyhumps` 3.9 is
+      waived against the manifest's `~=3.8.0`; the owner chose not to
+      file upstream, so each bump PR reports whether the waiver is still
+      needed. Alarm.com asks for a one-time code at login, so its entry
+      is created by hand and kept by `keepDomains`. The garage door is
+      MyQ and not linked in Alarm.com, so MyQ is the route for it. MyQ
+      has no Python requirements of its own and, like Alarm.com, asks
+      for a one-time code at sign-in, so its entry is made by hand and
+      kept by `keepDomains`.
+
 ### Phase 3: Frigate
 
 - [x] **6.10 Frigate MQTT.** Enable MQTT in `hosts/linux/nvrhub/frigate.nix`
@@ -452,8 +539,11 @@ Requested 2026-11-26, ahead of house mode, in
 
 - Front porch light on at a random moment 30 to 15 minutes before
   sunset, off 30 to 45 minutes after sunrise.
-- Good Night (lights off in every area but Front Porch) and Good Morning
-  (lights on in Master Bedroom, Living Room and Kitchen). Scripts, run
+- Good Night (lights off in every area but Front Porch, and house mode
+  `home_sleep`) and Good Morning (house mode `home_awake`, and
+  lights on in Master Bedroom, Living Room, Kitchen and Upstairs
+  Hallway, and the Master Vanity, added 2026-11-27; lights only, never
+  the fans). Scripts, run
   from Home Assistant or Siri through the HomeKit bridge, until house
   mode (6.15) gives them triggers.
 - Garbage disposal off after 2 minutes continuously on.
@@ -461,17 +551,77 @@ Requested 2026-11-26, ahead of house mode, in
 ### Phase 4: house mode
 
 - [ ] **6.13 Presence.** The iOS companion app, the home zone, and the
-      remote-access route from open question 1.
+      remote-access route from open question 1. The companion app is
+      already registered (`device_tracker.iphone`, `person.fred`,
+      `notify.mobile_app_iphone`, 2026-11-27); this adds the `away` and
+      arrival transitions. Also a declared dashboard (owner,
+      2026-11-27): the current house mode, and buttons that run Good
+      Night and Good Morning.
+
+      Built 2026-11-27, by the owner's choices: `away` once
+      `person.fred` has been out of the home zone for 5 minutes;
+      `home_awake` on arriving while `away`, at any hour. The person
+      followed the iPhone and the iPad, and takes the latest report of
+      either, so the iPad at home could make him home while out; the
+      reconciler's new `persons` table declares the iPhone as his only
+      tracker. The owner is the only occupant (open question 2). Leaving
+      is re-checked every 5 minutes and at start, since a restart
+      cancels the pending 5 minutes; unknown and unavailable never count
+      as away. Good Morning disarms only with the phone home. The House
+      dashboard (`dashboard.nix`, YAML from the store, in the sidebar)
+      shows the mode, the phone and the expiry, with confirm-first
+      buttons for both scripts. Remote access (open question 1): Tailscale
+      on the iPhone, through corehub as subnet router; the app reports
+      leaving over it, so without it the house is never armed by leaving.
+      Verify by leaving: `person.fred` goes `not_home` and the mode
+      `away`, then back.
+
+      Open questions 3 and 5, decided with it (2026-11-27): indoor
+      cameras make review items for people only
+      (`review.detections.labels = [ "person" ]` in nvrhub's
+      `frigate.nix`), so pets make none while armed; and a person
+      indoors while armed is pushed to the iPhone, time-sensitive, with
+      Frigate's snapshot through the integration's notification proxy,
+      once per review item.
 - [ ] **6.14 NFC tags.** Write the goodnight and morning tags from the
       companion app and record their tag IDs.
 - [ ] **6.15 Mode state machine.** The `input_select`, transitions and
       expiry from "House mode", declared in Nix.
-- [ ] **6.16 Camera effect.** Mode changes drive the indoor cameras'
+- [x] **6.16 Camera effect.** Mode changes drive the indoor cameras'
       review switches, and the current mode is re-applied whenever
       Frigate's availability goes `online`.
-- [ ] **6.17 nvrhub watchdog.** Home Assistant publishes a heartbeat. On
+- [x] **6.17 nvrhub watchdog.** Home Assistant publishes a heartbeat. On
       nvrhub, a service re-enables review on the indoor cameras through
       Frigate's local websocket when the heartbeat is stale.
+
+      6.15-6.17 built 2026-11-27, ahead of presence by the owner's
+      choice, in `hosts/linux/corehub/home-automation/house-mode.nix`
+      and `hosts/linux/nvrhub/house-mode.nix`. Until 6.13 and 6.14, Good
+      Night sets `home_sleep` and Good Morning sets `home_awake` and
+      renews the expiry; both are deliberate, through Siri, the Home app
+      or Home Assistant. The mode itself is not exposed to Apple Home.
+      The mode is applied by publishing to Frigate's
+      `frigate/<cam>/review_{alerts,detections}/set` topics, so it does
+      not wait for the integration's switches after a Frigate restart.
+      Expiry is a restored 18 h `timer`, and its notification goes to
+      `notify.mobile_app_iphone`. The heartbeat is a retained epoch
+      timestamp on `house/heartbeat` every minute, read by the
+      `nvr-watchdog` broker user; the watchdog (a VM test,
+      `.#checks.x86_64-linux.house-watchdog`) re-arms once the newest
+      heartbeat it has seen is 5 minutes old, which rides out a Home
+      Assistant restart. Frigate's loopback listener on 127.0.0.1:5000
+      accepts websocket commands as admin, verified 2026-11-27 by
+      turning the kitchen's alerts off and on.
+
+      Deployed and verified 2026-11-27: Good Morning turned the five
+      indoor cameras' review off and left the doorbell and front door
+      alone; Good Night turned them on and cancelled the expiry. A
+      Frigate restart in `home_awake` came up armed and was disarmed 2 s
+      after start, before its camera processors started. With Home
+      Assistant stopped in `home_awake`, the watchdog re-armed when the
+      heartbeat was 320 s old; Home Assistant disarmed them again 7 s
+      after it started. 6.15 stays open for the `away` and arrival
+      transitions (6.13) and the tags (6.14).
 - [ ] **6.18 End-to-end test.** Every row of the transitions table, plus
       Home Assistant stopped while `home_awake`, Frigate restarted in
       each mode, the expiry, and a tag scanned while away (must do

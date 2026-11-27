@@ -81,15 +81,27 @@ let
       name = "Front Door";
       port = 21064;
     };
+    # MyQ's opener (./myq), at the owner's choice (2026-11-27). HomeKit
+    # treats a garage door as secure: opening it needs an unlocked device.
+    "cover.garage_door" = {
+      name = "Garage Door";
+      port = 21072;
+    };
   }
   // lib.mapAttrs' (cam: a: lib.nameValuePair "camera.${cam}" a) cameraAccessories;
+
+  # The Z-Wave devices' named entities only. Other integrations' devices
+  # (Alarm.com's panel and sensors, Sense) are named and placed by the
+  # reconciler too, but stay out of Apple Home unless listed here on purpose:
+  # the alarm panel in particular must not become something Siri can disarm.
+  zwaveDevices = lib.filter (
+    d: lib.head d.identifier == "zwave_js"
+  ) config.services.home-assistant-reconciler.devices;
 
   bridged =
     scripts
     ++ map expose (
-      lib.subtractLists notExposed (
-        lib.concatMap (d: map (e: e.entityId) d.entities) config.services.home-assistant-reconciler.devices
-      )
+      lib.subtractLists notExposed (lib.concatMap (d: map (e: e.entityId) d.entities) zwaveDevices)
     );
 
   exposed = lib.subtractLists (lib.attrNames accessories) bridged;
@@ -129,6 +141,11 @@ in
       }
     ) accessories;
   };
+
+  # HomeKit reads entity IDs only when it starts, and a device added in the
+  # same deploy is renamed by the reconciler after that, so it would be
+  # missing until the next restart (the new fans, 2026-11-27).
+  services.home-assistant-reconciler.afterRename = [ "homekit.reload" ];
 
   # The bridge's and accessories' HAP ports. mDNS (UDP 5353) is already open
   # for avahi.
