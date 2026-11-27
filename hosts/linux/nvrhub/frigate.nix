@@ -414,11 +414,24 @@ let
   # The same main stream, in go2rtc's syntax: go2rtc substitutes `${NAME}`
   # from $CREDENTIALS_DIRECTORY/NAME (pkg/creds/creds.go), so the credentials
   # come from the same sops secrets through its own LoadCredential=.
-  mkRestreamSource =
+  mkRestreamUrl =
     cam:
     "rtsp://\${CAMERA_USER}:\${CAMERA_PASSWORD}@${cam.host}:554/${
       (streamPaths.${cam.brand} cam).record
     }";
+
+  # The restream is for live view only (Home Assistant, Apple Home and
+  # Frigate's own live view); Frigate records the cameras directly. Browsers
+  # and HomeKit cannot play H.265, so an H.265 camera's restream is
+  # re-encoded to 1080p H.264 on the RTX 3070 (NVENC, measured at stream rate
+  # in go2rtc's sandbox, 2026-11-27), only while someone watches. Audio is
+  # copied.
+  mkRestreamSource =
+    cam:
+    if (cam.codec or "h264") == "h265" then
+      "ffmpeg:${mkRestreamUrl cam}#video=h264#width=1920#height=1080#hardware#audio=copy"
+    else
+      mkRestreamUrl cam;
 
   restreams = lib.mapAttrs (_: mkRestreamSource) cameras;
 
