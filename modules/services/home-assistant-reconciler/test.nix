@@ -346,6 +346,11 @@ in
               entityId = "light.lamp_light";
               area = "Office";
             }
+            # Named here; the unruled specialisation clears it again.
+            {
+              entityId = "sensor.meter_pressure";
+              name = "Pressure";
+            }
           ];
 
           # The shape corehub uses, so a schema change in it fails here.
@@ -373,6 +378,16 @@ in
       # The disableEntities rule gone: what it disabled comes back.
       specialisation.unruled.configuration = {
         services.home-assistant-reconciler.disableEntities = lib.mkForce [ ];
+        services.home-assistant-reconciler.entities = lib.mkForce [
+          {
+            entityId = "light.lamp_light";
+            area = "Office";
+          }
+          {
+            entityId = "sensor.meter_pressure";
+            nameFromDevice = true;
+          }
+        ];
       };
 
       specialisation.rotated.configuration = {
@@ -394,6 +409,26 @@ in
     };
 
   testScript = ''
+    import time
+
+    def wait_reconciled(timeout=600):
+        """Wait for the reconciler to be active. A run that applies HTTP
+        settings is stopped by the Home Assistant restart they cause and
+        started again, so the unit is briefly inactive; only failed means
+        failed."""
+        deadline = time.monotonic() + timeout
+        while True:
+            state = machine.succeed(
+                "systemctl show -p ActiveState --value home-assistant-reconciler.service"
+            ).strip()
+            if state == "active":
+                return
+            if state == "failed":
+                raise Exception("home-assistant-reconciler.service failed")
+            if time.monotonic() > deadline:
+                raise Exception(f"home-assistant-reconciler.service still {state}")
+            time.sleep(2)
+
     machine.wait_for_unit("mosquitto.service")
     machine.wait_for_open_port(1883)
     # Retained, so Home Assistant sees it as soon as the mqtt entry exists.
@@ -416,7 +451,7 @@ in
         )
 
     machine.wait_for_unit("home-assistant.service")
-    machine.wait_for_unit("home-assistant-reconciler.service", timeout=600)
+    wait_reconciled()
     print(machine.succeed("journalctl -u home-assistant-reconciler.service -o cat"))
 
     with subtest("the HTTP settings were applied, then confirmed"):
@@ -533,7 +568,7 @@ in
 
     with subtest("a run that renames calls the afterRename services, others do not"):
         out = machine.succeed("journalctl -u home-assistant-reconciler.service -o cat")
-        assert "called input_boolean.reload after" in out, out
+        assert "called input_boolean.reload after renames" in out, out
 
     with subtest("a skipped rename keeps its entity enabled under keepEntities"):
         machine.wait_until_succeeds(
@@ -582,7 +617,7 @@ in
         before = machine.succeed(show).strip()
         machine.succeed("systemctl restart home-assistant.service")
         machine.wait_until_succeeds(f'test "$({show})" != "{before}"', timeout=120)
-        machine.wait_for_unit("home-assistant-reconciler.service", timeout=600)
+        wait_reconciled()
         run = machine.succeed(show).strip()
         out = machine.succeed(f"journalctl _SYSTEMD_INVOCATION_ID={run} -o cat")
         assert "done: 0 changes" in out, out
@@ -606,11 +641,18 @@ in
             "/var/lib/hass/.storage/core.config_entries"
         )
 
+    with subtest("a declared entity name is set"):
+        machine.wait_until_succeeds(
+            "jq -e '.data.entities[] | select(.entity_id == \"sensor.meter_pressure\" and .name == \"Pressure\")' "
+            "/var/lib/hass/.storage/core.entity_registry",
+            timeout=60,
+        )
+
     with subtest("a rule's entities come back when it goes, and nothing else does"):
         machine.succeed(
             "/run/booted-system/specialisation/unruled/bin/switch-to-configuration test"
         )
-        machine.wait_for_unit("home-assistant-reconciler.service", timeout=600)
+        wait_reconciled()
         machine.wait_until_succeeds(
             "jq -e '.data.entities[] | select(.unique_id == \"meter_humidity\" and .disabled_by == null)' "
             "/var/lib/hass/.storage/core.entity_registry",
@@ -621,12 +663,18 @@ in
             "jq -e '.data.entities[] | select(.unique_id == \"testdev_temperature\" and .disabled_by == \"user\")' "
             "/var/lib/hass/.storage/core.entity_registry"
         )
+        # nameFromDevice cleared the name the base configuration gave it.
+        machine.wait_until_succeeds(
+            "jq -e '.data.entities[] | select(.entity_id == \"sensor.meter_pressure\" and .name == null)' "
+            "/var/lib/hass/.storage/core.entity_registry",
+            timeout=60,
+        )
 
     with subtest("changed steps recreate the entry, and the names come back"):
         machine.succeed(
             "/run/booted-system/specialisation/rotated/bin/switch-to-configuration test"
         )
-        machine.wait_for_unit("home-assistant-reconciler.service", timeout=600)
+        wait_reconciled()
         out = machine.succeed("journalctl -u home-assistant-reconciler.service -o cat")
         assert "removed mqtt entry '127.0.0.1' (declaration changed)" in out, out
         last = [line for line in out.splitlines() if "done:" in line][-1]

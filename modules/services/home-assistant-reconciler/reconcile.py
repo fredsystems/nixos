@@ -777,7 +777,14 @@ class Reconciler:
             entity, spec["entityId"]
         ):
             update["new_entity_id"] = spec["entityId"]
-        if spec.get("name") is not None and entity.get("name") != spec["name"]:
+        if spec.get("nameFromDevice"):
+            if spec.get("name") is not None:
+                raise ReconcileError(
+                    f"entity {spec['entityId']}: name and nameFromDevice together"
+                )
+            if entity.get("name") is not None:
+                update["name"] = None
+        elif spec.get("name") is not None and entity.get("name") != spec["name"]:
             update["name"] = spec["name"]
         if spec.get("area") is not None:
             area_id = area_ids.get(spec["area"])
@@ -803,17 +810,39 @@ class Reconciler:
             self.changed(f"entity {entity['entity_id']}: {update}")
             if "new_entity_id" in update:
                 self.renamed += 1
+                # Recorded before anything else can fail, so a later run
+                # still calls them (after_rename).
+                pending = set(self.state.get("afterRenamePending", []))
+                if not set(self.decl["afterRename"]) <= pending:
+                    self.state["afterRenamePending"] = sorted(
+                        pending | set(self.decl["afterRename"])
+                    )
+                    self.save_state()
         return update.get("new_entity_id", entity["entity_id"])
 
     async def after_rename(self):
-        """Call the declared services once if this run renamed an entity,
-        for integrations that read entity IDs only at start (HomeKit)."""
-        if not self.renamed:
-            return
-        for service in self.decl["afterRename"]:
+        """Call the declared services once a run has renamed an entity, for
+        integrations that read entity IDs only at start (HomeKit).
+
+        Pending calls are kept in the state file from the moment of the
+        rename, and each is cleared only once it succeeds, so a run that
+        failed before getting here leaves them for the next one.
+        """
+        pending = [
+            s for s in self.state.get("afterRenamePending", []) if s in self.decl["afterRename"]
+        ]
+        for service in pending:
             domain, name = service.split(".", 1)
             await self.ws.call("call_service", domain=domain, service=name)
-            log.info("called %s after %d renames", service, self.renamed)
+            log.info("called %s after renames", service)
+            self.state["afterRenamePending"] = [
+                s for s in self.state.get("afterRenamePending", []) if s != service
+            ]
+            self.save_state()
+        if self.state.get("afterRenamePending"):
+            # Services no longer declared: drop them.
+            self.state["afterRenamePending"] = []
+            self.save_state()
 
     # -- persons -----------------------------------------------------------
 

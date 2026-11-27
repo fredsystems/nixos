@@ -82,6 +82,16 @@ let
         description = "Display name. Null leaves the name alone.";
       };
 
+      nameFromDevice = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = ''
+          Show the entity under its device's name: clears a name given to the
+          entity itself, which Home Assistant would otherwise put after the
+          device's ("Office Fan Office Fan"). Not together with `name`.
+        '';
+      };
+
       hidden = lib.mkOption {
         type = lib.types.nullOr lib.types.bool;
         default = null;
@@ -115,6 +125,16 @@ let
         type = lib.types.nullOr lib.types.str;
         default = null;
         description = "Name of a declared area. Null leaves the area alone.";
+      };
+
+      nameFromDevice = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = ''
+          Show the entity under its device's name: clears a name given to the
+          entity itself, which Home Assistant would otherwise put after the
+          device's ("Office Fan Office Fan"). Not together with `name`.
+        '';
       };
 
       hidden = lib.mkOption {
@@ -271,6 +291,7 @@ let
           uniqueId
           entityId
           name
+          nameFromDevice
           hidden
           ;
       }) d.entities;
@@ -279,6 +300,7 @@ let
       inherit (e)
         entityId
         name
+        nameFromDevice
         area
         hidden
         ;
@@ -546,6 +568,11 @@ in
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;
+        # Applying the HTTP settings makes Home Assistant restart itself,
+        # which (PartOf) stops this run mid-way; the run started with the
+        # new Home Assistant confirms them. That stop is expected, so it
+        # counts as a clean exit rather than leaving the unit failed.
+        SuccessExitStatus = "SIGTERM";
         ExecStart = "${lib.getExe reconcile} ${declaration}";
         User = "hass";
         Group = "hass";
