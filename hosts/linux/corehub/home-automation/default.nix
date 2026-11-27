@@ -5,5 +5,6 @@
     ./zwave-js.nix
     ./home-assistant.nix
     ./devices.nix
+    ./homekit.nix
   ];
 }
