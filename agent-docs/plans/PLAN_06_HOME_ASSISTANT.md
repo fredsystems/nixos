@@ -495,8 +495,9 @@ Requested 2026-11-26, ahead of house mode, in
 
 - Front porch light on at a random moment 30 to 15 minutes before
   sunset, off 30 to 45 minutes after sunrise.
-- Good Night (lights off in every area but Front Porch) and Good Morning
-  (lights on in Master Bedroom, Living Room and Kitchen, and the Master
+- Good Night (lights off in every area but Front Porch, and house mode
+  `home_sleep`) and Good Morning (house mode `home_awake`, and
+  lights on in Master Bedroom, Living Room and Kitchen, and the Master
   Vanity, added 2026-11-27). Scripts, run
   from Home Assistant or Siri through the HomeKit bridge, until house
   mode (6.15) gives them triggers.
@@ -505,7 +506,12 @@ Requested 2026-11-26, ahead of house mode, in
 ### Phase 4: house mode
 
 - [ ] **6.13 Presence.** The iOS companion app, the home zone, and the
-      remote-access route from open question 1.
+      remote-access route from open question 1. The companion app is
+      already registered (`device_tracker.iphone`, `person.fred`,
+      `notify.mobile_app_iphone`, 2026-11-27); this adds the `away` and
+      arrival transitions. Also a declared dashboard (owner,
+      2026-11-27): the current house mode, and buttons that run Good
+      Night and Good Morning.
 - [ ] **6.14 NFC tags.** Write the goodnight and morning tags from the
       companion app and record their tag IDs.
 - [ ] **6.15 Mode state machine.** The `input_select`, transitions and
@@ -516,6 +522,28 @@ Requested 2026-11-26, ahead of house mode, in
 - [ ] **6.17 nvrhub watchdog.** Home Assistant publishes a heartbeat. On
       nvrhub, a service re-enables review on the indoor cameras through
       Frigate's local websocket when the heartbeat is stale.
+
+      6.15-6.17 built 2026-11-27, ahead of presence by the owner's
+      choice, in `hosts/linux/corehub/home-automation/house-mode.nix`
+      and `hosts/linux/nvrhub/house-mode.nix`. Until 6.13 and 6.14, Good
+      Night sets `home_sleep` and Good Morning sets `home_awake` and
+      renews the expiry; both are deliberate, through Siri, the Home app
+      or Home Assistant. The mode itself is not exposed to Apple Home.
+      The mode is applied by publishing to Frigate's
+      `frigate/<cam>/review_{alerts,detections}/set` topics, so it does
+      not wait for the integration's switches after a Frigate restart.
+      Expiry is a restored 18 h `timer`, and its notification goes to
+      `notify.mobile_app_iphone`. The heartbeat is a retained epoch
+      timestamp on `house/heartbeat` every minute, read by the
+      `nvr-watchdog` broker user; the watchdog (a VM test,
+      `.#checks.x86_64-linux.house-watchdog`) re-arms once the newest
+      heartbeat it has seen is 5 minutes old, which rides out a Home
+      Assistant restart. Frigate's loopback listener on 127.0.0.1:5000
+      accepts websocket commands as admin, verified 2026-11-27 by
+      turning the kitchen's alerts off and on. To verify after deploy:
+      each script's effect on the indoor cameras in Frigate, a Frigate
+      restart in `home_awake`, and Home Assistant stopped for 6 minutes
+      in `home_awake`.
 - [ ] **6.18 End-to-end test.** Every row of the transitions table, plus
       Home Assistant stopped while `home_awake`, Frigate restarted in
       each mode, the expiry, and a tag scanned while away (must do
