@@ -100,7 +100,24 @@ let
     # Kwikset SmartCode 910 deadbolt, re-included with S0 as node 102 on
     # 2026-11-26 (it was node 81, included with the old, lost S0 key). See
     # ./zwave-js.nix for the device-file override its interview needs.
-    (node 102 "lock" "Entrance Hallway" "Front Door")
+    #
+    # Its other entities are disabled. Among them is "Current status of the
+    # door", which reads Open whatever the door does: the Door Lock report has
+    # a door-position field, the 910 has no door sensor, and it leaves the
+    # field at 0, which means open. The lock-mode and local-protection
+    # selectors go too. The battery and jam entities feed the alerts in
+    # modules/monitoring/master/alert-rules/home-automation-alerts.yaml.
+    (lib.recursiveUpdate (node 102 "lock" "Entrance Hallway" "Front Door") {
+      device.keepEntities = [
+        "lock.front_door"
+        "sensor.front_door_lock_battery_level"
+        "binary_sensor.front_door_lock_lock_jammed"
+        "binary_sensor.front_door_lock_charge_battery_soon"
+        "binary_sensor.front_door_lock_charge_battery_now"
+        "sensor.node_102_node_status"
+        "button.node_102_ping"
+      ];
+    })
   ];
 
   devices = map (n: n.device) table;
