@@ -17,6 +17,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import sys
 import time
 from pathlib import Path
@@ -574,7 +575,9 @@ class Reconciler:
             index = {}
             for device in devices:
                 for identifier in device.get("identifiers") or []:
-                    index[tuple(identifier)] = device
+                    # As text: Nix declares strings, and some integrations
+                    # use numbers (Sense's monitor is ["sense", 6241]).
+                    index[tuple(str(part) for part in identifier)] = device
             missing = [w for w in wanted if w not in index]
             if not missing or time.monotonic() > deadline:
                 return index
@@ -652,6 +655,39 @@ class Reconciler:
 
             if spec.get("keepEntities") is not None:
                 await self.keep_only(device, spec["keepEntities"])
+
+    async def reconcile_entity_rules(self):
+        """Disable each entity of a ruled platform whose unique ID matches a
+        rule, and enable again those it disabled that no longer match.
+
+        Only what a rule disabled is ever re-enabled, recorded in the state
+        file: an entity keepEntities or a person disabled is left alone.
+        """
+        rules = {}
+        for rule in self.decl["disableEntities"]:
+            rules.setdefault(rule["platform"], []).append(re.compile(rule["uniqueId"]))
+        owned = set(self.state.get("ruleDisabled", []))
+        if not rules and not owned:
+            return
+        for entity in await self.ws.call("config/entity_registry/list"):
+            eid = entity["entity_id"]
+            patterns = rules.get(entity.get("platform"), [])
+            matched = any(p.fullmatch(str(entity["unique_id"])) for p in patterns)
+            by = entity.get("disabled_by")
+            if matched and by is None:
+                update = {"disabled_by": "user"}
+                owned.add(eid)
+            elif not matched and eid in owned:
+                owned.discard(eid)
+                if by != "user":
+                    continue
+                update = {"disabled_by": None}
+            else:
+                continue
+            await self.ws.call("config/entity_registry/update", entity_id=eid, **update)
+            self.changed(f"entity {eid}: {update}")
+        self.state["ruleDisabled"] = sorted(owned)
+        self.save_state()
 
     async def keep_only(self, device, keep):
         """Disable every entity on the device that is not in `keep`, and
@@ -844,6 +880,7 @@ class Reconciler:
             area_ids = await self.reconcile_areas()
             await self.reconcile_floors(area_ids)
             await self.reconcile_devices(area_ids)
+            await self.reconcile_entity_rules()
             await self.reconcile_entities(area_ids)
             await self.reconcile_persons()
             await self.reconcile_backup()

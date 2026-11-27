@@ -27,6 +27,20 @@ let
     device.identifiers = [ "testdev" ];
   };
 
+  # A device of two sensors for the disableEntities rule, which must disable
+  # the humidity sensor and leave the pressure sensor.
+  meterSensor =
+    kind:
+    builtins.toJSON {
+      name = kind;
+      unique_id = "meter_${kind}";
+      state_topic = "test/meter/${kind}";
+      device = {
+        identifiers = [ "meter" ];
+        name = "Meter";
+      };
+    };
+
   discovery = builtins.toJSON {
     name = "Relay";
     unique_id = "testdev_relay";
@@ -111,8 +125,12 @@ in
       virtualisation.memorySize = 2048;
 
       environment = {
-        etc."test/discovery.json".text = discovery;
-        etc."test/discovery-extra.json".text = discoveryExtra;
+        etc = {
+          "test/discovery.json".text = discovery;
+          "test/discovery-extra.json".text = discoveryExtra;
+          "test/meter-humidity.json".text = meterSensor "humidity";
+          "test/meter-pressure.json".text = meterSensor "pressure";
+        };
         systemPackages = [
           pkgs.mosquitto
           pkgs.jq
@@ -206,6 +224,12 @@ in
           persons."Test Owner".deviceTrackers = [ "device_tracker.test_phone" ];
           # Set, so the test proves that setting it cannot drop mobile_app.
           keepDomains = [ "sun" ];
+          disableEntities = [
+            {
+              platform = "mqtt";
+              uniqueId = "meter_hum.*";
+            }
+          ];
           secrets.mqtt-password = pkgs.writeText "mqtt-password" mqttPassword;
 
           integrations = {
@@ -301,6 +325,11 @@ in
 
       };
       # A rotated MQTT password changes the mqtt entry's declared steps.
+      # The disableEntities rule gone: what it disabled comes back.
+      specialisation.unruled.configuration = {
+        services.home-assistant-reconciler.disableEntities = lib.mkForce [ ];
+      };
+
       specialisation.rotated.configuration = {
         services.mosquitto.listeners = lib.mkForce [
           {
@@ -331,6 +360,11 @@ in
         "mosquitto_pub -h 127.0.0.1 -u homeassistant -P ${mqttPassword} -r "
         "-t discovered/sensor/testdev/config -f /etc/test/discovery-extra.json"
     )
+    for kind in ("humidity", "pressure"):
+        machine.succeed(
+            "mosquitto_pub -h 127.0.0.1 -u homeassistant -P ${mqttPassword} -r "
+            f"-t discovered/sensor/meter_{kind}/config -f /etc/test/meter-{kind}.json"
+        )
 
     machine.wait_for_unit("home-assistant.service")
     machine.wait_for_unit("home-assistant-reconciler.service", timeout=600)
@@ -429,6 +463,17 @@ in
             "/var/lib/hass/.storage/core.entity_registry"
         )
 
+    with subtest("disableEntities disables exactly the matching entities"):
+        machine.wait_until_succeeds(
+            "jq -e '.data.entities[] | select(.unique_id == \"meter_humidity\" and .disabled_by == \"user\")' "
+            "/var/lib/hass/.storage/core.entity_registry",
+            timeout=60,
+        )
+        machine.succeed(
+            "jq -e '.data.entities[] | select(.unique_id == \"meter_pressure\" and .disabled_by == null)' "
+            "/var/lib/hass/.storage/core.entity_registry"
+        )
+
     with subtest("the owner's person follows exactly the declared trackers"):
         machine.wait_until_succeeds(
             "jq -e '.data.items[] | select(.name == \"Test Owner\") "
@@ -491,9 +536,25 @@ in
             "/var/lib/hass/.storage/core.config_entries"
         )
 
+    with subtest("a rule's entities come back when it goes, and nothing else does"):
+        machine.succeed(
+            "/run/booted-system/specialisation/unruled/bin/switch-to-configuration test"
+        )
+        machine.wait_for_unit("home-assistant-reconciler.service", timeout=600)
+        machine.wait_until_succeeds(
+            "jq -e '.data.entities[] | select(.unique_id == \"meter_humidity\" and .disabled_by == null)' "
+            "/var/lib/hass/.storage/core.entity_registry",
+            timeout=60,
+        )
+        # Disabled by keepEntities, not by the rule.
+        machine.succeed(
+            "jq -e '.data.entities[] | select(.unique_id == \"testdev_temperature\" and .disabled_by == \"user\")' "
+            "/var/lib/hass/.storage/core.entity_registry"
+        )
+
     with subtest("changed steps recreate the entry, and the names come back"):
         machine.succeed(
-            "/run/current-system/specialisation/rotated/bin/switch-to-configuration test"
+            "/run/booted-system/specialisation/rotated/bin/switch-to-configuration test"
         )
         machine.wait_for_unit("home-assistant-reconciler.service", timeout=600)
         out = machine.succeed("journalctl -u home-assistant-reconciler.service -o cat")

@@ -247,6 +247,7 @@ let
       http
       ;
     persons = lib.mapAttrs (_: p: { inherit (p) deviceTrackers; }) cfg.persons;
+    disableEntities = map (r: { inherit (r) platform uniqueId; }) cfg.disableEntities;
     owner = {
       inherit (cfg.owner) name username language;
       password._secret = "owner-password";
@@ -397,6 +398,34 @@ in
         Entities to name, place or hide by entity ID, for those not reached
         through `devices`. One that is not registered is skipped with a
         warning.
+      '';
+    };
+
+    disableEntities = lib.mkOption {
+      type = lib.types.listOf (
+        lib.types.submodule {
+          options = {
+            platform = lib.mkOption {
+              type = lib.types.str;
+              description = "Integration whose entities the rule covers, e.g. `sense`.";
+            };
+            uniqueId = lib.mkOption {
+              type = lib.types.str;
+              description = "Python regular expression the whole unique ID must match.";
+            };
+          };
+        }
+      );
+      default = [ ];
+      example = lib.literalExpression ''[ { platform = "sense"; uniqueId = "[0-9]+-[^-]+-(weekly|yearly)-energy"; } ]'';
+      description = ''
+        Entities disabled by pattern, for integrations that keep adding
+        entities, where a per-device keepEntities list would always lag. Every
+        entity of a listed platform whose unique ID matches one of its rules
+        is disabled. One a rule disabled that no longer matches, because the
+        rule changed or went, is enabled again; the reconciler records which
+        it disabled, so entities disabled by keepEntities, by a person or by
+        the integration are never touched.
       '';
     };
 
