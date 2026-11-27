@@ -385,11 +385,16 @@ in
         assert before == after, f"refresh tokens went from {before} to {after}"
 
     with subtest("a Home Assistant restart re-runs it, still changing nothing"):
+        # Judged by the new run's own journal, so an earlier run's result
+        # cannot pass for it.
+        show = "systemctl show -p InvocationID --value home-assistant-reconciler.service"
+        before = machine.succeed(show).strip()
         machine.succeed("systemctl restart home-assistant.service")
+        machine.wait_until_succeeds(f'test "$({show})" != "{before}"', timeout=120)
         machine.wait_for_unit("home-assistant-reconciler.service", timeout=600)
-        out = machine.succeed("journalctl -u home-assistant-reconciler.service -o cat")
-        last = [line for line in out.splitlines() if "done:" in line][-1]
-        assert "done: 0 changes" in last, last
+        run = machine.succeed(show).strip()
+        out = machine.succeed(f"journalctl _SYSTEMD_INVOCATION_ID={run} -o cat")
+        assert "done: 0 changes" in out, out
 
     with subtest("changed steps recreate the entry, and the names come back"):
         machine.succeed(

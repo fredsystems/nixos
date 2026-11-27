@@ -89,30 +89,42 @@ class Api:
 
 
 class Websocket:
-    def __init__(self, ws):
+    def __init__(self, ws, timeout):
         self.ws = ws
+        self.timeout = timeout
         self.next_id = 0
 
     @classmethod
-    async def connect(cls, session, url, token):
+    async def connect(cls, session, url, token, timeout):
         ws = await session.ws_connect(
             url.rstrip("/").replace("http", "ws", 1) + "/api/websocket",
             max_msg_size=0,
         )
-        hello = await ws.receive_json()
+        self = cls(ws, timeout)
+        hello = await self.receive()
         if hello.get("type") != "auth_required":
             raise ReconcileError(f"unexpected websocket greeting: {hello}")
         await ws.send_json({"type": "auth", "access_token": token})
-        reply = await ws.receive_json()
+        reply = await self.receive()
         if reply.get("type") != "auth_ok":
             raise ReconcileError(f"websocket auth failed: {reply}")
-        return cls(ws)
+        return self
+
+    async def receive(self):
+        """The next message, or ReconcileError if none arrives in time: a
+        connection that goes silent must not hold the oneshot forever."""
+        try:
+            return await self.ws.receive_json(timeout=self.timeout)
+        except asyncio.TimeoutError:
+            raise ReconcileError(
+                f"websocket: no message in {self.timeout}s"
+            ) from None
 
     async def call(self, kind, **fields):
         self.next_id += 1
         await self.ws.send_json({"id": self.next_id, "type": kind, **fields})
         while True:
-            msg = await self.ws.receive_json()
+            msg = await self.receive()
             if msg.get("id") == self.next_id and msg.get("type") == "result":
                 if not msg.get("success"):
                     raise ReconcileError(f"{kind}: {msg.get('error')}")
@@ -125,7 +137,7 @@ class Websocket:
 class Reconciler:
     def __init__(self, decl, session):
         self.decl = decl
-        self.api = Api(session, decl["url"])
+        self.api = Api(session, decl["urls"][0])
         self.session = session
         self.ws = None
         self.refresh_token = None
@@ -165,17 +177,22 @@ class Reconciler:
         """
         deadline = time.monotonic() + self.decl["startTimeout"]
         while True:
-            try:
-                async with self.session.get(self.api.url + "/api/onboarding") as r:
-                    if r.status == 404:
-                        return []
-                    if r.status == 200:
-                        return await r.json()
-                    raise ReconcileError(f"GET /api/onboarding: HTTP {r.status}")
-            except (aiohttp.ClientError, ReconcileError) as err:
-                if time.monotonic() > deadline:
-                    raise ReconcileError(f"Home Assistant never answered: {err}")
-                await asyncio.sleep(2)
+            # Each candidate port in turn: Home Assistant is on the old one
+            # until a declared server_port change restarts it on the new.
+            for url in self.decl["urls"]:
+                try:
+                    async with self.session.get(url + "/api/onboarding") as r:
+                        if r.status == 404:
+                            self.api.url = url
+                            return []
+                        if r.status == 200:
+                            self.api.url = url
+                            return await r.json()
+                        raise ReconcileError(f"GET /api/onboarding: HTTP {r.status}")
+                except (aiohttp.ClientError, ReconcileError) as err:
+                    if time.monotonic() > deadline:
+                        raise ReconcileError(f"Home Assistant never answered: {err}")
+            await asyncio.sleep(2)
 
     async def authenticate(self, onboarding):
         owner = self.decl["owner"]
@@ -237,8 +254,15 @@ class Reconciler:
                 "client_id": client_id,
             },
         )
-        self.api.token = tokens["access_token"]
-        self.refresh_token = tokens["refresh_token"]
+        if not isinstance(tokens, dict):
+            raise ReconcileError("/auth/token: reply is not an object")
+        refresh, access = tokens.get("refresh_token"), tokens.get("access_token")
+        if isinstance(refresh, str) and refresh:
+            # Kept first, so the session is revoked even if the rest is bad.
+            self.refresh_token = refresh
+        if not (isinstance(access, str) and access and self.refresh_token):
+            raise ReconcileError("/auth/token: reply lacks the expected tokens")
+        self.api.token = access
 
         for step in ("core_config", "analytics", "integration"):
             if done.get(step, True):
@@ -271,13 +295,17 @@ class Reconciler:
 
     async def run_flow(self, base, start, steps, what):
         result = await self.api.request("POST", base, body=start)
-        for _ in range(25):
+        for attempt in range(26):
             kind = result.get("type")
             if kind == "create_entry":
                 return result
             if kind == "abort":
                 raise ReconcileError(f"{what}: aborted: {result.get('reason')}")
             flow_id = result["flow_id"]
+            if attempt == 25:
+                # Still running: cancel it, or the next run starts a second.
+                await self.api.request("DELETE", f"{base}/{flow_id}")
+                break
             if kind == "progress":
                 await asyncio.sleep(2)
                 result = await self.api.request("GET", f"{base}/{flow_id}")
@@ -341,26 +369,34 @@ class Reconciler:
                 None,
             )
 
-            if entry is None or record.get("hash") != wanted:
-                if entry is not None:
-                    await self.remove_entry(entry, "declaration changed")
-                owned = {r.get("entry_id") for r in managed.values()}
-                for other in entries:
-                    if other["domain"] == domain and other["entry_id"] not in owned:
-                        await self.remove_entry(other, "not declared in Nix")
-                before = {e["entry_id"] for e in await self.entries()}
-                await self.run_flow(
+            if entry is not None and record.get("hash") != wanted:
+                await self.remove_entry(entry, "declaration changed")
+                entry = None
+            # Every run, not only when recreating: a second entry of a
+            # declared domain is not declared in Nix either.
+            owned = {r.get("entry_id") for r in managed.values()}
+            for other in entries:
+                if (
+                    other["domain"] == domain
+                    and other["entry_id"] not in owned
+                    and other.get("source") not in ("ignore", "system", "import")
+                ):
+                    await self.remove_entry(other, "not declared in Nix")
+
+            if entry is None:
+                result = await self.run_flow(
                     "/api/config/config_entries/flow",
                     {"handler": domain, "show_advanced_options": True},
                     steps,
                     f"integration {name!r}",
                 )
-                new = [e for e in await self.entries() if e["entry_id"] not in before]
-                if len(new) != 1:
+                # The created entry, as Home Assistant reports it, rather
+                # than a registry diff another flow could add to.
+                entry = result.get("result")
+                if not isinstance(entry, dict) or not entry.get("entry_id"):
                     raise ReconcileError(
-                        f"integration {name!r}: expected one new entry, got {new}"
+                        f"integration {name!r}: the flow reported no entry"
                     )
-                entry = new[0]
                 record = {"entry_id": entry["entry_id"], "hash": wanted}
                 managed[name] = record
                 self.save_state()
@@ -471,8 +507,19 @@ class Reconciler:
                 wanted[area] = floors[name]["floor_id"]
 
         if declared:
+            managed_floors = {floors[name]["floor_id"] for name in declared}
             for area in await self.ws.call("config/area_registry/list"):
                 if area["name"] not in wanted:
+                    # A declared area taken off a declared floor leaves it.
+                    # Areas Nix does not declare, and floors it does not
+                    # manage, are left alone.
+                    if area["name"] in area_ids and area.get("floor_id") in managed_floors:
+                        await self.ws.call(
+                            "config/area_registry/update",
+                            area_id=area["area_id"],
+                            floor_id=None,
+                        )
+                        self.changed(f"area {area['name']!r}: no floor")
                     continue
                 floor_id = wanted[area["name"]]
                 if area.get("floor_id") != floor_id:
@@ -534,7 +581,9 @@ class Reconciler:
             candidates = [
                 e for e in candidates if e.get("original_name") == spec["originalName"]
             ]
-        elif len(candidates) > 1:
+        else:
+            # Even with one candidate: a diagnostic entity that registered
+            # before the primary one must not take the primary's name.
             candidates = [e for e in candidates if e.get("entity_category") is None]
         if not candidates:
             # Not created yet, e.g. a Z-Wave node still being interviewed.
@@ -696,6 +745,20 @@ class Reconciler:
         self.changed("http: applied new settings")
         return bool(result and result.get("restart"))
 
+    async def confirm_http(self):
+        """Fail unless the declared HTTP settings are the stable ones."""
+        wanted = self.decl["http"]
+        if wanted is None:
+            return
+        info = await self.ws.call("http/config")
+        stable, pending = info.get("stable") or {}, info.get("pending")
+        if pending is None and contains(stable, wanted):
+            return
+        error = pending.get("error") if pending else None
+        raise ReconcileError(
+            f"http: the declared settings are not in effect (pending error: {error})"
+        )
+
     async def wait_for_restart(self):
         """Wait for a Home Assistant restart to begin and finish."""
         deadline = time.monotonic() + 60
@@ -724,24 +787,27 @@ class Reconciler:
 
     async def run(self):
         onboarding = await self.wait_for_api()
-        await self.authenticate(onboarding)
+        timeout = self.decl["startTimeout"]
         try:
+            await self.authenticate(onboarding)
             self.ws = await Websocket.connect(
-                self.session, self.api.url, self.api.token
+                self.session, self.api.url, self.api.token, timeout
             )
             await self.wait_until_running()
-            # First, because applying it restarts Home Assistant. Twice at
-            # most: apply and restart, then confirm.
-            for _ in range(2):
+            # First, because applying it restarts Home Assistant: apply and
+            # restart, then confirm. A trial that failed at startup is
+            # applied once more.
+            for _ in range(3):
                 if not await self.reconcile_http():
                     break
                 await self.ws.close()
                 self.ws = None
                 await self.wait_for_restart()
                 self.ws = await Websocket.connect(
-                    self.session, self.api.url, self.api.token
+                    self.session, self.api.url, self.api.token, timeout
                 )
                 await self.wait_until_running()
+            await self.confirm_http()
             await self.reconcile_integrations()
             area_ids = await self.reconcile_areas()
             await self.reconcile_floors(area_ids)
@@ -749,9 +815,11 @@ class Reconciler:
             await self.reconcile_entities(area_ids)
             await self.reconcile_backup()
         finally:
-            if self.ws:
-                await self.ws.close()
-            await self.revoke()
+            try:
+                if self.ws:
+                    await self.ws.close()
+            finally:
+                await self.revoke()
         log.info("done: %d changes, %d warnings", self.changes, self.warnings)
 
 

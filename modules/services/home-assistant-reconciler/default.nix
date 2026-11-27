@@ -228,7 +228,11 @@ let
     };
 
   declaration = json.generate "home-assistant-reconciler.json" {
-    url = "http://127.0.0.1:${toString cfg.port}";
+    # Where Home Assistant may be answering: `port`, and the declared
+    # http.server_port while it is being moved there.
+    urls = map (p: "http://127.0.0.1:${toString p}") (
+      lib.unique ([ cfg.port ] ++ lib.optional (cfg.http ? server_port) cfg.http.server_port)
+    );
     stateFile = "${hass.configDir}/.nix-reconciler-state.json";
     inherit (cfg)
       startTimeout
@@ -408,6 +412,11 @@ in
       description = ''
         Port Home Assistant serves on, reached on 127.0.0.1. Match it to
         `http.server_port` when that is set.
+
+        To move Home Assistant to another port, change `http.server_port`
+        and leave this at the port it serves on now. The reconciler tries
+        both, so it applies the change through the old port and confirms it
+        on the new one. Then set this to match.
       '';
     };
 
