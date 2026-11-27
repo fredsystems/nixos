@@ -41,6 +41,18 @@ let
       };
     };
 
+  # A device whose declared rename clashes and whose keepEntities names the
+  # wanted ID: its sensor must stay enabled under the ID it keeps.
+  gadget = builtins.toJSON {
+    name = "Level";
+    unique_id = "gadget_level";
+    state_topic = "test/gadget/level";
+    device = {
+      identifiers = [ "gadget" ];
+      name = "Gadget";
+    };
+  };
+
   discovery = builtins.toJSON {
     name = "Relay";
     unique_id = "testdev_relay";
@@ -130,6 +142,7 @@ in
           "test/discovery-extra.json".text = discoveryExtra;
           "test/meter-humidity.json".text = meterSensor "humidity";
           "test/meter-pressure.json".text = meterSensor "pressure";
+          "test/gadget.json".text = gadget;
         };
         systemPackages = [
           pkgs.mosquitto
@@ -272,6 +285,20 @@ in
           pruneFloors = true;
 
           devices = [
+            {
+              identifier = [
+                "mqtt"
+                "gadget"
+              ];
+              entities = [
+                {
+                  domain = "sensor";
+                  uniqueId = "gadget_level";
+                  entityId = "sensor.meter_pressure";
+                }
+              ];
+              keepEntities = [ "sensor.meter_pressure" ];
+            }
             # An entity ID that is already taken: the rename must warn and the
             # run carry on.
             {
@@ -374,6 +401,10 @@ in
     machine.succeed(
         "mosquitto_pub -h 127.0.0.1 -u homeassistant -P ${mqttPassword} -r "
         "-t discovered/sensor/testdev/config -f /etc/test/discovery-extra.json"
+    )
+    machine.succeed(
+        "mosquitto_pub -h 127.0.0.1 -u homeassistant -P ${mqttPassword} -r "
+        "-t discovered/sensor/gadget_level/config -f /etc/test/gadget.json"
     )
     for kind in ("humidity", "pressure"):
         machine.succeed(
@@ -497,6 +528,13 @@ in
             "/var/lib/hass/.storage/core.entity_registry"
         )
 
+    with subtest("a skipped rename keeps its entity enabled under keepEntities"):
+        machine.wait_until_succeeds(
+            "jq -e '.data.entities[] | select(.unique_id == \"gadget_level\" and .disabled_by == null)' "
+            "/var/lib/hass/.storage/core.entity_registry",
+            timeout=30,
+        )
+
     with subtest("the owner's person follows exactly the declared trackers"):
         machine.wait_until_succeeds(
             "jq -e '.data.items[] | select(.name == \"Test Owner\") "
@@ -583,8 +621,8 @@ in
         out = machine.succeed("journalctl -u home-assistant-reconciler.service -o cat")
         assert "removed mqtt entry '127.0.0.1' (declaration changed)" in out, out
         last = [line for line in out.splitlines() if "done:" in line][-1]
-        # The cover that is never created, and the clashing rename.
-        assert "2 warnings" in last, last
+        # The cover that is never created, and the two clashing renames.
+        assert "3 warnings" in last, last
         machine.wait_until_succeeds(
             "jq -e '.data.entities[] | select(.entity_id == \"switch.lamp\" and .name == \"Lamp\")' "
             "/var/lib/hass/.storage/core.entity_registry",

@@ -151,6 +151,9 @@ class Reconciler:
         self.onboarded_now = False
         self.state_path = Path(decl["stateFile"])
         self.state = self.load_state()
+        # Entities keepEntities excludes, by entity_key, filled as devices
+        # are reconciled.
+        self.keep_excluded = set()
 
     # -- bookkeeping -----------------------------------------------------
 
@@ -648,13 +651,19 @@ class Reconciler:
                 )
                 self.changed(f"device {device_label(device)}: {update}")
 
+            # A declared entity whose rename was skipped (its ID is taken)
+            # keeps its current ID; keepEntities lists the wanted one, so
+            # keep the current one in its place.
+            kept_as = {}
             for entity_spec in spec["entities"]:
                 entity = self.pick_entity(device, entities, entity_spec)
                 if entity is not None:
-                    await self.update_entity(entity, entity_spec, area_ids)
+                    actual = await self.update_entity(entity, entity_spec, area_ids)
+                    kept_as[entity_spec["entityId"]] = actual
 
             if spec.get("keepEntities") is not None:
-                await self.keep_only(device, spec["keepEntities"])
+                keep = {kept_as.get(eid, eid) for eid in spec["keepEntities"]}
+                await self.keep_only(device, keep)
 
     async def entity_id_free(self, entity, wanted):
         """Whether `entity` can be renamed to `wanted`. Taken by another
@@ -676,7 +685,9 @@ class Reconciler:
         rule, and enable again those it disabled that no longer match.
 
         Only what a rule disabled is ever re-enabled, recorded in the state
-        file: an entity keepEntities or a person disabled is left alone.
+        file by platform and unique ID (so a rename keeps it): an entity
+        keepEntities or a person disabled is left alone, and one a rule
+        disabled that keepEntities now excludes stays disabled.
         """
         rules = {}
         for rule in self.decl["disableEntities"]:
@@ -684,23 +695,33 @@ class Reconciler:
         owned = set(self.state.get("ruleDisabled", []))
         if not rules and not owned:
             return
-        for entity in await self.ws.call("config/entity_registry/list"):
-            eid = entity["entity_id"]
+        entities = await self.ws.call("config/entity_registry/list")
+        # Records from before ownership was keyed by unique ID held entity
+        # IDs, which never contain a colon.
+        by_id = {e["entity_id"]: entity_key(e) for e in entities}
+        owned = {by_id.get(o, o) if ":" not in o else o for o in owned}
+        for entity in entities:
+            eid, key = entity["entity_id"], entity_key(entity)
             patterns = rules.get(entity.get("platform"), [])
             matched = any(p.fullmatch(str(entity["unique_id"])) for p in patterns)
             by = entity.get("disabled_by")
             if matched and by is None:
                 update = {"disabled_by": "user"}
-                owned.add(eid)
-            elif not matched and eid in owned:
-                owned.discard(eid)
-                if by != "user":
+                owned.add(key)
+            elif not matched and key in owned:
+                owned.discard(key)
+                if by != "user" or key in self.keep_excluded:
+                    self.save_owned(owned)
                     continue
                 update = {"disabled_by": None}
             else:
                 continue
             await self.ws.call("config/entity_registry/update", entity_id=eid, **update)
             self.changed(f"entity {eid}: {update}")
+            self.save_owned(owned)
+        self.save_owned(owned)
+
+    def save_owned(self, owned):
         self.state["ruleDisabled"] = sorted(owned)
         self.save_state()
 
@@ -714,6 +735,8 @@ class Reconciler:
         for entity in entities:
             if entity.get("device_id") != device["id"]:
                 continue
+            if entity["entity_id"] not in keep:
+                self.keep_excluded.add(entity_key(entity))
             eid = entity["entity_id"]
             by = entity.get("disabled_by")
             if eid in keep and by == "user":
@@ -747,6 +770,7 @@ class Reconciler:
             await self.update_entity(entity, spec, area_ids)
 
     async def update_entity(self, entity, spec, area_ids):
+        """Apply an entity spec; return the entity's ID afterwards."""
         update = {}
         if entity["entity_id"] != spec["entityId"] and await self.entity_id_free(
             entity, spec["entityId"]
@@ -776,6 +800,7 @@ class Reconciler:
                 **update,
             )
             self.changed(f"entity {entity['entity_id']}: {update}")
+        return update.get("new_entity_id", entity["entity_id"])
 
     # -- persons -----------------------------------------------------------
 
@@ -908,6 +933,11 @@ class Reconciler:
             finally:
                 await self.revoke()
         log.info("done: %d changes, %d warnings", self.changes, self.warnings)
+
+
+def entity_key(entity):
+    """An entity's identity that survives renames: platform and unique ID."""
+    return f"{entity.get('platform')}:{entity['unique_id']}"
 
 
 def device_label(device):
