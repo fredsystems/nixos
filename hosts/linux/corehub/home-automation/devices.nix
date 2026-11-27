@@ -53,7 +53,7 @@ let
     (node 13 "switch" "Master Bathroom" "Master Vanity")
     (node 16 "motionDimmer" "Master Bathroom" "Master Bathroom")
     (node 17 "motionSwitch" "Master Bathroom" "Master Bathroom Vent")
-    (node 19 "dimmer" "Bedroom" "Bedroom Light")
+    (node 19 "dimmer" "Master Bedroom" "Master Bedroom Light")
     (node 23 "dimmer" "Server Room" "Server Room Light")
     (node 24 "fan" "Server Room" "Server Room Fan")
     (node 32 "motionDimmer" "Guest Bathroom" "Guest Bathroom Main Light")
