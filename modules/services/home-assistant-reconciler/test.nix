@@ -18,6 +18,14 @@ let
   rotatedPassword = "rotated-mqtt-password";
   ownerPassword = "test-owner-password";
 
+  # A second entity on the same device, which keepEntities must disable.
+  discoveryExtra = builtins.toJSON {
+    name = "Temperature";
+    unique_id = "testdev_temperature";
+    state_topic = "test/temperature";
+    device.identifiers = [ "testdev" ];
+  };
+
   discovery = builtins.toJSON {
     name = "Relay";
     unique_id = "testdev_relay";
@@ -39,12 +47,14 @@ in
 
       virtualisation.memorySize = 2048;
 
-      environment.etc."test/discovery.json".text = discovery;
-
-      environment.systemPackages = [
-        pkgs.mosquitto
-        pkgs.jq
-      ];
+      environment = {
+        etc."test/discovery.json".text = discovery;
+        etc."test/discovery-extra.json".text = discoveryExtra;
+        systemPackages = [
+          pkgs.mosquitto
+          pkgs.jq
+        ];
+      };
 
       services = {
         mosquitto = {
@@ -128,6 +138,10 @@ in
               username = "homeassistant";
               password._secret = "mqtt-password";
             };
+            # The options flow, as corehub's Frigate entry uses one. The test
+            # device is announced under this prefix, so it is only discovered
+            # if the option took effect.
+            mqtt.optionsFlow.options.discovery_prefix = "discovered";
           };
           pruneIntegrations = true;
 
@@ -157,6 +171,7 @@ in
               ];
               name = "Lamp";
               area = "Office";
+              keepEntities = [ "switch.lamp" ];
               entities = [
                 {
                   domain = "switch";
@@ -223,7 +238,11 @@ in
     # Retained, so Home Assistant sees it as soon as the mqtt entry exists.
     machine.succeed(
         "mosquitto_pub -h 127.0.0.1 -u homeassistant -P ${mqttPassword} -r "
-        "-t homeassistant/switch/testdev/config -f /etc/test/discovery.json"
+        "-t discovered/switch/testdev/config -f /etc/test/discovery.json"
+    )
+    machine.succeed(
+        "mosquitto_pub -h 127.0.0.1 -u homeassistant -P ${mqttPassword} -r "
+        "-t discovered/sensor/testdev/config -f /etc/test/discovery-extra.json"
     )
 
     machine.wait_for_unit("home-assistant.service")
@@ -241,6 +260,13 @@ in
         machine.wait_until_succeeds(
             "jq -e '[.data.entries[] | select(.source != \"ignore\" and .source != \"system\") "
             "| .domain] | sort == [\"mqtt\", \"sun\"]' /var/lib/hass/.storage/core.config_entries",
+            timeout=60,
+        )
+
+    with subtest("the options flow ran"):
+        machine.wait_until_succeeds(
+            "jq -e '.data.entries[] | select(.domain == \"mqtt\" and .options.discovery_prefix == \"discovered\")' "
+            "/var/lib/hass/.storage/core.config_entries",
             timeout=60,
         )
 
@@ -286,6 +312,17 @@ in
             "jq -e '.data.entities[] | select(.entity_id == \"light.lamp_light\" and .area_id == \"office\")' "
             "/var/lib/hass/.storage/core.entity_registry",
             timeout=60,
+        )
+
+    with subtest("keepEntities disables the device's other entities"):
+        machine.wait_until_succeeds(
+            "jq -e '.data.entities[] | select(.unique_id == \"testdev_temperature\" and .disabled_by == \"user\")' "
+            "/var/lib/hass/.storage/core.entity_registry",
+            timeout=60,
+        )
+        machine.succeed(
+            "jq -e '.data.entities[] | select(.entity_id == \"switch.lamp\" and .disabled_by == null)' "
+            "/var/lib/hass/.storage/core.entity_registry"
         )
 
     with subtest("backup settings are applied"):

@@ -140,6 +140,9 @@ let
         description = ''
           One of the device's registry identifiers, as `[ domain id ]`. For
           Z-Wave JS this is `[ "zwave_js" "<home id in decimal>-<node id>" ]`.
+          `{entry:<name>}` is replaced by the config entry ID of the declared
+          integration `<name>`, for integrations whose identifiers contain
+          it, such as Frigate's `[ "frigate" "{entry:frigate}:<camera>" ]`.
         '';
       };
 
@@ -159,6 +162,17 @@ let
         type = lib.types.listOf (lib.types.submodule entityModule);
         default = [ ];
         description = "The device's entities to name.";
+      };
+
+      keepEntities = lib.mkOption {
+        type = lib.types.nullOr (lib.types.listOf lib.types.str);
+        default = null;
+        description = ''
+          Entity IDs to keep enabled on this device. Every other entity on it
+          is disabled, which takes it out of the UI and the recorder, and a
+          kept one disabled here earlier is enabled again. Entities the
+          integration disables itself are left alone. Null touches nothing.
+        '';
       };
     };
   };
@@ -236,7 +250,12 @@ let
       options = i.optionsFlow;
     }) cfg.integrations;
     devices = map (d: {
-      inherit (d) identifier name area;
+      inherit (d)
+        identifier
+        name
+        area
+        keepEntities
+        ;
       entities = map (e: {
         inherit (e)
           domain

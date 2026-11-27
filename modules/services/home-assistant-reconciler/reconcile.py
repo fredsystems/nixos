@@ -491,8 +491,23 @@ class Reconciler:
                     )
                     self.changed(f"removed floor {name!r}")
 
+    def identifier(self, spec):
+        """A device spec's identifier, with {entry:NAME} replaced by the
+        entry ID of the declared integration NAME, for integrations that
+        put their entry ID in device identifiers."""
+        out = []
+        for part in spec["identifier"]:
+            for name, record in self.state.get("integrations", {}).items():
+                part = part.replace("{entry:" + name + "}", record["entry_id"])
+            if "{entry:" in part:
+                raise ReconcileError(
+                    f"device {spec['identifier']}: no managed integration for {part!r}"
+                )
+            out.append(part)
+        return tuple(out)
+
     async def find_devices(self):
-        wanted = [tuple(d["identifier"]) for d in self.decl["devices"]]
+        wanted = [self.identifier(d) for d in self.decl["devices"]]
         deadline = time.monotonic() + self.decl["deviceTimeout"]
         while True:
             devices = await self.ws.call("config/device_registry/list")
@@ -536,7 +551,7 @@ class Reconciler:
         entities = await self.ws.call("config/entity_registry/list")
 
         for spec in self.decl["devices"]:
-            identifier = tuple(spec["identifier"])
+            identifier = self.identifier(spec)
             device = index.get(identifier)
             if device is None:
                 self.warn(f"device {list(identifier)} is not registered; skipped")
@@ -563,6 +578,37 @@ class Reconciler:
             for entity_spec in spec["entities"]:
                 entity = self.pick_entity(device, entities, entity_spec)
                 await self.update_entity(entity, entity_spec, area_ids)
+
+            if spec.get("keepEntities") is not None:
+                await self.keep_only(device, spec["keepEntities"])
+
+    async def keep_only(self, device, keep):
+        """Disable every entity on the device that is not in `keep`, and
+        enable the kept ones if they were disabled here. Entities that the
+        integration itself disabled are left as they are."""
+        keep = set(keep)
+        # Read afresh: the renames just made change entity IDs.
+        entities = await self.ws.call("config/entity_registry/list")
+        for entity in entities:
+            if entity.get("device_id") != device["id"]:
+                continue
+            eid = entity["entity_id"]
+            by = entity.get("disabled_by")
+            if eid in keep and by == "user":
+                update = {"disabled_by": None}
+            elif eid not in keep and by is None:
+                update = {"disabled_by": "user"}
+            else:
+                continue
+            await self.ws.call(
+                "config/entity_registry/update", entity_id=eid, **update
+            )
+            self.changed(f"entity {eid}: {update}")
+        missing = keep - {
+            e["entity_id"] for e in entities if e.get("device_id") == device["id"]
+        }
+        for eid in sorted(missing):
+            self.warn(f"device {device_label(device)}: kept entity {eid} does not exist")
 
     async def reconcile_entities(self, area_ids):
         """Entities declared by entity ID, such as those with no device."""
