@@ -522,7 +522,13 @@ in
       after = [ "home-assistant.service" ];
       requires = [ "home-assistant.service" ];
       partOf = [ "home-assistant.service" ];
-      wantedBy = [ "home-assistant.service" ];
+      # multi-user.target too: a switch then starts it again after a failed
+      # run (it stays active after a good one), not only when Home Assistant
+      # itself changes.
+      wantedBy = [
+        "home-assistant.service"
+        "multi-user.target"
+      ];
 
       serviceConfig = {
         Type = "oneshot";
