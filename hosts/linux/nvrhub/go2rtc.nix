@@ -19,6 +19,18 @@
 { config, lib, ... }:
 let
   port = 8554;
+
+  restreams = config.services.frigate.settings.go2rtc.streams;
+
+  # A 720p H.264 copy of each camera's restream for Apple Home, encoded on
+  # the GPU only while someone watches. Home Assistant's HomeKit cameras
+  # re-encode at the size their source arrives, with no scaling of their own,
+  # and iOS drops a stream larger than the 720p it negotiated: the cameras'
+  # 2688x1520 main streams spun and failed in the Home app. `ffmpeg:<name>`
+  # reads the named restream over loopback, so no credentials are needed.
+  homekitStreams = lib.mapAttrs' (
+    cam: _: lib.nameValuePair "${cam}_homekit" "ffmpeg:${cam}#video=h264#width=1280#height=720#hardware"
+  ) restreams;
 in
 {
   services.go2rtc = {
@@ -31,7 +43,7 @@ in
         password = "\${RTSP_PASSWORD}";
       };
       webrtc.listen = "127.0.0.1:8555";
-      streams = lib.mapAttrs (_: lib.head) config.services.frigate.settings.go2rtc.streams;
+      streams = lib.mapAttrs (_: lib.head) restreams // homekitStreams;
     };
   };
 
