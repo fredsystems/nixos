@@ -22,10 +22,12 @@ in
           "sensor.*_battery_level"
           "binary_sensor.*_lock_jammed"
         ];
-        # The companion app reports the phone's own battery as
+        # The companion app reports a phone's own battery as
         # sensor.<phone>_battery_level, which would page on every evening
-        # below 25%. Phones are not house monitoring.
-        exclude_entity_globs = [ "sensor.iphone*" ];
+        # below 25%. Phones are not house monitoring. Listed by entity ID: in
+        # Home Assistant's filter a matching include glob beats an exclude
+        # glob, and only exclude_entities beats it. A new phone goes here.
+        exclude_entities = [ "sensor.iphone_battery_level" ];
       };
     };
   };
