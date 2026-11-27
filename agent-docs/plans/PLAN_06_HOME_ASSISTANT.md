@@ -424,15 +424,20 @@ Decide at activation:
 
       | Load                    | Area             | Node             |
       | ----------------------- | ---------------- | ---------------- |
-      | Office Light            | Office           | unknown          |
-      | Office Fan              | Office           | unknown          |
-      | Master Bedroom Fan      | Master Bedroom   | unknown          |
-      | Upstairs Hallway Light  | Upstairs Hallway | unknown          |
+      | Office Light            | Office           | now 104          |
+      | Office Fan              | Office           | now 105          |
+      | Master Bedroom Fan      | Master Bedroom   | now 107          |
+      | Upstairs Hallway Light  | Upstairs Hallway | now 106          |
       | Dining Room Light       | Kitchen          | 56, now 103      |
 
       Node 56 is known because Kitchen Overhead Lights (97) still has it
       in its association group (6.21). Replaced 2026-11-27 by node 103,
       an Enbrighten 800 series dimmer included with S2 Authenticated.
+      The other four followed the same day: GE 800 series on/off
+      switches for the two lights (S2 Authenticated; the office one had
+      to be excluded first, having been paired before) and Jasco 14314
+      fan controls for the two fans (no S2). The old switches' node
+      numbers were never known; their dead nodes go with the rest.
 
       Dead nodes, 56 included, are left alone for now by the owner's
       decision (2026-11-27): they are removed together once the other
