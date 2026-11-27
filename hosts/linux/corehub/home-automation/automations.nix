@@ -59,6 +59,11 @@ in
       }
 
       # A garbage disposal left running is a fault, not a use.
+      #
+      # A restart or an automation reload cancels the pending two minutes,
+      # and the state trigger does not fire again for a disposal that is
+      # already on. So a check every minute, at start and after a reload,
+      # turns off a disposal that has been on two minutes by then.
       {
         id = "garbage_disposal_off_after_2_minutes";
         alias = "Garbage disposal off after 2 minutes";
@@ -67,6 +72,26 @@ in
             trigger = "state";
             entity_id = "switch.garbage_disposal";
             to = "on";
+            for.minutes = 2;
+          }
+          {
+            trigger = "time_pattern";
+            minutes = "/1";
+          }
+          {
+            trigger = "homeassistant";
+            event = "start";
+          }
+          {
+            trigger = "event";
+            event_type = "automation_reloaded";
+          }
+        ];
+        conditions = [
+          {
+            condition = "state";
+            entity_id = "switch.garbage_disposal";
+            state = "on";
             for.minutes = 2;
           }
         ];
@@ -86,13 +111,14 @@ in
         alias = "Good Night";
         icon = "mdi:weather-night";
         sequence = [
+          # Neither step is fatal to the other: a light that fails still
+          # leaves the door locked, a lock out of reach the lights off.
           {
             action = "light.turn_off";
             target.area_id = lib.remove "front_porch" areas;
+            continue_on_error = true;
           }
-          # Good Night locks; nothing unlocks automatically. After the
-          # lights, and not fatal, so a lock out of reach still leaves the
-          # lights off.
+          # Good Night locks; nothing unlocks automatically.
           {
             action = "lock.lock";
             target.entity_id = "lock.front_door";
