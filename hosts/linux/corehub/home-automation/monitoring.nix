@@ -22,6 +22,10 @@ in
           "sensor.*_battery_level"
           "binary_sensor.*_lock_jammed"
         ];
+        # The companion app reports the phone's own battery as
+        # sensor.<phone>_battery_level, which would page on every evening
+        # below 25%. Phones are not house monitoring.
+        exclude_entity_globs = [ "sensor.iphone*" ];
       };
     };
   };
