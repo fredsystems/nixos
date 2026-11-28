@@ -441,7 +441,25 @@ Decide at activation:
 
       Dead nodes, 56 included, are left alone for now by the owner's
       decision (2026-11-27): they are removed together once the other
-      replacements are in, not one at a time. Five replacement switches arrive
+      replacements are in, not one at a time.
+
+      Done 2026-11-27, after an NVM backup of the stick and a copy of
+      zwave-js's cache (corehub `/var/lib/zwave-js-backups/`, copied to
+      the owner's workstation). The keep list was every node in
+      `devices.nix`, the controller, and every alive or interviewed
+      node; nothing on it was touched. Removed with "remove failed node",
+      one at a time, on the owner's approval of each list:
+
+      | List | Nodes                                                        | What                                                                            |
+      | ---- | ------------------------------------------------------------ | ------------------------------------------------------------------------------- |
+      | A    | 4, 5, 6, 8, 9, 18, 20, 21, 40, 55, 65, 67, 68, 70, 75, 78, 80, 85, 86, 87, 88, 89, 90, 91, 95, 100, 101 | dead mains nodes: the old switches, fan controls and dimmers, the 14 Secure Barrier garage ghosts (65-95, not 69 or 82, which are kept door sensors), an old lock entry |
+      | C    | 29-31, 35, 36, 39, 51, 58, 59, 63, 64, 72, 83, 84, 96, 98     | battery sensors never heard since the adoption (no lastSeen in the cache)        |
+
+      Node 56 was already gone. 82 nodes became 39: the controller, the
+      29 declared devices, 8 Neo NAS-DS01Z door/window sensors (11, 12,
+      26, 27, 47, 57, 69, 82; real and reporting, not yet declared), and
+      node 37, held back: a switch, dead now but heard on 2026-11-27, and
+      never interviewed (6.7). Five replacement switches arrive
       2026-11-27; the owner installs them as he gets to them. Each is
       included (S2 where the switch supports it), added to the device
       table in `devices.nix`, and its dead node removed with "remove
@@ -469,7 +487,33 @@ Decide at activation:
       Each group takes at most 5 targets. Deferred by the owner
       (2026-11-27) until the living room's second plug was in, so the
       whole table is done at once; that plug, a Minoston MP21Z (S2
-      Authenticated), is node 108 since 2026-11-27. Until then node 97 still sends to
+      Authenticated), is node 108 since 2026-11-27.
+
+      Checked with zwave-js's `check_association` (2026-11-27): 97 -> 53,
+      19 -> 13, 19 -> 7 and 42 -> 44 are allowed; 97 -> 103 and 42 -> 108
+      are forbidden (security class mismatch). With Association version 2
+      on both ends the classes must match exactly, and 97 and 42 are
+      unsecured while 103 and 108 joined with S2 Authenticated. 42 (GE
+      14294) has no security at all; 97 (Inovelli NZW30) supports S2 but
+      joined without it. Undecided: re-include 103 and 108 unsecured, or
+      re-include 97 with S2 Authenticated for the kitchen pair.
+
+      Bedroom row applied by hand on the owner's request (2026-11-27):
+      19 group 2 is now 13 and 7, and the owner confirmed it works.
+
+      Declarative since 2026-11-27: the table is `associations` in
+      `devices.nix`, by load name, applied by
+      `modules/services/zwave-js-associations` (a oneshot against
+      zwave-js-server at boot, on zwave-js restarts and on table
+      changes). Each declared group ends up holding exactly its targets,
+      every addition checked with `check_association` first and the
+      result read back; group 1 and anything undeclared are never
+      touched. Unit tests: `.#checks.x86_64-linux.zwave-js-associations`.
+      A dry run against corehub before the first deploy: the bedroom row
+      already matched, and the only changes were dropping the stale 56
+      (kitchen) and 45 (living room). The kitchen and living-room S2
+      targets (103, 108) stay out of the table until both ends share a
+      security class. Until then node 97 still sends to
       dead node 56, so the overhead switch does not drive the new Dining
       Room Light (103). The dimmers' group 3 ("Double
       Tap") reports to the controller, so a double tap can trigger an
@@ -543,7 +587,13 @@ Requested 2026-11-26, ahead of house mode, in
   `home_sleep`) and Good Morning (house mode `home_awake`, and
   lights on in Master Bedroom, Living Room, Kitchen and Upstairs
   Hallway, and the Master Vanity, added 2026-11-27; lights only, never
-  the fans). Scripts, run
+  the fans). Since 2026-11-27 Good Night also closes the garage door
+  and arms the Alarm.com panel STAY, and notifies if after 3 minutes
+  the garage, lock or alarm is not secured; Good Morning disarms (with
+  Fred home). Away arms STAY and arriving disarms. Never AWAY: it turns
+  on the indoor motion sensors, which the pets trip, and a build
+  assertion refuses any automation or script that arms AWAY. The home
+  zone's radius is 200 m. Scripts, run
   from Home Assistant or Siri through the HomeKit bridge, until house
   mode (6.15) gives them triggers.
 - Garbage disposal off after 2 minutes continuously on.

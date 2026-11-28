@@ -154,6 +154,9 @@ class Reconciler:
         # Entities keepEntities excludes, by entity_key, filled as devices
         # are reconciled.
         self.keep_excluded = set()
+        self.rules = {}
+        for rule in decl["disableEntities"]:
+            self.rules.setdefault(rule["platform"], []).append(re.compile(rule["uniqueId"]))
         self.renamed = 0
 
     # -- bookkeeping -----------------------------------------------------
@@ -663,8 +666,15 @@ class Reconciler:
                     kept_as[entity_spec["entityId"]] = actual
 
             if spec.get("keepEntities") is not None:
-                keep = {kept_as.get(eid, eid) for eid in spec["keepEntities"]}
-                await self.keep_only(device, keep)
+                # Added, not substituted: the ID it wanted may belong to
+                # another entity on the same device, which stays kept.
+                keep = set(spec["keepEntities"]) | {
+                    kept_as[eid] for eid in spec["keepEntities"] if eid in kept_as
+                }
+                # A skipped rename's wanted ID is someone else's; its clash
+                # was warned about already.
+                skipped = {eid for eid, actual in kept_as.items() if actual != eid}
+                await self.keep_only(device, keep, skipped)
 
     async def entity_id_free(self, entity, wanted):
         """Whether `entity` can be renamed to `wanted`. Taken by another
@@ -690,9 +700,7 @@ class Reconciler:
         keepEntities or a person disabled is left alone, and one a rule
         disabled that keepEntities now excludes stays disabled.
         """
-        rules = {}
-        for rule in self.decl["disableEntities"]:
-            rules.setdefault(rule["platform"], []).append(re.compile(rule["uniqueId"]))
+        rules = self.rules
         owned = set(self.state.get("ruleDisabled", []))
         if not rules and not owned:
             return
@@ -703,8 +711,7 @@ class Reconciler:
         owned = {by_id.get(o, o) if ":" not in o else o for o in owned}
         for entity in entities:
             eid, key = entity["entity_id"], entity_key(entity)
-            patterns = rules.get(entity.get("platform"), [])
-            matched = any(p.fullmatch(str(entity["unique_id"])) for p in patterns)
+            matched = self.rule_matches(entity)
             by = entity.get("disabled_by")
             if matched and by is None:
                 update = {"disabled_by": "user"}
@@ -722,11 +729,16 @@ class Reconciler:
             self.save_owned(owned)
         self.save_owned(owned)
 
+    def rule_matches(self, entity):
+        return any(
+            p.fullmatch(str(entity["unique_id"])) for p in self.rules.get(entity.get("platform"), [])
+        )
+
     def save_owned(self, owned):
         self.state["ruleDisabled"] = sorted(owned)
         self.save_state()
 
-    async def keep_only(self, device, keep):
+    async def keep_only(self, device, keep, skipped=frozenset()):
         """Disable every entity on the device that is not in `keep`, and
         enable the kept ones if they were disabled here. Entities that the
         integration itself disabled are left as they are."""
@@ -740,7 +752,9 @@ class Reconciler:
                 self.keep_excluded.add(entity_key(entity))
             eid = entity["entity_id"]
             by = entity.get("disabled_by")
-            if eid in keep and by == "user":
+            # Kept, but not if a disable rule still matches it: the rule
+            # pass would only disable it again.
+            if eid in keep and by == "user" and not self.rule_matches(entity):
                 update = {"disabled_by": None}
             elif eid not in keep and by is None:
                 update = {"disabled_by": "user"}
@@ -750,7 +764,7 @@ class Reconciler:
                 "config/entity_registry/update", entity_id=eid, **update
             )
             self.changed(f"entity {eid}: {update}")
-        missing = keep - {
+        missing = keep - skipped - {
             e["entity_id"] for e in entities if e.get("device_id") == device["id"]
         }
         for eid in sorted(missing):
@@ -782,8 +796,11 @@ class Reconciler:
                 raise ReconcileError(
                     f"entity {spec['entityId']}: name and nameFromDevice together"
                 )
-            if entity.get("name") is not None:
-                update["name"] = None
+            # An empty name, not none: with none Home Assistant falls back
+            # to the integration's name for the entity and puts it after the
+            # device's; an empty part is dropped.
+            if entity.get("name") != "":
+                update["name"] = ""
         elif spec.get("name") is not None and entity.get("name") != spec["name"]:
             update["name"] = spec["name"]
         if spec.get("area") is not None:

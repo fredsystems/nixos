@@ -180,3 +180,76 @@ tests:
             exp_annotations:
               summary: "Home Assistant's metrics are not scrapeable on corehub"
               description: "The /api/prometheus endpoint has not answered for 10 minutes, so the battery and lock alerts in this group cannot fire."
+
+  - interval: 1m
+    name: AlarmBatteryLow fires after an hour of a low battery flag, not before
+    input_series:
+      - series: 'homeassistant_binary_sensor_state{entity="binary_sensor.home_sensor_low_battery", friendly_name="Home Sensor Low Battery", domain="binary_sensor", job="home-assistant", hostname="corehub"}'
+        values: "1+0x90"
+      - series: 'homeassistant_binary_sensor_state{entity="binary_sensor.home_panel_low_battery", friendly_name="Home Panel Low Battery", domain="binary_sensor", job="home-assistant", hostname="corehub"}'
+        values: "0+0x90"
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: AlarmBatteryLow
+        exp_alerts: []
+      - eval_time: 70m
+        alertname: AlarmBatteryLow
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              entity: binary_sensor.home_sensor_low_battery
+              friendly_name: Home Sensor Low Battery
+              domain: binary_sensor
+              job: home-assistant
+              hostname: corehub
+            exp_annotations:
+              summary: "Alarm.com reports a low battery (Home Sensor Low Battery)"
+              description: "binary_sensor.home_sensor_low_battery has been on for an hour. Check the Alarm.com app for which sensor, or the panel's backup battery, and replace it."
+
+  - interval: 1m
+    name: AlarmPanelNotResponding fires after 15 minutes
+    input_series:
+      - series: 'homeassistant_binary_sensor_state{entity="binary_sensor.home_panel_not_responding", friendly_name="Home Panel Not Responding", domain="binary_sensor", job="home-assistant", hostname="corehub"}'
+        values: "0 0 1+0x20"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: AlarmPanelNotResponding
+        exp_alerts: []
+      - eval_time: 20m
+        alertname: AlarmPanelNotResponding
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              entity: binary_sensor.home_panel_not_responding
+              friendly_name: Home Panel Not Responding
+              domain: binary_sensor
+              job: home-assistant
+              hostname: corehub
+            exp_annotations:
+              summary: "The alarm panel is not responding to Alarm.com"
+              description: "Alarm.com has reported the panel not responding for 15 minutes: it cannot be armed or disarmed remotely, and monitoring may not reach it. Check the panel's power and its cellular or network connection."
+
+  - interval: 1m
+    name: AlarmPanelPowerFailure fires after 15 minutes, and the flags are silent when off
+    input_series:
+      - series: 'homeassistant_binary_sensor_state{entity="binary_sensor.home_ac_failure", friendly_name="Home AC Failure", domain="binary_sensor", job="home-assistant", hostname="corehub"}'
+        values: "1+0x20"
+      - series: 'homeassistant_binary_sensor_state{entity="binary_sensor.home_panel_not_responding", friendly_name="Home Panel Not Responding", domain="binary_sensor", job="home-assistant", hostname="corehub"}'
+        values: "0+0x20"
+    alert_rule_test:
+      - eval_time: 18m
+        alertname: AlarmPanelPowerFailure
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              entity: binary_sensor.home_ac_failure
+              friendly_name: Home AC Failure
+              domain: binary_sensor
+              job: home-assistant
+              hostname: corehub
+            exp_annotations:
+              summary: "The alarm panel has lost AC power"
+              description: "Alarm.com has reported an AC failure for 15 minutes: the panel is running on its backup battery. Check its power supply and outlet."
+      - eval_time: 18m
+        alertname: AlarmPanelNotResponding
+        exp_alerts: []

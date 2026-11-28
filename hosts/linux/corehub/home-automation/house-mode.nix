@@ -60,6 +60,9 @@ let
 
   fullExpiry = "18:00:00";
 
+  # Alarm.com's panel (./alarmdotcom). Armed STAY only, never AWAY.
+  alarm = "alarm_control_panel.alarm_panel";
+
   # Every option a script selects on the house mode, however nested, so a
   # misspelt mode fails the build rather than the script at run time.
   scriptModes =
@@ -78,6 +81,28 @@ let
           [ ];
     in
     collect (lib.attrValues config.services.home-assistant.config.script);
+
+  # Every action anywhere in the automations and scripts, however nested.
+  allActions =
+    let
+      collect =
+        v:
+        if lib.isList v then
+          lib.concatMap collect v
+        else if lib.isAttrs v then
+          # `service` is the older spelling of `action`, still accepted.
+          lib.filter lib.isString [
+            (v.action or null)
+            (v.service or null)
+          ]
+          ++ lib.concatMap collect (lib.attrValues v)
+        else
+          [ ];
+    in
+    collect [
+      config.services.home-assistant.config.automation
+      (lib.attrValues config.services.home-assistant.config.script)
+    ];
 in
 {
   # The owner's person, made at onboarding, follows the iPhone and nothing
@@ -222,6 +247,82 @@ in
               message = "Home awake ran 18 hours without renewal, so the indoor cameras are alerting again. Run Good Morning to turn them off.";
             };
             continue_on_error = true;
+          }
+        ];
+      }
+
+      # Away arms the alarm STAY, never AWAY: AWAY would turn on the indoor
+      # motion sensors, and the pets stay home (owner, 2026-11-27). Fires on
+      # leaving and on choosing Away by hand; an alarm already armed is
+      # left as it is.
+      {
+        id = "house_mode_away_arms";
+        alias = "House mode: arm the alarm (stay) when Away";
+        # restart: a panel recovering during the wait below starts a fresh
+        # attempt instead of being dropped; the conditions still apply.
+        mode = "restart";
+        triggers = [
+          {
+            trigger = "state";
+            entity_id = mode;
+            to = modes.away;
+          }
+          # A panel that was unavailable when the house went Away is armed
+          # once it is back; otherwise it would stay disarmed for the whole
+          # absence.
+          {
+            trigger = "state";
+            entity_id = alarm;
+            from = [
+              "unavailable"
+              "unknown"
+            ];
+          }
+        ];
+        conditions = [
+          {
+            condition = "state";
+            entity_id = mode;
+            state = modes.away;
+          }
+          {
+            condition = "state";
+            entity_id = alarm;
+            state = "disarmed";
+          }
+        ];
+        actions = [
+          {
+            action = "alarm_control_panel.alarm_arm_home";
+            target.entity_id = alarm;
+            continue_on_error = true;
+          }
+          # Judged by the panel's state, not the command's reply: Alarm.com
+          # arms slowly (about 90 s) and its confirmation can time out first.
+          {
+            wait_template = "{{ is_state('${alarm}', 'armed_home') }}";
+            timeout.minutes = 3;
+            continue_on_timeout = true;
+          }
+          {
+            "if" = [
+              {
+                condition = "template";
+                # Still Away: arriving meanwhile disarms on purpose.
+                value_template = "{{ is_state('${mode}', '${modes.away}') and not is_state('${alarm}', 'armed_home') }}";
+              }
+            ];
+            "then" = [
+              {
+                action = "notify.mobile_app_iphone";
+                data = {
+                  title = "Alarm not armed";
+                  message = "The house went Away but after 3 minutes the alarm is {{ states('${alarm}') }}. Arm it from the Alarm.com app.";
+                  data.push.interruption-level = "time-sensitive";
+                };
+                continue_on_error = true;
+              }
+            ];
           }
         ];
       }
@@ -390,6 +491,60 @@ in
             target.entity_id = mode;
             data.option = modes.awake;
           }
+          # Arriving disarms the alarm that leaving armed (owner,
+          # 2026-11-27), judged by the panel's state rather than the
+          # command's reply (a timed-out command can still disarm): one
+          # retry after a minute if Fred is still home, then a notification.
+          {
+            action = "alarm_control_panel.alarm_disarm";
+            target.entity_id = alarm;
+            continue_on_error = true;
+          }
+          {
+            wait_template = "{{ is_state('${alarm}', 'disarmed') }}";
+            timeout.minutes = 1;
+            continue_on_timeout = true;
+          }
+          {
+            "if" = [
+              {
+                condition = "template";
+                # Still Home: Good Night meanwhile arms on purpose.
+                value_template = "{{ is_state('${mode}', '${modes.awake}') and not is_state('${alarm}', 'disarmed') and is_state('${person}', 'home') }}";
+              }
+            ];
+            "then" = [
+              {
+                action = "alarm_control_panel.alarm_disarm";
+                target.entity_id = alarm;
+                continue_on_error = true;
+              }
+              {
+                wait_template = "{{ is_state('${alarm}', 'disarmed') }}";
+                timeout.minutes = 2;
+                continue_on_timeout = true;
+              }
+            ];
+          }
+          {
+            "if" = [
+              {
+                condition = "template";
+                value_template = "{{ is_state('${mode}', '${modes.awake}') and not is_state('${alarm}', 'disarmed') }}";
+              }
+            ];
+            "then" = [
+              {
+                action = "notify.mobile_app_iphone";
+                data = {
+                  title = "Alarm still armed";
+                  message = "You arrived home but the alarm is still {{ states('${alarm}') }}. Disarm it from the Alarm.com app or Good Morning.";
+                  data.push.interruption-level = "time-sensitive";
+                };
+                continue_on_error = true;
+              }
+            ];
+          }
         ];
       }
 
@@ -477,6 +632,11 @@ in
   };
 
   assertions = [
+    {
+      # AWAY turns on the indoor motion sensors, which the pets trip.
+      assertion = !(lib.elem "alarm_control_panel.alarm_arm_away" allActions);
+      message = "corehub: an automation or script arms the alarm AWAY; only STAY (alarm_arm_home) is allowed, for the pets.";
+    }
     {
       assertion = lib.all (o: lib.elem o (lib.attrValues modes)) scriptModes;
       message = "corehub: a script sets house mode to ${toString scriptModes}, not one of ${toString (lib.attrValues modes)}.";

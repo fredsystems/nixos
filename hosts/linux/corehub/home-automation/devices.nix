@@ -44,6 +44,7 @@ let
   ];
 
   node = id: kind: area: name: rec {
+    inherit id name;
     asLight = lib.elem kind wrapsAsLight;
     lightId = "light.${slug name}";
     device = {
@@ -129,6 +130,28 @@ let
   ];
 
   devices = map (n: n.device) table;
+
+  # Switches that command other devices directly through an association
+  # group (Plan 06, 6.21): source load -> group -> target loads, by the names
+  # in the table above. Applied by modules/services/zwave-js-associations;
+  # group 1 (Lifeline) is never declared. A pair zwave-js forbids (an
+  # unsecured switch to an S2 device: Kitchen Overhead Lights -> Dining Room
+  # Light, Living Room Light -> Living Room Lamp 2) fails the service, so
+  # those wait until both ends share a security class.
+  associations = {
+    "Kitchen Overhead Lights"."2" = [ "Kitchen Sink Light" ];
+    "Master Bedroom Light"."2" = [
+      "Master Vanity"
+      "Master Bedroom Bed Lamp"
+    ];
+    "Living Room Light"."2" = [ "Living Room Lamp" ];
+  };
+
+  nodeOf =
+    name:
+    (lib.findFirst (
+      n: n.name == name
+    ) (throw "devices.nix associations: no device named ${name}") table).id;
   lights = lib.filter (n: n.asLight) table;
 
   floors = {
@@ -174,18 +197,27 @@ let
     };
 in
 {
-  services.home-assistant-reconciler = {
-    inherit devices floors;
-    # Every area on a floor, including ones other files add (cameras.nix).
-    areas = lib.unique (
-      lib.concatMap (f: f.areas) (lib.attrValues config.services.home-assistant-reconciler.floors)
-    );
-    pruneFloors = true;
-    entities = map (n: {
-      entityId = n.lightId;
-      inherit (n.device) area;
-    }) lights;
-  };
+  services = {
+    zwave-js-associations = {
+      enable = true;
+      nodes = lib.mapAttrs' (
+        source: groups: lib.nameValuePair (toString (nodeOf source)) (lib.mapAttrs (_: map nodeOf) groups)
+      ) associations;
+    };
 
-  services.home-assistant.config.template = [ { light = map wrapper lights; } ];
+    home-assistant-reconciler = {
+      inherit devices floors;
+      # Every area on a floor, including ones other files add (cameras.nix).
+      areas = lib.unique (
+        lib.concatMap (f: f.areas) (lib.attrValues config.services.home-assistant-reconciler.floors)
+      );
+      pruneFloors = true;
+      entities = map (n: {
+        entityId = n.lightId;
+        inherit (n.device) area;
+      }) lights;
+    };
+
+    home-assistant.config.template = [ { light = map wrapper lights; } ];
+  };
 }

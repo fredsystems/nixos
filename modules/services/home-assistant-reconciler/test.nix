@@ -64,6 +64,36 @@ let
     };
   };
 
+  # Prints an entity's friendly name from Home Assistant's API, as the owner.
+  friendlyName =
+    pkgs: ownerUsername:
+    pkgs.writers.writePython3Bin "ha-friendly-name"
+      {
+        libraries = [ pkgs.python3Packages.aiohttp ];
+        flakeIgnore = [ "E501" ];
+      }
+      ''
+        import asyncio
+        import sys
+
+        import aiohttp
+
+        URL = "http://127.0.0.1:8123"
+
+
+        async def main(entity):
+            async with aiohttp.ClientSession() as s:
+                flow = await (await s.post(URL + "/auth/login_flow", json={"client_id": URL + "/", "handler": ["homeassistant", None], "redirect_uri": URL + "/"})).json()
+                result = await (await s.post(URL + "/auth/login_flow/" + flow["flow_id"], json={"client_id": URL + "/", "username": "${ownerUsername}", "password": "${ownerPassword}"})).json()
+                tokens = await (await s.post(URL + "/auth/token", data={"grant_type": "authorization_code", "code": result["result"], "client_id": URL + "/"})).json()
+                state = await (await s.get(URL + "/api/states/" + entity, headers={"Authorization": "Bearer " + tokens["access_token"]})).json()
+                print(state["attributes"].get("friendly_name"))
+                await s.post(URL + "/auth/revoke", data={"token": tokens["refresh_token"]})
+
+
+        asyncio.run(main(sys.argv[1]))
+      '';
+
   # Registers a phone the way the companion app does, as the owner, so the
   # test can check that its mobile_app entry survives pruning.
   registerPhone =
@@ -148,6 +178,7 @@ in
           pkgs.mosquitto
           pkgs.jq
           (registerPhone pkgs "owner")
+          (friendlyName pkgs "owner")
         ];
       };
 
@@ -316,6 +347,10 @@ in
                   entityId = "sensor.meter_pressure";
                 }
               ];
+              # Keeps pressure, whose ID humidity wanted, and so humidity too,
+              # which the disableEntities rule still disables: no flip-flop
+              # (the second run must change nothing).
+              keepEntities = [ "sensor.meter_pressure" ];
             }
             {
               identifier = [
@@ -663,12 +698,16 @@ in
             "jq -e '.data.entities[] | select(.unique_id == \"testdev_temperature\" and .disabled_by == \"user\")' "
             "/var/lib/hass/.storage/core.entity_registry"
         )
-        # nameFromDevice cleared the name the base configuration gave it.
+        # nameFromDevice replaced the name the base configuration gave it
+        # with an empty one, so the entity shows as its device alone; with no
+        # name it would fall back to the integration's ("Meter pressure").
         machine.wait_until_succeeds(
-            "jq -e '.data.entities[] | select(.entity_id == \"sensor.meter_pressure\" and .name == null)' "
+            "jq -e '.data.entities[] | select(.entity_id == \"sensor.meter_pressure\" and .name == \"\")' "
             "/var/lib/hass/.storage/core.entity_registry",
             timeout=60,
         )
+        shown = machine.succeed("ha-friendly-name sensor.meter_pressure").strip()
+        assert shown == "Meter", shown
 
     with subtest("changed steps recreate the entry, and the names come back"):
         machine.succeed(

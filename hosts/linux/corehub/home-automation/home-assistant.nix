@@ -47,6 +47,10 @@ in
           latitude = "!secret home_latitude";
           longitude = "!secret home_longitude";
           elevation = "!secret home_elevation";
+          # The home zone's radius, in metres: presence (./house-mode.nix)
+          # leaves and arrives at its edge. 200 rather than the default 100
+          # gives iPhone location some slack (owner, 2026-11-27).
+          radius = 200;
           unit_system = "us_customary";
           time_zone = config.time.timeZone;
           country = "US";
