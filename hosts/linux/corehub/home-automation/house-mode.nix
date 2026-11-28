@@ -258,7 +258,9 @@ in
       {
         id = "house_mode_away_arms";
         alias = "House mode: arm the alarm (stay) when Away";
-        mode = "single";
+        # restart: a panel recovering during the wait below starts a fresh
+        # attempt instead of being dropped; the conditions still apply.
+        mode = "restart";
         triggers = [
           {
             trigger = "state";
@@ -306,7 +308,8 @@ in
             "if" = [
               {
                 condition = "template";
-                value_template = "{{ not is_state('${alarm}', 'armed_home') }}";
+                # Still Away: arriving meanwhile disarms on purpose.
+                value_template = "{{ is_state('${mode}', '${modes.away}') and not is_state('${alarm}', 'armed_home') }}";
               }
             ];
             "then" = [
@@ -506,7 +509,8 @@ in
             "if" = [
               {
                 condition = "template";
-                value_template = "{{ not is_state('${alarm}', 'disarmed') and is_state('${person}', 'home') }}";
+                # Still Home: Good Night meanwhile arms on purpose.
+                value_template = "{{ is_state('${mode}', '${modes.awake}') and not is_state('${alarm}', 'disarmed') and is_state('${person}', 'home') }}";
               }
             ];
             "then" = [
@@ -526,7 +530,7 @@ in
             "if" = [
               {
                 condition = "template";
-                value_template = "{{ not is_state('${alarm}', 'disarmed') }}";
+                value_template = "{{ is_state('${mode}', '${modes.awake}') and not is_state('${alarm}', 'disarmed') }}";
               }
             ];
             "then" = [
