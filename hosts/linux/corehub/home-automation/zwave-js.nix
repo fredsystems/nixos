@@ -74,6 +74,8 @@ let
       '';
 in
 {
+  imports = [ ../../../../modules/services/zwave-js-associations ];
+
   services.zwave-js = {
     enable = true;
     # Matching Home Assistant, which comes from unstable (./unstable.nix).
