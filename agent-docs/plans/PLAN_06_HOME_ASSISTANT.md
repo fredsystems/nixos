@@ -452,7 +452,7 @@ Decide at activation:
 
       | List | Nodes                                                        | What                                                                            |
       | ---- | ------------------------------------------------------------ | ------------------------------------------------------------------------------- |
-      | A    | 4-6, 8, 9, 18, 20, 21, 40, 55, 65-95 (14 Secure Barrier), 80, 100, 101 | dead mains nodes: the old switches, fan controls and dimmers, the garage ghosts, an old lock entry |
+      | A    | 4, 5, 6, 8, 9, 18, 20, 21, 40, 55, 65, 67, 68, 70, 75, 78, 80, 85, 86, 87, 88, 89, 90, 91, 95, 100, 101 | dead mains nodes: the old switches, fan controls and dimmers, the 14 Secure Barrier garage ghosts (65-95, not 69 or 82, which are kept door sensors), an old lock entry |
       | C    | 29-31, 35, 36, 39, 51, 58, 59, 63, 64, 72, 83, 84, 96, 98     | battery sensors never heard since the adoption (no lastSeen in the cache)        |
 
       Node 56 was already gone. 82 nodes became 39: the controller, the
