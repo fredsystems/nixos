@@ -90,7 +90,11 @@ let
         if lib.isList v then
           lib.concatMap collect v
         else if lib.isAttrs v then
-          lib.optional (v ? action && lib.isString v.action) v.action
+          # `service` is the older spelling of `action`, still accepted.
+          lib.filter lib.isString [
+            (v.action or null)
+            (v.service or null)
+          ]
           ++ lib.concatMap collect (lib.attrValues v)
         else
           [ ];
@@ -254,14 +258,31 @@ in
       {
         id = "house_mode_away_arms";
         alias = "House mode: arm the alarm (stay) when Away";
+        mode = "single";
         triggers = [
           {
             trigger = "state";
             entity_id = mode;
             to = modes.away;
           }
+          # A panel that was unavailable when the house went Away is armed
+          # once it is back; otherwise it would stay disarmed for the whole
+          # absence.
+          {
+            trigger = "state";
+            entity_id = alarm;
+            from = [
+              "unavailable"
+              "unknown"
+            ];
+          }
         ];
         conditions = [
+          {
+            condition = "state";
+            entity_id = mode;
+            state = modes.away;
+          }
           {
             condition = "state";
             entity_id = alarm;
@@ -272,6 +293,33 @@ in
           {
             action = "alarm_control_panel.alarm_arm_home";
             target.entity_id = alarm;
+            continue_on_error = true;
+          }
+          # Judged by the panel's state, not the command's reply: Alarm.com
+          # arms slowly (about 90 s) and its confirmation can time out first.
+          {
+            wait_template = "{{ is_state('${alarm}', 'armed_home') }}";
+            timeout.minutes = 3;
+            continue_on_timeout = true;
+          }
+          {
+            "if" = [
+              {
+                condition = "template";
+                value_template = "{{ not is_state('${alarm}', 'armed_home') }}";
+              }
+            ];
+            "then" = [
+              {
+                action = "notify.mobile_app_iphone";
+                data = {
+                  title = "Alarm not armed";
+                  message = "The house went Away but after 3 minutes the alarm is {{ states('${alarm}') }}. Arm it from the Alarm.com app.";
+                  data.push.interruption-level = "time-sensitive";
+                };
+                continue_on_error = true;
+              }
+            ];
           }
         ];
       }
@@ -441,11 +489,57 @@ in
             data.option = modes.awake;
           }
           # Arriving disarms the alarm that leaving armed (owner,
-          # 2026-11-27).
+          # 2026-11-27), judged by the panel's state rather than the
+          # command's reply (a timed-out command can still disarm): one
+          # retry after a minute if Fred is still home, then a notification.
           {
             action = "alarm_control_panel.alarm_disarm";
             target.entity_id = alarm;
             continue_on_error = true;
+          }
+          {
+            wait_template = "{{ is_state('${alarm}', 'disarmed') }}";
+            timeout.minutes = 1;
+            continue_on_timeout = true;
+          }
+          {
+            "if" = [
+              {
+                condition = "template";
+                value_template = "{{ not is_state('${alarm}', 'disarmed') and is_state('${person}', 'home') }}";
+              }
+            ];
+            "then" = [
+              {
+                action = "alarm_control_panel.alarm_disarm";
+                target.entity_id = alarm;
+                continue_on_error = true;
+              }
+              {
+                wait_template = "{{ is_state('${alarm}', 'disarmed') }}";
+                timeout.minutes = 2;
+                continue_on_timeout = true;
+              }
+            ];
+          }
+          {
+            "if" = [
+              {
+                condition = "template";
+                value_template = "{{ not is_state('${alarm}', 'disarmed') }}";
+              }
+            ];
+            "then" = [
+              {
+                action = "notify.mobile_app_iphone";
+                data = {
+                  title = "Alarm still armed";
+                  message = "You arrived home but the alarm is still {{ states('${alarm}') }}. Disarm it from the Alarm.com app or Good Morning.";
+                  data.push.interruption-level = "time-sensitive";
+                };
+                continue_on_error = true;
+              }
+            ];
           }
         ];
       }
