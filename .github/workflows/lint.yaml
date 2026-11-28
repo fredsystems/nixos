@@ -150,6 +150,7 @@ jobs:
           .#checks.x86_64-linux.stable-channel-consistency
           .#checks.x86_64-linux.channel-gates
           .#checks.x86_64-linux.zwave-js-associations
+          .#checks.x86_64-linux.home-assistant-templates
 
       - name: Give the VM test /dev/kvm
         # Hosted runners (fork PRs) have KVM, but not usable by the build

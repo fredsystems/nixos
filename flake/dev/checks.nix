@@ -1535,6 +1535,22 @@
         defaults.imports = [ ../../hosts/linux/corehub/home-automation/unstable.nix ];
         node.specialArgs = { inherit inputs; };
       };
+      # Every Jinja template in corehub's Home Assistant configuration parses:
+      # check_config misses template syntax errors in scripts, which then
+      # fail only when Home Assistant loads them.
+      home-assistant-templates =
+        let
+          python = pkgs.python3.withPackages (ps: [
+            ps.jinja2
+            ps.pyyaml
+          ]);
+          configuration =
+            self.nixosConfigurations.corehub.config.environment.etc."home-assistant/configuration.yaml".source;
+        in
+        pkgs.runCommand "home-assistant-templates" { } ''
+          ${python}/bin/python3 ${./ha-templates-check.py} ${configuration}
+          touch $out
+        '';
       # The planning and validation of modules/services/zwave-js-associations,
       # which decide every change it makes to a device.
       zwave-js-associations =
