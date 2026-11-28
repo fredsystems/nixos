@@ -499,8 +499,21 @@ Decide at activation:
       re-include 97 with S2 Authenticated for the kitchen pair.
 
       Bedroom row applied by hand on the owner's request (2026-11-27):
-      19 group 2 is now 13 and 7. Not yet declarative; the service that
-      applies the table from Nix is still to be built and will adopt it. Until then node 97 still sends to
+      19 group 2 is now 13 and 7, and the owner confirmed it works.
+
+      Declarative since 2026-11-27: the table is `associations` in
+      `devices.nix`, by load name, applied by
+      `modules/services/zwave-js-associations` (a oneshot against
+      zwave-js-server at boot, on zwave-js restarts and on table
+      changes). Each declared group ends up holding exactly its targets,
+      every addition checked with `check_association` first and the
+      result read back; group 1 and anything undeclared are never
+      touched. Unit tests: `.#checks.x86_64-linux.zwave-js-associations`.
+      A dry run against corehub before the first deploy: the bedroom row
+      already matched, and the only changes were dropping the stale 56
+      (kitchen) and 45 (living room). The kitchen and living-room S2
+      targets (103, 108) stay out of the table until both ends share a
+      security class. Until then node 97 still sends to
       dead node 56, so the overhead switch does not drive the new Dining
       Room Light (103). The dimmers' group 3 ("Double
       Tap") reports to the controller, so a double tap can trigger an
