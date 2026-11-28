@@ -12,8 +12,9 @@ let
   # Alarm.com's panel (./alarmdotcom). Only ever armed STAY from here.
   alarm = "alarm_control_panel.alarm_panel";
 
-  # Everything Good Night secures.
-  secured = "{{ is_state('cover.garage_door', 'closed') and is_state('lock.front_door', 'locked') and is_state('${alarm}', 'armed_home') }}";
+  # Everything Good Night secures, as a bare template expression; each use
+  # wraps it in {{ }} once.
+  secured = "is_state('cover.garage_door', 'closed') and is_state('lock.front_door', 'locked') and is_state('${alarm}', 'armed_home')";
 
   # A random delay of 0 to 15 minutes, in seconds, chosen each time.
   jitter = {
@@ -155,7 +156,7 @@ in
           # Make sure: give the cloud services a few minutes, then say what
           # did not happen.
           {
-            wait_template = secured;
+            wait_template = "{{ ${secured} }}";
             timeout.minutes = 3;
             continue_on_timeout = true;
           }
