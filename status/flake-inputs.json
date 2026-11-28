@@ -3,9 +3,9 @@
     "catppuccin": {
       "bases": {
         "darwin": "afde15aefc6bc12e1d1794d18f1b3784251cebf9d235abcb27003bc76e845f58",
-        "linux": "82a7581a6d315b86557e5c647a7694f2e2a202e2477f456881b25d8f705dd83d"
+        "linux": "3ca1dcc39e1339ecf29e9761d96a4b1281903feaa746be73808098f11cbc27bc"
       },
-      "classified_at": "2026-11-28T02:04:57Z",
+      "classified_at": "2026-11-28T02:10:37Z",
       "kinds": {
         "darwin": "none",
         "linux": "none"
@@ -15,22 +15,26 @@
     },
     "home-manager": {
       "bases": {
-        "darwin": "afde15aefc6bc12e1d1794d18f1b3784251cebf9d235abcb27003bc76e845f58"
+        "darwin": "afde15aefc6bc12e1d1794d18f1b3784251cebf9d235abcb27003bc76e845f58",
+        "linux": "3ca1dcc39e1339ecf29e9761d96a4b1281903feaa746be73808098f11cbc27bc"
       },
-      "classified_at": "2026-11-28T02:04:57Z",
+      "classified_at": "2026-11-28T02:10:37Z",
       "kinds": {
-        "darwin": "none"
+        "darwin": "none",
+        "linux": "none"
       },
       "locked_rev": "54f903fdaaf5d5720ed36706fe75332af69eb793",
       "upstream_rev": "5f5abf5eb8de62d954232f3797b5bf4505656b91"
     },
     "niri": {
       "bases": {
-        "darwin": "afde15aefc6bc12e1d1794d18f1b3784251cebf9d235abcb27003bc76e845f58"
+        "darwin": "afde15aefc6bc12e1d1794d18f1b3784251cebf9d235abcb27003bc76e845f58",
+        "linux": "3ca1dcc39e1339ecf29e9761d96a4b1281903feaa746be73808098f11cbc27bc"
       },
-      "classified_at": "2026-11-28T02:04:57Z",
+      "classified_at": "2026-11-28T02:10:37Z",
       "kinds": {
-        "darwin": "none"
+        "darwin": "none",
+        "linux": "none"
       },
       "locked_rev": "91ec3c3e30726d20419da4da8851d1bc08d818f1",
       "upstream_rev": "55d893e680efaf66acd3519427fb4bd6f8165811"
@@ -38,9 +42,9 @@
     "nixpkgs-kernel": {
       "bases": {
         "darwin": "afde15aefc6bc12e1d1794d18f1b3784251cebf9d235abcb27003bc76e845f58",
-        "linux": "82a7581a6d315b86557e5c647a7694f2e2a202e2477f456881b25d8f705dd83d"
+        "linux": "3ca1dcc39e1339ecf29e9761d96a4b1281903feaa746be73808098f11cbc27bc"
       },
-      "classified_at": "2026-11-28T02:04:57Z",
+      "classified_at": "2026-11-28T02:10:37Z",
       "kinds": {
         "darwin": "none",
         "linux": "source"
@@ -50,11 +54,15 @@
     },
     "nixpkgs-stable": {
       "bases": {
-        "darwin": "afde15aefc6bc12e1d1794d18f1b3784251cebf9d235abcb27003bc76e845f58"
+        "darwin": "afde15aefc6bc12e1d1794d18f1b3784251cebf9d235abcb27003bc76e845f58",
+        "linux": "3ca1dcc39e1339ecf29e9761d96a4b1281903feaa746be73808098f11cbc27bc"
       },
-      "classified_at": "2026-11-28T02:04:57Z",
+      "classified_at": "2026-11-28T02:10:37Z",
+      "dispatched_at": "2026-11-28T02:10:37Z",
+      "dispatched_rev": "5b31ff946309736077f0c4ee23bb85d0a0a1c181",
       "kinds": {
-        "darwin": "none"
+        "darwin": "none",
+        "linux": "source"
       },
       "locked_rev": "0dc498bfe49baeb18b0f9891e800b53bb2603193",
       "upstream_rev": "5b31ff946309736077f0c4ee23bb85d0a0a1c181"
