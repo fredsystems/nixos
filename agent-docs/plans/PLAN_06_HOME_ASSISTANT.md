@@ -487,7 +487,20 @@ Decide at activation:
       Each group takes at most 5 targets. Deferred by the owner
       (2026-11-27) until the living room's second plug was in, so the
       whole table is done at once; that plug, a Minoston MP21Z (S2
-      Authenticated), is node 108 since 2026-11-27. Until then node 97 still sends to
+      Authenticated), is node 108 since 2026-11-27.
+
+      Checked with zwave-js's `check_association` (2026-11-27): 97 -> 53,
+      19 -> 13, 19 -> 7 and 42 -> 44 are allowed; 97 -> 103 and 42 -> 108
+      are forbidden (security class mismatch). With Association version 2
+      on both ends the classes must match exactly, and 97 and 42 are
+      unsecured while 103 and 108 joined with S2 Authenticated. 42 (GE
+      14294) has no security at all; 97 (Inovelli NZW30) supports S2 but
+      joined without it. Undecided: re-include 103 and 108 unsecured, or
+      re-include 97 with S2 Authenticated for the kitchen pair.
+
+      Bedroom row applied by hand on the owner's request (2026-11-27):
+      19 group 2 is now 13 and 7. Not yet declarative; the service that
+      applies the table from Nix is still to be built and will adopt it. Until then node 97 still sends to
       dead node 56, so the overhead switch does not drive the new Dining
       Room Light (103). The dimmers' group 3 ("Double
       Tap") reports to the controller, so a double tap can trigger an
