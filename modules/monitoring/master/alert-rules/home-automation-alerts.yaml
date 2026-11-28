@@ -83,3 +83,34 @@ groups:
         annotations:
           summary: "{{ $labels.friendly_name }} is unreachable"
           description: "{{ $labels.entity }} has been unavailable in Home Assistant for 30 minutes: out of Z-Wave reach, flat batteries, or zwave-js down. It cannot be locked remotely."
+
+      # The Alarm.com panel's own trouble flags (hosts/linux/corehub/
+      # home-automation/alarmdotcom), as Alarm.com reports them. Alarm.com
+      # gives no per-sensor battery levels for this panel, so the flags are
+      # the only battery signal for its sensors.
+      - alert: AlarmBatteryLow
+        expr: homeassistant_binary_sensor_state{entity=~"binary_sensor\\.home_(sensor|panel)_low_battery"} == 1
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Alarm.com reports a low battery ({{ $labels.friendly_name }})"
+          description: "{{ $labels.entity }} has been on for an hour. Check the Alarm.com app for which sensor, or the panel's backup battery, and replace it."
+
+      - alert: AlarmPanelNotResponding
+        expr: homeassistant_binary_sensor_state{entity="binary_sensor.home_panel_not_responding"} == 1
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: "The alarm panel is not responding to Alarm.com"
+          description: "Alarm.com has reported the panel not responding for 15 minutes: it cannot be armed or disarmed remotely, and monitoring may not reach it. Check the panel's power and its cellular or network connection."
+
+      - alert: AlarmPanelPowerFailure
+        expr: homeassistant_binary_sensor_state{entity="binary_sensor.home_ac_failure"} == 1
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "The alarm panel has lost AC power"
+          description: "Alarm.com has reported an AC failure for 15 minutes: the panel is running on its backup battery. Check its power supply and outlet."
