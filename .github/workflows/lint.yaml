@@ -149,6 +149,7 @@ jobs:
           .#checks.x86_64-linux.sbomnix-patch-version
           .#checks.x86_64-linux.stable-channel-consistency
           .#checks.x86_64-linux.channel-gates
+          .#checks.x86_64-linux.zwave-js-associations
 
       - name: Give the VM test /dev/kvm
         # Hosted runners (fork PRs) have KVM, but not usable by the build

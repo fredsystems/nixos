@@ -1535,6 +1535,18 @@
         defaults.imports = [ ../../hosts/linux/corehub/home-automation/unstable.nix ];
         node.specialArgs = { inherit inputs; };
       };
+      # The planning and validation of modules/services/zwave-js-associations,
+      # which decide every change it makes to a device.
+      zwave-js-associations =
+        let
+          python = pkgs.python3.withPackages (ps: [ ps.websockets ]);
+        in
+        pkgs.runCommand "zwave-js-associations-test" { } ''
+          cp ${../../modules/services/zwave-js-associations/associations.py} associations.py
+          cp ${../../modules/services/zwave-js-associations/test_associations.py} test_associations.py
+          ${python}/bin/python3 -m unittest -v test_associations 2>&1
+          touch $out
+        '';
       # nvrhub's house watchdog (hosts/linux/nvrhub/house-watchdog), built
       # with nvrhub's nixpkgs.
       house-watchdog = self.nixosConfigurations.nvrhub.pkgs.testers.runNixOSTest {
