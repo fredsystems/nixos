@@ -587,7 +587,13 @@ Requested 2026-11-26, ahead of house mode, in
   `home_sleep`) and Good Morning (house mode `home_awake`, and
   lights on in Master Bedroom, Living Room, Kitchen and Upstairs
   Hallway, and the Master Vanity, added 2026-11-27; lights only, never
-  the fans). Scripts, run
+  the fans). Since 2026-11-27 Good Night also closes the garage door
+  and arms the Alarm.com panel STAY, and notifies if after 3 minutes
+  the garage, lock or alarm is not secured; Good Morning disarms (with
+  Fred home). Away arms STAY and arriving disarms. Never AWAY: it turns
+  on the indoor motion sensors, which the pets trip, and a build
+  assertion refuses any automation or script that arms AWAY. The home
+  zone's radius is 200 m. Scripts, run
   from Home Assistant or Siri through the HomeKit bridge, until house
   mode (6.15) gives them triggers.
 - Garbage disposal off after 2 minutes continuously on.
