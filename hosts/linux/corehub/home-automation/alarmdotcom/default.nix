@@ -96,7 +96,7 @@ let
     "127" = {
       id = "alarm_panel";
       name = "Alarm Panel";
-      area = null;
+      area = "Laundry Room";
       domain = "alarm_control_panel";
     };
   };

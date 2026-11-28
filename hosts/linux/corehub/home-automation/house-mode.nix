@@ -60,6 +60,9 @@ let
 
   fullExpiry = "18:00:00";
 
+  # Alarm.com's panel (./alarmdotcom). Armed STAY only, never AWAY.
+  alarm = "alarm_control_panel.alarm_panel";
+
   # Every option a script selects on the house mode, however nested, so a
   # misspelt mode fails the build rather than the script at run time.
   scriptModes =
@@ -78,6 +81,24 @@ let
           [ ];
     in
     collect (lib.attrValues config.services.home-assistant.config.script);
+
+  # Every action anywhere in the automations and scripts, however nested.
+  allActions =
+    let
+      collect =
+        v:
+        if lib.isList v then
+          lib.concatMap collect v
+        else if lib.isAttrs v then
+          lib.optional (v ? action && lib.isString v.action) v.action
+          ++ lib.concatMap collect (lib.attrValues v)
+        else
+          [ ];
+    in
+    collect [
+      config.services.home-assistant.config.automation
+      (lib.attrValues config.services.home-assistant.config.script)
+    ];
 in
 {
   # The owner's person, made at onboarding, follows the iPhone and nothing
@@ -222,6 +243,35 @@ in
               message = "Home awake ran 18 hours without renewal, so the indoor cameras are alerting again. Run Good Morning to turn them off.";
             };
             continue_on_error = true;
+          }
+        ];
+      }
+
+      # Away arms the alarm STAY, never AWAY: AWAY would turn on the indoor
+      # motion sensors, and the pets stay home (owner, 2026-11-27). Fires on
+      # leaving and on choosing Away by hand; an alarm already armed is
+      # left as it is.
+      {
+        id = "house_mode_away_arms";
+        alias = "House mode: arm the alarm (stay) when Away";
+        triggers = [
+          {
+            trigger = "state";
+            entity_id = mode;
+            to = modes.away;
+          }
+        ];
+        conditions = [
+          {
+            condition = "state";
+            entity_id = alarm;
+            state = "disarmed";
+          }
+        ];
+        actions = [
+          {
+            action = "alarm_control_panel.alarm_arm_home";
+            target.entity_id = alarm;
           }
         ];
       }
@@ -390,6 +440,13 @@ in
             target.entity_id = mode;
             data.option = modes.awake;
           }
+          # Arriving disarms the alarm that leaving armed (owner,
+          # 2026-11-27).
+          {
+            action = "alarm_control_panel.alarm_disarm";
+            target.entity_id = alarm;
+            continue_on_error = true;
+          }
         ];
       }
 
@@ -477,6 +534,11 @@ in
   };
 
   assertions = [
+    {
+      # AWAY turns on the indoor motion sensors, which the pets trip.
+      assertion = !(lib.elem "alarm_control_panel.alarm_arm_away" allActions);
+      message = "corehub: an automation or script arms the alarm AWAY; only STAY (alarm_arm_home) is allowed, for the pets.";
+    }
     {
       assertion = lib.all (o: lib.elem o (lib.attrValues modes)) scriptModes;
       message = "corehub: a script sets house mode to ${toString scriptModes}, not one of ${toString (lib.attrValues modes)}.";

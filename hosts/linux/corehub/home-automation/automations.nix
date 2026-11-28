@@ -9,6 +9,12 @@ let
   slug = name: lib.toLower (lib.replaceStrings [ " " ] [ "_" ] name);
   areas = map slug config.services.home-assistant-reconciler.areas;
 
+  # Alarm.com's panel (./alarmdotcom). Only ever armed STAY from here.
+  alarm = "alarm_control_panel.alarm_panel";
+
+  # Everything Good Night secures.
+  secured = "{{ is_state('cover.garage_door', 'closed') and is_state('lock.front_door', 'locked') and is_state('${alarm}', 'armed_home') }}";
+
   # A random delay of 0 to 15 minutes, in seconds, chosen each time.
   jitter = {
     delay.seconds = "{{ range(0, 901) | random }}";
@@ -132,6 +138,51 @@ in
             target.entity_id = "lock.front_door";
             continue_on_error = true;
           }
+          # The garage door (MyQ) closes; its own safety beam still stops
+          # it on an obstruction.
+          {
+            action = "cover.close_cover";
+            target.entity_id = "cover.garage_door";
+            continue_on_error = true;
+          }
+          # STAY, never AWAY: STAY bypasses the indoor motion sensors, which
+          # the pets would trip (owner, 2026-11-27).
+          {
+            action = "alarm_control_panel.alarm_arm_home";
+            target.entity_id = alarm;
+            continue_on_error = true;
+          }
+          # Make sure: give the cloud services a few minutes, then say what
+          # did not happen.
+          {
+            wait_template = secured;
+            timeout.minutes = 3;
+            continue_on_timeout = true;
+          }
+          {
+            "if" = [
+              {
+                condition = "template";
+                value_template = "{{ not (${secured}) }}";
+              }
+            ];
+            "then" = [
+              {
+                action = "notify.mobile_app_iphone";
+                data = {
+                  title = "Good Night: not all secured";
+                  message = ''
+                    {%- set problems = [] -%}
+                    {%- if not is_state('cover.garage_door', 'closed') %}{% set problems = problems + ['the garage door is ' ~ states('cover.garage_door')] %}{% endif -%}
+                    {%- if not is_state('lock.front_door', 'locked') %}{% set problems = problems + ['the front door is ' ~ states('lock.front_door')] %}{% endif -%}
+                    {%- if not is_state('${alarm}', 'armed_home') %}{% set problems = problems + ['the alarm is ' ~ states('${alarm}')] %}{% endif -%}
+                    After 3 minutes {{ problems | join(', ') }}.'';
+                  data.push.interruption-level = "time-sensitive";
+                };
+                continue_on_error = true;
+              }
+            ];
+          }
         ];
       };
 
@@ -139,8 +190,9 @@ in
         alias = "Good Morning";
         icon = "mdi:weather-sunny";
         sequence = [
-          # Disarms only with Fred home: run through Siri away from home, it
-          # still turns the lights on but leaves the cameras armed.
+          # Disarms (cameras and alarm) only with Fred home: run through Siri
+          # away from home, it still turns the lights on but leaves both
+          # armed.
           {
             "if" = [
               {
@@ -161,6 +213,11 @@ in
                 action = "timer.start";
                 target.entity_id = "timer.house_awake_expiry";
                 data.duration = "18:00:00";
+              }
+              {
+                action = "alarm_control_panel.alarm_disarm";
+                target.entity_id = alarm;
+                continue_on_error = true;
               }
             ];
           }
